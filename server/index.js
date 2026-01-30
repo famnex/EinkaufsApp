@@ -15,9 +15,13 @@ app.get('/', (req, res) => {
     res.json({ message: 'Listenübersicht API is running' });
 });
 
-// Import and use routes here
-// const authRoutes = require('./src/routes/auth');
-// app.use('/api/auth', authRoutes);
+const authRoutes = require('./src/routes/auth');
+const listRoutes = require('./src/routes/lists');
+const productRoutes = require('./src/routes/products');
+
+app.use('/api/auth', authRoutes);
+app.use('/api/lists', listRoutes);
+app.use('/api/products', productRoutes);
 
 sequelize.sync().then(() => {
     console.log('Database synced');
