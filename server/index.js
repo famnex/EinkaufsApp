@@ -33,6 +33,14 @@ app.use('/api/menus', require('./src/routes/menus'));
 app.use('/api/settings', require('./src/routes/settings'));
 app.use('/api/ai', require('./src/routes/ai'));
 
+// Serve static files from React app
+if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
+    app.use(express.static(path.join(__dirname, '../client/dist')));
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+    });
+}
+
 // { alter: true } might cause SQLITE_CONSTRAINT error if data violates new constraints, but needed for schema updates.
 sequelize.sync({ alter: false }).then(() => {
     console.log('Database synced');
