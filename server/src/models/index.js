@@ -3,11 +3,12 @@ const path = require('path');
 
 // Ensure consistent path relative to server root
 const dbPath = path.resolve(__dirname, '../../database.sqlite');
+console.log('Database Path:', dbPath); // Debug Log
 
 const sequelize = new Sequelize({
     dialect: 'sqlite',
     storage: dbPath,
-    logging: false,
+    logging: false, // Set to console.log to see SQL queries if needed
 });
 
 const User = sequelize.define('User', {
