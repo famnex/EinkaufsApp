@@ -34,8 +34,14 @@ app.use('/api/settings', require('./src/routes/settings'));
 app.use('/api/ai', require('./src/routes/ai'));
 
 // Serve static files from React app
+// Serve static files from React app
 if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
+    // Mount static files at the subdirectory path
+    app.use('/EinkaufsApp', express.static(path.join(__dirname, '../client/dist')));
+
+    // Also handle root requests if needed, or just let wildcard catch them
     app.use(express.static(path.join(__dirname, '../client/dist')));
+
     app.get(/(.*)/, (req, res) => {
         res.sendFile(path.join(__dirname, '../client/dist/index.html'));
     });
