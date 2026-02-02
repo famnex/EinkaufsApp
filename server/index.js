@@ -23,15 +23,22 @@ const productRoutes = require('./src/routes/products');
 const manufacturerRoutes = require('./src/routes/manufacturers');
 const storeRoutes = require('./src/routes/stores');
 
-app.use('/api/auth', authRoutes);
-app.use('/api/lists', listRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/manufacturers', manufacturerRoutes);
-app.use('/api/stores', storeRoutes);
-app.use('/api/recipes', require('./src/routes/recipes'));
-app.use('/api/menus', require('./src/routes/menus'));
-app.use('/api/settings', require('./src/routes/settings'));
-app.use('/api/ai', require('./src/routes/ai'));
+const apiRouter = express.Router();
+
+apiRouter.use('/auth', authRoutes);
+apiRouter.use('/lists', listRoutes);
+apiRouter.use('/products', productRoutes);
+apiRouter.use('/manufacturers', manufacturerRoutes);
+apiRouter.use('/stores', storeRoutes);
+apiRouter.use('/recipes', require('./src/routes/recipes'));
+apiRouter.use('/menus', require('./src/routes/menus'));
+apiRouter.use('/settings', require('./src/routes/settings'));
+apiRouter.use('/ai', require('./src/routes/ai'));
+
+// Mount API on standard path
+app.use('/api', apiRouter);
+// Mount API on subdirectory path (for production)
+app.use('/EinkaufsApp/api', apiRouter);
 
 // Serve static files from React app
 // Serve static files from React app
