@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../lib/axios';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, Plus, Trash2, Calendar, ChevronRight, Settings, X, List, Euro, Search } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -18,7 +18,7 @@ export default function Lists() {
 
     const fetchLists = async () => {
         try {
-            const { data } = await axios.get('http://localhost:5000/api/lists');
+            const { data } = await api.get('/lists');
             setLists(data);
         } catch (err) {
             console.error('Failed to fetch lists', err);
@@ -30,7 +30,7 @@ export default function Lists() {
     const handleCreateList = async () => {
         const dateStr = new Date().toISOString().split('T')[0];
         try {
-            const { data } = await axios.post('http://localhost:5000/api/lists', { date: dateStr });
+            const { data } = await api.post('/lists', { date: dateStr });
             fetchLists();
             navigate(`/lists/${data.id}`);
         } catch (err) {
@@ -42,7 +42,7 @@ export default function Lists() {
         e.stopPropagation();
         if (!confirm('Liste wirklich löschen?')) return;
         try {
-            await axios.delete(`http://localhost:5000/api/lists/${id}`);
+            await api.delete(`/lists/${id}`);
             fetchLists();
         } catch (err) {
             console.error('Failed to delete list', err);

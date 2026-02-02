@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, Store as StoreIcon } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
-import axios from 'axios';
+import api from '../lib/axios';
 
 export default function StoreModal({ isOpen, onClose, store, onSave }) {
     const [name, setName] = useState('');
@@ -15,7 +15,7 @@ export default function StoreModal({ isOpen, onClose, store, onSave }) {
         if (isOpen) {
             if (store) {
                 setName(store.name);
-                setLogoPreview(store.logo_url ? `http://localhost:5000${store.logo_url}` : null);
+                setLogoPreview(store.logo_url ? (store.logo_url.startsWith('http') ? store.logo_url : `http://localhost:5000${store.logo_url}`) : null);
             } else {
                 resetForm();
             }
@@ -52,11 +52,11 @@ export default function StoreModal({ isOpen, onClose, store, onSave }) {
 
         try {
             if (store) {
-                await axios.put(`http://localhost:5000/api/stores/${store.id}`, formData, {
+                await api.put(`/stores/${store.id}`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
             } else {
-                await axios.post('http://localhost:5000/api/stores', formData, {
+                await api.post('/stores', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
             }

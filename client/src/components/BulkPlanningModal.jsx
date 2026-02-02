@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, ShoppingCart, ChevronDown, ChevronUp, AlertCircle, Plus, Trash2, ArrowRight } from 'lucide-react';
 import { Button } from './Button';
-import axios from 'axios';
+import api from '../lib/axios';
 import { cn } from '../lib/utils';
 import { Input } from './Input';
 
@@ -25,7 +25,7 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
     const fetchPlanningData = async () => {
         setLoading(true);
         try {
-            const res = await axios.get(`http://localhost:5000/api/lists/${listId}/planning-data`);
+            const res = await api.get(`/lists/${listId}/planning-data`);
             setData(res.data);
 
             // Auto-fill logic? User seems to want manual control or "One Click" copy.
@@ -51,7 +51,7 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
                 }));
 
             if (itemsToSave.length > 0) {
-                await axios.post(`http://localhost:5000/api/lists/${listId}/bulk-items`, { items: itemsToSave });
+                await api.post(`/lists/${listId}/bulk-items`, { items: itemsToSave });
             }
 
             onConfirm();
@@ -67,7 +67,7 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
     const handleDeleteItem = async (itemId) => {
         if (!confirm('Diesen Artikel wirklich von der Liste entfernen?')) return;
         try {
-            await axios.delete(`http://localhost:5000/api/lists/items/${itemId}`);
+            await api.delete(`/lists/items/${itemId}`);
             fetchPlanningData(); // Refresh to update "onList" status
         } catch (err) {
             alert('Löschen fehlgeschlagen');

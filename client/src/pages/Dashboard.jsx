@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import api from '../lib/axios';
 import { useNavigate } from 'react-router-dom';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
@@ -22,7 +22,7 @@ export default function Dashboard() {
     const fetchLists = useCallback(async () => {
         setLoading(true);
         try {
-            const { data } = await axios.get('http://localhost:5000/api/lists');
+            const { data } = await api.get('/lists');
             setLists(data);
         } catch (err) {
             console.error('Failed to fetch lists', err);
@@ -58,7 +58,7 @@ export default function Dashboard() {
                 return;
             }
             try {
-                await axios.post('http://localhost:5000/api/lists', {
+                await api.post('/lists', {
                     date: formattedDate,
                     name: `Einkauf ${date.toLocaleDateString('de-DE')}`
                 });
@@ -70,7 +70,7 @@ export default function Dashboard() {
             if (existingList) {
                 if (confirm(`Liste vom ${date.toLocaleDateString('de-DE')} wirklich löschen?`)) {
                     try {
-                        await axios.delete(`http://localhost:5000/api/lists/${existingList.id}`);
+                        await api.delete(`/lists/${existingList.id}`);
                         fetchLists();
                     } catch (err) {
                         console.error('Failed to delete list', err);
@@ -87,7 +87,7 @@ export default function Dashboard() {
     const handleCreateList = async (date = new Date()) => {
         const dateStr = getLocalDateStr(date);
         try {
-            const { data } = await axios.post('http://localhost:5000/api/lists', { date: dateStr });
+            const { data } = await api.post('/lists', { date: dateStr });
             fetchLists();
             if (data?.id) {
                 navigate(`/lists/${data.id}`);
@@ -103,7 +103,7 @@ export default function Dashboard() {
         }
         if (!confirm('Sitzung wirklich löschen?')) return;
         try {
-            await axios.delete(`http://localhost:5000/api/lists/${id}`);
+            await api.delete(`/lists/${id}`);
             fetchLists();
         } catch (err) {
             console.error('Failed to delete list', err);
@@ -113,7 +113,7 @@ export default function Dashboard() {
     const handleRename = async (id, e) => {
         e.stopPropagation();
         try {
-            await axios.put(`http://localhost:5000/api/lists/${id}`, { name: editingName });
+            await api.put(`/lists/${id}`, { name: editingName });
             setEditingListId(null);
             fetchLists();
         } catch (err) {
@@ -125,7 +125,7 @@ export default function Dashboard() {
         e.stopPropagation();
         const newStatus = list.status === 'active' ? 'archived' : 'active';
         try {
-            await axios.put(`http://localhost:5000/api/lists/${list.id}`, { status: newStatus });
+            await api.put(`/lists/${list.id}`, { status: newStatus });
             fetchLists();
         } catch (err) {
             console.error('Failed to toggle status', err);

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, ShoppingCart, AlertCircle } from 'lucide-react';
 import { Button } from './Button';
 import { cn } from '../lib/utils';
-import axios from 'axios';
+import api from '../lib/axios';
 
 export default function SmartQuantityModal({ isOpen, onClose, recipe, menuId, listId, onConfirm, existingItems = [] }) {
     const [selection, setSelection] = useState({});
@@ -41,7 +41,7 @@ export default function SmartQuantityModal({ isOpen, onClose, recipe, menuId, li
                 }));
 
             // Sync (PUT)
-            await axios.put(`http://localhost:5000/api/lists/${listId}/recipe-items`, {
+            await api.put(`/lists/${listId}/recipe-items`, {
                 MenuId: menuId,
                 items: itemsToAdd
             });
@@ -60,7 +60,7 @@ export default function SmartQuantityModal({ isOpen, onClose, recipe, menuId, li
         if (!confirm('Alle Zutaten dieses Rezepts von der Liste entfernen?')) return;
         setLoading(true);
         try {
-            await axios.delete(`http://localhost:5000/api/lists/${listId}/recipe-items/${menuId}`);
+            await api.delete(`/lists/${listId}/recipe-items/${menuId}`);
             onConfirm();
             onClose();
         } catch (err) {

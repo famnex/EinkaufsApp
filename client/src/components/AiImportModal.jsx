@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, ArrowRight, Check, AlertCircle, Loader2, Tag } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
-import axios from 'axios';
+import api from '../lib/axios';
 import { cn } from '../lib/utils';
 
 export default function AiImportModal({ isOpen, onClose, onSave }) {
@@ -27,7 +27,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
 
     const fetchProducts = async () => {
         try {
-            const { data } = await axios.get('http://localhost:5000/api/products');
+            const { data } = await api.get('/products');
             setProducts(data);
         } catch (err) {
             console.error(err);
@@ -38,7 +38,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
         if (!inputText.trim()) return;
         setStep('processing');
         try {
-            const { data } = await axios.post('http://localhost:5000/api/ai/parse', { input: inputText });
+            const { data } = await api.post('/ai/parse', { input: inputText });
 
             // Smart Matching Strategy using AI provided search terms
             const newMappings = {};
@@ -100,7 +100,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                 tags: parsedData.tags || []
             };
 
-            const { data: recipe } = await axios.post('http://localhost:5000/api/recipes', recipePayload);
+            const { data: recipe } = await api.post('/recipes', recipePayload);
 
             // 2. Process Ingredients
             for (let i = 0; i < parsedData.ingredients.length; i++) {
@@ -112,7 +112,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                     productId = mapping.productId;
                 } else {
                     // Create new Product
-                    const { data: newProd } = await axios.post('http://localhost:5000/api/products', {
+                    const { data: newProd } = await api.post('/products', {
                         name: mapping.newName,
                         unit: rawIng.unit || 'Stück'
                     });
@@ -120,7 +120,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                 }
 
                 // Link to Recipe
-                await axios.post(`http://localhost:5000/api/recipes/${recipe.id}/ingredients`, {
+                await api.post(`/recipes/${recipe.id}/ingredients`, {
                     ProductId: productId,
                     quantity: rawIng.amount || 1,
                     unit: rawIng.unit || 'Stück'
@@ -213,7 +213,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                                             if (!confirm('Ein neues Bild mit AI generieren? (Kostenpflichtig)')) return;
                                                             setIsGenerating(true);
                                                             try {
-                                                                const { data } = await axios.post('http://localhost:5000/api/ai/generate-image', { title: parsedData.title });
+                                                                const { data } = await api.post('/ai/generate-image', { title: parsedData.title });
                                                                 setParsedData(prev => ({ ...prev, image_url: data.url }));
                                                             } catch (err) {
                                                                 alert('Fehler beim Generieren: ' + err.message);
@@ -236,7 +236,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                                     onClick={async () => {
                                                         if (!confirm('Ein neues Bild mit AI generieren? (Kostenpflichtig)')) return;
                                                         try {
-                                                            const { data } = await axios.post('http://localhost:5000/api/ai/generate-image', { title: parsedData.title });
+                                                            const { data } = await api.post('/ai/generate-image', { title: parsedData.title });
                                                             setParsedData(prev => ({ ...prev, image_url: data.url }));
                                                         } catch (err) {
                                                             alert('Fehler beim Generieren: ' + err.message);

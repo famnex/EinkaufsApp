@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Search, ChefHat } from 'lucide-react';
 import { Input } from './Input';
-import axios from 'axios';
+import api from '../lib/axios';
 
 export default function MealSelectorModal({ isOpen, onClose, onSelect, initialDate, initialType }) {
     const [searchTerm, setSearchTerm] = useState('');
@@ -11,7 +11,7 @@ export default function MealSelectorModal({ isOpen, onClose, onSelect, initialDa
 
     useEffect(() => {
         if (isOpen) {
-            axios.get('http://localhost:5000/api/recipes').then(res => setRecipes(res.data));
+            api.get('/recipes').then(res => setRecipes(res.data));
             setSearchTerm('');
             setManualEntry('');
             setSelectedCategory('All');
@@ -115,7 +115,7 @@ export default function MealSelectorModal({ isOpen, onClose, onSelect, initialDa
                                     >
                                         <div className="w-10 h-10 rounded-lg bg-muted-foreground/10 flex items-center justify-center shrink-0 overflow-hidden">
                                             {recipe.image_url ? (
-                                                <img src={`http://localhost:5000${recipe.image_url}`} className="w-full h-full object-cover" />
+                                                <img src={recipe.image_url.startsWith('http') ? recipe.image_url : `http://localhost:5000${recipe.image_url}`} className="w-full h-full object-cover" />
                                             ) : (
                                                 <ChefHat size={20} className="text-muted-foreground" />
                                             )}

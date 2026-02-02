@@ -4,7 +4,7 @@ import { X, Save, Package, Tag, Euro, Store as StoreIcon, Plus } from 'lucide-re
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
-import axios from 'axios';
+import api from '../lib/axios';
 
 export default function ProductModal({ isOpen, onClose, product, onSave }) {
     const [categories, setCategories] = useState([]);
@@ -39,8 +39,8 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
     const fetchMetadata = async () => {
         try {
             const [productsRes, manufacturersRes] = await Promise.all([
-                axios.get('http://localhost:5000/api/products'),
-                axios.get('http://localhost:5000/api/manufacturers')
+                api.get('/products'),
+                api.get('/manufacturers')
             ]);
             const uniqueCats = [...new Set(productsRes.data.map(p => p.category).filter(Boolean))].sort();
             setCategories(uniqueCats);
@@ -61,9 +61,9 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                 price_hint: formData.price_hint || null
             };
             if (product?.id) {
-                await axios.put(`http://localhost:5000/api/products/${product.id}`, dataToSave);
+                await api.put(`/products/${product.id}`, dataToSave);
             } else {
-                await axios.post('http://localhost:5000/api/products', dataToSave);
+                await api.post('/products', dataToSave);
             }
             onSave();
             onClose();
@@ -158,7 +158,7 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                                 const name = prompt('Neuer Hersteller Name:');
                                                 if (name) {
                                                     try {
-                                                        const { data } = await axios.post('http://localhost:5000/api/manufacturers', { name });
+                                                        const { data } = await api.post('/manufacturers', { name });
                                                         setManufacturers([...manufacturers, data]);
                                                         setFormData({ ...formData, ManufacturerId: data.id });
                                                     } catch (err) {

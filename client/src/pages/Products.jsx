@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../lib/axios';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -36,7 +36,7 @@ export default function Products() {
                 setTimeout(() => {
                     const name = prompt('Neuer Hersteller Name:');
                     if (name) {
-                        axios.post('http://localhost:5000/api/manufacturers', { name })
+                        api.post('/manufacturers', { name })
                             .then(() => {
                                 fetchManufacturers();
                                 setEditMode('view'); // Reset after creation
@@ -53,7 +53,7 @@ export default function Products() {
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            const { data } = await axios.get('http://localhost:5000/api/products');
+            const { data } = await api.get('/products');
             setProducts(data);
         } catch (err) {
             console.error('Failed to fetch products', err);
@@ -64,7 +64,7 @@ export default function Products() {
 
     const fetchManufacturers = async () => {
         try {
-            const { data } = await axios.get('http://localhost:5000/api/manufacturers');
+            const { data } = await api.get('/manufacturers');
             setManufacturers(data);
         } catch (err) {
             console.error('Failed to fetch manufacturers', err);
@@ -74,7 +74,7 @@ export default function Products() {
     const handleDeleteManufacturer = async (id) => {
         if (!confirm('Hersteller wirklich löschen?')) return;
         try {
-            await axios.delete(`http://localhost:5000/api/manufacturers/${id}`);
+            await api.delete(`/manufacturers/${id}`);
             fetchManufacturers();
         } catch (err) {
             alert('Löschen fehlgeschlagen. Möglicherweise sind noch Produkte verknüpft.');
@@ -85,7 +85,7 @@ export default function Products() {
         e.stopPropagation();
         if (!confirm('Produkt wirklich löschen?')) return;
         try {
-            await axios.delete(`http://localhost:5000/api/products/${id}`);
+            await api.delete(`/products/${id}`);
             fetchProducts();
         } catch (err) {
             console.error('Failed to delete product', err);
@@ -96,7 +96,7 @@ export default function Products() {
         const newName = prompt('Hersteller Name bearbeiten:', manufacturer.name);
         if (newName && newName !== manufacturer.name) {
             try {
-                await axios.put(`http://localhost:5000/api/manufacturers/${manufacturer.id}`, { name: newName });
+                await api.put(`/manufacturers/${manufacturer.id}`, { name: newName });
                 fetchManufacturers();
             } catch (err) {
                 console.error('Update failed', err);

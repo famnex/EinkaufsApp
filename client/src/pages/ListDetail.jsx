@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../lib/axios';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -32,7 +32,7 @@ export default function ListDetail() {
 
     const fetchListDetails = useCallback(async () => {
         try {
-            const { data } = await axios.get(`http://localhost:5000/api/lists/${id}`);
+            const { data } = await api.get(`/lists/${id}`);
             setActiveStoreId(data.CurrentStoreId || '');
 
             const sortedItems = data.ListItems?.sort((a, b) => {
@@ -58,7 +58,7 @@ export default function ListDetail() {
 
     const fetchStores = useCallback(async () => {
         try {
-            const { data } = await axios.get('http://localhost:5000/api/stores');
+            const { data } = await api.get('/stores');
             setStores(data);
         } catch (err) {
             console.error('Failed to fetch stores', err);
@@ -67,7 +67,7 @@ export default function ListDetail() {
 
     const fetchProducts = useCallback(async () => {
         try {
-            const { data } = await axios.get('http://localhost:5000/api/products');
+            const { data } = await api.get('/products');
             setAllProducts(data);
         } catch (err) {
             console.error('Failed to fetch products', err);
@@ -94,14 +94,14 @@ export default function ListDetail() {
 
             // If it's a new product string, create it first
             if (typeof pendingProduct === 'string') {
-                const { data: newProd } = await axios.post('http://localhost:5000/api/products', {
+                const { data: newProd } = await api.post('/products', {
                     name: pendingProduct,
                     unit: unit
                 });
                 productId = newProd.id;
             }
 
-            await axios.post(`http://localhost:5000/api/lists/${id}/items`, {
+            await api.post(`/lists/${id}/items`, {
                 ProductId: productId,
                 quantity: quantity,
                 unit: unit
@@ -116,7 +116,7 @@ export default function ListDetail() {
 
     const updateCurrentStore = async (storeId) => {
         try {
-            await axios.put(`http://localhost:5000/api/lists/${id}`, {
+            await api.put(`/lists/${id}`, {
                 CurrentStoreId: storeId || null
             });
             setActiveStoreId(storeId);
@@ -140,7 +140,7 @@ export default function ListDetail() {
                 })
             }));
 
-            await axios.put(`http://localhost:5000/api/lists/items/${item.id}`, {
+            await api.put(`/lists/items/${item.id}`, {
                 is_bought: newBoughtState
             });
         } catch (err) {
@@ -151,7 +151,7 @@ export default function ListDetail() {
 
     const deleteItem = async (itemId) => {
         try {
-            await axios.delete(`http://localhost:5000/api/lists/items/${itemId}`);
+            await api.delete(`/lists/items/${itemId}`);
             fetchListDetails(); // Sync with server for sums
         } catch (err) {
             console.error('Failed to delete item', err);
@@ -162,7 +162,7 @@ export default function ListDetail() {
     const handleUpdateItem = async (updates) => {
         if (!selectedItem) return;
         try {
-            await axios.put(`http://localhost:5000/api/lists/items/${selectedItem.id}`, updates);
+            await api.put(`/lists/items/${selectedItem.id}`, updates);
             fetchListDetails();
         } catch (err) {
             console.error('Failed to update item', err);
@@ -184,7 +184,7 @@ export default function ListDetail() {
 
     const completeSession = async () => {
         try {
-            await axios.put(`http://localhost:5000/api/lists/${id}`, {
+            await api.put(`/lists/${id}`, {
                 status: 'completed'
             });
             fetchListDetails();
@@ -234,7 +234,7 @@ export default function ListDetail() {
                             if (activeStore?.logo_url) {
                                 return (
                                     <img
-                                        src={`http://localhost:5000${activeStore.logo_url}`}
+                                        src={activeStore.logo_url.startsWith('http') ? activeStore.logo_url : `http://localhost:5000${activeStore.logo_url}`}
                                         alt={activeStore.name}
                                         className="w-12 h-12 object-contain bg-white rounded-xl p-1 shadow-sm border border-border"
                                     />

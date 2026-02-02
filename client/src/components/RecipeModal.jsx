@@ -4,7 +4,7 @@ import { X, Save, Clock, Users, ArrowRight, Wand2, Plus, Minus, Search, Trash2, 
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
-import axios from 'axios';
+import api from '../lib/axios';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -36,11 +36,11 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
 
     useEffect(() => {
         if (isOpen) {
-            axios.get('http://localhost:5000/api/products').then(res => setProducts(res.data));
+            api.get('/products').then(res => setProducts(res.data));
 
             if (recipe) {
                 setLoading(true);
-                axios.get(`http://localhost:5000/api/recipes/${recipe.id}`)
+                api.get(`/recipes/${recipe.id}`)
                     .then(res => {
                         const fullRecipe = res.data;
                         setBasics({
@@ -176,12 +176,12 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
 
             let recipeId;
             if (recipe) {
-                await axios.put(`http://localhost:5000/api/recipes/${recipe.id}`, formData, {
+                await api.put(`/recipes/${recipe.id}`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 recipeId = recipe.id;
             } else {
-                const { data } = await axios.post('http://localhost:5000/api/recipes', formData, {
+                const { data } = await api.post('/recipes', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 recipeId = data.id;
@@ -190,7 +190,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
             // 1. Process deletions
             for (const delId of deletedIngredients) {
                 try {
-                    await axios.delete(`http://localhost:5000/api/recipes/${recipeId}/ingredients/${delId}`);
+                    await api.delete(`/recipes/${recipeId}/ingredients/${delId}`);
                 } catch (e) {
                     console.error('Failed to delete ingredient', delId, e);
                 }
@@ -199,14 +199,14 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
             // 2. Additions
             for (const ing of ingredients) {
                 if (!ing.id) { // New link
-                    await axios.post(`http://localhost:5000/api/recipes/${recipeId}/ingredients`, {
+                    await api.post(`/recipes/${recipeId}/ingredients`, {
                         ProductId: ing.ProductId,
                         quantity: parseFloat(ing.quantity) || 0,
                         unit: ing.unit
                     });
                 } else {
                     // Update existing
-                    await axios.put(`http://localhost:5000/api/recipes/${recipeId}/ingredients/${ing.id}`, {
+                    await api.put(`/recipes/${recipeId}/ingredients/${ing.id}`, {
                         quantity: parseFloat(ing.quantity) || 0,
                         unit: ing.unit
                     });
@@ -343,7 +343,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
 
                                                                 try {
                                                                     setLoading(true);
-                                                                    const { data } = await axios.post('http://localhost:5000/api/ai/generate-image', { title: basics.title });
+                                                                    const { data } = await api.post('/ai/generate-image', { title: basics.title });
                                                                     setBasics(prev => ({ ...prev, imagePreview: data.url, image: null })); // image: null indicates no file upload, use URL
                                                                 } catch (err) {
                                                                     alert('Fehler: ' + err.message);
