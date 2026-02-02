@@ -36,7 +36,7 @@ app.use('/api/ai', require('./src/routes/ai'));
 // Serve static files from React app
 if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
     app.use(express.static(path.join(__dirname, '../client/dist')));
-    app.get('*', (req, res) => {
+    app.get(/(.*)/, (req, res) => {
         res.sendFile(path.join(__dirname, '../client/dist/index.html'));
     });
 }
