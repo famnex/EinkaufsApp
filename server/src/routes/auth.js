@@ -44,6 +44,8 @@ router.post('/signup', async (req, res) => {
         const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
         res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role } });
     } catch (err) {
+        console.error('Signup Error:', err); // Debug Log
+        if (!process.env.JWT_SECRET) console.error('CRITICAL: JWT_SECRET is missing!');
         res.status(500).json({ error: err.message });
     }
 });
