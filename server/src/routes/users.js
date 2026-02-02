@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { User } = require('../models');
-const verifyToken = require('../middleware/auth');
+const { auth: verifyToken } = require('../middleware/auth');
 const isAdmin = require('../middleware/admin');
 
 // Apply auth and admin check to all routes
