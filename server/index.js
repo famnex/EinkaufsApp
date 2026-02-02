@@ -34,6 +34,7 @@ apiRouter.use('/recipes', require('./src/routes/recipes'));
 apiRouter.use('/menus', require('./src/routes/menus'));
 apiRouter.use('/settings', require('./src/routes/settings'));
 apiRouter.use('/ai', require('./src/routes/ai'));
+apiRouter.use('/users', require('./src/routes/users'));
 
 // Mount API on standard path
 app.use('/api', apiRouter);
