@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../lib/axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, ChefHat, Clock, Users, Sparkles } from 'lucide-react';
 import { Button } from '../components/Button';
@@ -38,7 +38,7 @@ export default function Recipes() {
     const fetchRecipes = async () => {
         setLoading(true);
         try {
-            const { data } = await axios.get('http://localhost:5000/api/recipes');
+            const { data } = await api.get('/recipes');
             setRecipes(data);
         } catch (err) {
             console.error('Failed to fetch recipes', err);
@@ -57,7 +57,7 @@ export default function Recipes() {
     const handleDelete = async (id, title) => {
         if (!confirm(`Rezept "${title}" wirklich löschen?`)) return;
         try {
-            await axios.delete(`http://localhost:5000/api/recipes/${id}`);
+            await api.delete(`/recipes/${id}`);
             fetchRecipes();
         } catch (err) {
             alert('Löschen fehlgeschlagen');

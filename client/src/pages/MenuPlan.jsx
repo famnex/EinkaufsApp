@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Sun, Soup, Utensils, Apple, Info, Plus, Tras
 import { Card } from '../components/Card';
 import { useAuth } from '../contexts/AuthContext';
 import { useEditMode } from '../contexts/EditModeContext';
-import axios from 'axios';
+import api from '../lib/axios';
 import { cn } from '../lib/utils';
 import MealSelectorModal from '../components/MealSelectorModal';
 import BulkPlanningModal from '../components/BulkPlanningModal';
@@ -50,8 +50,8 @@ export default function MenuPlan() {
             const end = new Date(currentWeekStart);
             end.setDate(end.getDate() + 6);
             const endStr = end.toISOString().split('T')[0];
-            const { data } = await axios.get(`http://localhost:5000/api/menus?start=${startStr}&end=${endStr}`);
-            const listsRes = await axios.get('http://localhost:5000/api/lists');
+            const { data } = await api.get(`/menus?start=${startStr}&end=${endStr}`);
+            const listsRes = await api.get('/lists');
             setMenus(data);
             setLists(listsRes.data);
         } catch (err) {
@@ -114,9 +114,9 @@ export default function MenuPlan() {
             };
 
             if (existing) {
-                await axios.put(`http://localhost:5000/api/menus/${existing.id}`, payload);
+                await api.put(`/menus/${existing.id}`, payload);
             } else {
-                await axios.post('http://localhost:5000/api/menus', payload);
+                await api.post('/menus', payload);
             }
             fetchData();
         } catch (err) {
@@ -127,7 +127,7 @@ export default function MenuPlan() {
     const handleDelete = async (menuId) => {
         if (!confirm('Mahlzeit entfernen?')) return;
         try {
-            await axios.delete(`http://localhost:5000/api/menus/${menuId}`);
+            await api.delete(`/menus/${menuId}`);
             fetchData();
         } catch (err) {
             console.error(err);
