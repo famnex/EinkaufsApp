@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { auth } = require('../middleware/auth');
-const { admin } = require('../middleware/admin');
+const { auth, admin } = require('../middleware/auth');
 const { spawn } = require('child_process');
 const path = require('path');
 
