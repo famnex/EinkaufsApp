@@ -40,7 +40,10 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
         console.log('--- AI ANALYZE START ---');
         console.log('Input:', inputText.substring(0, 100) + '...');
         try {
-            const { data } = await api.post('/ai/parse', { input: inputText });
+            const token = localStorage.getItem('token');
+            const { data } = await api.post('/ai/parse', { input: inputText }, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             console.log('AI Response:', data);
 
             // Smart Matching Strategy using AI provided search terms
@@ -95,20 +98,24 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
         console.log('Mappings:', mappings);
         try {
             // 1. Create Recipe
-            const recipePayload = {
-                title: parsedData.title,
-                description: parsedData.description,
-                image_url: parsedData.image_url || '',
-                category: parsedData.category || 'Imported', // Use parsedData.category here
-                prep_time: parsedData.prep_time || 0,
-                duration: parsedData.total_time || 0,
-                servings: parsedData.servings || 4,
-                instructions: parsedData.steps || [],
-                tags: parsedData.tags || []
-            };
+            const formData = new FormData();
+            formData.append('title', parsedData.title);
+            formData.append('description', parsedData.description || '');
+            formData.append('category', parsedData.category || 'Imported');
+            formData.append('prep_time', parsedData.prep_time || 0);
+            formData.append('duration', parsedData.total_time || 0);
+            formData.append('servings', parsedData.servings || 4);
+            formData.append('instructions', JSON.stringify(parsedData.steps || []));
+            formData.append('tags', JSON.stringify(parsedData.tags || []));
 
-            console.log('Creating Recipe:', recipePayload);
-            const { data: recipe } = await api.post('/recipes', recipePayload);
+            if (parsedData.image_url) {
+                formData.append('image_url', parsedData.image_url);
+            }
+
+            console.log('Sending Recipe FormData...');
+            const { data: recipe } = await api.post('/recipes', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
             console.log('Recipe Created:', recipe.id);
 
             // 2. Process Ingredients
