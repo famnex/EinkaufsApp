@@ -37,8 +37,11 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
     const handleAnalyze = async () => {
         if (!inputText.trim()) return;
         setStep('processing');
+        console.log('--- AI ANALYZE START ---');
+        console.log('Input:', inputText.substring(0, 100) + '...');
         try {
             const { data } = await api.post('/ai/parse', { input: inputText });
+            console.log('AI Response:', data);
 
             // Smart Matching Strategy using AI provided search terms
             const newMappings = {};
@@ -65,11 +68,12 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                 }
             });
 
+            console.log('Mappings created:', newMappings);
             setParsedData(data);
             setMappings(newMappings);
             setStep('review');
         } catch (err) {
-            console.error(err);
+            console.error('--- AI ANALYZE ERROR ---', err);
             alert('Fehler bei der AI-Analyse: ' + (err.response?.data?.error || err.message));
             setStep('input');
         }
@@ -86,6 +90,9 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
 
     const handleSave = async () => {
         setCreating(true);
+        console.log('--- AI IMPORT SAVE START ---');
+        console.log('Parsed Data:', parsedData);
+        console.log('Mappings:', mappings);
         try {
             // 1. Create Recipe
             const recipePayload = {
@@ -100,7 +107,9 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                 tags: parsedData.tags || []
             };
 
+            console.log('Creating Recipe:', recipePayload);
             const { data: recipe } = await api.post('/recipes', recipePayload);
+            console.log('Recipe Created:', recipe.id);
 
             // 2. Process Ingredients
             for (let i = 0; i < parsedData.ingredients.length; i++) {
@@ -112,6 +121,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                     productId = mapping.productId;
                 } else {
                     // Create new Product
+                    console.log('Creating new product:', mapping.newName);
                     const { data: newProd } = await api.post('/products', {
                         name: mapping.newName,
                         unit: rawIng.unit || 'Stück'
@@ -120,6 +130,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                 }
 
                 // Link to Recipe
+                console.log(`Linking Product ${productId} to Recipe ${recipe.id}`);
                 await api.post(`/recipes/${recipe.id}/ingredients`, {
                     ProductId: productId,
                     quantity: rawIng.amount || 1,
@@ -127,10 +138,11 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                 });
             }
 
+            console.log('--- AI IMPORT SUCCESS ---');
             onSave();
             onClose();
         } catch (err) {
-            console.error(err);
+            console.error('--- AI IMPORT ERROR ---', err);
             alert('Fehler beim Speichern des Rezepts');
         } finally {
             setCreating(false);

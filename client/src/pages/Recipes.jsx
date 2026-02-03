@@ -56,11 +56,18 @@ export default function Recipes() {
 
     const handleDelete = async (id, title) => {
         if (!confirm(`Rezept "${title}" wirklich löschen?`)) return;
+        console.log('--- RECIPE DELETE REQUEST ---', { id, title });
         try {
             await api.delete(`/recipes/${id}`);
+            console.log('--- RECIPE DELETE SUCCESS ---', id);
             fetchRecipes();
         } catch (err) {
-            alert('Löschen fehlgeschlagen');
+            console.error('--- RECIPE DELETE ERROR ---', err);
+            if (err.response) {
+                console.error('Status:', err.response.status);
+                console.error('Data:', err.response.data);
+            }
+            alert('Löschen fehlgeschlagen: ' + (err.response?.data?.error || err.message));
         }
     };
 

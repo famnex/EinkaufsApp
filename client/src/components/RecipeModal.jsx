@@ -157,6 +157,11 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
 
     const handleSave = async () => {
         setLoading(true);
+        console.log('--- RECIPE MODAL SAVE START ---');
+        console.log('Basics:', basics);
+        console.log('Ingredients:', ingredients);
+        console.log('Steps:', steps);
+
         try {
             const formData = new FormData();
             formData.append('title', basics.title);
@@ -168,35 +173,45 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
             formData.append('tags', JSON.stringify(basics.tags));
 
             if (basics.image) {
+                console.log('Appending Image File:', basics.image.name);
                 formData.append('image', basics.image);
             } else if (basics.imagePreview && basics.imagePreview.startsWith('http')) {
-                // If we have a preview URL but no file object, pass it as image_url
+                console.log('Appending Image URL:', basics.imagePreview);
                 formData.append('image_url', basics.imagePreview);
             }
 
+            console.log('Sending FormData...');
+
             let recipeId;
             if (recipe) {
+                console.log('Updating existing recipe:', recipe.id);
                 await api.put(`/recipes/${recipe.id}`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 recipeId = recipe.id;
             } else {
+                console.log('Creating new recipe');
                 const { data } = await api.post('/recipes', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
+                console.log('Created recipe ID:', data.id);
                 recipeId = data.id;
             }
 
             // 1. Process deletions
-            for (const delId of deletedIngredients) {
-                try {
-                    await api.delete(`/recipes/${recipeId}/ingredients/${delId}`);
-                } catch (e) {
-                    console.error('Failed to delete ingredient', delId, e);
+            if (deletedIngredients.length > 0) {
+                console.log('Processing deleted ingredients:', deletedIngredients);
+                for (const delId of deletedIngredients) {
+                    try {
+                        await api.delete(`/recipes/${recipeId}/ingredients/${delId}`);
+                    } catch (e) {
+                        console.error('Failed to delete ingredient', delId, e);
+                    }
                 }
             }
 
-            // 2. Additions
+            // 2. Additions/Updates
+            console.log('Processing ingredients updates/additions...');
             for (const ing of ingredients) {
                 if (!ing.id) { // New link
                     await api.post(`/recipes/${recipeId}/ingredients`, {
@@ -213,11 +228,16 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                 }
             }
 
+            console.log('--- RECIPE MODAL SAVE SUCCESS ---');
             onSave();
             onClose();
         } catch (err) {
-            console.error(err);
-            alert('Fehler beim Speichern');
+            console.error('--- RECIPE MODAL SAVE ERROR ---', err);
+            if (err.response) {
+                console.error('Status:', err.response.status);
+                console.error('Data:', err.response.data);
+            }
+            alert('Fehler beim Speichern: ' + (err.response?.data?.error || err.message));
         } finally {
             setLoading(false);
         }

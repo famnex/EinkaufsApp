@@ -104,6 +104,11 @@ const axios = require('axios'); // Ensure axios is required
 
 // Create recipe
 router.post('/', auth, upload.single('image'), async (req, res) => {
+    console.log('--- RECIPE CREATE START ---');
+    console.log('User:', req.user.username);
+    console.log('Body:', JSON.stringify(req.body, null, 2));
+    if (req.file) console.log('File:', req.file.filename);
+
     try {
         const { title, category, prep_time, duration, servings, instructions, tags } = req.body;
 
@@ -111,8 +116,10 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
         if (req.file) {
             finalImageUrl = `/uploads/recipes/${req.file.filename}`;
         } else if (req.body.image_url) {
+            console.log('Process image URL:', req.body.image_url);
             if (req.body.image_url.startsWith('http')) {
                 finalImageUrl = await downloadImage(req.body.image_url);
+                console.log('Downloaded image to:', finalImageUrl);
             } else {
                 finalImageUrl = req.body.image_url;
             }
@@ -127,10 +134,12 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
             instructions: instructions ? (typeof instructions === 'string' ? JSON.parse(instructions) : instructions) : [],
             image_url: finalImageUrl
         });
+        console.log('Recipe Created ID:', recipe.id);
 
         // Handle Tags
         if (tags) {
             const parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags;
+            console.log('Processing Tags:', parsedTags);
             if (Array.isArray(parsedTags)) {
                 for (const tagName of parsedTags) {
                     const [tag] = await Tag.findOrCreate({ where: { name: tagName } });
@@ -140,18 +149,25 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
         }
 
         const reloaded = await Recipe.findByPk(recipe.id, { include: [Tag] });
+        console.log('--- RECIPE CREATE SUCCESS ---');
         res.status(201).json(reloaded);
     } catch (err) {
-        console.error(err);
+        console.error('--- RECIPE CREATE ERROR ---', err);
         res.status(500).json({ error: err.message });
     }
 });
 
 // Update recipe
 router.put('/:id', auth, upload.single('image'), async (req, res) => {
+    console.log('--- RECIPE UPDATE START ---', req.params.id);
+    console.log('Body:', JSON.stringify(req.body, null, 2).substring(0, 500) + '...'); // Truncate to avoid massive logs
+
     try {
         const recipe = await Recipe.findByPk(req.params.id);
-        if (!recipe) return res.status(404).json({ error: 'Recipe not found' });
+        if (!recipe) {
+            console.log('Recipe not found');
+            return res.status(404).json({ error: 'Recipe not found' });
+        }
 
         const { title, category, prep_time, duration, servings, instructions, tags } = req.body;
         const updates = {
@@ -163,8 +179,10 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
         };
 
         if (req.file) {
+            console.log('New file uploaded:', req.file.filename);
             updates.image_url = `/uploads/recipes/${req.file.filename}`;
         } else if (req.body.image_url !== undefined) {
+            console.log('New image URL:', req.body.image_url);
             if (req.body.image_url.startsWith('http')) {
                 const downloaded = await downloadImage(req.body.image_url);
                 if (downloaded) updates.image_url = downloaded;
@@ -174,10 +192,12 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
         }
 
         await recipe.update(updates);
+        console.log('Recipe updated');
 
         // Handle Tags
         if (tags !== undefined) {
             const parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags;
+            console.log('Updating Tags:', parsedTags);
             if (Array.isArray(parsedTags)) {
                 const tagInstances = [];
                 for (const tagName of parsedTags) {
@@ -189,8 +209,10 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
         }
 
         const reloaded = await Recipe.findByPk(recipe.id, { include: [Tag] });
+        console.log('--- RECIPE UPDATE SUCCESS ---');
         res.json(reloaded);
     } catch (err) {
+        console.error('--- RECIPE UPDATE ERROR ---', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -247,22 +269,34 @@ router.delete('/:id/ingredients/:ingredientId', auth, async (req, res) => {
 
 // Delete Recipe
 router.delete('/:id', auth, async (req, res) => {
+    console.log('--- RECIPE DELETE START ---', req.params.id);
     try {
         // 1. Remove Ingredients
+        console.log('Removing Ingredients...');
         await RecipeIngredient.destroy({ where: { RecipeId: req.params.id } });
 
         // 2. Remove from Menus (Set RecipeId to null, effectively making it a manual entry description remains)
         // We need to import Menu model first, or use sequelize.models.Menu
         const { Menu, RecipeTag } = require('../models');
+        console.log('Unlinking from Menus...');
         await Menu.update({ RecipeId: null }, { where: { RecipeId: req.params.id } });
 
         // 3. Remove Tags (if not handled by cascade)
-        // For ManyToMany, destroy often handles it, but let's be safe if using explicit model
+        console.log('Removing Tag Links...');
         if (RecipeTag) await RecipeTag.destroy({ where: { RecipeId: req.params.id } });
+
         const recipe = await Recipe.findByPk(req.params.id);
-        if (recipe) await recipe.destroy();
+        if (recipe) {
+            console.log('Destroying Recipe record...');
+            await recipe.destroy();
+        } else {
+            console.log('Recipe record not found (already deleted?)');
+        }
+
+        console.log('--- RECIPE DELETE SUCCESS ---');
         res.json({ message: 'Recipe deleted' });
     } catch (err) {
+        console.error('--- RECIPE DELETE ERROR ---', err);
         res.status(500).json({ error: err.message });
     }
 });
