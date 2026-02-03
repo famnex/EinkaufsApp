@@ -248,8 +248,17 @@ router.delete('/:id/ingredients/:ingredientId', auth, async (req, res) => {
 // Delete Recipe
 router.delete('/:id', auth, async (req, res) => {
     try {
-        // Dependencies (Ingredients) should be deleted via Cascade or manually
+        // 1. Remove Ingredients
         await RecipeIngredient.destroy({ where: { RecipeId: req.params.id } });
+
+        // 2. Remove from Menus (Set RecipeId to null, effectively making it a manual entry description remains)
+        // We need to import Menu model first, or use sequelize.models.Menu
+        const { Menu, RecipeTag } = require('../models');
+        await Menu.update({ RecipeId: null }, { where: { RecipeId: req.params.id } });
+
+        // 3. Remove Tags (if not handled by cascade)
+        // For ManyToMany, destroy often handles it, but let's be safe if using explicit model
+        if (RecipeTag) await RecipeTag.destroy({ where: { RecipeId: req.params.id } });
         const recipe = await Recipe.findByPk(req.params.id);
         if (recipe) await recipe.destroy();
         res.json({ message: 'Recipe deleted' });
