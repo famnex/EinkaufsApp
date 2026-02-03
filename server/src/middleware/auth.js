@@ -8,7 +8,7 @@ const auth = async (req, res, next) => {
             return res.status(500).json({ error: 'Internal Server Error: Database model missing' });
         }
 
-        const token = req.header('Authorization')?.replace('Bearer ', '');
+        const token = req.header('Authorization')?.replace('Bearer ', '') || req.query.token;
         if (!token) return res.status(401).json({ error: 'Access denied. No token provided.' });
 
         try {

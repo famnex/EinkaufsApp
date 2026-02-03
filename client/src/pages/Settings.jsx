@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles } from 'lucide-react';
+import { Settings, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -9,6 +9,7 @@ import { cn, getImageUrl } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { useEditMode } from '../contexts/EditModeContext';
 import StoreModal from '../components/StoreModal';
+import UpdateModal from '../components/UpdateModal';
 import api from '../lib/axios';
 
 export default function SettingsPage() {
@@ -27,6 +28,11 @@ export default function SettingsPage() {
     // User Management State
     const [users, setUsers] = useState([]);
     const [loadingUsers, setLoadingUsers] = useState(false);
+
+    // System Update State
+    const [updateInfo, setUpdateInfo] = useState(null);
+    const [checkingUpdate, setCheckingUpdate] = useState(false);
+    const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
     useEffect(() => {
         fetchStores();
@@ -172,6 +178,19 @@ export default function SettingsPage() {
             fetchUsers();
         } catch (err) {
             alert('Löschen fehlgeschlagen: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleCheckUpdate = async () => {
+        setCheckingUpdate(true);
+        try {
+            const { data } = await api.get('/system/check');
+            setUpdateInfo(data);
+        } catch (err) {
+            console.error('Update check failed', err);
+            alert('Konnte nicht nach Updates suchen. Siehe Konsole.');
+        } finally {
+            setCheckingUpdate(false);
         }
     };
 
@@ -329,15 +348,50 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Installierte Version</p>
-                    <p className="font-bold text-foreground text-lg font-mono">{appVersion}</p>
+                    <p className="font-bold text-foreground text-lg font-mono flex items-center gap-2">
+                        {appVersion}
+                        {updateInfo?.updates_available && (
+                            <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                                Update verfügbar ({updateInfo.commits_behind} commits)
+                            </span>
+                        )}
+                    </p>
+                    {updateInfo && !updateInfo.updates_available && (
+                        <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                            <CheckCircle size={12} /> System ist aktuell
+                        </p>
+                    )}
                 </div>
-                <Button
-                    variant="outline"
-                    onClick={() => alert('Keine Updates verfügbar.')}
-                    className="gap-2"
-                >
-                    <Sparkles size={16} /> Update suchen
-                </Button>
+
+                {!updateInfo ? (
+                    <Button
+                        variant="outline"
+                        onClick={handleCheckUpdate}
+                        disabled={checkingUpdate}
+                        className="gap-2"
+                    >
+                        {checkingUpdate ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                        Update suchen
+                    </Button>
+                ) : updateInfo.updates_available ? (
+                    <Button
+                        onClick={() => setIsUpdateModalOpen(true)}
+                        className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                        <Terminal size={16} />
+                        Update starten
+                    </Button>
+                ) : (
+                    <Button
+                        variant="outline"
+                        onClick={handleCheckUpdate}
+                        disabled={checkingUpdate}
+                        className="gap-2 opacity-50"
+                    >
+                        <CheckCircle size={16} />
+                        Erneut prüfen
+                    </Button>
+                )}
             </div>
         </Card>
     );
@@ -444,6 +498,11 @@ export default function SettingsPage() {
                 onClose={handleCloseModal}
                 onSave={fetchStores}
                 store={selectedStore}
+            />
+
+            <UpdateModal
+                isOpen={isUpdateModalOpen}
+                onClose={() => setIsUpdateModalOpen(false)}
             />
         </div>
     );
