@@ -280,6 +280,14 @@ Das Löschen entfernt das Rezept auch aus diesen Plänen!`;
                     onClose={() => setCookingRecipe(null)}
                 />
             )}
+
+            <DeleteConfirmModal
+                isOpen={deleteModalOpen}
+                onClose={() => setDeleteModalOpen(false)}
+                onConfirm={confirmDelete}
+                recipe={recipeToDelete}
+                usage={deleteUsage}
+            />
         </div>
     );
 }
