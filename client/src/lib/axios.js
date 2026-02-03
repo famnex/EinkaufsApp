@@ -28,7 +28,9 @@ api.interceptors.response.use(
             localStorage.removeItem('token');
             // Check if we are not already on login/signup to avoid loops
             if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/signup')) {
-                window.location.href = '/login';
+                // Use standard redirect, respecting base path
+                const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+                window.location.href = `${base}login`;
             }
         }
         return Promise.reject(error);

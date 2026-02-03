@@ -120,10 +120,10 @@ export default function UpdateModal({ isOpen, onClose }) {
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
-                        className="w-full max-w-2xl bg-black border border-green-500/30 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+                        className="w-full max-w-2xl bg-black border border-green-500 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] relative"
                     >
                         {/* Header */}
-                        <div className="p-4 border-b border-green-500 bg-[#051a05] flex items-center justify-between">
+                        <div className="p-4 border-b border-green-500 bg-[#051a05] flex items-center justify-between shrink-0 relative z-20">
                             <div className="flex items-center gap-2 text-green-500">
                                 <Terminal size={20} />
                                 <h3 className="font-mono font-bold tracking-wider">SYSTEM UPDATE</h3>
@@ -136,7 +136,7 @@ export default function UpdateModal({ isOpen, onClose }) {
                         {/* Terminal Window */}
                         <div
                             ref={terminalRef}
-                            className="flex-1 p-4 overflow-y-auto font-mono text-xs md:text-sm space-y-1 bg-black text-[#00ff41] min-h-[300px] border-2 border-[#00ff41] m-2 rounded-lg shadow-[0_0_15px_rgba(0,255,65,0.2)]"
+                            className="flex-1 p-4 overflow-y-auto font-mono text-xs md:text-sm space-y-1 bg-black text-[#00ff41] min-h-[300px] border-2 border-[#00ff41] m-2 rounded-lg shadow-[0_0_15px_rgba(0,255,65,0.2)] relative z-10"
                         >
                             {logs.map((log, i) => (
                                 <div key={i} className="break-words font-medium" style={{ color: '#00ff41' }}>
@@ -153,7 +153,7 @@ export default function UpdateModal({ isOpen, onClose }) {
                         </div>
 
                         {/* Footer Status */}
-                        <div className="p-4 border-t border-green-500 bg-[#051a05]">
+                        <div className="p-4 border-t border-green-500 bg-[#051a05] shrink-0 relative z-20">
                             {status === 'success' && (
                                 <div className="flex items-center gap-2 text-green-500 font-bold">
                                     <CheckCircle size={20} />
