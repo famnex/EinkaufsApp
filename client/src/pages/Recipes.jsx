@@ -55,25 +55,30 @@ export default function Recipes() {
     };
 
     const handleDelete = async (id, title) => {
-        console.log('--- RECIPE DELETE REQUEST ---', { id, title });
-        const token = localStorage.getItem('token');
-        console.log('Token available:', !!token);
-
         try {
+            // Check usage
+            const { data: usage } = await api.get(`/recipes/${id}/usage`);
+
+            const message = `Möchtest du das Rezept "${title}" wirklich löschen?
+            
+WARNUNG:
+Dieses Rezept wird in:
+- ${usage.past} Menüplänen in der Vergangenheit
+- ${usage.future} Menüplänen in der Zukunft
+verwendet.
+
+Das Löschen entfernt das Rezept auch aus diesen Plänen!`;
+
+            if (!confirm(message)) return;
+
+            const token = localStorage.getItem('token');
             await api.delete(`/recipes/${id}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+                headers: { 'Authorization': `Bearer ${token}` }
             });
-            console.log('--- RECIPE DELETE SUCCESS ---', id);
             fetchRecipes();
         } catch (err) {
-            console.error('--- RECIPE DELETE ERROR ---', err);
-            if (err.response) {
-                console.error('Status:', err.response.status);
-                console.error('Data:', err.response.data);
-            }
-            alert('Löschen fehlgeschlagen: ' + (err.response?.data?.error || err.message));
+            console.error('Delete failed', err);
+            alert('Fehler beim Löschen: ' + (err.response?.data?.error || err.message));
         }
     };
 
