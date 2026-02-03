@@ -422,7 +422,7 @@ export default function ListDetail() {
                                                         }
                                                     }}
                                                     className={cn(
-                                                        "w-full h-full rounded-3xl p-4 flex flex-col justify-between transition-all cursor-pointer shadow-sm border overflow-hidden relative",
+                                                        "w-full h-full rounded-3xl p-4 flex flex-col justify-between transition-all cursor-pointer shadow-sm border overflow-hidden relative isolate", // Added isolate for z-index stacking
                                                         item.is_bought
                                                             ? "product-tile-teal" // Teal for bought
                                                             : "product-tile-red", // Red for unbought
@@ -431,28 +431,34 @@ export default function ListDetail() {
                                                     )}
                                                 >
                                                     {/* Top Row: Icon + Indicator */}
-                                                    <div className="flex justify-between items-start z-10 relative">
+                                                    <div className="flex justify-between items-start z-10 md:relative pointer-events-none"> {/* Icon is purely visual now on mobile */}
                                                         <div className={cn(
-                                                            "w-10 h-10 rounded-full flex items-center justify-center text-lg transition-colors bg-white/20 text-white"
+                                                            "transition-all duration-300",
+                                                            // Mobile: Large Watermark
+                                                            "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 flex items-center justify-center opacity-[0.15] scale-150 text-white z-0",
+                                                            // Desktop: Standard Icon
+                                                            "md:relative md:left-auto md:top-auto md:translate-x-0 md:translate-y-0 md:w-10 md:h-10 md:rounded-full md:bg-white/20 md:opacity-100 md:scale-100 md:z-10"
                                                         )}>
-                                                            <ShoppingCart size={20} />
+                                                            <ShoppingCart className="w-full h-full p-6 md:p-2" />
                                                         </div>
 
-                                                        {/* Mode Indicators */}
-                                                        {editMode === 'edit' && (
-                                                            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white">
-                                                                <Settings size={18} />
-                                                            </div>
-                                                        )}
-                                                        {editMode === 'delete' && (
-                                                            <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center animate-pulse">
-                                                                <Trash2 size={18} />
-                                                            </div>
-                                                        )}
+                                                        {/* Mode Indicators - Always visible and on top */}
+                                                        <div className="ml-auto pointer-events-auto">
+                                                            {editMode === 'edit' && (
+                                                                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white backdrop-blur-sm">
+                                                                    <Settings size={18} />
+                                                                </div>
+                                                            )}
+                                                            {editMode === 'delete' && (
+                                                                <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center animate-pulse shadow-lg">
+                                                                    <Trash2 size={18} />
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
 
                                                     {/* Center: Name */}
-                                                    <div className="text-center px-1 z-10 relative mt-2 mb-auto">
+                                                    <div className="text-center px-1 z-10 relative mt-0 mb-auto flex flex-col justify-center flex-grow pt-2 md:pt-0"> {/* Adjusted padding/flex */}
                                                         <div className="font-bold text-xl md:text-2xl leading-none tracking-wide text-white line-clamp-2 break-words text-shadow-sm hyphens-auto" lang="de">
                                                             {item.Product?.name}
                                                         </div>
@@ -472,15 +478,15 @@ export default function ListDetail() {
                                                             e.stopPropagation();
                                                             setQuantityItem(item);
                                                         }}
-                                                        className="mx-auto bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider transition-colors z-10 relative mt-2"
+                                                        className="mx-auto bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider transition-colors z-10 relative mt-2 backdrop-blur-sm"
                                                     >
                                                         {item.quantity} <span className="text-[10px] opacity-80">{(item.unit || item.Product?.unit) === 'Stück' ? 'Stk' : (item.unit || item.Product?.unit)}</span>
                                                     </div>
 
-                                                    {/* Bought Overlay Indicator (Optional, but color change is main indicator now) */}
+                                                    {/* Bought Overlay Indicator */}
                                                     {item.is_bought && (
                                                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 opacity-10">
-                                                            <CheckCircle2 className="w-20 h-20 text-white" />
+                                                            <CheckCircle2 className="w-full h-full p-8 text-white" />
                                                         </div>
                                                     )}
 

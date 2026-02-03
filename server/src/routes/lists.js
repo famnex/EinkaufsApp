@@ -4,11 +4,51 @@ const { List, ListItem, Product, Store, Manufacturer, ProductRelation, sequelize
 const { Op } = require('sequelize');
 const { auth } = require('../middleware/auth');
 
-// Get all lists
+// Get all lists with category stats
 router.get('/', auth, async (req, res) => {
     try {
-        const lists = await List.findAll({ order: [['date', 'DESC']] });
-        res.json(lists);
+        const lists = await List.findAll({
+            order: [['date', 'DESC']],
+            include: [{
+                model: ListItem,
+                attributes: ['id', 'quantity'],
+                include: [{
+                    model: Product,
+                    attributes: ['category', 'name']
+                }]
+            }]
+        });
+
+        // Transform to add stats
+        const result = lists.map(list => {
+            const stats = {};
+            let productCount = 0;
+
+            list.ListItems.forEach(item => {
+                if (item.Product) {
+                    const cat = item.Product.category || 'Unkategorisiert';
+                    stats[cat] = (stats[cat] || 0) + 1;
+                    productCount++;
+                }
+            });
+
+            // Sort stats by count desc
+            const sortedStats = Object.entries(stats)
+                .sort(([, a], [, b]) => b - a)
+                .reduce((r, [k, v]) => ({ ...r, [k]: v }), {});
+
+            const plainList = list.get({ plain: true });
+            // Remove heavy nested data from response to keep it light
+            delete plainList.ListItems;
+
+            return {
+                ...plainList,
+                productCount,
+                category_stats: sortedStats
+            };
+        });
+
+        res.json(result);
     } catch (err) {
         console.error('GET /lists ERROR:', err);
         res.status(500).json({ error: err.message });

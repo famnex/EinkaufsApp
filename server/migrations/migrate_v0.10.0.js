@@ -91,6 +91,24 @@ async function migrate() {
             console.log('✓ Table ProductRelations already exists\n');
         }
 
+        // 6. Add CurrentStoreId to Lists
+        if (!(await checkColumnExists('Lists', 'CurrentStoreId'))) {
+            console.log('Adding column: Lists.CurrentStoreId...');
+            await sequelize.query('ALTER TABLE Lists ADD COLUMN CurrentStoreId INTEGER REFERENCES Stores(id) ON DELETE SET NULL;');
+            console.log('✓ Added Lists.CurrentStoreId\n');
+        } else {
+            console.log('✓ Column Lists.CurrentStoreId already exists\n');
+        }
+
+        // 7. Add unit to ListItems
+        if (!(await checkColumnExists('ListItems', 'unit'))) {
+            console.log('Adding column: ListItems.unit...');
+            await sequelize.query('ALTER TABLE ListItems ADD COLUMN unit VARCHAR(255);');
+            console.log('✓ Added ListItems.unit\n');
+        } else {
+            console.log('✓ Column ListItems.unit already exists\n');
+        }
+
         console.log('=== Migration v0.10.0 Completed Successfully ===');
         console.log('\nChanges applied:');
         console.log('  ✓ ListItems.bought_at (DATETIME)');

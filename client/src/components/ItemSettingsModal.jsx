@@ -1,27 +1,41 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Trash2, Plus, Minus, Euro } from 'lucide-react';
+import { X, Save, Trash2, Plus, Minus } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
+import { UnitCombobox } from './UnitCombobox';
+import api from '../lib/axios';
 
 export default function ItemSettingsModal({ isOpen, onClose, item, onSave, onDelete }) {
     const [quantity, setQuantity] = useState(1);
-    const [priceActual, setPriceActual] = useState('');
+    const [unit, setUnit] = useState('');
+    const [availableUnits, setAvailableUnits] = useState([]);
 
     useEffect(() => {
         if (item) {
             setQuantity(item.quantity || 1);
-            setPriceActual(item.price_actual || '');
+            setUnit(item.unit || item.Product?.unit || 'Stück');
         }
-    }, [item]);
+        // Fetch units always when opening (could be optimized)
+        if (isOpen) {
+            api.get('/products/units')
+                .then(res => setAvailableUnits(res.data))
+                .catch(err => console.error("Failed to load units", err));
+        }
+    }, [item, isOpen]);
 
     const handleSave = () => {
         onSave({
-            quantity: parseInt(quantity),
-            price_actual: priceActual === '' ? null : parseFloat(priceActual)
+            quantity: parseFloat(quantity), // Allow decimals? Usually yes for kg etc.
+            unit: unit
         });
         onClose();
+    };
+
+    const handleQuantityChange = (val) => {
+        const parsed = parseFloat(val);
+        setQuantity(isNaN(parsed) ? '' : parsed);
     };
 
     return (
@@ -52,43 +66,44 @@ export default function ItemSettingsModal({ isOpen, onClose, item, onSave, onDel
                             </div>
 
                             <div className="space-y-6">
-                                {/* Quantity Stepper */}
+                                {/* Quantity Stepper & Input */}
                                 <div className="space-y-3">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Menge</label>
-                                    <div className="flex items-center gap-4 bg-muted rounded-2xl p-2 border border-border">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Menge & Einheit</label>
+                                    <div className="flex items-center gap-2">
+                                        {/* Minus Button */}
                                         <button
-                                            onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                                            className="w-12 h-12 flex items-center justify-center bg-background border border-border rounded-xl text-foreground hover:bg-muted transition-colors shadow-sm"
+                                            onClick={() => setQuantity(Math.max(0, (parseFloat(quantity) || 0) - 1))}
+                                            className="w-12 h-12 flex-shrink-0 flex items-center justify-center bg-background border border-border rounded-xl text-foreground hover:bg-muted transition-colors shadow-sm"
                                         >
                                             <Minus size={20} />
                                         </button>
-                                        <div className="flex-1 text-center font-bebas text-3xl text-foreground">
-                                            {quantity}
-                                        </div>
+
+                                        {/* Amount Input */}
+                                        <input
+                                            type="number"
+                                            value={quantity}
+                                            onChange={(e) => handleQuantityChange(e.target.value)}
+                                            className="flex-1 min-w-0 h-12 text-center font-bebas text-3xl bg-muted/50 border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                                        />
+
+                                        {/* Plus Button */}
                                         <button
-                                            onClick={() => setQuantity(quantity + 1)}
-                                            className="w-12 h-12 flex items-center justify-center bg-primary rounded-xl text-primary-foreground hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+                                            onClick={() => setQuantity((parseFloat(quantity) || 0) + 1)}
+                                            className="w-12 h-12 flex-shrink-0 flex items-center justify-center bg-primary rounded-xl text-primary-foreground hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
                                         >
                                             <Plus size={20} />
                                         </button>
                                     </div>
-                                </div>
 
-                                {/* Price Override */}
-                                <div className="space-y-3">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Tatsächlicher Preis (€)</label>
-                                    <div className="relative">
-                                        <Euro className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/30" size={18} />
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={priceActual}
-                                            onChange={(e) => setPriceActual(e.target.value)}
-                                            placeholder={item?.Product?.price_hint || "0,00"}
-                                            className="pl-10 h-12 bg-muted/50 border-border"
+                                    {/* Unit Combobox */}
+                                    <div className="pt-2">
+                                        <UnitCombobox
+                                            value={unit}
+                                            onChange={setUnit}
+                                            suggestions={availableUnits}
+                                            className="w-full"
                                         />
                                     </div>
-                                    <p className="text-[10px] text-muted-foreground ml-1 italic">Format: 1,99 (Optional)</p>
                                 </div>
 
                                 <div className="pt-2 space-y-3">

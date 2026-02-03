@@ -215,16 +215,18 @@ export default function Dashboard() {
                                             editMode === 'delete' ? "border-destructive/30 hover:bg-destructive/5 hover:border-destructive/50 cursor-pointer" : "cursor-pointer"
                                         )}
                                     >
-                                        <div className="flex items-center gap-5 relative z-10 text-left flex-1 min-w-0">
+                                        <div className="flex items-center sm:gap-5 relative z-10 text-left flex-1 min-w-0">
                                             <div
                                                 className={cn(
-                                                    "w-12 h-12 rounded-xl flex items-center justify-center shadow-md shrink-0 transition-transform active:scale-90",
+                                                    "w-12 h-12 rounded-xl flex items-center justify-center shadow-md shrink-0 transition-all",
+                                                    // Mobile: Absolute, Transparent, Behind text
+                                                    "absolute left-0 top-1/2 -translate-y-1/2 opacity-20 scale-150 sm:scale-100 sm:opacity-100 sm:relative sm:translate-y-0",
                                                     list.status === 'active' ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                                                 )}
                                             >
                                                 <ShoppingCart size={24} />
                                             </div>
-                                            <div className="flex-1 min-w-0">
+                                            <div className="flex-1 min-w-0 pl-4 sm:pl-0">
                                                 <div className="flex items-center gap-2">
                                                     <h3 className="text-xl font-bold text-foreground leading-tight truncate">
                                                         {list.name || new Date(list.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
@@ -237,7 +239,24 @@ export default function Dashboard() {
                                         </div>
 
                                         <div className="text-right relative z-10 flex flex-col items-end">
-                                            <p className="text-2xl font-bebas font-bold text-foreground">€{parseFloat(list.total_cost || 0).toFixed(2)}</p>
+                                            {/* Stats Display */}
+                                            <div className="flex flex-col items-end gap-1">
+                                                {list.category_stats && Object.keys(list.category_stats).length > 0 ? (
+                                                    <>
+                                                        {Object.entries(list.category_stats).slice(0, 3).map(([cat, count]) => (
+                                                            <span key={cat} className="text-xs bg-muted/50 px-2 py-0.5 rounded-full text-foreground/80 font-medium whitespace-nowrap">
+                                                                {count}x <span className="hidden sm:inline">{cat}</span>
+                                                            </span>
+                                                        ))}
+                                                        {Object.keys(list.category_stats).length > 3 && (
+                                                            <span className="text-[10px] text-muted-foreground">+ {Object.keys(list.category_stats).length - 3} <span className="hidden sm:inline">weitere</span></span>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <span className="text-sm text-muted-foreground italic">Leer</span>
+                                                )}
+                                            </div>
+
                                             {editMode === 'delete' && (
                                                 <div className="mt-2 text-destructive">
                                                     <Trash2 size={18} />

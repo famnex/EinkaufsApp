@@ -1,5 +1,14 @@
 # Update-System Dokumentation
 
+## Aktuelle Version: v0.10.0
+
+### Changelog v0.10.0
+- **Responsive List Stats:** Kategorie-Statistiken statt Gesamtpreis, optimiert für Mobile.
+- **Detail View:** Verbessertes Design auf kleinen Screens (Wasserzeichen-Icon).
+- **PWA Fixes:** Korrekter Start-URL und Scope.
+- **Backend:** `CurrentStoreId` für Listen, Smart Sorting Basis (ProductRelations) und erweiterte ListItems (unit, bought_at).
+
+
 ## Übersicht
 
 Die EinkaufsApp verfügt über ein vollautomatisches Update-System mit Web-Interface und automatischer Datenbank-Migration.

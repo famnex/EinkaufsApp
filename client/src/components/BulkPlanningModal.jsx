@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, ShoppingCart, ChevronDown, ChevronUp, AlertCircle, Plus, Trash2, ArrowRight } from 'lucide-react';
 import { Button } from './Button';
+import { UnitCombobox } from './UnitCombobox';
 import api from '../lib/axios';
 import { cn } from '../lib/utils';
 import { Input } from './Input';
@@ -14,10 +15,12 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
     const [saving, setSaving] = useState(false);
     const [data, setData] = useState(null); // { range: {start, end}, ingredients: [] }
     const [adjustments, setAdjustments] = useState({}); // ProductId -> { quantity, unit }
+    const [availableUnits, setAvailableUnits] = useState([]); // Dynamic units from products
 
     useEffect(() => {
         if (isOpen && listId) {
             fetchPlanningData();
+            fetchAvailableUnits();
             setAdjustments({});
         }
     }, [isOpen, listId]);
@@ -36,6 +39,15 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
             console.error(err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchAvailableUnits = async () => {
+        try {
+            const res = await api.get('/products/units');
+            setAvailableUnits(res.data);
+        } catch (err) {
+            console.error('Failed to load units:', err);
         }
     };
 
@@ -99,8 +111,7 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
         });
     };
 
-    // Common units for dropdown
-    const units = ['Stück', 'g', 'kg', 'ml', 'l', 'Packung', 'Dose', 'Glas', 'EL', 'TL'];
+    // Units are now loaded dynamically from backend
 
     if (!isOpen) return null;
 
@@ -246,10 +257,10 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
                                                                         size="sm"
                                                                         variant="ghost"
                                                                         className="h-8 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary whitespace-nowrap"
-                                                                        onClick={() => handleQuickAdd(item.product.id, 1, 'Stück')}
-                                                                        title="1 Stück hinzufügen"
+                                                                        onClick={() => handleQuickAdd(item.product.id, 1, defaultUnit)}
+                                                                        title={`1 ${defaultUnit} hinzufügen`}
                                                                     >
-                                                                        <Plus size={14} /> 1 Stück
+                                                                        <Plus size={14} /> 1 {defaultUnit}
                                                                     </Button>
                                                                 </>
                                                             )}
@@ -270,20 +281,13 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
                                                                         if (!adj.unit) handleManualChange(item.product.id, 'unit', defaultUnit);
                                                                     }}
                                                                 />
-                                                                <div className={cn("relative w-20", (isSelected || isLockedUnit) ? "opacity-100" : "opacity-0")}>
-                                                                    <select
-                                                                        className={cn(
-                                                                            "w-full h-8 text-xs bg-background border border-border rounded-lg pl-1 pr-4 appearance-none focus:ring-1 focus:ring-primary focus:outline-none",
-                                                                            isLockedUnit && "opacity-70 bg-muted cursor-not-allowed"
-                                                                        )}
-                                                                        value={adj.unit || defaultUnit}
-                                                                        disabled={isLockedUnit}
-                                                                        onChange={(e) => handleManualChange(item.product.id, 'unit', e.target.value)}
-                                                                    >
-                                                                        {units.map(u => <option key={u} value={u}>{u}</option>)}
-                                                                    </select>
-                                                                    {!isLockedUnit && <ChevronDown size={12} className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />}
-                                                                </div>
+                                                                <UnitCombobox
+                                                                    value={adj.unit || ''}
+                                                                    onChange={(val) => handleManualChange(item.product.id, 'unit', val)}
+                                                                    suggestions={availableUnits}
+                                                                    disabled={isLockedUnit}
+                                                                    className={cn("w-20", (isSelected || isLockedUnit) ? "opacity-100" : "opacity-0")}
+                                                                />
 
                                                                 {isSelected && (
                                                                     <button

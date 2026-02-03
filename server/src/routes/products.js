@@ -15,6 +15,24 @@ router.get('/', auth, async (req, res) => {
     }
 });
 
+// Get all unique units used in products
+router.get('/units', auth, async (req, res) => {
+    try {
+        const products = await Product.findAll({
+            attributes: ['unit'],
+            where: {
+                unit: { [sequelize.Sequelize.Op.ne]: null }
+            }
+        });
+
+        // Extract unique units
+        const units = [...new Set(products.map(p => p.unit).filter(u => u && u.trim()))];
+        res.json(units.sort());
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.post('/', auth, async (req, res) => {
     try {
         const product = await Product.create(req.body);
