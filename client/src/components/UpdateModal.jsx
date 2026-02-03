@@ -9,13 +9,15 @@ export default function UpdateModal({ isOpen, onClose }) {
     const [logs, setLogs] = useState([]);
     const [status, setStatus] = useState('idle'); // idle, updating, restarting, success, error
     const [finalMessage, setFinalMessage] = useState('');
-    const logsEndRef = useRef(null);
+    const terminalRef = useRef(null);
     const eventSourceRef = useRef(null);
 
     // Auto-scroll to bottom of logs
     useEffect(() => {
-        logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [logs]);
+        if (terminalRef.current) {
+            terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+        }
+    }, [logs, status]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -112,7 +114,7 @@ export default function UpdateModal({ isOpen, onClose }) {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                        className="absolute inset-0 bg-black/95 backdrop-blur-md"
                     />
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
@@ -136,19 +138,21 @@ export default function UpdateModal({ isOpen, onClose }) {
                         </div>
 
                         {/* Terminal Window */}
-                        <div className="flex-1 p-4 overflow-y-auto font-mono text-xs md:text-sm space-y-1 bg-black text-green-400 min-h-[300px]">
+                        <div
+                            ref={terminalRef}
+                            className="flex-1 p-4 overflow-y-auto font-mono text-xs md:text-sm space-y-1 bg-[#0c0c0c] text-[#00ff41] min-h-[300px] border border-green-900/50 m-2 rounded-lg shadow-inner"
+                        >
                             {logs.map((log, i) => (
-                                <div key={i} className="break-words">
-                                    <span className="opacity-50 mr-2">$</span>
+                                <div key={i} className="break-words font-medium">
+                                    <span className="opacity-50 mr-2 select-none">$</span>
                                     {log}
                                 </div>
                             ))}
                             {status === 'restarting' && (
-                                <div className="animate-pulse text-yellow-500 mt-4">
+                                <div className="animate-pulse text-yellow-500 mt-4 font-bold">
                                     &gt; Waiting for services to come back online...
                                 </div>
                             )}
-                            <div ref={logsEndRef} />
                         </div>
 
                         {/* Footer Status */}
