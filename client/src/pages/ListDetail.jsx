@@ -326,13 +326,23 @@ export default function ListDetail() {
             <div className="product-grid pt-4">
                 <AnimatePresence mode="popLayout">
                     {list.ListItems?.map((item, index) => (
-                        <div key={item.id} className="relative group w-[100px] md:w-[200px] aspect-square">
+                        <motion.div
+                            layout
+                            key={item.id}
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.8, opacity: 0 }}
+                            transition={{
+                                opacity: { duration: 0.2 },
+                                layout: { duration: 0.4, type: "spring", bounce: 0.2 }
+                            }}
+                            className="relative group w-[100px] md:w-[200px] aspect-square"
+                        >
                             <div className="absolute inset-0 bg-destructive rounded-2xl flex items-center justify-end px-6 shadow-inner">
                                 <Trash2 size={24} className="text-destructive-foreground animate-pulse" />
                             </div>
 
                             <motion.div
-                                layout
                                 drag={editMode === 'edit' ? "x" : false}
                                 dragConstraints={{ left: -100, right: 0 }}
                                 onDragEnd={(_, info) => {
@@ -341,12 +351,8 @@ export default function ListDetail() {
                                         setIsSettingsOpen(true);
                                     }
                                 }}
-                                initial={{ scale: 0.8, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                exit={{ scale: 0.8, opacity: 0 }}
-                                transition={{ duration: 0.2, delay: index * 0.02 }}
                                 className={cn(
-                                    "product-tile shadow-lg hover:shadow-xl relative z-10 transition-shadow w-full h-full flex flex-col justify-between p-1 md:p-3",
+                                    "product-tile shadow-lg hover:shadow-xl relative z-10 w-full h-full flex flex-col justify-between p-1 md:p-3 transition-colors duration-500 ease-in-out",
                                     item.is_bought ? "product-tile-teal" : "product-tile-red",
                                     editMode === 'view' ? "cursor-pointer" : "cursor-default",
                                     editMode === 'delete' && "border-2 border-destructive animate-pulse cursor-pointer"
@@ -404,7 +410,7 @@ export default function ListDetail() {
                                 </div>
 
                                 <div className={cn(
-                                    "absolute top-1 left-1 md:top-2 md:left-2 shadow-md flex items-center justify-center text-[10px] md:text-xs font-bold rounded-full min-w-[1.5rem] md:min-w-[2rem] h-6 md:h-8 px-1.5 md:px-2",
+                                    "absolute top-1 left-1 md:top-2 md:left-2 shadow-md flex items-center justify-center text-[10px] md:text-xs font-bold rounded-full min-w-[1.5rem] md:min-w-[2rem] h-6 md:h-8 px-1.5 md:px-2 transition-colors duration-500",
                                     item.is_bought ? "bg-teal-500 text-white" : "bg-red-500 text-white"
                                 )}>
                                     {item.quantity} <span className="text-[8px] md:text-[9px] ml-0.5 opacity-90">{(item.unit || item.Product?.unit) === 'Stück' ? 'Stk' : (item.unit || item.Product?.unit)}</span>
@@ -412,7 +418,7 @@ export default function ListDetail() {
 
 
                             </motion.div>
-                        </div>
+                        </motion.div>
                     ))}
                 </AnimatePresence>
 
