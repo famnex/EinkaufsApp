@@ -123,24 +123,20 @@ export default function UpdateModal({ isOpen, onClose }) {
                         className="w-full max-w-2xl bg-black border border-green-500/30 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
                     >
                         {/* Header */}
-                        <div className="p-4 border-b border-green-500/30 bg-green-500/5 flex items-center justify-between">
+                        <div className="p-4 border-b border-green-500 bg-[#051a05] flex items-center justify-between">
                             <div className="flex items-center gap-2 text-green-500">
                                 <Terminal size={20} />
                                 <h3 className="font-mono font-bold tracking-wider">SYSTEM UPDATE</h3>
                             </div>
-                            {status === 'success' || status === 'error' || status === 'restarting' ? (
-                                <button onClick={onClose} className="p-1 hover:bg-green-500/20 rounded text-green-500 transition-colors">
-                                    <X size={20} />
-                                </button>
-                            ) : (
-                                <Loader2 size={20} className="text-green-500 animate-spin" />
-                            )}
+                            <button onClick={onClose} className="p-1 hover:bg-green-500/20 rounded text-green-500 transition-colors">
+                                <X size={20} />
+                            </button>
                         </div>
 
                         {/* Terminal Window */}
                         <div
                             ref={terminalRef}
-                            className="flex-1 p-4 overflow-y-auto font-mono text-xs md:text-sm space-y-1 bg-[#0c0c0c] text-[#00ff41] min-h-[300px] border border-green-900/50 m-2 rounded-lg shadow-inner"
+                            className="flex-1 p-4 overflow-y-auto font-mono text-xs md:text-sm space-y-1 bg-black text-[#00ff41] min-h-[300px] border-2 border-[#00ff41] m-2 rounded-lg shadow-[0_0_15px_rgba(0,255,65,0.2)]"
                         >
                             {logs.map((log, i) => (
                                 <div key={i} className="break-words font-medium" style={{ color: '#00ff41' }}>
@@ -157,7 +153,7 @@ export default function UpdateModal({ isOpen, onClose }) {
                         </div>
 
                         {/* Footer Status */}
-                        <div className="p-4 border-t border-green-500/30 bg-green-500/5">
+                        <div className="p-4 border-t border-green-500 bg-[#051a05]">
                             {status === 'success' && (
                                 <div className="flex items-center gap-2 text-green-500 font-bold">
                                     <CheckCircle size={20} />
@@ -168,14 +164,20 @@ export default function UpdateModal({ isOpen, onClose }) {
                                 </div>
                             )}
                             {status === 'error' && (
-                                <div className="flex items-center gap-2 text-red-500 font-bold">
+                                <div className="flex items-center gap-2 text-red-500 font-bold w-full">
                                     <AlertTriangle size={20} />
-                                    <span>Update failed or connection issue.</span>
+                                    <span className="flex-1">Update process failed.</span>
+                                    <Button onClick={startUpdate} size="sm" className="bg-red-600 hover:bg-red-700 text-white border-none">
+                                        Retry Update
+                                    </Button>
+                                    <Button onClick={() => window.location.reload()} size="sm" variant="outline" className="text-red-500 border-red-500 hover:bg-red-500/10">
+                                        Reload
+                                    </Button>
                                 </div>
                             )}
                             {(status === 'updating' || status === 'restarting') && (
                                 <div className="text-green-500/50 text-xs text-center uppercase tracking-widest animate-pulse">
-                                    Do not close this window
+                                    System updating...
                                 </div>
                             )}
                         </div>
