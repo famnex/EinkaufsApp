@@ -144,8 +144,9 @@ export default function UpdateModal({ isOpen, onClose }) {
                         >
                             {logs.map((log, i) => (
                                 <div key={i} className="break-words font-medium" style={{ color: '#00ff41' }}>
-                                    <span className="opacity-50 mr-2 select-none">$</span>
-                                    {log}
+                                    <span className="opacity-50 mr-2 select-none">$
+                                        {log}
+                                    </span>
                                 </div>
                             ))}
                             {status === 'restarting' && (
