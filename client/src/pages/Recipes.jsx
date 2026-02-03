@@ -55,28 +55,40 @@ export default function Recipes() {
         }
     };
 
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [recipeToDelete, setRecipeToDelete] = useState(null);
+    const [deleteUsage, setDeleteUsage] = useState(null);
+
     const handleDelete = async (id, title) => {
         try {
             // Check usage
             const { data: usage } = await api.get(`/recipes/${id}/usage`);
+            setRecipeToDelete({ id, title });
+            setDeleteUsage(usage);
+            setDeleteModalOpen(true);
+        } catch (err) {
+            console.error('Usage check failed', err);
+            // Fallback if check fails
+            if (confirm(`Löschen fehlgeschlagen beim Prüfen der Verwendung. Trotzdem löschen?`)) {
+                confirmDeleteActual({ id }); // Direct delete bypass
+            }
+        }
+    };
 
-            const message = `Möchtest du das Rezept "${title}" wirklich löschen?
-            
-WARNUNG:
-Dieses Rezept wird in:
-- ${usage.past} Menüplänen in der Vergangenheit
-- ${usage.future} Menüplänen in der Zukunft
-verwendet.
+    const confirmDelete = async () => {
+        if (!recipeToDelete) return;
+        confirmDeleteActual(recipeToDelete);
+    };
 
-Das Löschen entfernt das Rezept auch aus diesen Plänen!`;
-
-            if (!confirm(message)) return;
-
+    const confirmDeleteActual = async (recipe) => {
+        try {
             const token = localStorage.getItem('token');
-            await api.delete(`/recipes/${id}`, {
+            await api.delete(`/recipes/${recipe.id}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             fetchRecipes();
+            setDeleteModalOpen(false);
+            setRecipeToDelete(null);
         } catch (err) {
             console.error('Delete failed', err);
             alert('Fehler beim Löschen: ' + (err.response?.data?.error || err.message));
