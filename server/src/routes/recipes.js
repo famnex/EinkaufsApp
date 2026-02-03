@@ -5,6 +5,7 @@ const { auth } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
 
 // Configure multer for image upload
 const storage = multer.diskStorage({
@@ -105,12 +106,16 @@ const axios = require('axios'); // Ensure axios is required
 // Create recipe
 router.post('/', auth, upload.single('image'), async (req, res) => {
     console.log('--- RECIPE CREATE START ---');
-    console.log('User:', req.user.username);
-    console.log('Body:', JSON.stringify(req.body, null, 2));
+    console.log('User:', req.user ? req.user.username : 'Unknown');
+    // Log body keys since values might be large
+    console.log('Body Keys:', Object.keys(req.body));
     if (req.file) console.log('File:', req.file.filename);
 
     try {
         const { title, category, prep_time, duration, servings, instructions, tags } = req.body;
+
+        console.log('Title:', title);
+        console.log('Instructions Type:', typeof instructions);
 
         let finalImageUrl = null;
         if (req.file) {
@@ -118,33 +123,60 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
         } else if (req.body.image_url) {
             console.log('Process image URL:', req.body.image_url);
             if (req.body.image_url.startsWith('http')) {
-                finalImageUrl = await downloadImage(req.body.image_url);
-                console.log('Downloaded image to:', finalImageUrl);
+                try {
+                    const downloaded = await downloadImage(req.body.image_url);
+                    if (downloaded) {
+                        finalImageUrl = downloaded;
+                        console.log('Downloaded image to:', finalImageUrl);
+                    } else {
+                        console.log('Download returned null, using original URL');
+                        finalImageUrl = req.body.image_url;
+                    }
+                } catch (dlErr) {
+                    console.error('Download Image Crushed:', dlErr);
+                    finalImageUrl = req.body.image_url;
+                }
             } else {
                 finalImageUrl = req.body.image_url;
             }
         }
 
+        // Parse JSON fields safely
+        let parsedInstructions = [];
+        try {
+            parsedInstructions = instructions ? (typeof instructions === 'string' ? JSON.parse(instructions) : instructions) : [];
+        } catch (e) {
+            console.error('Failed to parse instructions:', e);
+            parsedInstructions = [instructions]; // Fallback as single step
+        }
+
         const recipe = await Recipe.create({
-            title,
+            title: title || 'Untitled Recipe',
             category,
             prep_time: parseInt(prep_time) || 0,
             duration: parseInt(duration) || 0,
             servings: parseInt(servings) || 1,
-            instructions: instructions ? (typeof instructions === 'string' ? JSON.parse(instructions) : instructions) : [],
+            instructions: parsedInstructions,
             image_url: finalImageUrl
         });
         console.log('Recipe Created ID:', recipe.id);
 
         // Handle Tags
         if (tags) {
-            const parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags;
-            console.log('Processing Tags:', parsedTags);
-            if (Array.isArray(parsedTags)) {
-                for (const tagName of parsedTags) {
-                    const [tag] = await Tag.findOrCreate({ where: { name: tagName } });
-                    await recipe.addTag(tag);
+            try {
+                const parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags;
+                console.log('Processing Tags:', parsedTags);
+                if (Array.isArray(parsedTags)) {
+                    for (const tagName of parsedTags) {
+                        // Ensure tag name is valid string
+                        if (typeof tagName === 'string' && tagName.trim()) {
+                            const [tag] = await Tag.findOrCreate({ where: { name: tagName.trim() } });
+                            await recipe.addTag(tag);
+                        }
+                    }
                 }
+            } catch (tagErr) {
+                console.error('Tag processing error:', tagErr);
             }
         }
 
@@ -153,7 +185,8 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
         res.status(201).json(reloaded);
     } catch (err) {
         console.error('--- RECIPE CREATE ERROR ---', err);
-        res.status(500).json({ error: err.message });
+        console.error(err.stack);
+        res.status(500).json({ error: err.message, stack: err.stack });
     }
 });
 
