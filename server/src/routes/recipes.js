@@ -101,7 +101,7 @@ const downloadImage = async (url) => {
     }
 };
 
-const axios = require('axios'); // Ensure axios is required
+
 
 // Create recipe
 router.post('/', auth, upload.single('image'), async (req, res) => {

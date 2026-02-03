@@ -113,9 +113,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
             }
 
             console.log('Sending Recipe FormData...');
-            const { data: recipe } = await api.post('/recipes', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const { data: recipe } = await api.post('/recipes', formData);
             console.log('Recipe Created:', recipe.id);
 
             // 2. Process Ingredients
