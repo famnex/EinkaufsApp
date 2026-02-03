@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Product, Manufacturer, Store } = require('../models');
+const { Product, Manufacturer, Store, ListItem, RecipeIngredient, sequelize } = require('../models');
 const { auth, admin } = require('../middleware/auth');
 
 router.get('/', auth, async (req, res) => {
@@ -42,6 +42,49 @@ router.delete('/:id', auth, async (req, res) => {
         await product.destroy();
         res.json({ message: 'Product deleted' });
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Merge Products
+router.post('/merge', auth, async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+        const { sourceId, targetId, newName } = req.body;
+
+        const source = await Product.findByPk(sourceId, { transaction: t });
+        const target = await Product.findByPk(targetId, { transaction: t });
+
+        if (!source || !target) {
+            await t.rollback();
+            return res.status(404).json({ error: 'Product not found' });
+        }
+
+        // 1. Update target name if provided
+        if (newName && newName !== target.name) {
+            await target.update({ name: newName }, { transaction: t });
+        }
+
+        // 2. Migrate Recipe Ingredients
+        await RecipeIngredient.update(
+            { ProductId: target.id },
+            { where: { ProductId: source.id }, transaction: t }
+        );
+
+        // 3. Migrate Shopping List Items
+        await ListItem.update(
+            { ProductId: target.id },
+            { where: { ProductId: source.id }, transaction: t }
+        );
+
+        // 4. Delete Source
+        await source.destroy({ transaction: t });
+
+        await t.commit();
+        res.json({ message: 'Merge successful', target });
+    } catch (err) {
+        await t.rollback();
+        console.error('Merge Error:', err);
         res.status(500).json({ error: err.message });
     }
 });

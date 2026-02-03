@@ -10,6 +10,7 @@ import ProductModal from '../components/ProductModal';
 import AiCleanupModal from '../components/AiCleanupModal';
 import { SessionSkeleton } from '../components/Skeleton';
 import { cn } from '../lib/utils';
+import MergeProductModal from '../components/MergeProductModal';
 import { useEditMode } from '../contexts/EditModeContext';
 
 export default function Products() {
@@ -122,9 +123,39 @@ export default function Products() {
         p.category?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const [mergeSource, setMergeSource] = useState(null);
+    const [mergeTarget, setMergeTarget] = useState(null);
+    const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+
+    // Drag Handlers
+    const handleDragStart = (e, product) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('application/json', JSON.stringify(product));
+        setMergeSource(product);
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleDrop = (e, targetProduct) => {
+        e.preventDefault();
+        const sourceData = e.dataTransfer.getData('application/json');
+        if (!sourceData) return;
+        const sourceProduct = JSON.parse(sourceData);
+
+        if (sourceProduct.id === targetProduct.id) return;
+
+        setMergeSource(sourceProduct);
+        setMergeTarget(targetProduct);
+        setIsMergeModalOpen(true);
+    };
+
     return (
         <div className="space-y-6">
             {/* View Switcher Tabs */}
+            {/* ... (Start of Tabs code unchanged, but re-render for clarity if needed. ) ... */}
             <div className="flex bg-muted p-1 rounded-2xl mb-6">
                 <button
                     onClick={() => {
@@ -153,7 +184,7 @@ export default function Products() {
                     Hersteller
                 </button>
 
-                {/* AI Cleanup Button (New) */}
+                {/* AI Cleanup Button */}
                 <button
                     onClick={() => setIsAiCleanupOpen(true)}
                     className="px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20"
@@ -198,6 +229,10 @@ export default function Products() {
                                 <motion.div
                                     key={product.id}
                                     layout
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, product)}
+                                    onDragOver={handleDragOver}
+                                    onDrop={(e) => handleDrop(e, product)}
                                     initial={{ opacity: 0, scale: 0.95 }}
                                     animate={{ opacity: 1, scale: 1 }}
                                     onClick={() => {
@@ -209,12 +244,12 @@ export default function Products() {
                                     }}
                                     className={cn(
                                         "bg-card border p-4 rounded-2xl flex items-center justify-between group transition-all",
-                                        "hover:shadow-md",
+                                        "hover:shadow-md cursor-grab active:cursor-grabbing",
                                         editMode === 'edit' && "border-primary/30 hover:bg-primary/5 cursor-pointer",
                                         editMode === 'delete' && "border-destructive/30 hover:bg-destructive/5 cursor-pointer"
                                     )}
                                 >
-                                    <div className="flex-1 min-w-0 text-left">
+                                    <div className="flex-1 min-w-0 text-left pointer-events-none">
                                         <h3 className="font-bold text-foreground truncate text-lg leading-tight">{product.name}</h3>
                                         <p className="text-sm text-muted-foreground truncate mt-1">{product.category || 'Keine Kategorie'}</p>
                                         <div className="flex items-center gap-2 mt-2">
@@ -293,6 +328,14 @@ export default function Products() {
                 }}
                 product={selectedProduct}
                 onSave={fetchProducts}
+            />
+
+            <MergeProductModal
+                isOpen={isMergeModalOpen}
+                onClose={() => setIsMergeModalOpen(false)}
+                sourceProduct={mergeSource}
+                targetProduct={mergeTarget}
+                onConfirm={fetchProducts}
             />
 
             <AiCleanupModal
