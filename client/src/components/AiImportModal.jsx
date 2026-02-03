@@ -245,24 +245,31 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                                 </div>
                                             )}
 
-                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
-                                                <Button
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    className="gap-2"
-                                                    onClick={async () => {
-                                                        if (!confirm('Ein neues Bild mit AI generieren? (Kostenpflichtig)')) return;
-                                                        try {
-                                                            const { data } = await api.post('/ai/generate-image', { title: parsedData.title });
-                                                            setParsedData(prev => ({ ...prev, image_url: data.url }));
-                                                        } catch (err) {
-                                                            alert('Fehler beim Generieren: ' + err.message);
-                                                        }
-                                                    }}
-                                                >
-                                                    <Sparkles size={14} /> AI Bild Generieren
-                                                </Button>
-                                            </div>
+                                            {parsedData.image_url && (
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        className="gap-2"
+                                                        disabled={isGenerating}
+                                                        onClick={async () => {
+                                                            if (!confirm('Ein neues Bild mit AI generieren? (Kostenpflichtig)')) return;
+                                                            setIsGenerating(true);
+                                                            try {
+                                                                const { data } = await api.post('/ai/generate-image', { title: parsedData.title });
+                                                                setParsedData(prev => ({ ...prev, image_url: data.url }));
+                                                            } catch (err) {
+                                                                alert('Fehler beim Generieren: ' + err.message);
+                                                            } finally {
+                                                                setIsGenerating(false);
+                                                            }
+                                                        }}
+                                                    >
+                                                        {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                                                        Neu Generieren
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="grid grid-cols-3 gap-2">

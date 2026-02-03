@@ -1,6 +1,11 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.10.1
+## Aktuelle Version: v0.10.2
+
+### Changelog v0.10.2
+- **Fix (UI):** Cooking Mode Header auf Mobile sticky & Safe-Area optimiert (PWA fix).
+- **Fix (AI):** AI Import Bild-Overlay UX verbessert & Loading-Spinner hinzugefügt.
+- **Fix (AI):** Robustere Tag-Initialisierung beim AI Import.
 
 ### Changelog v0.10.1
 - **Fix:** Cooking Mode Layout auf kleinen Bildschirmen korrigiert (überlappende Buttons).
