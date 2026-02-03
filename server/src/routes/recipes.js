@@ -13,6 +13,7 @@ const storage = multer.diskStorage({
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
+        console.log(' Multer: Saving file to:', uploadDir); // DEBUG LOG
         cb(null, uploadDir);
     },
     filename: function (req, file, cb) {
@@ -83,6 +84,7 @@ const downloadImage = async (url) => {
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
+        console.log(' DownloadImage: Saving to:', uploadDir); // DEBUG LOG
         const filepath = path.join(uploadDir, filename);
 
         await new Promise((resolve, reject) => {
