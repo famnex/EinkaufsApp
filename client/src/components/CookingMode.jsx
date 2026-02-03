@@ -90,7 +90,10 @@ export default function CookingMode({ recipe, onClose }) {
                 className="fixed inset-0 z-[200] bg-background flex flex-col md:flex-row overflow-hidden"
             >
                 {/* --- MOBILE HEADER (Shared, Sticky, Safe Area Aware) --- */}
-                <div className="md:hidden flex-none z-50 bg-background border-b border-border shadow-sm pt-[env(safe-area-inset-top)]">
+                <div
+                    className="md:hidden flex-none z-50 bg-background border-b border-border shadow-sm"
+                    style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}
+                >
                     {/* Top Row: Title & Close */}
                     <div className="flex items-center justify-between p-4 pb-2">
                         <h3 className="font-bold truncate pr-4 text-lg">{recipe.title}</h3>

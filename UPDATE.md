@@ -1,6 +1,9 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.10.4
+## Aktuelle Version: v0.10.5
+
+### Changelog v0.10.5
+- **Fix:** Aggressiveres Safe-Area Padding für PWA auf iOS Devices (verhindert Überlappung mit Dynamic Island/Notch).
 
 ### Changelog v0.10.4
 - **Database Fix:** `RecipeTags`-Tabelle repariert. Speichern von mehreren Tags pro Rezept funktioniert nun korrekt (Unique-Constraint korrigiert).
