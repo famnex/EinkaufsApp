@@ -8,6 +8,7 @@ import { Input } from '../components/Input';
 import { useEditMode } from '../contexts/EditModeContext';
 import RecipeModal from '../components/RecipeModal';
 import AiImportModal from '../components/AiImportModal';
+import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import CookingMode from '../components/CookingMode';
 import { cn, getImageUrl } from '../lib/utils';
 
