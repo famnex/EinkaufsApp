@@ -103,6 +103,33 @@ const downloadImage = async (url) => {
 
 
 
+// Check recipe usage
+router.get('/:id/usage', auth, async (req, res) => {
+    try {
+        const { Op } = require('sequelize');
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const pastCount = await Menu.count({
+            where: {
+                RecipeId: req.params.id,
+                date: { [Op.lt]: today }
+            }
+        });
+
+        const futureCount = await Menu.count({
+            where: {
+                RecipeId: req.params.id,
+                date: { [Op.gte]: today }
+            }
+        });
+
+        res.json({ past: pastCount, future: futureCount });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Create recipe
 router.post('/', auth, upload.single('image'), async (req, res) => {
     console.log('--- RECIPE CREATE START ---');
