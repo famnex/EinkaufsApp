@@ -1,6 +1,9 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.10.5
+## Aktuelle Version: v0.10.6
+
+### Changelog v0.10.6
+- **Fix:** Globales Header-Layout fix: PWA Safe-Area Padding für alle Seiten aktiviert (Notch/Island Überlappung behoben).
 
 ### Changelog v0.10.5
 - **Fix:** Aggressiveres Safe-Area Padding für PWA auf iOS Devices (verhindert Überlappung mit Dynamic Island/Notch).

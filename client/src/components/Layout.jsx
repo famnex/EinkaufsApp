@@ -31,7 +31,10 @@ export default function Layout({ children }) {
 
     return (
         <div className="min-h-screen bg-background pb-24">
-            <header className="sticky top-0 z-40 w-full bg-background/80 backdrop-blur-xl border-b border-border">
+            <header
+                className="sticky top-0 z-40 w-full bg-background/80 backdrop-blur-xl border-b border-border transition-all"
+                style={{ paddingTop: 'env(safe-area-inset-top)' }}
+            >
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
