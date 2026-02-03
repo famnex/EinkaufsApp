@@ -269,6 +269,7 @@ router.delete('/:id/ingredients/:ingredientId', auth, async (req, res) => {
 
 // Delete Recipe
 router.delete('/:id', auth, async (req, res) => {
+    // Start transaction
     const t = await sequelize.transaction();
     console.log('--- RECIPE DELETE START ---', req.params.id);
 
@@ -286,27 +287,54 @@ router.delete('/:id', auth, async (req, res) => {
 
         // 2. Remove from Menus
         console.log('Unlinking from Menus...');
-        // Note: RecipeId is nullable in Menu model
         await Menu.update({ RecipeId: null }, { where: { RecipeId: req.params.id }, transaction: t });
 
-        // 3. Remove Tags (explicit join table deletion)
-        console.log('Removing Tag Links...');
+        // 3. Remove Tags
         if (RecipeTag) {
+            console.log('Removing Tag Links...');
+            // Check if table exists (simplified check by just trying)
             await RecipeTag.destroy({ where: { RecipeId: req.params.id }, transaction: t });
         }
 
-        // 4. Destroy Recipe
+        // 4. Capture image path for later deletion (Post-commit to avoid deleting if DB fail)
+        const imageToDelete = recipe.image_url;
+
+        // 5. Destroy Recipe
         console.log('Destroying Recipe record...');
         await recipe.destroy({ transaction: t });
 
+        // Commit transaction
         await t.commit();
-        console.log('--- RECIPE DELETE SUCCESS ---');
+        console.log('--- DATABASE DELETE SUCCESS ---');
+
+        // 6. Delete Image File (Best effort, non-blocking)
+        if (imageToDelete && !imageToDelete.startsWith('http')) {
+            try {
+                // image_url is like /uploads/recipes/xxx.jpg
+                //We need to go from src/routes -> ... -> public
+                const publicDir = path.join(__dirname, '../../public');
+                const fullPath = path.join(publicDir, imageToDelete);
+                console.log('Attempting to delete image:', fullPath);
+                if (fs.existsSync(fullPath)) {
+                    fs.unlinkSync(fullPath);
+                    console.log('Image deleted.');
+                } else {
+                    console.log('Image file not found:', fullPath);
+                }
+            } catch (fileErr) {
+                console.error('Failed to delete image file:', fileErr.message);
+                // Do not fail the request since DB is consistent
+            }
+        }
+
         res.json({ message: 'Recipe deleted' });
     } catch (err) {
-        await t.rollback();
-        console.error('--- RECIPE DELETE ERROR ---', err);
-        console.error(err.stack); // Log stack trace
-        res.status(500).json({ error: err.message });
+        // Only rollback if transaction is active (it should be)
+        if (t) await t.rollback();
+        console.error('--- RECIPE DELETE ERROR ---');
+        console.error('Message:', err.message);
+        console.error('Stack:', err.stack);
+        res.status(500).json({ error: 'Delete failed: ' + err.message });
     }
 });
 
