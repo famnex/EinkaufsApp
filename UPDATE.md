@@ -1,6 +1,9 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.10.0
+## Aktuelle Version: v0.10.1
+
+### Changelog v0.10.1
+- **Fix:** Cooking Mode Layout auf kleinen Bildschirmen korrigiert (überlappende Buttons).
 
 ### Changelog v0.10.0
 - **Responsive List Stats:** Kategorie-Statistiken statt Gesamtpreis, optimiert für Mobile.

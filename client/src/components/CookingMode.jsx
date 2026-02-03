@@ -89,8 +89,8 @@ export default function CookingMode({ recipe, onClose }) {
                 exit={{ opacity: 0, scale: 0.95 }}
                 className="fixed inset-0 z-[200] bg-background flex flex-col md:flex-row overflow-hidden"
             >
-                {/* Close Button & Controls (Top Right Overlay) */}
-                <div className="absolute top-4 right-4 z-50 flex gap-2">
+                {/* Close Button & Controls (Top Right Overlay) - Desktop Only */}
+                <div className="absolute top-4 right-4 z-50 hidden md:flex gap-2">
                     <div className="bg-card/80 backdrop-blur border border-border rounded-full p-1 flex items-center gap-1 shadow-lg">
                         <button onClick={() => setTextSize(Math.max(0, textSize - 1))} className="p-2 hover:bg-muted rounded-full w-8 h-8 flex items-center justify-center"><Minus size={16} /></button>
                         <span className="text-xs font-bold w-4 text-center">A</span>
@@ -117,6 +117,13 @@ export default function CookingMode({ recipe, onClose }) {
                         <div className="absolute bottom-4 left-4 right-4 text-white">
                             <h2 className="text-2xl font-bold leading-tight">{recipe.title}</h2>
                             <p className="opacity-80 text-sm">{recipe.servings} Portionen • {recipe.duration} Min</p>
+                        </div>
+
+                        {/* Mobile Close Ingredients Button (Overlay on Image) */}
+                        <div className="absolute top-4 right-4 md:hidden">
+                            <Button size="icon" variant="secondary" className="rounded-full h-10 w-10 shadow-lg" onClick={() => setShowIngredientsMobile(false)}>
+                                <X size={20} />
+                            </Button>
                         </div>
                     </div>
 
@@ -149,21 +156,33 @@ export default function CookingMode({ recipe, onClose }) {
                             ))}
                         </div>
                     </div>
-
-                    {/* Mobile Close Ingredients Button */}
-                    <div className="md:hidden p-4 border-t border-border">
-                        <Button className="w-full" onClick={() => setShowIngredientsMobile(false)}>Zurück zu den Schritten</Button>
-                    </div>
                 </div>
 
                 {/* RIGHT SIDE: Steps */}
                 <div className="flex-1 flex flex-col h-full relative bg-background">
                     {/* Mobile Header (When ingredients hidden) */}
-                    <div className="md:hidden p-4 flex items-center justify-between border-b border-border">
-                        <span className="font-bold truncate pr-4">{recipe.title}</span>
-                        <Button variant="outline" size="sm" onClick={() => setShowIngredientsMobile(true)}>
-                            Zutaten
-                        </Button>
+                    <div className="md:hidden flex flex-col border-b border-border bg-background z-40">
+                        {/* Top Row: Title & Close */}
+                        <div className="flex items-center justify-between p-4 pb-2">
+                            <h3 className="font-bold truncate pr-4 text-lg">{recipe.title}</h3>
+                            <Button variant="ghost" size="icon" onClick={onClose} className="-mr-2">
+                                <X size={24} />
+                            </Button>
+                        </div>
+
+                        {/* Bottom Row: Actions */}
+                        <div className="flex items-center justify-between px-4 pb-4">
+                            <Button variant="outline" size="sm" onClick={() => setShowIngredientsMobile(true)}>
+                                Zutaten ({ingredients.length})
+                            </Button>
+
+                            {/* Text Size (Mini Version) */}
+                            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
+                                <button onClick={() => setTextSize(Math.max(0, textSize - 1))} className="w-8 h-8 flex items-center justify-center hover:bg-background rounded-md"><Minus size={14} /></button>
+                                <span className="text-xs font-bold w-4 text-center">Aa</span>
+                                <button onClick={() => setTextSize(Math.min(2, textSize + 1))} className="w-8 h-8 flex items-center justify-center hover:bg-background rounded-md"><Plus size={14} /></button>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Step Content */}
