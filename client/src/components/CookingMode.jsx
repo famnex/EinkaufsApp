@@ -83,7 +83,7 @@ export default function CookingMode({ recipe, onClose }) {
                     {/* Header Image */}
                     <div className="relative h-48 md:h-64 shrink-0">
                         {recipe.image_url ? (
-                            <img src={recipe.image_url.startsWith('http') ? recipe.image_url : `http://localhost:5000${recipe.image_url}`} className="w-full h-full object-cover" />
+                            <img src={recipe.image_url} className="w-full h-full object-cover" />
                         ) : (
                             <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground">No Image</div>
                         )}

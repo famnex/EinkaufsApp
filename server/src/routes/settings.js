@@ -3,6 +3,19 @@ const router = express.Router();
 const { Settings } = require('../models');
 const { auth } = require('../middleware/auth');
 
+const { exec } = require('child_process');
+
+// Get system version
+router.get('/system/version', auth, (req, res) => {
+    exec('git describe --tags --always', (error, stdout, stderr) => {
+        if (error) {
+            console.warn('Git describe failed:', error);
+            return res.json({ version: require('../../package.json').version });
+        }
+        res.json({ version: stdout.trim() });
+    });
+});
+
 // Get a setting by key
 router.get('/:key', auth, async (req, res) => {
     try {

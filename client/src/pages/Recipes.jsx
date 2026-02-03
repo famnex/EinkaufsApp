@@ -183,7 +183,7 @@ export default function Recipes() {
                                 <div className="aspect-video relative bg-muted shrink-0">
                                     {recipe.image_url ? (
                                         <img
-                                            src={recipe.image_url.startsWith('http') ? recipe.image_url : `http://localhost:5000${recipe.image_url}`}
+                                            src={recipe.image_url}
                                             alt={recipe.title}
                                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 max-h-[230px]"
 

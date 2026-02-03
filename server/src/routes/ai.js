@@ -143,6 +143,180 @@ router.post('/parse', auth, async (req, res) => {
     }
 });
 
+// Cleanup Endpoint
+router.post('/cleanup', auth, async (req, res) => {
+    try {
+        const { type, products } = req.body; // products = [{ id, name, ... }]
+        if (!type || !products || !products.length) {
+            return res.status(400).json({ error: 'Type and products are required' });
+        }
+
+        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
+        if (!setting || !setting.value) {
+            return res.status(400).json({ error: 'OpenAI API Key not configured' });
+        }
+
+        const openai = new OpenAI({ apiKey: setting.value });
+
+        let prompt = "";
+        const productNames = products.map(p => p.name).join('; ');
+
+        if (type === 'category') {
+            // Get existing categories
+            const existingCategories = await Product.findAll({
+                attributes: ['category'],
+                group: ['category'],
+                where: { category: { [require('sequelize').Op.ne]: null } },
+                raw: true
+            });
+            const categoryList = existingCategories.map(c => c.category).filter(Boolean).join(', ');
+
+            prompt = `
+            You are a grocery store manager. I have a list of products that are missing categories.
+            
+            Existing Categories: [${categoryList}]
+            
+            Products to categorize:
+            [${productNames}]
+
+            For each product, assign the best fitting category from the existing list. 
+            If no existing category fits well, suggest a new, sensible German category name (e.g. "Milchprodukte", "Obst & Gemüse", "Konserven").
+            
+            Return a JSON object:
+            {
+                "results": [
+                    { "name": "Product Name", "category": "Assigned Category" }
+                ]
+            }
+            `;
+
+        } else if (type === 'manufacturer') {
+            prompt = `
+            You are a grocery expert for the German market. I have a list of products missing manufacturer/brand information.
+            
+            Products:
+            [${productNames}]
+
+            For each product, suggest a list of 3-5 common manufacturers/brands typically found in German supermarkets (e.g. Rewe, Edeka, Aldi brands or major brands like Dr. Oetker, Nestle, etc.).
+            
+            Return a JSON object:
+            {
+                "results": [
+                    { "name": "Product Name", "manufacturers": ["Brand A", "Brand B", "Brand C"] }
+                ]
+            }
+            `;
+
+        } else if (type === 'unit') {
+            prompt = `
+            You are a grocery expert. I have a list of products that need standardized sales units.
+            
+            Products:
+            [${productNames}]
+
+            For each product, suggest the most common sales unit (e.g. Stück, Packung, Flasche, Dose, Becher, Kopf, Bund, kg, g, Liter).
+            Also suggest a strictly numeric amount if typical (e.g. for "1 Liter Milk" -> amount: 1, unit: Liter). If variable, just default to amount 1 and the unit (e.g. 1 Stück).
+            
+            Return a JSON object:
+            {
+                "results": [
+                    { "name": "Product Name", "unit": "Suggested Unit", "amount": 1 }
+                ]
+            }
+            `;
+        } else {
+            return res.status(400).json({ error: 'Invalid type' });
+        }
+
+        const completion = await openai.chat.completions.create({
+            messages: [
+                { role: "system", content: "You are a helpful assistant that outputs strictly JSON." },
+                { role: "user", content: prompt }
+            ],
+            model: "gpt-4o",
+            response_format: { type: "json_object" },
+        });
+
+        const result = JSON.parse(completion.choices[0].message.content);
+
+        // Map back to IDs if possible, but for now we rely on name matching or pure index if order preserved (OpenAI usually preserves order but name matching is safer)
+        const mappedResults = result.results.map(r => {
+            const original = products.find(p => p.name === r.name);
+            return {
+                id: original ? original.id : null,
+                ...r
+            };
+        });
+
+        res.json(mappedResults);
+
+    } catch (err) {
+        console.error('AI Cleanup Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Single Product Lookup Endpoint
+router.post('/lookup', auth, async (req, res) => {
+    try {
+        const { name } = req.body;
+        if (!name) return res.status(400).json({ error: 'Name is required' });
+
+        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
+        if (!setting || !setting.value) {
+            return res.status(400).json({ error: 'OpenAI API Key not configured' });
+        }
+
+        const openai = new OpenAI({ apiKey: setting.value });
+
+        // Get existing categories for context
+        const existingCategories = await Product.findAll({
+            attributes: ['category'],
+            group: ['category'],
+            where: { category: { [require('sequelize').Op.ne]: null } },
+            raw: true
+        });
+        const categoryList = existingCategories.map(c => c.category).filter(Boolean).join(', ');
+
+        const prompt = `
+        You are a grocery expert for the German market.
+        Product to analyze: "${name}"
+
+        Existing Categories: [${categoryList}]
+
+        1. Assign the best fitting category from the existing list, or suggest a new sensible German category.
+        2. Suggest the most common sales unit (e.g. Stück, Packung, Flasche, Dose, kg, g, Liter).
+        3. Suggest a numeric amount for the unit (e.g. 1).
+        4. Suggest a list of 3-5 common manufacturers/brands for this product in Germany.
+
+        Return a JSON object:
+        {
+            "category": "Category Name",
+            "unit": "Unit Name",
+            "amount": 1,
+            "manufacturers": ["Brand A", "Brand B", "Brand C"]
+        }
+        `;
+
+        const completion = await openai.chat.completions.create({
+            messages: [
+                { role: "system", content: "You are a helpful assistant that outputs strictly JSON." },
+                { role: "user", content: prompt }
+            ],
+            model: "gpt-4o",
+            response_format: { type: "json_object" },
+        });
+
+        const result = JSON.parse(completion.choices[0].message.content);
+        res.json(result);
+
+    } catch (err) {
+        console.error('AI Lookup Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Image Generation Endpoint
 router.post('/generate-image', auth, async (req, res) => {
     try {
         const { title } = req.body;

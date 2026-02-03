@@ -50,7 +50,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                             duration: fullRecipe.duration,
                             servings: fullRecipe.servings,
                             image: null,
-                            imagePreview: fullRecipe.image_url ? (fullRecipe.image_url.startsWith('http') ? fullRecipe.image_url : `http://localhost:5000${fullRecipe.image_url}`) : null,
+                            imagePreview: fullRecipe.image_url,
                             tags: fullRecipe.Tags ? fullRecipe.Tags.map(t => t.name) : []
                         });
 

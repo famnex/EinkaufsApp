@@ -234,7 +234,7 @@ export default function ListDetail() {
                             if (activeStore?.logo_url) {
                                 return (
                                     <img
-                                        src={activeStore.logo_url.startsWith('http') ? activeStore.logo_url : `http://localhost:5000${activeStore.logo_url}`}
+                                        src={activeStore.logo_url}
                                         alt={activeStore.name}
                                         className="w-12 h-12 object-contain bg-white rounded-xl p-1 shadow-sm border border-border"
                                     />

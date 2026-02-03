@@ -15,7 +15,7 @@ export default function StoreModal({ isOpen, onClose, store, onSave }) {
         if (isOpen) {
             if (store) {
                 setName(store.name);
-                setLogoPreview(store.logo_url ? (store.logo_url.startsWith('http') ? store.logo_url : `http://localhost:5000${store.logo_url}`) : null);
+                setLogoPreview(store.logo_url);
             } else {
                 resetForm();
             }

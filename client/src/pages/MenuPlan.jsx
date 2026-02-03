@@ -238,7 +238,7 @@ export default function MenuPlan() {
                                         const slotIcon = slots.find(s => s.type === m.meal_type);
                                         const Icon = slotIcon ? slotIcon.icon : Info;
                                         return (
-                                            <div key={m.id} className="hidden md:inline-flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-lg text-xs font-medium truncate shrink-0 max-w-[120px]">
+                                            <div key={m.id} className="hidden md:inline-flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-lg text-xs font-medium min-w-0">
                                                 <Icon size={12} className="shrink-0 text-primary" />
                                                 <span className="truncate">{m.Recipe ? m.Recipe.title : m.description}</span>
                                             </div>

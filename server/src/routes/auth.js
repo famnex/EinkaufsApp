@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { User } = require('../models');
+const { User, Settings } = require('../models');
 
 // Basic Login (Local)
 router.post('/login', async (req, res) => {
@@ -30,6 +30,12 @@ router.post('/login', async (req, res) => {
 router.post('/signup', async (req, res) => {
     const { username, password, email } = req.body;
     try {
+        // Check registration setting
+        const regSetting = await Settings.findOne({ where: { key: 'registration_enabled' } });
+        if (regSetting && regSetting.value === 'false') {
+            return res.status(403).json({ error: 'Registrierung ist deaktiviert.' });
+        }
+
         const existingUser = await User.findOne({ where: { username } });
         if (existingUser) return res.status(400).json({ error: 'Username already exists' });
 
@@ -46,6 +52,17 @@ router.post('/signup', async (req, res) => {
     } catch (err) {
         console.error('Signup Error:', err); // Debug Log
         if (!process.env.JWT_SECRET) console.error('CRITICAL: JWT_SECRET is missing!');
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Check Registration Status (Public)
+router.get('/registration-status', async (req, res) => {
+    try {
+        const regSetting = await Settings.findOne({ where: { key: 'registration_enabled' } });
+        // Default to true if not set
+        res.json({ enabled: !regSetting || regSetting.value !== 'false' });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });

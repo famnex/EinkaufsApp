@@ -265,24 +265,61 @@ export default function Dashboard() {
 
             <style dangerouslySetInnerHTML={{
                 __html: `
-                .react-calendar__tile--active {
-                    background: transparent !important;
-                    color: inherit !important;
-                }
+                /* 1. Global Reset: Remove default hover/active backgrounds */
+                .react-calendar__tile:enabled:hover,
+                .react-calendar__tile:enabled:focus,
+                .react-calendar__tile--active,
                 .react-calendar__tile--active:enabled:hover,
                 .react-calendar__tile--active:enabled:focus {
-                    background: hsl(var(--muted)) !important;
-                }
-                .react-calendar__tile--now {
-                    border: 2px solid #b91c1c !important;
-                    border-radius: 0.75rem !important;
                     background: transparent !important;
+                    color: inherit !important;
+                    box-shadow: none !important;
+                    border: 4px solid transparent !important;
                 }
-                .react-calendar__tile--now.has-list {
-                    background: hsl(var(--primary)) !important;
-                    color: hsl(var(--primary-foreground)) !important;
+
+                /* 2. Base Styles */
+                
+                /* Standard Tile */
+                .react-calendar__tile {
+                    color: hsl(var(--foreground)) !important;
+                    background: transparent !important;
+                    border: 4px solid transparent !important;
+                    transition: none !important; /* Remove transition to avoid flickering on state change */
                 }
-                /* Maintain dots/indicators if any (none in current implementation except has-list bg) */
+
+                /* Today: Dark red border */
+                .react-calendar__tile--now {
+                    border: 2px solid #7f1d1d !important;
+                    border-radius: 0.75rem !important;
+                }
+
+                /* List Day: Red Background */
+                .react-calendar__tile.has-list {
+                    background: #f43f5e !important;
+                    color: white !important;
+                }
+
+                /* Today AND List: Red Background + Dark Red Border */
+                .react-calendar__tile.has-list.react-calendar__tile--now {
+                    border: 2px solid #7f1d1d !important;
+                }
+
+                /* 3. Persistent State (Force colors to stay same on Hover/Active) */
+
+                /* Force List Days to KEEP Red Background on Hover/Active */
+                .react-calendar__tile.has-list:enabled:hover,
+                .react-calendar__tile.has-list:enabled:focus,
+                .react-calendar__tile.has-list.react-calendar__tile--active {
+                    background: #f43f5e !important;
+                    color: white !important;
+                }
+
+                /* Force Today to KEEP Border on Hover/Active */
+                .react-calendar__tile--now:enabled:hover,
+                .react-calendar__tile--now:enabled:focus,
+                .react-calendar__tile--now.react-calendar__tile--active {
+                    border: 2px solid #7f1d1d !important;
+                }
             `}} />
         </div >
     );

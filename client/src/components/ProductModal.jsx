@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Package, Tag, Euro, Store as StoreIcon, Plus } from 'lucide-react';
+import { X, Save, Package, Tag, Euro, Store as StoreIcon, Plus, Sparkles } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
@@ -17,6 +17,8 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
     });
     const [manufacturers, setManufacturers] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [loadingAi, setLoadingAi] = useState(false);
+    const [aiManufacturers, setAiManufacturers] = useState([]);
 
     useEffect(() => {
         if (product) {
@@ -29,6 +31,7 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
             });
         } else {
             setFormData({ name: '', category: '', price_hint: '', unit: 'Stück', ManufacturerId: '' });
+            setAiManufacturers([]); // Reset on new
         }
 
         if (isOpen) {
@@ -71,6 +74,51 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
             console.error('Failed to save product', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleAiLookup = async () => {
+        if (!formData.name) return alert("Bitte geben Sie zuerst einen Produktnamen ein.");
+        setLoadingAi(true);
+        setAiManufacturers([]);
+        try {
+            const { data } = await api.post('/ai/lookup', { name: formData.name });
+
+            // Auto-fill fields
+            setFormData(prev => ({
+                ...prev,
+                category: data.category || prev.category,
+                unit: data.unit ? `${data.amount || 1} ${data.unit}` : prev.unit
+            }));
+
+            // Handle manufacturers
+            if (data.manufacturers && data.manufacturers.length > 0) {
+                setAiManufacturers(data.manufacturers);
+            }
+
+        } catch (err) {
+            console.error(err);
+            alert("AI Lookup fehlgeschlagen: " + (err.response?.data?.error || err.message));
+        } finally {
+            setLoadingAi(false);
+        }
+    };
+
+    const handleSelectManufacturer = async (manufName) => {
+        // Check if exists
+        const existing = manufacturers.find(m => m.name.toLowerCase() === manufName.toLowerCase());
+        if (existing) {
+            setFormData(prev => ({ ...prev, ManufacturerId: existing.id }));
+        } else {
+            // Create new
+            try {
+                const { data } = await api.post('/manufacturers', { name: manufName });
+                setManufacturers(prev => [...prev, data]);
+                setFormData(prev => ({ ...prev, ManufacturerId: data.id }));
+            } catch (err) {
+                console.error(err);
+                alert("Fehler beim Erstellen des Herstellers");
+            }
         }
     };
 
@@ -143,6 +191,25 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
 
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Hersteller</label>
+
+                                    {/* AI Manufacturer Suggestions */}
+                                    {aiManufacturers.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            <span className="text-xs text-muted-foreground self-center mr-1">Vorschläge:</span>
+                                            {aiManufacturers.map(m => (
+                                                <button
+                                                    key={m}
+                                                    type="button"
+                                                    onClick={() => handleSelectManufacturer(m)}
+                                                    className="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs rounded-full border border-indigo-200 hover:bg-indigo-100 transition-colors flex items-center gap-1"
+                                                >
+                                                    <Sparkles size={10} />
+                                                    {m}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
                                     <div className="flex gap-2">
                                         <select
                                             value={formData.ManufacturerId}
@@ -178,14 +245,27 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                         type="button"
                                         variant="outline"
                                         onClick={onClose}
-                                        className="flex-1 h-12"
+                                        className="h-12 px-6"
                                     >
                                         Abbrechen
                                     </Button>
+
+                                    <div className="flex-1" /> {/* Spacer */}
+
+                                    <Button
+                                        type="button"
+                                        onClick={handleAiLookup}
+                                        disabled={loadingAi || !formData.name}
+                                        className="h-12 gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20"
+                                    >
+                                        {loadingAi ? <Sparkles size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                                        {loadingAi ? 'AI sucht...' : 'AI Lookup'}
+                                    </Button>
+
                                     <Button
                                         type="submit"
                                         disabled={loading}
-                                        className="flex-1 h-12 gap-2"
+                                        className="h-12 gap-2 px-8"
                                     >
                                         <Save size={18} />
                                         {loading ? 'Speichern...' : 'Speichern'}

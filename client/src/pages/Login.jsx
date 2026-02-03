@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/Button';
@@ -7,14 +7,28 @@ import { Card } from '../components/Card';
 import { LogIn, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ThemeToggle from '../components/ThemeToggle';
+import api from '../lib/axios';
 
 export default function LoginPage() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [regEnabled, setRegEnabled] = useState(true); // Default true to avoid flash
     const { login } = useAuth();
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const checkReg = async () => {
+            try {
+                const { data } = await api.get('/auth/registration-status');
+                setRegEnabled(data.enabled);
+            } catch (err) {
+                console.error('Failed to check reg status', err);
+            }
+        };
+        checkReg();
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -129,17 +143,19 @@ export default function LoginPage() {
                         </motion.div>
                     </form>
 
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.9 }}
-                        className="mt-10 text-center text-sm"
-                    >
-                        <span className="text-muted-foreground tracking-wide">Neu hier?</span>{' '}
-                        <Link to="/signup" className="font-bold text-primary hover:text-primary/80 transition-colors ml-1 underline decoration-primary/30 underline-offset-4">
-                            Konto erstellen
-                        </Link>
-                    </motion.div>
+                    {regEnabled && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.9 }}
+                            className="mt-10 text-center text-sm"
+                        >
+                            <span className="text-muted-foreground tracking-wide">Neu hier?</span>{' '}
+                            <Link to="/signup" className="font-bold text-primary hover:text-primary/80 transition-colors ml-1 underline decoration-primary/30 underline-offset-4">
+                                Konto erstellen
+                            </Link>
+                        </motion.div>
+                    )}
                 </Card>
             </motion.div>
         </div>

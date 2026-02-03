@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User } from 'lucide-react';
+import { Settings, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -21,6 +21,8 @@ export default function SettingsPage() {
     const [selectedStore, setSelectedStore] = useState(null);
     const [openaiKey, setOpenaiKey] = useState('');
     const [savingKey, setSavingKey] = useState(false);
+    const [registrationEnabled, setRegistrationEnabled] = useState(true);
+    const [appVersion, setAppVersion] = useState('...');
 
     // User Management State
     const [users, setUsers] = useState([]);
@@ -54,8 +56,22 @@ export default function SettingsPage() {
 
     const fetchSettings = async () => {
         try {
-            const { data } = await api.get('/settings/openai_key');
-            setOpenaiKey(data.value || '');
+            const promises = [
+                api.get('/settings/openai_key'),
+                api.get('/settings/registration_enabled'),
+                api.get('/settings/system/version')
+            ];
+
+            // Allow version fetch to fail gracefully if endpoint doesn't exist yet (though it should)
+            const results = await Promise.allSettled(promises);
+
+            const openaiRes = results[0].status === 'fulfilled' ? results[0].value : { data: {} };
+            const regRes = results[1].status === 'fulfilled' ? results[1].value : { data: {} };
+            const verRes = results[2].status === 'fulfilled' ? results[2].value : { data: { version: 'Unknown' } };
+
+            setOpenaiKey(openaiRes.data.value || '');
+            setRegistrationEnabled(regRes.data.value !== 'false');
+            setAppVersion(verRes.data.version);
         } catch (err) {
             console.error('Failed to fetch settings', err);
         }
@@ -86,6 +102,21 @@ export default function SettingsPage() {
             alert('Fehler beim Speichern');
         } finally {
             setSavingKey(false);
+        }
+    };
+
+    const handleToggleRegistration = async (e) => {
+        const newValue = e.target.checked;
+        setRegistrationEnabled(newValue);
+        try {
+            await api.post('/settings', {
+                key: 'registration_enabled',
+                value: String(newValue)
+            });
+        } catch (err) {
+            console.error('Failed to save setting', err);
+            setRegistrationEnabled(!newValue); // Revert
+            alert('Fehler beim Speichern');
         }
     };
 
@@ -144,6 +175,237 @@ export default function SettingsPage() {
         }
     };
 
+    // --- Component Sections ---
+
+    const ProfileSection = (
+        <Card className="p-8 border-border bg-card shadow-lg">
+            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                <Shield size={20} className="text-primary" />
+                Sicherheit & Profil
+            </h2>
+            <div className="space-y-4">
+                <div className="p-4 bg-muted rounded-2xl">
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Angemeldet als</p>
+                    <p className="font-bold text-foreground">{user?.username || 'Gast'}</p>
+                    <p className="text-sm text-primary font-medium">{user?.role === 'admin' ? 'Administrator' : 'Standard-Benutzer'}</p>
+                </div>
+                <Button
+                    variant="outline"
+                    className="w-full h-12 text-destructive hover:bg-destructive/10 border-destructive/20"
+                    onClick={() => {
+                        localStorage.removeItem('token');
+                        window.location.href = '/login';
+                    }}
+                >
+                    Abmelden
+                </Button>
+            </div>
+
+            {/* Registration Toggle - Admin Only */}
+            {user?.role === 'admin' && (
+                <div className="pt-4 mt-6 border-t border-border">
+                    <label className="flex items-center justify-between cursor-pointer group">
+                        <span className="font-bold text-foreground">Öffentliche Registrierung</span>
+                        <div className="relative">
+                            <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={registrationEnabled}
+                                onChange={handleToggleRegistration}
+                            />
+                            <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                        </div>
+                    </label>
+                    <p className="text-xs text-muted-foreground mt-2">
+                        {registrationEnabled
+                            ? "Neue Benutzer können sich registrieren."
+                            : "Registrierung ist deaktiviert. Neue Benutzer können sich nicht selbst registrieren."}
+                    </p>
+                </div>
+            )}
+        </Card>
+    );
+
+    const StoresSection = (
+        <div className="space-y-4">
+            <h2 className="text-xl font-bold text-foreground mb-2 px-2 flex items-center gap-2">
+                <StoreIcon size={20} className="text-primary" />
+                Alle Geschäfte
+            </h2>
+            <AnimatePresence mode="popLayout">
+                {loading ? (
+                    <div className="space-y-4">
+                        {[1, 2, 3].map(i => <div key={i} className="h-20 bg-muted rounded-2xl animate-pulse" />)}
+                    </div>
+                ) : stores.length > 0 ? (
+                    stores.map((item, index) => (
+                        <motion.div
+                            key={item.id}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ delay: index * 0.03 }}
+                        >
+                            <Card
+                                onClick={() => handleStoreClick(item)}
+                                className={cn(
+                                    "p-4 flex items-center justify-between group border-border bg-card/50 hover:bg-card transition-all shadow-sm",
+                                    (editMode === 'edit' || editMode === 'delete') && "cursor-pointer hover:shadow-md hover:scale-[1.02]",
+                                    editMode === 'delete' && "hover:border-destructive/50 hover:bg-destructive/5"
+                                )}
+                            >
+                                <div className="flex items-center gap-4 flex-1">
+                                    {item.logo_url ? (
+                                        <img
+                                            src={item.logo_url}
+                                            alt={item.name}
+                                            className="w-10 h-10 object-contain bg-white rounded-lg p-1"
+                                        />
+                                    ) : (
+                                        <div className="p-2 bg-muted rounded-lg text-muted-foreground group-hover:text-primary transition-colors">
+                                            <StoreIcon size={20} />
+                                        </div>
+                                    )}
+                                    <span className="font-bold text-foreground text-lg">{item.name}</span>
+                                </div>
+
+                                {editMode === 'edit' && (
+                                    <div className="p-2 bg-muted rounded-lg text-muted-foreground">
+                                        <Settings size={18} />
+                                    </div>
+                                )}
+                                {editMode === 'delete' && (
+                                    <div className="p-2 bg-destructive/10 rounded-lg text-destructive">
+                                        <Trash2 size={18} />
+                                    </div>
+                                )}
+                            </Card>
+                        </motion.div>
+                    ))
+                ) : (
+                    <div className="text-center py-10 bg-muted/20 border border-dashed border-border rounded-3xl text-muted-foreground italic">
+                        Keine Geschäfte hinterlegt.
+                    </div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+
+    const ApiSection = user?.role === 'admin' ? (
+        <Card className="p-8 border-border bg-card shadow-lg">
+            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                <Building2 size={20} className="text-primary" />
+                API Integration
+            </h2>
+            <div className="space-y-4">
+                <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">OpenAI API Key</label>
+                    <div className="flex gap-2">
+                        <Input
+                            type="password"
+                            placeholder="sk-..."
+                            value={openaiKey}
+                            onChange={(e) => setOpenaiKey(e.target.value)}
+                            className="bg-muted border-transparent focus:bg-background transition-colors"
+                        />
+                        <Button onClick={saveOpenaiKey} disabled={savingKey}>
+                            {savingKey ? 'Wait...' : 'Speichern'}
+                        </Button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-2">Wird benötigt für den KI-Rezept-Import.</p>
+                </div>
+            </div>
+        </Card>
+    ) : null;
+
+    const VersionSection = (
+        <Card className="p-8 border-border bg-card shadow-lg">
+            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-600">
+                    <span className="font-mono text-xs font-bold">V</span>
+                </div>
+                Version & Update
+            </h2>
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Installierte Version</p>
+                    <p className="font-bold text-foreground text-lg font-mono">{appVersion}</p>
+                </div>
+                <Button
+                    variant="outline"
+                    onClick={() => alert('Keine Updates verfügbar.')}
+                    className="gap-2"
+                >
+                    <Sparkles size={16} /> Update suchen
+                </Button>
+            </div>
+        </Card>
+    );
+
+    const UsersSection = user?.role === 'admin' ? (
+        <Card className="p-8 border-primary/20 bg-primary/5 shadow-lg">
+            <h2 className="text-xl font-bold text-primary mb-6 flex items-center gap-2">
+                <Users size={20} />
+                Benutzerverwaltung
+            </h2>
+            {loadingUsers ? (
+                <div className="space-y-3">
+                    {[1, 2, 3].map(i => <div key={i} className="h-12 bg-muted/50 rounded-xl animate-pulse" />)}
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    {users.map(u => (
+                        <div key={u.id} className="p-3 bg-card border border-border rounded-xl flex items-center justify-between group hover:shadow-md transition-all">
+                            <div className="flex items-center gap-3">
+                                <div className={cn(
+                                    "w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg",
+                                    u.role === 'admin' ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
+                                )}>
+                                    {u.role === 'admin' ? <Shield size={18} /> : <User size={18} />}
+                                </div>
+                                <div>
+                                    <div className="font-bold">{u.username}</div>
+                                    <div className="text-xs text-muted-foreground flex gap-2">
+                                        <span>{u.role}</span>
+                                        {u.created_at && <span>• {new Date(u.created_at).toLocaleDateString()}</span>}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                                {u.id !== user.id && (
+                                    <>
+                                        <button
+                                            onClick={() => handleRoleUpdate(u.id, u.role === 'admin' ? 'user' : 'admin')}
+                                            className={cn(
+                                                "p-2 rounded-lg transition-colors",
+                                                u.role === 'admin' ? "hover:bg-orange-500/10 text-orange-600" : "hover:bg-green-500/10 text-green-600"
+                                            )}
+                                            title={u.role === 'admin' ? "Zum User degradieren" : "Zum Admin befördern"}
+                                        >
+                                            {u.role === 'admin' ? <UserCog size={18} /> : <Shield size={18} />}
+                                        </button>
+
+                                        <button
+                                            onClick={() => handleDeleteUser(u.id, u.username)}
+                                            className="p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
+                                            title="Benutzer löschen"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </>
+                                )}
+                                {u.id === user.id && (
+                                    <span className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded-full font-bold uppercase">You</span>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </Card>
+    ) : null;
+
     return (
         <div className="space-y-8 pb-20">
             <div className="mb-4">
@@ -160,188 +422,21 @@ export default function SettingsPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                 <div className="space-y-6">
-                    {/* User Profile */}
-                    <Card className="p-8 border-border bg-card shadow-lg">
-                        <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                            <Shield size={20} className="text-primary" />
-                            Sicherheit & Profil
-                        </h2>
-                        <div className="space-y-4">
-                            <div className="p-4 bg-muted rounded-2xl">
-                                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Angemeldet als</p>
-                                <p className="font-bold text-foreground">{user?.username || 'Gast'}</p>
-                                <p className="text-sm text-primary font-medium">{user?.role === 'admin' ? 'Administrator' : 'Standard-Benutzer'}</p>
-                            </div>
-                            <Button
-                                variant="outline"
-                                className="w-full h-12 text-destructive hover:bg-destructive/10 border-destructive/20"
-                                onClick={() => {
-                                    localStorage.removeItem('token');
-                                    window.location.href = '/login';
-                                }}
-                            >
-                                Abmelden
-                            </Button>
-                        </div>
-                    </Card>
-
-                    {/* API Integration */}
-                    <Card className="p-8 border-border bg-card shadow-lg">
-                        <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                            <Building2 size={20} className="text-primary" />
-                            API Integration
-                        </h2>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">OpenAI API Key</label>
-                                <div className="flex gap-2">
-                                    <Input
-                                        type="password"
-                                        placeholder="sk-..."
-                                        value={openaiKey}
-                                        onChange={(e) => setOpenaiKey(e.target.value)}
-                                        className="bg-muted border-transparent focus:bg-background transition-colors"
-                                    />
-                                    <Button onClick={saveOpenaiKey} disabled={savingKey}>
-                                        {savingKey ? 'Wait...' : 'Speichern'}
-                                    </Button>
-                                </div>
-                                <p className="text-[10px] text-muted-foreground mt-2">Wird benötigt für den KI-Rezept-Import.</p>
-                            </div>
-                        </div>
-                    </Card>
-
-                    {/* Stores List */}
-                    <div className="space-y-4">
-                        <h2 className="text-xl font-bold text-foreground mb-2 px-2 flex items-center gap-2">
-                            <StoreIcon size={20} className="text-primary" />
-                            Alle Geschäfte
-                        </h2>
-                        <AnimatePresence mode="popLayout">
-                            {loading ? (
-                                <div className="space-y-4">
-                                    {[1, 2, 3].map(i => <div key={i} className="h-20 bg-muted rounded-2xl animate-pulse" />)}
-                                </div>
-                            ) : stores.length > 0 ? (
-                                stores.map((item, index) => (
-                                    <motion.div
-                                        key={item.id}
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, scale: 0.95 }}
-                                        transition={{ delay: index * 0.03 }}
-                                    >
-                                        <Card
-                                            onClick={() => handleStoreClick(item)}
-                                            className={cn(
-                                                "p-4 flex items-center justify-between group border-border bg-card/50 hover:bg-card transition-all shadow-sm",
-                                                (editMode === 'edit' || editMode === 'delete') && "cursor-pointer hover:shadow-md hover:scale-[1.02]",
-                                                editMode === 'delete' && "hover:border-destructive/50 hover:bg-destructive/5"
-                                            )}
-                                        >
-                                            <div className="flex items-center gap-4 flex-1">
-                                                {item.logo_url ? (
-                                                    <img
-                                                        src={item.logo_url.startsWith('http') ? item.logo_url : `http://localhost:5000${item.logo_url}`}
-                                                        alt={item.name}
-                                                        className="w-10 h-10 object-contain bg-white rounded-lg p-1"
-                                                    />
-                                                ) : (
-                                                    <div className="p-2 bg-muted rounded-lg text-muted-foreground group-hover:text-primary transition-colors">
-                                                        <StoreIcon size={20} />
-                                                    </div>
-                                                )}
-                                                <span className="font-bold text-foreground text-lg">{item.name}</span>
-                                            </div>
-
-                                            {editMode === 'edit' && (
-                                                <div className="p-2 bg-muted rounded-lg text-muted-foreground">
-                                                    <Settings size={18} />
-                                                </div>
-                                            )}
-                                            {editMode === 'delete' && (
-                                                <div className="p-2 bg-destructive/10 rounded-lg text-destructive">
-                                                    <Trash2 size={18} />
-                                                </div>
-                                            )}
-                                        </Card>
-                                    </motion.div>
-                                ))
-                            ) : (
-                                <div className="text-center py-10 bg-muted/20 border border-dashed border-border rounded-3xl text-muted-foreground italic">
-                                    Keine Geschäfte hinterlegt.
-                                </div>
-                            )}
-                        </AnimatePresence>
-                    </div>
+                    {ProfileSection}
+                    {user?.role === 'admin' && StoresSection}
                 </div>
 
-                {/* Admin Area: User Management */}
-                {user?.role === 'admin' && (
-                    <div className="space-y-6">
-                        <Card className="p-8 border-primary/20 bg-primary/5 shadow-lg">
-                            <h2 className="text-xl font-bold text-primary mb-6 flex items-center gap-2">
-                                <Users size={20} />
-                                Benutzerverwaltung
-                            </h2>
-                            {loadingUsers ? (
-                                <div className="space-y-3">
-                                    {[1, 2, 3].map(i => <div key={i} className="h-12 bg-muted/50 rounded-xl animate-pulse" />)}
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {users.map(u => (
-                                        <div key={u.id} className="p-3 bg-card border border-border rounded-xl flex items-center justify-between group hover:shadow-md transition-all">
-                                            <div className="flex items-center gap-3">
-                                                <div className={cn(
-                                                    "w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg",
-                                                    u.role === 'admin' ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
-                                                )}>
-                                                    {u.role === 'admin' ? <Shield size={18} /> : <User size={18} />}
-                                                </div>
-                                                <div>
-                                                    <div className="font-bold">{u.username}</div>
-                                                    <div className="text-xs text-muted-foreground flex gap-2">
-                                                        <span>{u.role}</span>
-                                                        {u.created_at && <span>• {new Date(u.created_at).toLocaleDateString()}</span>}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center gap-1">
-                                                {u.id !== user.id && (
-                                                    <>
-                                                        <button
-                                                            onClick={() => handleRoleUpdate(u.id, u.role === 'admin' ? 'user' : 'admin')}
-                                                            className={cn(
-                                                                "p-2 rounded-lg transition-colors",
-                                                                u.role === 'admin' ? "hover:bg-orange-500/10 text-orange-600" : "hover:bg-green-500/10 text-green-600"
-                                                            )}
-                                                            title={u.role === 'admin' ? "Zum User degradieren" : "Zum Admin befördern"}
-                                                        >
-                                                            {u.role === 'admin' ? <UserCog size={18} /> : <Shield size={18} />}
-                                                        </button>
-
-                                                        <button
-                                                            onClick={() => handleDeleteUser(u.id, u.username)}
-                                                            className="p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
-                                                            title="Benutzer löschen"
-                                                        >
-                                                            <Trash2 size={18} />
-                                                        </button>
-                                                    </>
-                                                )}
-                                                {u.id === user.id && (
-                                                    <span className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded-full font-bold uppercase">You</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </Card>
-                    </div>
-                )}
+                <div className="space-y-6">
+                    {user?.role === 'admin' ? (
+                        <>
+                            {ApiSection}
+                            {VersionSection}
+                            {UsersSection}
+                        </>
+                    ) : (
+                        StoresSection
+                    )}
+                </div>
             </div>
 
             <StoreModal
