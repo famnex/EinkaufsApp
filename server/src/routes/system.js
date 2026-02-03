@@ -73,6 +73,10 @@ router.get('/stream-update', auth, admin, (req, res) => {
     // NOTE: 'supervisorctl restart einkaufsliste' will kill THIS process. 
     // The client needs to handle the connection close gracefully.
 
+    // Default to supervisorctl if not set, but allow override via .env
+    // Common Uberspace 9 command: systemctl --user restart einkaufsliste
+    const restartCmd = process.env.RESTART_COMMAND || 'supervisorctl restart einkaufsliste';
+
     const command = `
         echo ">>> Starting Update Process..." &&
         git pull &&
@@ -82,8 +86,8 @@ router.get('/stream-update', auth, admin, (req, res) => {
         cd ../client && npm install &&
         echo ">>> Building Frontend..." &&
         npm run build &&
-        echo ">>> Restarting Service (Hold tight)..." &&
-        supervisorctl restart einkaufsliste
+        echo ">>> Restarting Service using: ${restartCmd}" &&
+        ${restartCmd}
     `;
 
     // Use shell execution
@@ -112,7 +116,7 @@ router.get('/stream-update', auth, admin, (req, res) => {
     });
 
     child.on('error', (err) => {
-        send({ type: 'error', message: err.message });
+        send({ type: 'error', message: 'Spawn Error: ' + err.message + ' (Command not found?)' });
         res.end();
     });
 
