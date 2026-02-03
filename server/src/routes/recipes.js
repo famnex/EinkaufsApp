@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Recipe, RecipeIngredient, Product, Manufacturer, Tag } = require('../models');
+const { Recipe, RecipeIngredient, Product, Manufacturer, Tag, Menu, RecipeTag, sequelize } = require('../models');
 const { auth } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
@@ -269,34 +269,43 @@ router.delete('/:id/ingredients/:ingredientId', auth, async (req, res) => {
 
 // Delete Recipe
 router.delete('/:id', auth, async (req, res) => {
+    const t = await sequelize.transaction();
     console.log('--- RECIPE DELETE START ---', req.params.id);
+
     try {
-        // 1. Remove Ingredients
-        console.log('Removing Ingredients...');
-        await RecipeIngredient.destroy({ where: { RecipeId: req.params.id } });
-
-        // 2. Remove from Menus (Set RecipeId to null, effectively making it a manual entry description remains)
-        // We need to import Menu model first, or use sequelize.models.Menu
-        const { Menu, RecipeTag } = require('../models');
-        console.log('Unlinking from Menus...');
-        await Menu.update({ RecipeId: null }, { where: { RecipeId: req.params.id } });
-
-        // 3. Remove Tags (if not handled by cascade)
-        console.log('Removing Tag Links...');
-        if (RecipeTag) await RecipeTag.destroy({ where: { RecipeId: req.params.id } });
-
-        const recipe = await Recipe.findByPk(req.params.id);
-        if (recipe) {
-            console.log('Destroying Recipe record...');
-            await recipe.destroy();
-        } else {
-            console.log('Recipe record not found (already deleted?)');
+        const recipe = await Recipe.findByPk(req.params.id, { transaction: t });
+        if (!recipe) {
+            console.log('Recipe record not found');
+            await t.rollback();
+            return res.json({ message: 'Recipe already deleted' });
         }
 
+        // 1. Remove Ingredients
+        console.log('Removing Ingredients...');
+        await RecipeIngredient.destroy({ where: { RecipeId: req.params.id }, transaction: t });
+
+        // 2. Remove from Menus
+        console.log('Unlinking from Menus...');
+        // Note: RecipeId is nullable in Menu model
+        await Menu.update({ RecipeId: null }, { where: { RecipeId: req.params.id }, transaction: t });
+
+        // 3. Remove Tags (explicit join table deletion)
+        console.log('Removing Tag Links...');
+        if (RecipeTag) {
+            await RecipeTag.destroy({ where: { RecipeId: req.params.id }, transaction: t });
+        }
+
+        // 4. Destroy Recipe
+        console.log('Destroying Recipe record...');
+        await recipe.destroy({ transaction: t });
+
+        await t.commit();
         console.log('--- RECIPE DELETE SUCCESS ---');
         res.json({ message: 'Recipe deleted' });
     } catch (err) {
+        await t.rollback();
         console.error('--- RECIPE DELETE ERROR ---', err);
+        console.error(err.stack); // Log stack trace
         res.status(500).json({ error: err.message });
     }
 });

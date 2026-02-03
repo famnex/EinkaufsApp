@@ -128,7 +128,7 @@ export default function UpdateModal({ isOpen, onClose }) {
                                 <Terminal size={20} />
                                 <h3 className="font-mono font-bold tracking-wider">SYSTEM UPDATE</h3>
                             </div>
-                            {status === 'success' || status === 'error' ? (
+                            {status === 'success' || status === 'error' || status === 'restarting' ? (
                                 <button onClick={onClose} className="p-1 hover:bg-green-500/20 rounded text-green-500 transition-colors">
                                     <X size={20} />
                                 </button>
@@ -143,7 +143,7 @@ export default function UpdateModal({ isOpen, onClose }) {
                             className="flex-1 p-4 overflow-y-auto font-mono text-xs md:text-sm space-y-1 bg-[#0c0c0c] text-[#00ff41] min-h-[300px] border border-green-900/50 m-2 rounded-lg shadow-inner"
                         >
                             {logs.map((log, i) => (
-                                <div key={i} className="break-words font-medium">
+                                <div key={i} className="break-words font-medium" style={{ color: '#00ff41' }}>
                                     <span className="opacity-50 mr-2 select-none">$</span>
                                     {log}
                                 </div>
