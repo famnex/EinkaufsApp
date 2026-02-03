@@ -55,10 +55,16 @@ export default function Recipes() {
     };
 
     const handleDelete = async (id, title) => {
-        if (!confirm(`Rezept "${title}" wirklich löschen?`)) return;
         console.log('--- RECIPE DELETE REQUEST ---', { id, title });
+        const token = localStorage.getItem('token');
+        console.log('Token available:', !!token);
+
         try {
-            await api.delete(`/recipes/${id}`);
+            await api.delete(`/recipes/${id}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
             console.log('--- RECIPE DELETE SUCCESS ---', id);
             fetchRecipes();
         } catch (err) {
