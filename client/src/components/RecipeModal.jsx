@@ -5,7 +5,7 @@ import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
 import api from '../lib/axios';
-import { cn } from '../lib/utils';
+import { cn, getImageUrl } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
@@ -321,7 +321,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                             <div className="aspect-[3/4] rounded-2xl bg-muted border-2 border-dashed border-border relative overflow-hidden group cursor-pointer hover:border-primary/50 transition-colors">
                                                 <input type="file" onChange={handleImageChange} className="absolute inset-0 opacity-0 z-10 cursor-pointer" accept="image/*" />
                                                 {basics.imagePreview ? (
-                                                    <img src={basics.imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                                    <img src={getImageUrl(basics.imagePreview)} alt="Preview" className="w-full h-full object-cover" />
                                                 ) : (
                                                     <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-2 p-4 text-center pointer-events-none">
                                                         <ImageIcon size={48} className="opacity-50" />

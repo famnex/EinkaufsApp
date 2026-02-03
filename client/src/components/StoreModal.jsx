@@ -4,6 +4,7 @@ import { X, Upload, Store as StoreIcon } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import api from '../lib/axios';
+import { getImageUrl } from '../lib/utils';
 
 export default function StoreModal({ isOpen, onClose, store, onSave }) {
     const [name, setName] = useState('');
@@ -124,7 +125,7 @@ export default function StoreModal({ isOpen, onClose, store, onSave }) {
                                                 accept="image/*"
                                             />
                                             {logoPreview ? (
-                                                <img src={logoPreview} alt="Preview" className="w-full h-full object-contain p-2" />
+                                                <img src={getImageUrl(logoPreview)} alt="Preview" className="w-full h-full object-contain p-2" />
                                             ) : (
                                                 <StoreIcon size={24} className="text-muted-foreground/50" />
                                             )}

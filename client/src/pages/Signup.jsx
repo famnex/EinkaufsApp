@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Card } from '../components/Card';
-import { UserPlus, Zap } from 'lucide-react';
+import { UserPlus, Zap, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -16,6 +16,9 @@ export default function SignupPage() {
     const [isLoading, setIsLoading] = useState(false);
     const { signup } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+
+    const isSetup = searchParams.get('setup') === 'true';
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -53,17 +56,17 @@ export default function SignupPage() {
                             initial={{ y: -20, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             transition={{ delay: 0.2 }}
-                            className="mb-6 rounded-2xl bg-secondary p-4 text-white shadow-lg shadow-secondary/20 transform hover:scale-110 transition-transform duration-500"
+                            className={`mb-6 rounded-2xl p-4 text-white shadow-lg transform hover:scale-110 transition-transform duration-500 ${isSetup ? 'bg-emerald-500 shadow-emerald-500/20' : 'bg-secondary shadow-secondary/20'}`}
                         >
-                            <UserPlus size={32} />
+                            {isSetup ? <ShieldCheck size={32} /> : <UserPlus size={32} />}
                         </motion.div>
                         <motion.h1
                             initial={{ y: 20, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             transition={{ delay: 0.3 }}
-                            className="text-3xl font-bold text-foreground tracking-tight mb-2"
+                            className="text-3xl font-bold text-foreground tracking-tight mb-2 text-center"
                         >
-                            Werde Teil von LISTENX
+                            {isSetup ? 'System-Installation' : 'Werde Teil von LISTENX'}
                         </motion.h1>
                         <motion.p
                             initial={{ y: 20, opacity: 0 }}
@@ -71,7 +74,10 @@ export default function SignupPage() {
                             transition={{ delay: 0.4 }}
                             className="text-muted-foreground text-center"
                         >
-                            Verwalte deine Listen mit <span className="text-foreground font-semibold">Stil</span>
+                            {isSetup
+                                ? 'Erstelle das erste Administrator-Konto.'
+                                : <>Verwalte deine Listen mit <span className="text-foreground font-semibold">Stil</span></>
+                            }
                         </motion.p>
                     </div>
 
@@ -145,17 +151,19 @@ export default function SignupPage() {
                         </motion.div>
                     </form>
 
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 1.0 }}
-                        className="mt-10 text-center text-sm"
-                    >
-                        <span className="text-muted-foreground tracking-wide">Bereits Mitglied?</span>{' '}
-                        <Link to="/login" className="font-bold text-secondary hover:text-secondary/80 transition-colors ml-1 underline decoration-secondary/30 underline-offset-4">
-                            Anmelden
-                        </Link>
-                    </motion.div>
+                    {!isSetup && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 1.0 }}
+                            className="mt-10 text-center text-sm"
+                        >
+                            <span className="text-muted-foreground tracking-wide">Bereits Mitglied?</span>{' '}
+                            <Link to="/login" className="font-bold text-secondary hover:text-secondary/80 transition-colors ml-1 underline decoration-secondary/30 underline-offset-4">
+                                Anmelden
+                            </Link>
+                        </motion.div>
+                    )}
                 </Card>
             </motion.div>
         </div >

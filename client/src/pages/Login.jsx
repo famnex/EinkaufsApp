@@ -22,13 +22,17 @@ export default function LoginPage() {
         const checkReg = async () => {
             try {
                 const { data } = await api.get('/auth/registration-status');
+                if (data.setupRequired) {
+                    navigate('/signup?setup=true');
+                    return;
+                }
                 setRegEnabled(data.enabled);
             } catch (err) {
                 console.error('Failed to check reg status', err);
             }
         };
         checkReg();
-    }, []);
+    }, [navigate]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();

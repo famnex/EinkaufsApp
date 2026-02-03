@@ -5,7 +5,7 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { useNavigate } from 'react-router-dom';
-import { cn } from '../lib/utils';
+import { cn, getImageUrl } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { useEditMode } from '../contexts/EditModeContext';
 import StoreModal from '../components/StoreModal';
@@ -257,7 +257,7 @@ export default function SettingsPage() {
                                 <div className="flex items-center gap-4 flex-1">
                                     {item.logo_url ? (
                                         <img
-                                            src={item.logo_url}
+                                            src={getImageUrl(item.logo_url)}
                                             alt={item.name}
                                             className="w-10 h-10 object-contain bg-white rounded-lg p-1"
                                         />

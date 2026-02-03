@@ -9,7 +9,7 @@ import { useEditMode } from '../contexts/EditModeContext';
 import RecipeModal from '../components/RecipeModal';
 import AiImportModal from '../components/AiImportModal';
 import CookingMode from '../components/CookingMode';
-import { cn } from '../lib/utils';
+import { cn, getImageUrl } from '../lib/utils';
 
 export default function Recipes() {
     const [recipes, setRecipes] = useState([]);
@@ -183,10 +183,9 @@ export default function Recipes() {
                                 <div className="aspect-video relative bg-muted shrink-0">
                                     {recipe.image_url ? (
                                         <img
-                                            src={recipe.image_url}
+                                            src={getImageUrl(recipe.image_url)}
                                             alt={recipe.title}
                                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 max-h-[230px]"
-
                                         />
                                     ) : (
                                         <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/30">

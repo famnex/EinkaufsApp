@@ -1,15 +1,34 @@
 const jwt = require('jsonwebtoken');
+const { User } = require('../models');
 
-const auth = (req, res, next) => {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
-    if (!token) return res.status(401).json({ error: 'Access denied. No token provided.' });
-
+const auth = async (req, res, next) => {
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded;
-        next();
-    } catch (ex) {
-        res.status(400).json({ error: 'Invalid token.' });
+        if (!User) {
+            console.error('CRITICAL: User model is undefined in auth middleware. Check models/index.js');
+            return res.status(500).json({ error: 'Internal Server Error: Database model missing' });
+        }
+
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+        if (!token) return res.status(401).json({ error: 'Access denied. No token provided.' });
+
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const user = await User.findByPk(decoded.id);
+
+            if (!user) {
+                console.warn(`Auth failed: User ${decoded.id} not found in DB`);
+                return res.status(401).json({ error: 'User no longer exists.' });
+            }
+
+            req.user = user;
+            next();
+        } catch (ex) {
+            console.error('Token verification failed:', ex.message);
+            res.status(401).json({ error: 'Invalid or expired token.' });
+        }
+    } catch (criticalError) {
+        console.error('Critical Auth Middleware Error:', criticalError);
+        res.status(500).json({ error: 'Internal Auth Service Error' });
     }
 };
 

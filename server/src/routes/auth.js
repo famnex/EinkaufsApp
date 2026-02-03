@@ -30,10 +30,15 @@ router.post('/login', async (req, res) => {
 router.post('/signup', async (req, res) => {
     const { username, password, email } = req.body;
     try {
-        // Check registration setting
-        const regSetting = await Settings.findOne({ where: { key: 'registration_enabled' } });
-        if (regSetting && regSetting.value === 'false') {
-            return res.status(403).json({ error: 'Registrierung ist deaktiviert.' });
+        const userCount = await User.count();
+        const isFirstUser = userCount === 0;
+
+        // Check registration setting ONLY if not first user
+        if (!isFirstUser) {
+            const regSetting = await Settings.findOne({ where: { key: 'registration_enabled' } });
+            if (regSetting && regSetting.value === 'false') {
+                return res.status(403).json({ error: 'Registrierung ist deaktiviert.' });
+            }
         }
 
         const existingUser = await User.findOne({ where: { username } });
@@ -44,7 +49,7 @@ router.post('/signup', async (req, res) => {
             username,
             password: hashedPassword,
             email,
-            role: 'user' // Default role
+            role: isFirstUser ? 'admin' : 'user' // First user is always admin
         });
 
         const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
@@ -59,9 +64,16 @@ router.post('/signup', async (req, res) => {
 // Check Registration Status (Public)
 router.get('/registration-status', async (req, res) => {
     try {
-        const regSetting = await Settings.findOne({ where: { key: 'registration_enabled' } });
+        const [regSetting, userCount] = await Promise.all([
+            Settings.findOne({ where: { key: 'registration_enabled' } }),
+            User.count()
+        ]);
+
         // Default to true if not set
-        res.json({ enabled: !regSetting || regSetting.value !== 'false' });
+        res.json({
+            enabled: !regSetting || regSetting.value !== 'false',
+            setupRequired: userCount === 0
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
