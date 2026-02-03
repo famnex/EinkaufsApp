@@ -55,8 +55,9 @@ if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging')
     });
 }
 
-// { alter: true } might cause SQLITE_CONSTRAINT error if data violates new constraints, but needed for schema updates.
-sequelize.sync({ alter: false }).then(() => {
+// { alter: true } ensures the database schema is updated (migrated) to match the models.
+// This preserves existing data but adds new tables/columns.
+sequelize.sync({ alter: true }).then(() => {
     console.log('Database synced');
     app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
