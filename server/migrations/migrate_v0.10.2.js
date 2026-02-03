@@ -6,7 +6,7 @@
  * - Placeholder for update system consistency.
  */
 
-const { sequelize } = require('../models');
+const { sequelize } = require('../src/models');
 
 async function up() {
     console.log('Running migration v0.10.2...');

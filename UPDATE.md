@@ -1,6 +1,9 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.10.2
+## Aktuelle Version: v0.10.3
+
+### Changelog v0.10.3
+- **Hotfix:** Pfad-Fehler im Migrations-Skript v0.10.2 korrigiert (`MODULE_NOT_FOUND`).
 
 ### Changelog v0.10.2
 - **Fix (UI):** Cooking Mode Header auf Mobile sticky & Safe-Area optimiert (PWA fix).
