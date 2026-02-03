@@ -1,6 +1,9 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.10.3
+## Aktuelle Version: v0.10.4
+
+### Changelog v0.10.4
+- **Database Fix:** `RecipeTags`-Tabelle repariert. Speichern von mehreren Tags pro Rezept funktioniert nun korrekt (Unique-Constraint korrigiert).
 
 ### Changelog v0.10.3
 - **Hotfix:** Pfad-Fehler im Migrations-Skript v0.10.2 korrigiert (`MODULE_NOT_FOUND`).
