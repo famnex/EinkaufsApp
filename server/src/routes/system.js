@@ -78,6 +78,10 @@ router.get('/stream-update', auth, admin, (req, res) => {
     const restartCmd = process.env.RESTART_COMMAND || 'supervisorctl restart einkaufsliste';
 
     const command = `
+        echo ">>> DIAGNOSTICS:" &&
+        echo "User: $(whoami)" &&
+        echo "Dir: $(pwd)" &&
+        echo "Path: $PATH" &&
         echo ">>> Starting Update Process..." &&
         git pull &&
         echo ">>> Installing Server Dependencies..." &&
@@ -90,10 +94,17 @@ router.get('/stream-update', auth, admin, (req, res) => {
         ${restartCmd}
     `;
 
+    // DEBUG: Log the environment and command to the server console
+    console.log('--- SYSTEM UPDATE START ---');
+    console.log('CWD:', rootDir);
+    console.log('PATH:', process.env.PATH);
+    console.log('Command:', command);
+
     // Use shell execution
     const child = spawn(command, [], {
         shell: true,
-        cwd: rootDir
+        cwd: rootDir,
+        env: { ...process.env } // Ensure env vars are passed
     });
 
     child.stdout.on('data', (data) => {
@@ -111,12 +122,15 @@ router.get('/stream-update', auth, admin, (req, res) => {
     });
 
     child.on('close', (code) => {
+        console.log('--- SYSTEM UPDATE END (Code: ' + code + ') ---');
         send({ type: 'done', code });
         res.end();
     });
 
     child.on('error', (err) => {
-        send({ type: 'error', message: 'Spawn Error: ' + err.message + ' (Command not found?)' });
+        console.error('--- SYSTEM UPDATE SPAWN ERROR ---', err);
+        const errorDetails = `code: ${err.code}, syscall: ${err.syscall}, path: ${err.path}`;
+        send({ type: 'error', message: `Spawn Error: ${err.message} (${errorDetails})` });
         res.end();
     });
 
