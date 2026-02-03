@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { List, ListItem, Product, Store, Manufacturer } = require('../models');
+const { List, ListItem, Product, Store, Manufacturer, ProductRelation, sequelize } = require('../models');
+const { Op } = require('sequelize');
 const { auth } = require('../middleware/auth');
 
 // Get all lists
@@ -9,6 +10,7 @@ router.get('/', auth, async (req, res) => {
         const lists = await List.findAll({ order: [['date', 'DESC']] });
         res.json(lists);
     } catch (err) {
+        console.error('GET /lists ERROR:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -23,7 +25,7 @@ router.post('/', auth, async (req, res) => {
     }
 });
 
-// Get list details
+// Get list details (with Smart Sorting)
 router.get('/:id', auth, async (req, res) => {
     try {
         const list = await List.findByPk(req.params.id, {
@@ -33,20 +35,396 @@ router.get('/:id', auth, async (req, res) => {
             ]
         });
         if (!list) return res.status(404).json({ error: 'List not found' });
+
+        // --- SORTING LOGIC ---
+        let sortedItems = list.ListItems;
+        const currentStoreId = list.CurrentStoreId;
+
+        // Only sort unbought items. Bought items go to bottom sorted by time (or id).
+        const unboughtItems = sortedItems.filter(i => !i.is_bought);
+        const boughtItems = sortedItems.filter(i => i.is_bought).sort((a, b) => {
+            if (a.bought_at && b.bought_at) return new Date(a.bought_at) - new Date(b.bought_at);
+            return a.id - b.id; // Fallback
+        });
+
+        // Check if items have manual sort_order (from drag & drop) FOR THIS STORE
+        const hasManualSort = unboughtItems.some(item =>
+            item.sort_order !== null &&
+            item.sort_order !== undefined &&
+            item.sort_store_id === currentStoreId
+        );
+
+        if (hasManualSort) {
+            // MANUAL SORT MODE: Prioritize sort_order
+            unboughtItems.sort((a, b) => {
+                const orderA = a.sort_order !== null && a.sort_order !== undefined ? a.sort_order : Infinity;
+                const orderB = b.sort_order !== null && b.sort_order !== undefined ? b.sort_order : Infinity;
+
+                if (orderA !== orderB) return orderA - orderB;
+
+                // Fallback for items without sort_order
+                const catA = a.Product.category || 'Z';
+                const catB = b.Product.category || 'Z';
+                if (catA !== catB) return catA.localeCompare(catB);
+                return a.Product.name.localeCompare(b.Product.name);
+            });
+
+            console.log(`[Manual Sort] Used sort_order for ${unboughtItems.length} items`);
+        } else if (currentStoreId) {
+            // --- SMART SORT V2: GLOBAL TRANSITIVE GRAPH ---
+            // 1. Fetch ALL knowledge for this store
+            const allRelations = await ProductRelation.findAll({
+                where: { StoreId: currentStoreId }
+            });
+
+            if (allRelations.length > 0) {
+                // 2. Build Weighted Graph & Prune Cycles
+                const graph = new Map(); // ProductId -> Set(SuccessorIds)
+                const inDegree = new Map();
+                const allProductIds = new Set();
+
+                // Helper to init nodes
+                const touch = (id) => {
+                    allProductIds.add(id);
+                    if (!graph.has(id)) graph.set(id, new Set());
+                    if (!inDegree.has(id)) inDegree.set(id, 0);
+                };
+
+                // Group by pair to find conflicting edges (A->B vs B->A)
+                const edgeMap = new Map(); // "min:max" -> { A: weight, B: weight, dirA: A->B }
+
+                allRelations.forEach(r => {
+                    const u = r.PredecessorId;
+                    const v = r.SuccessorId;
+                    const key = u < v ? `${u}:${v}` : `${v}:${u}`;
+
+                    if (!edgeMap.has(key)) edgeMap.set(key, { forward: 0, backward: 0 });
+                    const entry = edgeMap.get(key);
+
+                    if (u < v) entry.forward = r.weight; // "Forward" means Lower ID -> Higher ID
+                    else entry.backward = r.weight;      // "Backward" means Higher -> Lower
+                });
+
+                // Add Winning Edges to Graph
+                for (const [key, weights] of edgeMap.entries()) {
+                    const [uStr, vStr] = key.split(':');
+                    const u = parseInt(uStr);
+                    const v = parseInt(vStr);
+
+                    let from, to;
+                    if (weights.forward > weights.backward) { from = u; to = v; }
+                    else if (weights.backward > weights.forward) { from = v; to = u; }
+                    else continue; // Tie or 0? Skip edge to allow falling back to default sort without cycles
+
+                    touch(from);
+                    touch(to);
+
+                    if (!graph.get(from).has(to)) {
+                        graph.get(from).add(to);
+                        inDegree.set(to, (inDegree.get(to) || 0) + 1);
+                    }
+                }
+
+                // 3. Topological Sort (Kahn's)
+                const queue = [];
+                // Init queue with 0-in-degree nodes
+                // Sort initial queue deterministically (e.g. by Category/Name roughly? or just ID) to stabilize
+                // We don't have product details for ALL nodes here efficiently without big join.
+                // Just use ID for deterministic stats.
+                allProductIds.forEach(id => {
+                    if ((inDegree.get(id) || 0) === 0) queue.push(id);
+                });
+                queue.sort((a, b) => a - b);
+
+                const masterSequence = [];
+                while (queue.length > 0) {
+                    const u = queue.shift();
+                    masterSequence.push(u);
+
+                    if (graph.has(u)) {
+                        const neighbors = Array.from(graph.get(u));
+                        neighbors.sort((a, b) => a - b); // Deterministic visitation
+
+                        for (const v of neighbors) {
+                            inDegree.set(v, inDegree.get(v) - 1);
+                            if (inDegree.get(v) === 0) queue.push(v);
+                        }
+                    }
+                }
+
+                // 4. Map Master Sequence to Ranks
+                const rankMap = new Map();
+                masterSequence.forEach((pid, idx) => rankMap.set(pid, idx));
+
+                // --- NEW SORTING LOGIC WITH CATEGORY INHERITANCE ---
+                const categoryMaxRank = new Map();
+                const debugItemInfo = [];
+
+                // 4b. Identify Max Rank for each Category present
+                unboughtItems.forEach(item => {
+                    const pid = item.ProductId;
+                    if (rankMap.has(pid)) {
+                        const rank = rankMap.get(pid);
+                        const cat = item.Product.category || 'Uncategorized';
+                        if (!categoryMaxRank.has(cat) || rank > categoryMaxRank.get(cat)) {
+                            categoryMaxRank.set(cat, rank);
+                        }
+                    }
+                });
+
+                // 5. Apply to Current Unbought Items (Augmented Sort)
+                unboughtItems.sort((a, b) => {
+                    // Helper to determine Effective Rank
+                    const getRank = (item) => {
+                        const pid = item.ProductId;
+                        if (rankMap.has(pid)) return { val: rankMap.get(pid), type: 'DIRECT' };
+
+                        // If Unknown, inherit from Category Max
+                        const cat = item.Product.category || 'Uncategorized';
+                        if (categoryMaxRank.has(cat)) return { val: categoryMaxRank.get(cat) + 0.1, type: 'CATEGORY' };
+
+                        return { val: Infinity, type: 'UNKNOWN' };
+                    };
+
+                    const rA = getRank(a);
+                    const rB = getRank(b);
+
+                    if (rA.val !== rB.val) return rA.val - rB.val;
+
+                    // Fallback to Category/Name
+                    const catA = a.Product.category || 'Z';
+                    const catB = b.Product.category || 'Z';
+                    if (catA !== catB) return catA.localeCompare(catB);
+                    return a.Product.name.localeCompare(b.Product.name);
+                });
+
+                // 6. Collect Debug Info
+                unboughtItems.forEach(item => {
+                    const pid = item.ProductId;
+                    const cat = item.Product.category || 'Uncategorized';
+                    let rankInfo = 'UNKNOWN';
+                    let rankVal = Infinity;
+
+                    if (rankMap.has(pid)) {
+                        rankInfo = 'DIRECT';
+                        rankVal = rankMap.get(pid);
+                    } else if (categoryMaxRank.has(cat)) {
+                        rankInfo = `CATEGORY (Inherited from max ${categoryMaxRank.get(cat)})`;
+                        rankVal = categoryMaxRank.get(cat) + 0.1;
+                    }
+
+                    debugItemInfo.push({
+                        name: item.Product.name,
+                        category: cat,
+                        rankType: rankInfo,
+                        rankValue: rankVal
+                    });
+                });
+
+                // 7. Attach Debug Data
+                list.setDataValue('_debug', {
+                    masterSequenceLength: masterSequence.length,
+                    categoryMaxRanks: Object.fromEntries(categoryMaxRank),
+                    itemDetails: debugItemInfo
+                });
+            } else {
+                // No relations, use fallback
+                unboughtItems.sort((a, b) => {
+                    const catA = a.Product.category || 'Z';
+                    const catB = b.Product.category || 'Z';
+                    if (catA !== catB) return catA.localeCompare(catB);
+                    return a.Product.name.localeCompare(b.Product.name);
+                });
+            }
+        } else {
+            // Always Fallback Sort if no store or no data
+            unboughtItems.sort((a, b) => {
+                const catA = a.Product.category || 'Z';
+                const catB = b.Product.category || 'Z';
+                if (catA !== catB) return catA.localeCompare(catB);
+                return a.Product.name.localeCompare(b.Product.name);
+            });
+        }
+
+        list.setDataValue('ListItems', [...unboughtItems, ...boughtItems]);
+
         res.json(list);
     } catch (err) {
+        console.error('List detail error:', err);
         res.status(500).json({ error: err.message });
     }
 });
 
-// Update list
+// Update list (with Learning Trigger)
 router.put('/:id', auth, async (req, res) => {
     try {
-        const list = await List.findByPk(req.params.id);
+        const list = await List.findByPk(req.params.id, {
+            include: [{ model: ListItem }]
+        });
         if (!list) return res.status(404).json({ error: 'List not found' });
+
+        const wasActive = list.status === 'active';
         await list.update(req.body);
+
+        // TRIGGER LEARNING if completing list
+        if (wasActive && req.body.status === 'completed' && list.CurrentStoreId) {
+            try {
+                // 1. Get ordered bought items
+                const boughtItems = await ListItem.findAll({
+                    where: {
+                        ListId: list.id,
+                        is_bought: true,
+                        bought_at: { [Op.ne]: null }
+                    },
+                    order: [['bought_at', 'ASC']],
+                    include: [Product]
+                });
+
+                if (boughtItems.length > 1) {
+                    console.log(`[Learning] Analyzing ${boughtItems.length} items for Store ${list.CurrentStoreId}`);
+
+                    // 2. Iterate pairs and update weights
+                    for (let i = 0; i < boughtItems.length - 1; i++) {
+                        const pred = boughtItems[i];
+                        const succ = boughtItems[i + 1];
+
+                        if (pred.ProductId === succ.ProductId) continue;
+
+                        const relation = await ProductRelation.findOne({
+                            where: {
+                                StoreId: list.CurrentStoreId,
+                                PredecessorId: pred.ProductId,
+                                SuccessorId: succ.ProductId
+                            }
+                        });
+
+                        if (relation) {
+                            await relation.increment('weight');
+                        } else {
+                            await ProductRelation.create({
+                                StoreId: list.CurrentStoreId,
+                                PredecessorId: pred.ProductId,
+                                SuccessorId: succ.ProductId,
+                                weight: 1
+                            });
+                        }
+                    }
+                }
+            } catch (learnErr) {
+                console.error('[Learning Error]', learnErr);
+            }
+        }
+
         res.json(list);
     } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Commit current shopping session (Partial Complete)
+router.post('/:id/commit', auth, async (req, res) => {
+    try {
+        const listId = parseInt(req.params.id);
+        const { storeId } = req.body;
+
+        if (!storeId) return res.status(400).json({ error: 'Store ID required' });
+
+        // 1. Find items bought but not committed
+        const itemsToCommit = await ListItem.findAll({
+            where: {
+                ListId: listId,
+                is_bought: true,
+                is_committed: false, // Only new ones
+                bought_at: { [Op.ne]: null }
+            },
+            order: [['bought_at', 'ASC']],
+            include: [Product]
+        });
+
+        console.log(`[Commit] Found ${itemsToCommit.length} items to commit for Store ${storeId}`);
+
+        if (itemsToCommit.length > 0) {
+            // 2. Learn Sequence
+            if (itemsToCommit.length > 1) {
+                for (let i = 0; i < itemsToCommit.length - 1; i++) {
+                    const pred = itemsToCommit[i];
+                    const succ = itemsToCommit[i + 1];
+
+                    if (pred.ProductId === succ.ProductId) continue;
+
+                    const relation = await ProductRelation.findOne({
+                        where: {
+                            StoreId: storeId,
+                            PredecessorId: pred.ProductId,
+                            SuccessorId: succ.ProductId
+                        }
+                    });
+
+                    if (relation) {
+                        await relation.increment('weight');
+                    } else {
+                        await ProductRelation.create({
+                            StoreId: storeId,
+                            PredecessorId: pred.ProductId,
+                            SuccessorId: succ.ProductId,
+                            weight: 1
+                        });
+                    }
+                }
+            }
+
+            // 3. Mark as committed
+            await ListItem.update({ is_committed: true }, {
+                where: {
+                    id: { [Op.in]: itemsToCommit.map(i => i.id) }
+                }
+            });
+        }
+
+        res.json({ message: 'Session committed', count: itemsToCommit.length });
+
+    } catch (err) {
+        console.error('[Commit Error]', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Reorder list items (for drag & drop)
+router.put('/:id/reorder', auth, async (req, res) => {
+    try {
+        const listId = parseInt(req.params.id);
+        const { items } = req.body; // [{ id, sort_order }]
+
+        if (!items || !Array.isArray(items)) {
+            return res.status(400).json({ error: 'Items array required' });
+        }
+
+        // Get the list to find current store
+        const list = await List.findByPk(listId);
+        if (!list) return res.status(404).json({ error: 'List not found' });
+
+        const currentStoreId = list.CurrentStoreId;
+        if (!currentStoreId) {
+            return res.status(400).json({ error: 'Store must be selected to reorder items' });
+        }
+
+        // Update sort_order AND sort_store_id for each item
+        await Promise.all(
+            items.map(item =>
+                ListItem.update(
+                    {
+                        sort_order: item.sort_order,
+                        sort_store_id: currentStoreId
+                    },
+                    { where: { id: item.id } }
+                )
+            )
+        );
+
+        res.json({ message: 'Items reordered successfully' });
+    } catch (err) {
+        console.error('[Reorder Error]', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -78,7 +456,19 @@ router.put('/items/:itemId', auth, async (req, res) => {
     try {
         const item = await ListItem.findByPk(req.params.itemId);
         if (!item) return res.status(404).json({ error: 'Item not found' });
-        await item.update(req.body);
+
+        const updates = req.body;
+
+        // Handle bought_at logic
+        if (updates.is_bought !== undefined) {
+            if (updates.is_bought && !item.is_bought) {
+                updates.bought_at = new Date();
+            } else if (!updates.is_bought) {
+                updates.bought_at = null;
+            }
+        }
+
+        await item.update(updates);
         res.json(item);
     } catch (err) {
         res.status(500).json({ error: err.message });

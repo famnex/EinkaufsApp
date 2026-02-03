@@ -51,6 +51,10 @@ const ListItem = sequelize.define('ListItem', {
     quantity: { type: DataTypes.FLOAT, defaultValue: 1 },
     unit: { type: DataTypes.STRING }, // Allow custom unit override
     is_bought: { type: DataTypes.BOOLEAN, defaultValue: false },
+    is_committed: { type: DataTypes.BOOLEAN, defaultValue: false }, // "Locked" in store history
+    sort_order: { type: DataTypes.FLOAT, defaultValue: 0 }, // For manual ordering
+    sort_store_id: { type: DataTypes.INTEGER, allowNull: true }, // Store context for sort_order
+    bought_at: { type: DataTypes.DATE }, // Track when item was bought
     price_actual: { type: DataTypes.DECIMAL(10, 2) },
     MenuId: { type: DataTypes.INTEGER, allowNull: true } // Track origin menu
 });
@@ -58,6 +62,18 @@ const ListItem = sequelize.define('ListItem', {
 ListItem.belongsTo(List);
 ListItem.belongsTo(Product);
 List.hasMany(ListItem);
+
+const ProductRelation = sequelize.define('ProductRelation', {
+    StoreId: { type: DataTypes.INTEGER, allowNull: false }, // Context
+    PredecessorId: { type: DataTypes.INTEGER, allowNull: false },
+    SuccessorId: { type: DataTypes.INTEGER, allowNull: false },
+    weight: { type: DataTypes.INTEGER, defaultValue: 1 }
+});
+
+ProductRelation.belongsTo(Store);
+ProductRelation.belongsTo(Product, { as: 'Predecessor', foreignKey: 'PredecessorId' });
+ProductRelation.belongsTo(Product, { as: 'Successor', foreignKey: 'SuccessorId' });
+Store.hasMany(ProductRelation);
 
 const Menu = sequelize.define('Menu', {
     date: { type: DataTypes.DATEONLY, allowNull: false },
@@ -112,5 +128,6 @@ module.exports = {
     RecipeIngredient,
     Tag,
     RecipeTag,
+    ProductRelation,
     Settings
 };

@@ -6,12 +6,15 @@ import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { ShoppingCart, Plus, Trash2, CheckCircle2, Circle, ArrowLeft, Package, Search, List, X, Euro, Settings, Lock } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import ItemSettingsModal from '../components/ItemSettingsModal';
 import QuantityModal from '../components/QuantityModal';
 import { SessionSkeleton } from '../components/Skeleton';
 import { Store as StoreIcon, Check } from 'lucide-react';
 import { useEditMode } from '../contexts/EditModeContext';
+import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
+import { arrayMove, SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
+import { SortableItem } from '../components/SortableItem';
 
 export default function ListDetail() {
     const { id } = useParams();
@@ -28,6 +31,51 @@ export default function ListDetail() {
     const [pendingProduct, setPendingProduct] = useState(null);
     const [stores, setStores] = useState([]);
     const [activeStoreId, setActiveStoreId] = useState('');
+
+    // UI State
+    const [settingsItem, setSettingsItem] = useState(null);
+    const [quantityItem, setQuantityItem] = useState(null);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+    // DnD State
+    const [activeId, setActiveId] = useState(null);
+    const sensors = useSensors(
+        useSensor(MouseSensor, { activationConstraint: { distance: 10 } }),
+        useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
+    );
+
+    // Derived Lists
+    const uncommittedItems = list?.ListItems?.filter(i => !i.is_committed) || [];
+    const committedItems = list?.ListItems?.filter(i => i.is_committed) || [];
+
+    const handleDragStart = (event) => {
+        setActiveId(event.active.id);
+    };
+
+    const handleDragEnd = (event) => {
+        const { active, over } = event;
+
+        if (active.id !== over?.id) {
+            setList((prev) => {
+                const currentUncommitted = prev.ListItems.filter(i => !i.is_committed);
+                const currentCommitted = prev.ListItems.filter(i => i.is_committed);
+
+                const uOldIndex = currentUncommitted.findIndex(i => i.id === active.id);
+                const uNewIndex = currentUncommitted.findIndex(i => i.id === over.id);
+
+                const newUncommitted = arrayMove(currentUncommitted, uOldIndex, uNewIndex);
+
+                const fullList = [...newUncommitted, ...currentCommitted];
+
+                // Save Order API
+                const updates = newUncommitted.map((li, idx) => ({ id: li.id, sort_order: idx }));
+                api.put(`/lists/${id}/reorder`, { items: updates }).catch(e => console.error(e));
+
+                return { ...prev, ListItems: fullList };
+            });
+        }
+        setActiveId(null);
+    };
     const searchRef = useRef(null);
 
     const fetchListDetails = useCallback(async () => {
@@ -35,26 +83,18 @@ export default function ListDetail() {
             const { data } = await api.get(`/lists/${id}`);
             setActiveStoreId(data.CurrentStoreId || '');
 
-            const sortedItems = data.ListItems?.sort((a, b) => {
-                if (a.is_bought !== b.is_bought) return a.is_bought ? 1 : -1;
+            // Server now handles smart sorting.
+            // Client only needs to respect the order, but we can ensure bought items are at bottom visually just in case.
+            // Actually, server sends [sorted_unbought, sorted_bought], so array order is already correct.
+            setList(data);
 
-                // Prioritize items from the active store
-                if (activeStoreId) {
-                    const aIsActive = a.Product?.StoreId === parseInt(activeStoreId);
-                    const bIsActive = b.Product?.StoreId === parseInt(activeStoreId);
-                    if (aIsActive !== bIsActive) return aIsActive ? -1 : 1;
-                }
-
-                return 0; // Keep current order otherwise
-            });
-
-            setList({ ...data, ListItems: sortedItems });
+            // Note: Data from server might have store set in DB, but UI starts empty.
         } catch (err) {
             console.error('Failed to fetch list details', err);
         } finally {
             setLoading(false);
         }
-    }, [id, activeStoreId]);
+    }, [id]);
 
     const fetchStores = useCallback(async () => {
         try {
@@ -120,12 +160,19 @@ export default function ListDetail() {
                 CurrentStoreId: storeId || null
             });
             setActiveStoreId(storeId);
+            fetchListDetails(); // Reload to get new Sort Order!
         } catch (err) {
             console.error('Failed to update current store', err);
         }
     };
 
     const toggleBought = async (item) => {
+        // Store must be selected to buy items
+        if (!activeStoreId) {
+            alert("Bitte wähle zuerst ein Geschäft aus!");
+            return;
+        }
+
         try {
             const newBoughtState = !item.is_bought;
 
@@ -134,15 +181,15 @@ export default function ListDetail() {
                 ...prev,
                 ListItems: prev.ListItems.map(i =>
                     i.id === item.id ? { ...i, is_bought: newBoughtState } : i
-                ).sort((a, b) => {
-                    if (a.is_bought !== b.is_bought) return a.is_bought ? 1 : -1;
-                    return 0;
-                })
+                )
             }));
 
             await api.put(`/lists/items/${item.id}`, {
                 is_bought: newBoughtState
             });
+
+            // Fetch fresh data to get correct sort order from server
+            fetchListDetails();
         } catch (err) {
             console.error('Failed to toggle item', err);
             fetchListDetails(); // Revert on failure
@@ -183,13 +230,17 @@ export default function ListDetail() {
     };
 
     const completeSession = async () => {
+        if (!activeStoreId) {
+            alert("Bitte wähle zuerst ein Geschäft aus!");
+            return;
+        }
         try {
-            await api.put(`/lists/${id}`, {
-                status: 'completed'
+            await api.post(`/lists/${id}/commit`, {
+                storeId: activeStoreId
             });
-            fetchListDetails();
+            fetchListDetails(); // Refresh to see locked items
         } catch (err) {
-            console.error('Failed to complete session', err);
+            console.error('Failed to commit session', err);
         }
     };
 
@@ -324,103 +375,167 @@ export default function ListDetail() {
             </div>
 
             <div className="product-grid pt-4">
-                <AnimatePresence mode="popLayout">
-                    {list.ListItems?.map((item, index) => (
-                        <motion.div
-                            layout
-                            key={item.id}
-                            initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.8, opacity: 0 }}
-                            transition={{
-                                opacity: { duration: 0.2 },
-                                layout: { duration: 0.4, type: "spring", bounce: 0.2 }
-                            }}
-                            className="relative group w-[100px] md:w-[200px] aspect-square"
+                {list.ListItems?.length > 0 && (
+                    <>
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleDragEnd}
+                            onDragStart={handleDragStart}
                         >
-                            <div className="absolute inset-0 bg-destructive rounded-2xl flex items-center justify-end px-6 shadow-inner">
-                                <Trash2 size={24} className="text-destructive-foreground animate-pulse" />
-                            </div>
-
-                            <motion.div
-                                drag={editMode === 'edit' ? "x" : false}
-                                dragConstraints={{ left: -100, right: 0 }}
-                                onDragEnd={(_, info) => {
-                                    if (editMode === 'edit' && info.offset.x < -80) {
-                                        setSelectedItem(item);
-                                        setIsSettingsOpen(true);
-                                    }
-                                }}
-                                className={cn(
-                                    "product-tile shadow-lg hover:shadow-xl relative z-10 w-full h-full flex flex-col justify-between p-1 md:p-3 transition-colors duration-500 ease-in-out",
-                                    item.is_bought ? "product-tile-teal" : "product-tile-red",
-                                    editMode === 'view' ? "cursor-pointer" : "cursor-default",
-                                    editMode === 'delete' && "border-2 border-destructive animate-pulse cursor-pointer"
-                                )}
-                                onClick={() => {
-                                    if (editMode === 'view') {
-                                        toggleBought(item);
-                                    } else if (editMode === 'edit') {
-                                        setSelectedItem(item);
-                                        setIsSettingsOpen(true);
-                                    } else if (editMode === 'delete') {
-                                        if (item.MenuId) {
-                                            alert("Diese Zutat stammt aus einem Menü und kann nur über den Menüplan ('Zutatenplaner') entfernt werden.");
-                                            return;
-                                        }
-                                        if (confirm(`Möchtest du "${item.Product?.name}" wirklich aus der Liste entfernen?`)) {
-                                            deleteItem(item.id);
-                                        }
-                                    }
-                                }}
+                            {/* Active Items (Draggable) */}
+                            <SortableContext
+                                items={uncommittedItems.map(i => i.id)}
+                                strategy={rectSortingStrategy}
                             >
-                                {editMode === 'edit' && (
-                                    <div className="absolute top-2 right-1 md:right-2 z-20">
-                                        <div className="p-1 rounded-lg bg-black/10 text-white/40">
-                                            <Settings size={14} className="md:w-4 md:h-4" />
+                                <motion.div layout className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                    {uncommittedItems.map((item) => (
+                                        <motion.div
+                                            key={item.id}
+                                            layout
+                                            initial={false}
+                                            transition={{
+                                                layout: {
+                                                    duration: 0.4,
+                                                    ease: [0.4, 0, 0.2, 1]
+                                                }
+                                            }}
+                                            className="relative group w-full aspect-square"
+                                        >
+                                            <SortableItem
+                                                id={item.id}
+                                                disabled={editMode !== 'view'}
+                                                className="w-full h-full"
+                                            >
+
+                                                {/* Card Content - Restored Visual Identity */}
+                                                <div
+                                                    onClick={() => {
+                                                        if (activeId) return;
+                                                        if (editMode === 'view') toggleBought(item);
+                                                        if (editMode === 'edit') {
+                                                            setSelectedItem(item);
+                                                            setIsSettingsOpen(true);
+                                                        }
+                                                        if (editMode === 'delete') {
+                                                            if (window.confirm("Artikel wirklich löschen?")) deleteItem(item.id);
+                                                        }
+                                                    }}
+                                                    className={cn(
+                                                        "w-full h-full rounded-3xl p-4 flex flex-col justify-between transition-all cursor-pointer shadow-sm border overflow-hidden relative",
+                                                        item.is_bought
+                                                            ? "product-tile-teal" // Teal for bought
+                                                            : "product-tile-red", // Red for unbought
+                                                        editMode !== 'view' && "hover:scale-[1.02]", // Subtle hover in edit/delete
+                                                        activeId === item.id && "opacity-30" // Dragging feedback
+                                                    )}
+                                                >
+                                                    {/* Top Row: Icon + Indicator */}
+                                                    <div className="flex justify-between items-start z-10 relative">
+                                                        <div className={cn(
+                                                            "w-10 h-10 rounded-full flex items-center justify-center text-lg transition-colors bg-white/20 text-white"
+                                                        )}>
+                                                            <ShoppingCart size={20} />
+                                                        </div>
+
+                                                        {/* Mode Indicators */}
+                                                        {editMode === 'edit' && (
+                                                            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white">
+                                                                <Settings size={18} />
+                                                            </div>
+                                                        )}
+                                                        {editMode === 'delete' && (
+                                                            <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center animate-pulse">
+                                                                <Trash2 size={18} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Center: Name */}
+                                                    <div className="text-center px-1 z-10 relative mt-2 mb-auto">
+                                                        <div className="font-bold text-xl md:text-2xl leading-none tracking-wide text-white line-clamp-2 break-words text-shadow-sm hyphens-auto" lang="de">
+                                                            {item.Product?.name}
+                                                        </div>
+                                                        {item.Product?.Manufacturer?.name && (
+                                                            <div className="text-[10px] text-white/70 mt-0.5 font-medium tracking-wide uppercase truncate">
+                                                                {item.Product.Manufacturer.name}
+                                                            </div>
+                                                        )}
+                                                        <div className="text-xs text-white/80 mt-1 font-medium tracking-wider uppercase truncate">
+                                                            {item.Product?.category || 'Sonstiges'}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Bottom: Quantity */}
+                                                    <div
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setQuantityItem(item);
+                                                        }}
+                                                        className="mx-auto bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider transition-colors z-10 relative mt-2"
+                                                    >
+                                                        {item.quantity} <span className="text-[10px] opacity-80">{(item.unit || item.Product?.unit) === 'Stück' ? 'Stk' : (item.unit || item.Product?.unit)}</span>
+                                                    </div>
+
+                                                    {/* Bought Overlay Indicator (Optional, but color change is main indicator now) */}
+                                                    {item.is_bought && (
+                                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 opacity-10">
+                                                            <CheckCircle2 className="w-20 h-20 text-white" />
+                                                        </div>
+                                                    )}
+
+                                                </div>
+                                            </SortableItem>
+                                        </motion.div>
+                                    ))}
+                                </motion.div>
+                            </SortableContext>
+
+                            {/* Drag Overlay */}
+                            <DragOverlay>
+                                {activeId ? (
+                                    <div className="w-[100px] h-[100px] bg-white rounded-3xl shadow-2xl opacity-90 border-2 border-primary flex items-center justify-center">
+                                        <ShoppingCart className="text-primary w-8 h-8" />
+                                    </div>
+                                ) : null}
+                            </DragOverlay>
+
+                        </DndContext>
+
+                        {/* Complete Session Button */}
+                        {uncommittedItems.length > 0 && (
+                            <div className="pt-8 pb-4 flex justify-center">
+                                <Button
+                                    size="lg"
+                                    onClick={completeSession}
+                                    disabled={!activeStoreId || !uncommittedItems.some(item => item.is_bought)}
+                                    className="bg-primary hover:bg-primary/90 text-primary-foreground font-bebas tracking-wide text-xl px-8 py-6 rounded-2xl shadow-xl hover:scale-105 transition-all w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                >
+                                    <CheckCircle2 className="mr-2" />
+                                    Einkauf abschließen
+                                </Button>
+                            </div>
+                        )}
+
+                        {/* Committed Items (Static / Locked) */}
+                        {committedItems.length > 0 && (
+                            <div className="pt-8 mt-4 border-t border-dashed border-slate-200 w-full">
+                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 pl-2 flex items-center gap-2">
+                                    <Lock size={14} /> Bereits Erledigt
+                                </h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 opacity-60 pointer-events-none select-none grayscale-[0.8]">
+                                    {committedItems.map(item => (
+                                        <div key={item.id} className="relative w-full aspect-square bg-slate-50 rounded-3xl p-4 flex flex-col justify-between border border-transparent">
+                                            <div className="flex justify-center pt-2"><CheckCircle2 className="w-6 h-6 text-slate-300" /></div>
+                                            <div className="text-center font-bold text-xl text-slate-400 line-clamp-2 px-1">{item.Product?.name}</div>
+                                            <div className="mx-auto text-xs text-slate-300 pb-2">{item.quantity} {item.unit}</div>
                                         </div>
-                                    </div>
-                                )}
-                                {editMode === 'delete' && (
-                                    <div className="absolute top-2 right-1 md:right-2 z-20">
-                                        {item.MenuId ? (
-                                            <div className="p-1 rounded-lg bg-black/20 text-white/60 shadow-lg">
-                                                <Lock size={14} className="md:w-4 md:h-4" />
-                                            </div>
-                                        ) : (
-                                            <div className="p-1 rounded-lg bg-destructive text-destructive-foreground shadow-lg">
-                                                <Trash2 size={14} className="md:w-4 md:h-4" />
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                                <div className="product-icon mb-1 flex-1 flex items-center justify-center">
-                                    <ShoppingCart size={24} strokeWidth={1.5} className="opacity-80 md:w-8 md:h-8" />
+                                    ))}
                                 </div>
-
-                                <div className="w-full text-center mb-1">
-                                    <span className="text-[10px] md:text-xs font-bold leading-tight line-clamp-2 px-0.5 block break-words">
-                                        {item.Product?.name}
-                                    </span>
-                                    {item.Product?.Manufacturer && (
-                                        <span className="text-[9px] md:text-[10px] uppercase tracking-wider opacity-70 block truncate">
-                                            {item.Product.Manufacturer.name}
-                                        </span>
-                                    )}
-                                </div>
-
-                                <div className={cn(
-                                    "absolute top-1 left-1 md:top-2 md:left-2 shadow-md flex items-center justify-center text-[10px] md:text-xs font-bold rounded-full min-w-[1.5rem] md:min-w-[2rem] h-6 md:h-8 px-1.5 md:px-2 transition-colors duration-500",
-                                    item.is_bought ? "bg-teal-500 text-white" : "bg-red-500 text-white"
-                                )}>
-                                    {item.quantity} <span className="text-[8px] md:text-[9px] ml-0.5 opacity-90">{(item.unit || item.Product?.unit) === 'Stück' ? 'Stk' : (item.unit || item.Product?.unit)}</span>
-                                </div>
-
-
-                            </motion.div>
-                        </motion.div>
-                    ))}
-                </AnimatePresence>
+                            </div>
+                        )}
+                    </>
+                )}
 
                 {list.ListItems?.length === 0 && !loading && (
                     <div className="w-full py-20 text-center border-2 border-dashed border-border rounded-3xl">
@@ -429,7 +544,6 @@ export default function ListDetail() {
                     </div>
                 )}
             </div>
-
 
 
             <ItemSettingsModal
@@ -448,17 +562,7 @@ export default function ListDetail() {
                 onConfirm={onConfirmQuantity}
             />
 
-            <style dangerouslySetInnerHTML={{
-                __html: `
-                .product-tile-red {
-                    background-color: #ef4444;
-                    color: white;
-                }
-                .product-tile-teal {
-                    background-color: #5eead4;
-                    color: hsl(var(--background));
-                }
-            ` }} />
-        </div>
+
+        </div >
     );
 }

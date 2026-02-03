@@ -46,6 +46,32 @@ export default function CookingMode({ recipe, onClose }) {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [step]);
 
+    // Screen Wake Lock - Keep screen on while cooking
+    useEffect(() => {
+        let wakeLock = null;
+
+        const requestWakeLock = async () => {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('[CookingMode] Screen wake lock activated');
+                }
+            } catch (err) {
+                console.warn('[CookingMode] Wake lock failed:', err);
+            }
+        };
+
+        requestWakeLock();
+
+        return () => {
+            if (wakeLock) {
+                wakeLock.release().then(() => {
+                    console.log('[CookingMode] Screen wake lock released');
+                });
+            }
+        };
+    }, []);
+
     const getTextSizeClass = () => {
         switch (textSize) {
             case 0: return 'text-base';

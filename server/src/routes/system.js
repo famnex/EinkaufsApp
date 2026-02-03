@@ -72,8 +72,7 @@ router.get('/stream-update', auth, admin, (req, res) => {
     // NOTE: 'supervisorctl restart einkaufsliste' will kill THIS process. 
     // The client needs to handle the connection close gracefully.
 
-    // Default to supervisorctl if not set, but allow override via .env
-    // Common Uberspace 9 command: systemctl --user restart einkaufsliste
+    // Default to supervisorctl (Uberspace default)
     const restartCmd = process.env.RESTART_COMMAND || 'supervisorctl restart einkaufsliste';
 
     const command = `
@@ -89,6 +88,8 @@ router.get('/stream-update', auth, admin, (req, res) => {
         cd ../client && npm install &&
         echo ">>> Building Frontend..." &&
         npm run build &&
+        echo ">>> Running Database Migrations..." &&
+        cd .. && node update.js &&
         echo ">>> Restarting Service using: ${restartCmd}" &&
         ${restartCmd}
     `;

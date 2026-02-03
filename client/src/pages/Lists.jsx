@@ -105,7 +105,7 @@ export default function Lists() {
                                 </div>
 
                                 <div className="text-right relative z-10">
-                                    <p className="text-2xl font-bebas font-bold text-foreground">€{parseFloat(list.total_cost || 0).toFixed(2)}</p>
+                                    <p className="text-2xl font-bold font-bold text-foreground">€{parseFloat(list.total_cost || 0).toFixed(2)}</p>
                                     {editMode === 'delete' && (
                                         <button
                                             onClick={(e) => handleDeleteList(list.id, e)}
