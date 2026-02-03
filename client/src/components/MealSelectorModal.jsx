@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Search, ChefHat } from 'lucide-react';
 import { Input } from './Input';
 import api from '../lib/axios';
+import { getImageUrl } from '../lib/utils';
 
 export default function MealSelectorModal({ isOpen, onClose, onSelect, initialDate, initialType }) {
     const [searchTerm, setSearchTerm] = useState('');
@@ -115,7 +116,7 @@ export default function MealSelectorModal({ isOpen, onClose, onSelect, initialDa
                                     >
                                         <div className="w-10 h-10 rounded-lg bg-muted-foreground/10 flex items-center justify-center shrink-0 overflow-hidden">
                                             {recipe.image_url ? (
-                                                <img src={recipe.image_url} className="w-full h-full object-cover" />
+                                                <img src={getImageUrl(recipe.image_url)} className="w-full h-full object-cover" />
                                             ) : (
                                                 <ChefHat size={20} className="text-muted-foreground" />
                                             )}

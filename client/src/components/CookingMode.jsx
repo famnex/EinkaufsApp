@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from './Button';
-import { cn } from '../lib/utils';
+import { cn, getImageUrl } from '../lib/utils';
 
 export default function CookingMode({ recipe, onClose }) {
     const [step, setStep] = useState(0);
@@ -83,7 +83,7 @@ export default function CookingMode({ recipe, onClose }) {
                     {/* Header Image */}
                     <div className="relative h-48 md:h-64 shrink-0">
                         {recipe.image_url ? (
-                            <img src={recipe.image_url} className="w-full h-full object-cover" />
+                            <img src={getImageUrl(recipe.image_url)} className="w-full h-full object-cover" />
                         ) : (
                             <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground">No Image</div>
                         )}
