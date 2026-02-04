@@ -1,6 +1,10 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.12.2
+## Aktuelle Version: v0.12.3
+
+### Changelog v0.12.3
+- **Feature (System):** Code-Fallback in der Update-Routine (`update.js`) implementiert. Bei Fehlern wird nun nicht nur die DB, sondern auch der Code-Stand per Git zurückgesetzt.
+- **Feature (Recipes):** "Drucken"-Option im Rezept-Menü hinzugefügt, die direkt die optimierte Shared-Ansicht öffnet.
 
 ### Changelog v0.12.2
 - **Fix (UX):** Korrektur der Logo-Pfade von Geschäften in der Einkaufsliste bei Verwendung in Unterordnern (Subdirectory Hosting).

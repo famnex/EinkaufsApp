@@ -147,8 +147,17 @@ async function main() {
     log('╚════════════════════════════════════════╝', 'bright');
 
     let backupPath = null;
+    let preUpdateHash = null;
 
     try {
+        // Step 0: Capture pre-update state for code fallback
+        try {
+            preUpdateHash = execSync('git rev-parse HEAD', { cwd: __dirname }).toString().trim();
+            log(`\n📌 Pre-update Git state: ${preUpdateHash.slice(0, 7)}`, 'blue');
+        } catch (gitErr) {
+            log('\n⚠️  Git identification failed - code fallback will be disabled.', 'yellow');
+        }
+
         // Step 1: Check if database exists
         if (!fs.existsSync(DB_PATH)) {
             log('\n⚠️  Database not found - first run? Skipping migrations.', 'yellow');
@@ -191,8 +200,21 @@ async function main() {
         log('\n❌ Update Failed!', 'red');
         log(`Error: ${error.message}`, 'red');
 
+        // Restore Code
+        if (preUpdateHash) {
+            log('\n🔄 Attempting to restore code to previous state...', 'yellow');
+            try {
+                execSync(`git reset --hard ${preUpdateHash}`, { stdio: 'inherit', cwd: __dirname });
+                log('✓ Code reverted to pre-update state', 'green');
+            } catch (codeRestoreErr) {
+                log(`✗ Code restore failed: ${codeRestoreErr.message}`, 'red');
+                log(`Please manually run: git reset --hard ${preUpdateHash}`, 'yellow');
+            }
+        }
+
+        // Restore Database
         if (backupPath) {
-            log('\n🔄 Attempting to restore from backup...', 'yellow');
+            log('\n🔄 Attempting to restore database from backup...', 'yellow');
             try {
                 restoreBackup(backupPath);
                 log('\n✓ Database restored to pre-update state', 'green');

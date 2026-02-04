@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../lib/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar } from 'lucide-react';
+import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
@@ -320,6 +320,19 @@ export default function Recipes() {
                                                         >
                                                             <Calendar size={16} />
                                                             Einplanen
+                                                        </button>
+                                                        <button
+                                                            className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const baseUrl = import.meta.env.BASE_URL;
+                                                                const link = `${window.location.origin}${baseUrl}shared/recipe/${recipe.id}`.replace(/([^:]\/)\/+/g, "$1");
+                                                                window.open(link, '_blank');
+                                                                setOpenMenuId(null);
+                                                            }}
+                                                        >
+                                                            <Printer size={16} />
+                                                            Drucken
                                                         </button>
                                                     </motion.div>
                                                 )}
