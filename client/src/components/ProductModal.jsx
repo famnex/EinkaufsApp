@@ -88,7 +88,7 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
             setFormData(prev => ({
                 ...prev,
                 category: data.category || prev.category,
-                unit: data.unit ? `${data.amount || 1} ${data.unit}` : prev.unit
+                unit: data.unit || prev.unit
             }));
 
             // Handle manufacturers

@@ -345,53 +345,58 @@ export default function SettingsPage() {
                 </div>
                 Version & Update
             </h2>
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Installierte Version</p>
-                    <p className="font-bold text-foreground text-lg font-mono flex items-center gap-2">
-                        {appVersion}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Installierte Version</p>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <p className="font-bold text-foreground text-lg font-mono">
+                            {appVersion}
+                        </p>
                         {updateInfo?.updates_available && (
-                            <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
-                                Update verfügbar ({updateInfo.commits_behind} commits)
+                            <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full font-medium whitespace-nowrap">
+                                Update verfügbar ({updateInfo.commits_behind} Commits)
                             </span>
                         )}
-                    </p>
+                    </div>
+
                     {updateInfo && !updateInfo.updates_available && (
-                        <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                        <p className="text-xs text-green-600 flex items-center gap-1 pt-1">
                             <CheckCircle size={12} /> System ist aktuell
                         </p>
                     )}
                 </div>
 
-                {!updateInfo ? (
-                    <Button
-                        variant="outline"
-                        onClick={handleCheckUpdate}
-                        disabled={checkingUpdate}
-                        className="gap-2"
-                    >
-                        {checkingUpdate ? <Loader2 size={16} className="animate-spin" /> : <Terminal size={16} />}
-                        Update suchen
-                    </Button>
-                ) : updateInfo.updates_available ? (
-                    <Button
-                        onClick={() => setIsUpdateModalOpen(true)}
-                        className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
-                    >
-                        <Terminal size={16} />
-                        Update starten
-                    </Button>
-                ) : (
-                    <Button
-                        variant="outline"
-                        onClick={handleCheckUpdate}
-                        disabled={checkingUpdate}
-                        className="gap-2 opacity-50"
-                    >
-                        <CheckCircle size={16} />
-                        Erneut prüfen
-                    </Button>
-                )}
+                <div className="shrink-0">
+                    {!updateInfo ? (
+                        <Button
+                            variant="outline"
+                            onClick={handleCheckUpdate}
+                            disabled={checkingUpdate}
+                            className="gap-2 whitespace-nowrap w-full sm:w-auto"
+                        >
+                            {checkingUpdate ? <Loader2 size={16} className="animate-spin" /> : <Terminal size={16} />}
+                            Update suchen
+                        </Button>
+                    ) : updateInfo.updates_available ? (
+                        <Button
+                            onClick={() => setIsUpdateModalOpen(true)}
+                            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 whitespace-nowrap w-full sm:w-auto"
+                        >
+                            <Terminal size={16} />
+                            Update starten
+                        </Button>
+                    ) : (
+                        <Button
+                            variant="outline"
+                            onClick={handleCheckUpdate}
+                            disabled={checkingUpdate}
+                            className="gap-2 whitespace-nowrap w-full sm:w-auto hover:bg-muted"
+                        >
+                            <CheckCircle size={16} />
+                            Erneut prüfen
+                        </Button>
+                    )}
+                </div>
             </div>
         </Card>
     );
