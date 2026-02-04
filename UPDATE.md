@@ -1,6 +1,9 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.12.5
+## Aktuelle Version: v0.12.6
+
+### Changelog v0.12.6
+- **Feature (System):** Update-Prozess UI komplett überarbeitet. Inklusive Fortschrittsbalken, Phasen-Anzeige und einklappbaren System-Logs für eine sauberere Benutzererfahrung.
 
 ### Changelog v0.12.5
 - **Optimization (Print):** Robuste Erzwingung des hellen Modus beim Drucken von Rezepten (per Event-Listener). Ein dunkler Hintergrund im Druck ist nun ausgeschlossen.
