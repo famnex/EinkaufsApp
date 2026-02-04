@@ -10,26 +10,46 @@ import api from '../lib/axios';
 export default function ItemSettingsModal({ isOpen, onClose, item, onSave, onDelete }) {
     const [quantity, setQuantity] = useState(1);
     const [unit, setUnit] = useState('');
+    const [note, setNote] = useState('');
     const [availableUnits, setAvailableUnits] = useState([]);
+    const [noteSuggestions, setNoteSuggestions] = useState([]);
 
     useEffect(() => {
         if (item) {
             setQuantity(item.quantity || 1);
             setUnit(item.unit || item.Product?.unit || 'Stück');
+            setNote(item.Product?.note || '');
         }
-        // Fetch units always when opening (could be optimized)
+        // Fetch units and note suggestions always when opening
         if (isOpen) {
             api.get('/products/units')
                 .then(res => setAvailableUnits(res.data))
                 .catch(err => console.error("Failed to load units", err));
+            api.get('/products')
+                .then(res => {
+                    const uniqueNotes = [...new Set(res.data.map(p => p.note).filter(Boolean))].sort();
+                    setNoteSuggestions(uniqueNotes);
+                })
+                .catch(err => console.error("Failed to load note suggestions", err));
         }
     }, [item, isOpen]);
 
-    const handleSave = () => {
+    const handleSave = async () => {
+        // Update quantity and unit on the ListItem
         onSave({
-            quantity: parseFloat(quantity), // Allow decimals? Usually yes for kg etc.
+            quantity: parseFloat(quantity),
             unit: unit
         });
+
+        // Update note on the Product if it changed
+        if (item?.Product && note !== item.Product.note) {
+            try {
+                await api.put(`/products/${item.ProductId}`, { note });
+            } catch (err) {
+                console.error("Failed to update product note", err);
+            }
+        }
+
         onClose();
     };
 
@@ -104,6 +124,20 @@ export default function ItemSettingsModal({ isOpen, onClose, item, onSave, onDel
                                             className="w-full"
                                         />
                                     </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Hinweis</label>
+                                    <Input
+                                        value={note}
+                                        onChange={(e) => setNote(e.target.value)}
+                                        placeholder="z.B. Nur im Angebot kaufen"
+                                        className="bg-muted/50 border-border h-12"
+                                        list="note-suggestions-item"
+                                    />
+                                    <datalist id="note-suggestions-item">
+                                        {noteSuggestions.map(n => <option key={n} value={n} />)}
+                                    </datalist>
                                 </div>
 
                                 <div className="pt-2 space-y-3">

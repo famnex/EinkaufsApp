@@ -127,22 +127,21 @@ export default function SharedRecipe() {
                     </div>
                 </div>
 
-                {/* Hero Image - Screen Version (Overlay) / Print Version (Plain) */}
-                <div className="aspect-video relative rounded-3xl overflow-hidden shadow-xl print:aspect-auto print:h-64 print:rounded-lg print:shadow-none print:mb-6">
+                {/* Hero Image - Screen Version only */}
+                <div className="aspect-video relative rounded-3xl overflow-hidden shadow-xl print:hidden">
                     {recipe.image_url ? (
                         <img
                             src={renderImageUrl(recipe.image_url)}
                             alt={recipe.title}
-                            className="w-full h-full object-cover print:object-contain print:h-full print:w-auto print:mx-auto"
+                            className="w-full h-full object-cover"
                         />
                     ) : (
-                        <div className="w-full h-full bg-muted flex items-center justify-center print:hidden">
+                        <div className="w-full h-full bg-muted flex items-center justify-center">
                             <ChefHat size={64} className="text-muted-foreground/30" />
                         </div>
                     )}
-                    {/* Screen Overlays - Hide in Print */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent print:hidden" />
-                    <div className="absolute bottom-0 left-0 right-0 p-6 pt-20 text-white print:hidden">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 p-6 pt-20 text-white">
                         <span className="px-2 py-1 bg-primary/20 text-primary-foreground text-xs uppercase font-bold rounded-full backdrop-blur-md border border-white/10 mb-2 inline-block">
                             {recipe.category || 'Rezept'}
                         </span>
@@ -180,7 +179,7 @@ export default function SharedRecipe() {
                         <Card className="divide-y divide-border overflow-hidden print:shadow-none print:border-gray-200">
                             {recipe.RecipeIngredients && recipe.RecipeIngredients.length > 0 ? (
                                 recipe.RecipeIngredients.map((ri) => (
-                                    <div key={ri.id} className="p-3 flex items-center justify-between hover:bg-muted/30 transition-colors print:px-0 print:py-2">
+                                    <div key={ri.id} className="p-3 flex items-center justify-between hover:bg-muted/30 transition-colors print:px-3 print:py-2">
                                         <span className="font-medium print:text-black">
                                             {ri.Product?.name || 'Unbekanntes Produkt'}
                                         </span>
@@ -198,7 +197,18 @@ export default function SharedRecipe() {
                     </div>
 
                     {/* Instructions */}
-                    <div className="space-y-4">
+                    <div className="space-y-4 print:space-y-6">
+                        {/* Print-only Recipe Image */}
+                        {recipe.image_url && (
+                            <div className="hidden print:block w-full rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+                                <img
+                                    src={renderImageUrl(recipe.image_url)}
+                                    alt={recipe.title}
+                                    className="w-full h-auto object-cover max-h-[300px]"
+                                />
+                            </div>
+                        )}
+
                         <h2 className="text-xl font-bold flex items-center gap-2 print:text-black">
                             <span className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-sm print:border print:border-gray-300 print:text-black print:bg-transparent">2</span>
                             Zubereitung

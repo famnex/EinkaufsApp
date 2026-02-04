@@ -48,11 +48,20 @@ app.use('/EinkaufsApp/api', apiRouter);
 const serveSharedRecipe = async (req, res) => {
     try {
         const recipeId = req.params.id;
-        const recipe = await Recipe.findByPk(recipeId, {
-            include: [{ model: sequelize.models.Image, as: 'Images' }] // Ensure Images are loaded if needed for og:image
-        });
+        const recipe = await Recipe.findByPk(recipeId);
 
-        const filePath = path.join(__dirname, '../client/dist/index.html');
+        // Path to built index.html
+        let filePath = path.join(__dirname, '../client/dist/index.html');
+
+        // Fallback for development if dist doesn't exist (helpful for testing)
+        if (!fs.existsSync(filePath)) {
+            filePath = path.join(__dirname, '../client/index.html');
+        }
+
+        if (!fs.existsSync(filePath)) {
+            console.error('index.html not found at:', filePath);
+            return res.status(500).send('Frontend not built or index.html missing');
+        }
 
         fs.readFile(filePath, 'utf8', (err, htmlData) => {
             if (err) {
@@ -61,55 +70,60 @@ const serveSharedRecipe = async (req, res) => {
             }
 
             if (!recipe) {
-                // If recipe not found, just send standard HTML (client will handle 404 UI)
                 return res.send(htmlData);
             }
 
             // Construct OG Data
-            const title = recipe.title || 'Rezept teilen';
-            // Use locally hosted image if available, or a fallback. 
-            // Note: WhatsApp requires absolute URLs with https (or http if allowed).
-            // We'll try to construct a full URL based on the request host.
-            const protocol = req.protocol;
+            const title = recipe.title || 'Rezept';
+            const protocol = req.headers['x-forwarded-proto'] || req.protocol;
             const host = req.get('host');
             const baseUrl = `${protocol}://${host}`;
+            const appSubDir = '/EinkaufsApp';
 
-            let imageUrl = `${baseUrl}/EinkaufsApp/icon-192.png`; // Default fallback
+            // Construct absolute Image URL
+            // Default fallback icon
+            let imageUrl = `${baseUrl}${appSubDir}/icon-192x192.png`;
             if (recipe.image_url) {
-                // Check if it's already an absolute URL
                 if (recipe.image_url.startsWith('http')) {
                     imageUrl = recipe.image_url;
                 } else {
-                    // It's a relative path (e.g. /uploads/...)
-                    // Ensure leading slash
                     const cleanPath = recipe.image_url.startsWith('/') ? recipe.image_url : `/${recipe.image_url}`;
-                    // If servig under /EinkaufsApp prefix, usually uploads are at root /uploads or handled via proxy?
-                    // Based on app.use('/uploads'), they are at root.
-                    imageUrl = `${baseUrl}${cleanPath}`;
+                    imageUrl = `${baseUrl}${appSubDir}${cleanPath}`;
                 }
             }
 
-            const description = `Schau dir dieses leckere Rezept an: ${title}`;
+            const description = recipe.category ? `${recipe.category} Rezept: ${title}` : `Schau dir dieses leckere Rezept an: ${title}`;
 
-            // Inject tags into <head>
-            // We'll replace the <title> tag and add meta tags after it
-            let injectedHtml = htmlData.replace(
-                '<title>Einkaufsliste</title>',
-                `<title>${title}</title>
-                 <meta property="og:title" content="${title}" />
-                 <meta property="og:description" content="${description}" />
-                 <meta property="og:image" content="${imageUrl}" />
-                 <meta property="og:type" content="article" />`
-            );
+            // Robust injection using regex
+            let injectedHtml = htmlData;
 
-            // Also replace generic description if present
-            // (Optional, simplistic replacement)
+            // 1. Replace Title
+            injectedHtml = injectedHtml.replace(/<title>.*?<\/title>/i, `<title>${title} | EinkaufsApp</title>`);
+
+            // 2. Clear existing dynamic meta tags if any (to avoid duplicates)
+            injectedHtml = injectedHtml.replace(/<meta property="og:.*?" content=".*?" \/>/g, '');
+
+            // 3. Replace or inject description
+            const metaDescriptionRegex = /<meta name="description" content=".*?" \/>/i;
+            if (metaDescriptionRegex.test(injectedHtml)) {
+                injectedHtml = injectedHtml.replace(metaDescriptionRegex, `<meta name="description" content="${description}" />`);
+            }
+
+            // 4. Inject OG tags before </head>
+            const ogTags = `
+    <meta property="og:title" content="${title}" />
+    <meta property="og:description" content="${description}" />
+    <meta property="og:image" content="${imageUrl}" />
+    <meta property="og:url" content="${baseUrl}${appSubDir}/shared/recipe/${recipeId}" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="EinkaufsApp" />
+`;
+            injectedHtml = injectedHtml.replace('</head>', `${ogTags}</head>`);
 
             res.send(injectedHtml);
         });
     } catch (error) {
         console.error('SSR Error:', error);
-        // Fallback to static file
         res.sendFile(path.join(__dirname, '../client/dist/index.html'));
     }
 };

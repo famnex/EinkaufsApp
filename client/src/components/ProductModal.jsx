@@ -8,12 +8,14 @@ import api from '../lib/axios';
 
 export default function ProductModal({ isOpen, onClose, product, onSave }) {
     const [categories, setCategories] = useState([]);
+    const [noteSuggestions, setNoteSuggestions] = useState([]);
     const [formData, setFormData] = useState({
         name: '',
         category: '',
         price_hint: '',
         unit: 'Stück',
-        ManufacturerId: ''
+        ManufacturerId: '',
+        note: ''
     });
     const [manufacturers, setManufacturers] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -27,10 +29,11 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                 category: product.category || '',
                 price_hint: product.price_hint || '',
                 unit: product.unit || 'Stück',
-                ManufacturerId: product.ManufacturerId || ''
+                ManufacturerId: product.ManufacturerId || '',
+                note: product.note || ''
             });
         } else {
-            setFormData({ name: '', category: '', price_hint: '', unit: 'Stück', ManufacturerId: '' });
+            setFormData({ name: '', category: '', price_hint: '', unit: 'Stück', ManufacturerId: '', note: '' });
             setAiManufacturers([]); // Reset on new
         }
 
@@ -46,7 +49,9 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                 api.get('/manufacturers')
             ]);
             const uniqueCats = [...new Set(productsRes.data.map(p => p.category).filter(Boolean))].sort();
+            const uniqueNotes = [...new Set(productsRes.data.map(p => p.note).filter(Boolean))].sort();
             setCategories(uniqueCats);
+            setNoteSuggestions(uniqueNotes);
             setManufacturers(manufacturersRes.data);
         } catch (err) {
             console.error('Failed to fetch metadata', err);
@@ -238,6 +243,20 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                             <Plus size={20} />
                                         </button>
                                     </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Hinweis</label>
+                                    <Input
+                                        value={formData.note}
+                                        onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                                        placeholder="z.B. Nur im Angebot kaufen"
+                                        className="bg-muted/50 border-border h-12"
+                                        list="note-suggestions"
+                                    />
+                                    <datalist id="note-suggestions">
+                                        {noteSuggestions.map(note => <option key={note} value={note} />)}
+                                    </datalist>
                                 </div>
 
                                 <div className="pt-4 flex gap-3">

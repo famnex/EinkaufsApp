@@ -1,6 +1,25 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.10.6
+## Aktuelle Version: v0.12.0
+
+### Changelog v0.12.0
+- **Feature (Sharing):** Server-Side Rendering (SSR) für geteilte Rezepte implementiert. Dynamische Open Graph Meta-Tags (Bild & Titel) werden nun für WhatsApp-Previews und andere soziale Medien korrekt generiert.
+- **Feature (Sharing):** Pfad-Korrektur für geteilte Links bei Hosting in Unterverzeichnissen (z.B. `/EinkaufsApp/`).
+- **Feature (UI):** Premium Mobile-Optimierung für den Zutatenplaner: Ergonomische Touch-Elemente, Card-Layout auf kleinen Screens und verbesserte Footer-Buttons.
+- **Feature (UI):** Optimiertes Drucklayout für Rezepte: Zwei-Spalten-Layout mit Bild-Ausrichtung und verbessertem Padding für Zutaten.
+- **Feature (Database):** Unterstützung für Produkt-Substitutionen: Ersetzung von Produkten bleibt nun permanent gespeichert.
+- **Feature (Database):** Notiz-Feld für Produkte hinzugefügt.
+- **Database Migration:** Neue Tabelle `ProductSubstitutions` und Spalte `Products.note`.
+
+### Changelog v0.11.2
+- **Fix:** Settings UI Verbesserungen & AI Lookup Unit Fix.
+
+### Changelog v0.11.1
+- **Fix:** AI Cleanup Logik & Syntax-Fehler in ai.js korrigiert.
+
+### Changelog v0.11.0
+- **Feature:** AI Cleanup Context Hiding, Mobile Fixes, Menüplan Navigation.
+- **Database:** HiddenCleanup Migration.
 
 ### Changelog v0.10.6
 - **Fix:** Globales Header-Layout fix: PWA Safe-Area Padding für alle Seiten aktiviert (Notch/Island Überlappung behoben).

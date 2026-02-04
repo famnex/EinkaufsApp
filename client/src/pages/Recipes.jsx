@@ -297,7 +297,8 @@ export default function Recipes() {
                                                             className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                const link = `${window.location.origin}/shared/recipe/${recipe.id}`;
+                                                                const baseUrl = import.meta.env.BASE_URL;
+                                                                const link = `${window.location.origin}${baseUrl}shared/recipe/${recipe.id}`.replace(/([^:]\/)\/+/g, "$1");
                                                                 navigator.clipboard.writeText(link)
                                                                     .then(() => {
                                                                         alert('Link in die Zwischenablage kopiert!');

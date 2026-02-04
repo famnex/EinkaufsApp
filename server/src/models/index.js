@@ -32,11 +32,17 @@ const Product = sequelize.define('Product', {
     name: { type: DataTypes.STRING, allowNull: false },
     category: { type: DataTypes.STRING },
     price_hint: { type: DataTypes.DECIMAL(10, 2) },
-    unit: { type: DataTypes.ENUM('Stück', 'g', 'kg', 'ml', 'l'), defaultValue: 'Stück' }
+    unit: { type: DataTypes.ENUM('Stück', 'g', 'kg', 'ml', 'l'), defaultValue: 'Stück' },
+    note: { type: DataTypes.TEXT, allowNull: true }
 });
 
 Product.belongsTo(Manufacturer);
 Product.belongsTo(Store);
+
+const ProductSubstitution = sequelize.define('ProductSubstitution', {
+    originalProductId: { type: DataTypes.INTEGER, allowNull: false },
+    substituteProductId: { type: DataTypes.INTEGER, allowNull: false }
+});
 
 const List = sequelize.define('List', {
     name: { type: DataTypes.STRING, allowNull: true },
@@ -121,6 +127,12 @@ const HiddenCleanup = sequelize.define('HiddenCleanup', {
 HiddenCleanup.belongsTo(Product);
 Product.hasMany(HiddenCleanup);
 
+// ProductSubstitution associations
+ProductSubstitution.belongsTo(List, { foreignKey: 'ListId' });
+ProductSubstitution.belongsTo(Product, { as: 'OriginalProduct', foreignKey: 'originalProductId' });
+ProductSubstitution.belongsTo(Product, { as: 'SubstituteProduct', foreignKey: 'substituteProductId' });
+List.hasMany(ProductSubstitution, { foreignKey: 'ListId' });
+
 module.exports = {
     sequelize,
     User,
@@ -137,5 +149,6 @@ module.exports = {
     RecipeTag,
     ProductRelation,
     Settings,
-    HiddenCleanup
+    HiddenCleanup,
+    ProductSubstitution
 };

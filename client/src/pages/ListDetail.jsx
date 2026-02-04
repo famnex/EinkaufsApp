@@ -37,6 +37,7 @@ export default function ListDetail() {
     const [settingsItem, setSettingsItem] = useState(null);
     const [quantityItem, setQuantityItem] = useState(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [activeNoteId, setActiveNoteId] = useState(null);
 
     // DnD State
     const [activeId, setActiveId] = useState(null);
@@ -120,6 +121,14 @@ export default function ListDetail() {
         fetchProducts();
         fetchStores();
     }, [fetchListDetails, fetchProducts, fetchStores]);
+
+    // Close tooltips on click outside
+    useEffect(() => {
+        if (!activeNoteId) return;
+        const handleGlobalClick = () => setActiveNoteId(null);
+        document.addEventListener('click', handleGlobalClick);
+        return () => document.removeEventListener('click', handleGlobalClick);
+    }, [activeNoteId]);
 
     const handleAddItem = (product) => {
         setPendingProduct(product);
@@ -432,28 +441,93 @@ export default function ListDetail() {
                                                         }
                                                     }}
                                                     className={cn(
-                                                        "w-full h-full rounded-3xl p-4 flex flex-col justify-between transition-all cursor-pointer shadow-sm border overflow-hidden relative isolate", // Added isolate for z-index stacking
+                                                        "w-full h-full rounded-3xl p-4 flex flex-col justify-between transition-all cursor-pointer shadow-sm border relative isolate group/tile",
                                                         item.is_bought
                                                             ? "product-tile-teal" // Teal for bought
                                                             : "product-tile-red", // Red for unbought
                                                         editMode !== 'view' && "hover:scale-[1.02]", // Subtle hover in edit/delete
-                                                        activeId === item.id && "opacity-30" // Dragging feedback
+                                                        activeId === item.id && "opacity-30", // Dragging feedback
+                                                        "hover:z-50" // Elevate tile on hover for tooltip overlap
                                                     )}
                                                 >
-                                                    {/* Top Row: Icon + Indicator */}
-                                                    <div className="flex justify-between items-start z-10 md:relative pointer-events-none"> {/* Icon is purely visual now on mobile */}
+                                                    {/* Background Layer - To handle clipping of watermarks while allowing tooltips to overflow the main card */}
+                                                    <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none z-0">
+                                                        {/* Mobile: Large Watermark (Base style for all) */}
                                                         <div className={cn(
-                                                            "transition-all duration-300",
-                                                            // Mobile: Large Watermark (Base style for all)
-                                                            "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 flex items-center justify-center opacity-[0.15] scale-150 text-white z-0",
-                                                            // Desktop: Standard Icon (ONLY if NOT small zoom)
-                                                            zoomLevel > 0 && "md:relative md:left-auto md:top-auto md:translate-x-0 md:translate-y-0 md:w-10 md:h-10 md:rounded-full md:bg-white/20 md:opacity-100 md:scale-100 md:z-10"
+                                                            "transition-all duration-300 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 flex items-center justify-center opacity-[0.15] scale-150 text-white",
+                                                            zoomLevel > 0 && "md:hidden" // Hide mobile watermark on desktop if zoom is active
                                                         )}>
-                                                            <ShoppingCart className={cn("w-full h-full p-6", zoomLevel > 0 && "md:p-2")} />
+                                                            <ShoppingCart className="w-full h-full p-6" />
                                                         </div>
 
-                                                        {/* Mode Indicators - Always visible and on top */}
-                                                        <div className="ml-auto pointer-events-auto">
+                                                        {/* Bought Overlay Indicator */}
+                                                        {item.is_bought && (
+                                                            <div className="absolute inset-0 flex items-center justify-center opacity-10">
+                                                                <CheckCircle2 className="w-full h-full p-8 text-white" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {/* Note Indicator - Direct child for clean stacking. Only show in view mode to avoid overlapping with edit/delete icons. */}
+                                                    {item.Product?.note && editMode === 'view' && (
+                                                        <div
+                                                            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white shadow-lg z-30 cursor-pointer group/note"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setActiveNoteId(activeNoteId === item.id ? null : item.id);
+                                                            }}
+                                                            onTouchStart={(e) => {
+                                                                e.stopPropagation();
+                                                                e.preventDefault();
+                                                                setActiveNoteId(activeNoteId === item.id ? null : item.id);
+                                                            }}
+                                                            onPointerDown={(e) => e.stopPropagation()}
+                                                        >
+                                                            <svg
+                                                                xmlns="http://www.w3.org/2000/svg"
+                                                                viewBox="0 0 24 24"
+                                                                fill="none"
+                                                                stroke="currentColor"
+                                                                strokeWidth="2.5"
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                                className="w-4 h-4 animate-pulse"
+                                                            >
+                                                                <circle cx="12" cy="12" r="10" />
+                                                                <line x1="12" y1="8" x2="12" y2="12" />
+                                                                <line x1="12" y1="16" x2="12.01" y2="16" />
+                                                            </svg>
+
+                                                            <div className={cn(
+                                                                "absolute top-full mt-3 z-50 pointer-events-none transition-all duration-200",
+                                                                "bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-2xl shadow-2xl border border-white/10 translate-y-2",
+                                                                "whitespace-normal break-words",
+                                                                // Mobile: nudge right and slightly narrower to stay on screen. Desktop: centered.
+                                                                "right-[-20px] w-[200px] sm:w-[240px] sm:right-auto sm:left-1/2 sm:-translate-x-1/2",
+                                                                (activeNoteId === item.id) ? "opacity-100 translate-y-0" : "opacity-0 group-hover/note:opacity-100 group-hover/note:translate-y-0"
+                                                            )}>
+                                                                {/* Tooltip Arrow - Responsive centering to icon */}
+                                                                <div className="absolute -top-1.5 right-9 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 w-3 h-3 bg-slate-900 rotate-45 border-l border-t border-white/10" />
+                                                                <div className="text-[10px] font-bold uppercase tracking-wider text-orange-400 mb-1">Hinweis</div>
+                                                                <div className="text-sm font-medium leading-relaxed">
+                                                                    {item.Product.note}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {/* Top Row: Icon + Indicator */}
+                                                    <div className="flex justify-between items-start z-10 md:relative pointer-events-none"> {/* Icon is purely visual now on mobile */}
+                                                        {/* Desktop: Standard Icon (ONLY if NOT small zoom) */}
+                                                        {zoomLevel > 0 && (
+                                                            <div className="hidden md:relative md:flex md:w-10 md:h-10 md:rounded-full md:bg-white/20 md:opacity-100 md:scale-100 md:z-10 md:items-center md:justify-center">
+                                                                <ShoppingCart className="w-full h-full p-2 text-white" />
+                                                            </div>
+                                                        )}
+                                                        <div className="flex-grow" />
+
+                                                        {/* Note Indicator + Mode Indicators - Always visible and on top */}
+                                                        <div className="ml-auto flex gap-2 items-center pointer-events-auto">
+
+                                                            {/* Mode Indicators */}
                                                             {editMode === 'edit' && (
                                                                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white backdrop-blur-sm">
                                                                     <Settings size={18} />
@@ -501,12 +575,6 @@ export default function ListDetail() {
                                                         {item.quantity} <span className="text-[10px] opacity-80">{(item.unit || item.Product?.unit) === 'Stück' ? 'Stk' : (item.unit || item.Product?.unit)}</span>
                                                     </div>
 
-                                                    {/* Bought Overlay Indicator */}
-                                                    {item.is_bought && (
-                                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 opacity-10">
-                                                            <CheckCircle2 className="w-full h-full p-8 text-white" />
-                                                        </div>
-                                                    )}
 
                                                 </div>
                                             </SortableItem>
@@ -588,6 +656,7 @@ export default function ListDetail() {
                 onClose={() => setIsQuantityModalOpen(false)}
                 productName={typeof pendingProduct === 'string' ? pendingProduct : pendingProduct?.name}
                 defaultUnit={typeof pendingProduct === 'object' ? pendingProduct?.unit : 'Stück'}
+                productNote={typeof pendingProduct === 'object' ? pendingProduct?.note : ''}
                 onConfirm={onConfirmQuantity}
             />
 

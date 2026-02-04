@@ -5,20 +5,36 @@ import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
 
-export default function QuantityModal({ isOpen, onClose, productName, defaultUnit = 'Stück', onConfirm }) {
+export default function QuantityModal({ isOpen, onClose, productName, defaultUnit = 'Stück', productNote = '', onConfirm }) {
     const [quantity, setQuantity] = useState('1');
     const [unit, setUnit] = useState(defaultUnit);
+    const [note, setNote] = useState('');
+    const [noteSuggestions, setNoteSuggestions] = useState([]);
 
     useEffect(() => {
         if (isOpen) {
             setQuantity('1');
             setUnit(defaultUnit || 'Stück');
+            setNote(productNote || '');
+            // Fetch note suggestions
+            fetchNoteSuggestions();
         }
-    }, [isOpen, defaultUnit]);
+    }, [isOpen, defaultUnit, productNote]);
+
+    const fetchNoteSuggestions = async () => {
+        try {
+            const res = await fetch('/api/products');
+            const products = await res.json();
+            const uniqueNotes = [...new Set(products.map(p => p.note).filter(Boolean))].sort();
+            setNoteSuggestions(uniqueNotes);
+        } catch (err) {
+            console.error('Failed to fetch note suggestions:', err);
+        }
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onConfirm(quantity, unit);
+        onConfirm(quantity, unit, note);
         onClose();
     };
 
@@ -66,6 +82,20 @@ export default function QuantityModal({ isOpen, onClose, productName, defaultUni
                                         className="text-center"
                                     />
                                 </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Hinweis (optional)</label>
+                                <Input
+                                    value={note}
+                                    onChange={(e) => setNote(e.target.value)}
+                                    placeholder="z.B. Kühl lagern"
+                                    className="bg-muted/50 border-border h-12"
+                                    list="note-suggestions-quantity"
+                                />
+                                <datalist id="note-suggestions-quantity">
+                                    {noteSuggestions.map(n => <option key={n} value={n} />)}
+                                </datalist>
                             </div>
 
                             <Button type="submit" className="w-full h-12 gap-2 mt-4">

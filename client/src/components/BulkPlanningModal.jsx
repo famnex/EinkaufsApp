@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Check, ShoppingCart, ChevronDown, ChevronUp, AlertCircle, Plus, Trash2, ArrowRight } from 'lucide-react';
+import { X, Check, ShoppingCart, ChevronDown, ChevronUp, AlertCircle, Plus, Trash2, ArrowRight, RefreshCw, Search } from 'lucide-react';
 import { Button } from './Button';
 import { UnitCombobox } from './UnitCombobox';
 import api from '../lib/axios';
@@ -8,20 +8,29 @@ import { cn } from '../lib/utils';
 import { Input } from './Input';
 
 // Helper to safely get adjustment value
-const getAdj = (prodId, adjustments) => adjustments[prodId] || { quantity: '', unit: '' };
+const getAdj = (prodId, adjustments) => adjustments[prodId] || { quantity: '', unit: '', note: '' };
 
 export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }) {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [data, setData] = useState(null); // { range: {start, end}, ingredients: [] }
-    const [adjustments, setAdjustments] = useState({}); // ProductId -> { quantity, unit }
-    const [availableUnits, setAvailableUnits] = useState([]); // Dynamic units from products
+    const [adjustments, setAdjustments] = useState({}); // ProductId -> { quantity, unit, note }
+    const [substitutions, setSubstitutions] = useState({}); // Original ProductId -> Substitute Product object
+    const [availableUnits, setAvailableUnits] = useState([]);
+    const [noteSuggestions, setNoteSuggestions] = useState([]);
+    const [allProducts, setAllProducts] = useState([]);
+    const [searchingFor, setSearchingFor] = useState(null); // ProductId being swapped
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         if (isOpen && listId) {
             fetchPlanningData();
             fetchAvailableUnits();
+            fetchAllProducts();
+            fetchSubstitutions();
             setAdjustments({});
+            setSearchingFor(null);
+            setSearchTerm('');
         }
     }, [isOpen, listId]);
 
@@ -51,16 +60,56 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
         }
     };
 
+    const fetchAllProducts = async () => {
+        try {
+            const res = await api.get('/products');
+            setAllProducts(res.data);
+            const uniqueNotes = [...new Set(res.data.map(p => p.note).filter(Boolean))].sort();
+            setNoteSuggestions(uniqueNotes);
+        } catch (err) {
+            console.error('Failed to load products:', err);
+        }
+    };
+
+    const fetchSubstitutions = async () => {
+        try {
+            const res = await api.get(`/lists/${listId}/substitutions`);
+            // Convert array to map: originalProductId -> SubstituteProduct
+            const subsMap = {};
+            res.data.forEach(sub => {
+                subsMap[sub.originalProductId] = sub.SubstituteProduct;
+            });
+            setSubstitutions(subsMap);
+        } catch (err) {
+            console.error('Failed to load substitutions:', err);
+        }
+    };
+
     const handleSave = async () => {
         setSaving(true);
         try {
             const itemsToSave = Object.entries(adjustments)
                 .filter(([_, val]) => parseFloat(val.quantity) > 0)
-                .map(([prodId, val]) => ({
-                    ProductId: parseInt(prodId),
-                    quantity: parseFloat(val.quantity),
-                    unit: val.unit
-                }));
+                .map(([origProdId, val]) => {
+                    const effectiveProductId = substitutions[origProdId]?.id || parseInt(origProdId);
+                    return {
+                        ProductId: effectiveProductId,
+                        quantity: parseFloat(val.quantity),
+                        unit: val.unit
+                    };
+                });
+
+            // Save notes to products
+            for (const [origProdId, val] of Object.entries(adjustments)) {
+                if (val.note && val.note.trim()) {
+                    const effectiveProductId = substitutions[origProdId]?.id || parseInt(origProdId);
+                    try {
+                        await api.put(`/products/${effectiveProductId}`, { note: val.note });
+                    } catch (err) {
+                        console.error('Failed to save product note:', err);
+                    }
+                }
+            }
 
             if (itemsToSave.length > 0) {
                 await api.post(`/lists/${listId}/bulk-items`, { items: itemsToSave });
@@ -86,16 +135,16 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
         }
     };
 
-    const handleQuickAdd = (prodId, amount, unit) => {
+    const handleQuickAdd = (prodId, amount, unit, note = '') => {
         setAdjustments(prev => ({
             ...prev,
-            [prodId]: { quantity: amount, unit: unit }
+            [prodId]: { quantity: amount, unit: unit, note: note }
         }));
     };
 
     const handleManualChange = (prodId, field, value) => {
         setAdjustments(prev => {
-            const current = prev[prodId] || { quantity: '', unit: '' };
+            const current = prev[prodId] || { quantity: '', unit: '', note: '' };
             return {
                 ...prev,
                 [prodId]: { ...current, [field]: value }
@@ -111,7 +160,64 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
         });
     };
 
-    // Units are now loaded dynamically from backend
+    const handleSubstitute = async (origProdId, newProduct) => {
+        setSubstitutions(prev => ({
+            ...prev,
+            [origProdId]: newProduct
+        }));
+        setSearchingFor(null);
+
+        // Save to backend
+        try {
+            await api.post(`/lists/${listId}/substitutions`, {
+                originalProductId: origProdId,
+                substituteProductId: newProduct.id
+            });
+        } catch (err) {
+            console.error('Failed to save substitution:', err);
+        }
+    };
+
+    const clearSubstitution = async (origProdId) => {
+        const substituteProduct = substitutions[origProdId];
+
+        setSubstitutions(prev => {
+            const n = { ...prev };
+            delete n[origProdId];
+            return n;
+        });
+
+        // Delete from backend
+        try {
+            await api.delete(`/lists/${listId}/substitutions/${origProdId}`);
+
+            // Also delete the substitute product from the list if it exists
+            if (substituteProduct && data) {
+                // Find items in the list with the substitute product ID
+                const itemsToDelete = data.ingredients?.filter(
+                    ing => ing.onListId && ing.product.id === origProdId
+                );
+
+                // Delete each item
+                for (const item of itemsToDelete || []) {
+                    if (item.onListId) {
+                        try {
+                            await api.delete(`/lists/items/${item.onListId}`);
+                        } catch (err) {
+                            console.error('Failed to delete list item:', err);
+                        }
+                    }
+                }
+
+                // Refresh planning data to update UI
+                fetchPlanningData();
+            }
+        } catch (err) {
+            console.error('Failed to delete substitution:', err);
+        }
+    };
+
+
 
     if (!isOpen) return null;
 
@@ -119,23 +225,23 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
         <AnimatePresence>
             <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4 bg-black/60 backdrop-blur-sm">
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="w-full max-w-5xl bg-card border border-border rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+                    initial={{ opacity: 0, y: 50, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 50, scale: 0.95 }}
+                    className="w-full max-w-5xl bg-card border border-border rounded-t-[2.5rem] md:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
                 >
                     {/* Header */}
-                    <div className="p-4 md:p-6 border-b border-border bg-card flex justify-between items-center">
+                    <div className="px-5 py-4 md:p-6 border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-20 flex justify-between items-center">
                         <div>
-                            <h2 className="text-xl md:text-2xl font-bebas tracking-wide">Zutaten Planer</h2>
+                            <h2 className="text-2xl md:text-3xl font-bebas tracking-wider text-primary">Zutaten Planer</h2>
                             {data && (
-                                <p className="text-xs md:text-sm text-muted-foreground">
-                                    Zeitraum: <span className="font-bold text-primary">{new Date(data.range.start).toLocaleDateString('de-DE')}</span> bis <span className="font-bold text-primary">{new Date(data.range.end).toLocaleDateString('de-DE')}</span>
+                                <p className="text-[10px] md:text-sm text-muted-foreground uppercase tracking-widest font-bold">
+                                    <span className="opacity-50">Zeitraum:</span> {new Date(data.range.start).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })} — {new Date(data.range.end).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
                                 </p>
                             )}
                         </div>
-                        <button onClick={onClose} className="p-2 hover:bg-muted rounded-full">
-                            <X size={24} />
+                        <button onClick={onClose} className="p-3 bg-muted/50 hover:bg-muted rounded-2xl transition-all duration-200">
+                            <X size={20} className="text-muted-foreground" />
                         </button>
                     </div>
 
@@ -184,118 +290,190 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
 
                                                 return (
                                                     <div key={item.product.id} className={cn(
-                                                        "flex flex-col md:grid md:grid-cols-12 gap-3 md:gap-4 items-center p-3 rounded-xl border border-border transition-all",
-                                                        isSelected ? "bg-primary/5 border-primary/20 shadow-sm" : "bg-card"
+                                                        "group/row flex flex-col md:grid md:grid-cols-12 gap-4 md:gap-4 items-stretch md:items-center p-4 md:p-3 rounded-3xl border border-border transition-all duration-300",
+                                                        isSelected ? "bg-primary/[0.03] border-primary/30 shadow-md ring-1 ring-primary/10" : "bg-card hover:bg-muted/30"
                                                     )}>
-                                                        {/* Name & Source Details */}
-                                                        <div className="w-full md:col-span-4 min-w-0 flex justify-between items-start md:block">
-                                                            <div className="min-w-0">
-                                                                <div className="font-bold text-foreground truncate text-sm md:text-base">{item.product.name}</div>
-                                                                <div className="text-xs text-muted-foreground truncate">{item.product.Store?.name}</div>
+                                                        {/* Product Info Section */}
+                                                        <div className="w-full md:col-span-4 min-w-0 flex flex-col gap-2">
+                                                            <div className="flex items-start md:items-center gap-3">
+                                                                <button
+                                                                    onClick={() => substitutions[item.product.id] ? clearSubstitution(item.product.id) : setSearchingFor(item.product.id)}
+                                                                    className={cn(
+                                                                        "shrink-0 w-10 h-10 md:w-8 md:h-8 rounded-2xl flex items-center justify-center transition-all duration-300",
+                                                                        substitutions[item.product.id] ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                                                                    )}
+                                                                >
+                                                                    <RefreshCw size={16} className={cn(searchingFor === item.product.id && "animate-spin")} />
+                                                                </button>
+                                                                <div className="min-w-0 flex-1">
+                                                                    {searchingFor === item.product.id ? (
+                                                                        <div className="relative">
+                                                                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+                                                                            <Input
+                                                                                autoFocus
+                                                                                placeholder="Ersatzprodukt..."
+                                                                                className="pl-8 h-9 text-sm bg-muted border-none rounded-xl"
+                                                                                value={searchTerm}
+                                                                                onChange={(e) => setSearchTerm(e.target.value)}
+                                                                                onBlur={() => setTimeout(() => { setSearchingFor(null); setSearchTerm(''); }, 200)}
+                                                                            />
+                                                                            <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-2xl shadow-2xl max-h-48 overflow-y-auto z-30 ring-1 ring-black/5">
+                                                                                {allProducts
+                                                                                    .filter(p => p.id !== item.product.id && p.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                                                                                    .slice(0, 10)
+                                                                                    .map(p => (
+                                                                                        <button
+                                                                                            key={p.id}
+                                                                                            className="w-full text-left px-4 py-3 hover:bg-primary/5 text-sm font-medium border-b border-border/50 last:border-none"
+                                                                                            onMouseDown={() => { handleSubstitute(item.product.id, p); setSearchTerm(''); }}
+                                                                                        >
+                                                                                            {p.name}
+                                                                                        </button>
+                                                                                    ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <>
+                                                                            <div className={cn("font-bold truncate text-base md:text-sm leading-tight", substitutions[item.product.id] && "line-through opacity-50")}>
+                                                                                {item.product.name}
+                                                                            </div>
+                                                                            {substitutions[item.product.id] && (
+                                                                                <div className="font-bold text-primary truncate text-sm flex items-center gap-1 mt-0.5 animate-in fade-in slide-in-from-left-2">
+                                                                                    <ArrowRight size={12} className="shrink-0" />
+                                                                                    <span className="truncate">{substitutions[item.product.id].name}</span>
+                                                                                    <button
+                                                                                        onClick={(e) => { e.stopPropagation(); clearSubstitution(item.product.id); }}
+                                                                                        className="ml-auto w-5 h-5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-colors"
+                                                                                    >
+                                                                                        <X size={12} />
+                                                                                    </button>
+                                                                                </div>
+                                                                            )}
+                                                                            {item.product.Store?.name && (
+                                                                                <div className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider mt-0.5">
+                                                                                    {item.product.Store.name}
+                                                                                </div>
+                                                                            )}
+                                                                        </>
+                                                                    )}
+                                                                </div>
                                                             </div>
-                                                            <div className="mt-1 flex flex-wrap gap-1 justify-end md:justify-start">
-                                                                {item.sources.slice(0, 2).map((s, i) => (
-                                                                    <span key={i} className="inline-block px-1.5 py-0.5 bg-muted rounded text-[10px] text-muted-foreground truncate max-w-[100px]" title={s.recipe}>
+                                                            <div className="flex flex-wrap gap-1.5 mt-1">
+                                                                {item.sources.slice(0, 3).map((s, i) => (
+                                                                    <span key={i} className="px-2 py-0.5 bg-muted/40 rounded-lg text-[10px] text-muted-foreground/80 font-medium" title={s.recipe}>
                                                                         {s.recipe}
                                                                     </span>
                                                                 ))}
-                                                                {item.sources.length > 2 && <span className="text-[10px] text-muted-foreground">+{item.sources.length - 2}</span>}
+                                                                {item.sources.length > 3 && <span className="text-[10px] font-bold text-primary">+{item.sources.length - 3}</span>}
                                                             </div>
                                                         </div>
 
-                                                        <div className="w-full flex md:hidden justify-between items-center bg-muted/20 p-2 rounded-lg text-xs">
-                                                            <span>Benötigt: <span className="font-mono font-bold">{neededText}</span></span>
-                                                            {onList > 0 && <span className="text-teal-600 font-bold flex items-center gap-1"><Check size={12} /> {onList} {onListUnit || item.product.unit}</span>}
+                                                        {/* Status Section (Mobile: Row, Desktop: Grid columns) */}
+                                                        <div className="grid grid-cols-2 md:contents gap-4 pt-2 md:pt-0 border-t border-border/50 md:border-none">
+                                                            {/* Needed */}
+                                                            <div className="flex flex-col md:col-span-3 items-start md:items-center justify-center">
+                                                                <span className="md:hidden text-[10px] uppercase font-bold text-muted-foreground mb-1">Benötigt</span>
+                                                                <span className="font-mono font-bold text-sm bg-primary/10 text-primary md:bg-muted/30 md:text-foreground px-3 py-1.5 rounded-2xl w-full md:w-auto text-center">
+                                                                    {neededText}
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Presence */}
+                                                            <div className="flex flex-col md:col-span-2 items-start md:items-center justify-center gap-2">
+                                                                <span className="md:hidden text-[10px] uppercase font-bold text-muted-foreground mb-1">Vorhanden</span>
+                                                                <div className="flex items-center gap-2 w-full md:justify-center">
+                                                                    {onList > 0 ? (
+                                                                        <div className="flex items-center gap-2 bg-teal-500/10 text-teal-600 px-3 py-1.5 rounded-2xl w-full md:w-auto md:bg-transparent md:px-0 md:py-0">
+                                                                            <Check size={14} className="shrink-0" />
+                                                                            <span className="font-mono font-bold text-sm truncate">{onList} {onListUnit || item.product.unit}</span>
+                                                                            {onListId && (
+                                                                                <button
+                                                                                    onClick={() => handleDeleteItem(onListId)}
+                                                                                    className="ml-auto md:ml-2 text-red-500/50 hover:text-red-500 p-1 transition-colors"
+                                                                                >
+                                                                                    <Trash2 size={14} />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className="text-muted-foreground/20 font-bold hidden md:block">—</span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
                                                         </div>
 
-                                                        {/* Needed (Desktop) */}
-                                                        <div className="hidden md:flex col-span-3 text-center flex-col items-center justify-center">
-                                                            <span className="font-mono font-medium text-sm bg-muted/30 px-2 py-1 rounded-lg">
-                                                                {neededText}
-                                                            </span>
-                                                        </div>
+                                                        {/* Action Section */}
+                                                        <div className="md:col-span-3 flex flex-col gap-2 mt-2 md:mt-0">
+                                                            <span className="md:hidden text-[10px] uppercase font-bold text-muted-foreground">Hinzufügen</span>
+                                                            <div className="flex items-center gap-2">
+                                                                {/* Quick Add Pills */}
+                                                                {!isLockedUnit && !isSelected && (
+                                                                    <div className="flex items-center gap-2 w-full">
+                                                                        {primaryNeed && (
+                                                                            <button
+                                                                                onClick={() => handleQuickAdd(item.product.id, primaryNeed.amount, primaryNeed.unit)}
+                                                                                className="flex-1 h-10 px-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-2xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all"
+                                                                            >
+                                                                                <Plus size={14} /> {primaryNeed.amount} {primaryNeed.unit}
+                                                                            </button>
+                                                                        )}
+                                                                        {!(primaryNeed && primaryNeed.amount === 1 && primaryNeed.unit === defaultUnit) && (
+                                                                            <button
+                                                                                onClick={() => handleQuickAdd(item.product.id, 1, defaultUnit)}
+                                                                                className="flex-1 h-10 px-3 bg-muted hover:bg-muted/80 text-foreground rounded-2xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all"
+                                                                            >
+                                                                                <Plus size={14} /> 1 {defaultUnit}
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                )}
 
-                                                        {/* On List (Desktop) */}
-                                                        <div className="hidden md:flex col-span-2 text-center items-center justify-center gap-2">
-                                                            {onList > 0 ? (
-                                                                <>
-                                                                    <span className="font-mono font-bold text-teal-600 flex items-center gap-1 text-xs">
-                                                                        <Check size={14} /> {onList} {onListUnit || item.product.unit}
-                                                                    </span>
-                                                                    {onListId && (
-                                                                        <button
-                                                                            onClick={() => handleDeleteItem(onListId)}
-                                                                            className="text-muted-foreground hover:text-destructive p-1 rounded-full transition-colors"
-                                                                            title="Von Liste entfernen"
-                                                                        >
-                                                                            <Trash2 size={14} />
-                                                                        </button>
-                                                                    )}
-                                                                </>
-                                                            ) : (
-                                                                <span className="text-muted-foreground/30">-</span>
-                                                            )}
-                                                        </div>
-
-                                                        {/* Action */}
-                                                        <div className="w-full md:col-span-3 flex flex-wrap md:flex-nowrap items-center gap-2 justify-end mt-2 md:mt-0">
-                                                            {/* Quick Add: Only if NOT on list already */}
-                                                            {!isLockedUnit && !isSelected && (
-                                                                <>
-                                                                    {primaryNeed && (
-                                                                        <Button
-                                                                            size="sm"
-                                                                            variant="ghost"
-                                                                            className="h-8 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary whitespace-nowrap"
-                                                                            onClick={() => handleQuickAdd(item.product.id, primaryNeed.amount, primaryNeed.unit)}
-                                                                            title="Benötigte Menge übernehmen"
-                                                                        >
-                                                                            <Plus size={14} /> {primaryNeed.amount} {primaryNeed.unit}
-                                                                        </Button>
-                                                                    )}
-                                                                    <Button
-                                                                        size="sm"
-                                                                        variant="ghost"
-                                                                        className="h-8 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary whitespace-nowrap"
-                                                                        onClick={() => handleQuickAdd(item.product.id, 1, defaultUnit)}
-                                                                        title={`1 ${defaultUnit} hinzufügen`}
-                                                                    >
-                                                                        <Plus size={14} /> 1 {defaultUnit}
-                                                                    </Button>
-                                                                </>
-                                                            )}
-
-                                                            <div className={cn("flex items-center gap-1 transition-all", (isSelected || isLockedUnit) ? "opacity-100" : "opacity-50 hover:opacity-100")}>
-                                                                <Input
-                                                                    type="number"
-                                                                    className={cn(
-                                                                        "h-8 w-16 text-center font-bold px-1 transition-all",
-                                                                        isSelected ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground"
-                                                                    )}
-                                                                    value={adj.quantity}
-                                                                    placeholder={isLockedUnit ? "+0" : "0"}
-                                                                    onChange={(e) => {
-                                                                        const val = e.target.value;
-                                                                        handleManualChange(item.product.id, 'quantity', val);
-                                                                        // Ensure unit is set
-                                                                        if (!adj.unit) handleManualChange(item.product.id, 'unit', defaultUnit);
-                                                                    }}
-                                                                />
-                                                                <UnitCombobox
-                                                                    value={adj.unit || ''}
-                                                                    onChange={(val) => handleManualChange(item.product.id, 'unit', val)}
-                                                                    suggestions={availableUnits}
-                                                                    disabled={isLockedUnit}
-                                                                    className={cn("w-20", (isSelected || isLockedUnit) ? "opacity-100" : "opacity-0")}
-                                                                />
-
-                                                                {isSelected && (
-                                                                    <button
-                                                                        onClick={() => clearAdjustment(item.product.id)}
-                                                                        className="text-muted-foreground hover:text-destructive shrink-0"
-                                                                    >
-                                                                        <X size={16} />
-                                                                    </button>
+                                                                {/* Manual Adjustment Area */}
+                                                                {(isSelected || isLockedUnit) && (
+                                                                    <div className="flex flex-col gap-2 w-full animate-in fade-in zoom-in-95">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className="relative flex-1">
+                                                                                <Input
+                                                                                    type="number"
+                                                                                    className="h-10 text-center font-black rounded-2xl border-2 border-primary bg-primary/5 text-primary focus:ring-4 focus:ring-primary/20"
+                                                                                    value={adj.quantity}
+                                                                                    placeholder={isLockedUnit ? "+0" : "0"}
+                                                                                    onChange={(e) => {
+                                                                                        const val = e.target.value;
+                                                                                        handleManualChange(item.product.id, 'quantity', val);
+                                                                                        if (!adj.unit) handleManualChange(item.product.id, 'unit', defaultUnit);
+                                                                                    }}
+                                                                                />
+                                                                            </div>
+                                                                            <UnitCombobox
+                                                                                value={adj.unit || ''}
+                                                                                onChange={(val) => handleManualChange(item.product.id, 'unit', val)}
+                                                                                suggestions={availableUnits}
+                                                                                disabled={isLockedUnit}
+                                                                                className="w-24 h-10 rounded-2xl"
+                                                                            />
+                                                                            {isSelected && (
+                                                                                <button
+                                                                                    onClick={() => clearAdjustment(item.product.id)}
+                                                                                    className="w-10 h-10 rounded-2xl bg-muted/50 text-muted-foreground hover:bg-red-500 hover:text-white flex items-center justify-center transition-all"
+                                                                                >
+                                                                                    <X size={18} />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                        {isSelected && (
+                                                                            <Input
+                                                                                placeholder="Optionaler Hinweis..."
+                                                                                value={adj.note || ''}
+                                                                                onChange={(e) => handleManualChange(item.product.id, 'note', e.target.value)}
+                                                                                className="h-9 text-xs rounded-xl bg-muted/30 border-none px-3"
+                                                                                list={`note-suggestions-planner-${item.product.id}`}
+                                                                            />
+                                                                        )}
+                                                                        <datalist id={`note-suggestions-planner-${item.product.id}`}>
+                                                                            {noteSuggestions.map(n => <option key={n} value={n} />)}
+                                                                        </datalist>
+                                                                    </div>
                                                                 )}
                                                             </div>
                                                         </div>
@@ -309,14 +487,39 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
                     </div>
 
                     {/* Footer */}
-                    <div className="p-4 border-t border-border bg-card flex flex-col-reverse md:flex-row justify-end gap-3">
-                        <Button variant="ghost" onClick={onClose} className="w-full md:w-auto">Abbrechen</Button>
+                    <div className="p-4 md:p-5 border-t border-border bg-card/80 backdrop-blur-md flex flex-row justify-end items-center gap-3">
+                        <div className="hidden md:block mr-auto text-xs text-muted-foreground font-medium uppercase tracking-widest">
+                            {Object.keys(adjustments).length} {Object.keys(adjustments).length === 1 ? 'Artikel' : 'Artikel'} vorgemerkt
+                        </div>
+
+                        {/* Cancel Button - Icon only on mobile */}
+                        <Button
+                            variant="ghost"
+                            onClick={onClose}
+                            className="w-12 h-12 md:w-auto md:h-10 rounded-2xl md:px-4"
+                        >
+                            <X size={20} className="md:mr-2" />
+                            <span className="hidden md:inline">Abbrechen</span>
+                        </Button>
+
+                        {/* Save Button - Icon only on mobile, wider on desktop */}
                         <Button
                             onClick={handleSave}
                             disabled={saving || Object.keys(adjustments).length === 0}
-                            className="w-full md:w-auto px-4 md:px-8 shadow-lg shadow-primary/20"
+                            className="flex-1 md:flex-none md:min-w-[200px] h-12 md:h-10 rounded-2xl shadow-xl shadow-primary/20 backdrop-blur-xl transition-all"
                         >
-                            {saving ? 'Speichert...' : `Hinzufügen (${Object.keys(adjustments).length})`}
+                            {saving ? (
+                                <RefreshCw className="animate-spin" size={20} />
+                            ) : (
+                                <div className="flex items-center justify-center gap-2">
+                                    <ShoppingCart size={20} />
+                                    <span className="hidden md:inline">Liste aktualisieren</span>
+                                    {/* Mobile count badge */}
+                                    <span className="md:hidden bg-white/20 px-2 py-0.5 rounded-lg text-xs font-black">
+                                        {Object.keys(adjustments).length}
+                                    </span>
+                                </div>
+                            )}
                         </Button>
                     </div>
                 </motion.div>

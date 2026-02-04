@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { List, ListItem, Product, Store, Manufacturer, ProductRelation, sequelize } = require('../models');
+const { List, ListItem, Product, Store, Manufacturer, ProductRelation, ProductSubstitution, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { auth } = require('../middleware/auth');
 
@@ -664,7 +664,16 @@ router.get('/:id/planning-data', auth, async (req, res) => {
             ]
         });
 
-        // 3. Fetch Existing List Items
+        // 3. Load Product Substitutions for this list
+        const substitutions = await ProductSubstitution.findAll({
+            where: { ListId: listId }
+        });
+        const subsMap = new Map(); // originalProductId -> substituteProductId
+        substitutions.forEach(sub => {
+            subsMap.set(sub.originalProductId, sub.substituteProductId);
+        });
+
+        // 4. Fetch Existing List Items
         const existingListItems = await ListItem.findAll({
             where: { ListId: listId }
         });
@@ -681,16 +690,21 @@ router.get('/:id/planning-data', auth, async (req, res) => {
             });
         });
 
-        // 4. Aggregate Ingredients (Smart Aggregation by Unit)
+        // 5. Aggregate Ingredients (Smart Aggregation by Unit)
         const aggregated = {}; // ProductId -> { ... }
 
         menus.forEach(menu => {
             if (!menu.Recipe || !menu.Recipe.RecipeIngredients) return;
 
             menu.Recipe.RecipeIngredients.forEach(ing => {
-                if (!aggregated[ing.ProductId]) {
-                    const existing = existingMap.get(ing.ProductId) || { quantity: 0, id: null, unit: null };
-                    aggregated[ing.ProductId] = {
+                const origProductId = ing.ProductId;
+                // Check if there's a substitution for this product
+                const effectiveProductId = subsMap.get(origProductId) || origProductId;
+
+                if (!aggregated[origProductId]) {
+                    // Check existingMap using the effective (substituted) product ID
+                    const existing = existingMap.get(effectiveProductId) || { quantity: 0, id: null, unit: null };
+                    aggregated[origProductId] = {
                         product: ing.Product,
                         neededByUnit: {},
                         sources: [],
@@ -699,7 +713,7 @@ router.get('/:id/planning-data', auth, async (req, res) => {
                         onListId: existing.id
                     };
                 }
-                const entry = aggregated[ing.ProductId];
+                const entry = aggregated[origProductId];
                 const unit = ing.unit || ing.Product.unit || 'Stück';
 
                 entry.neededByUnit[unit] = (entry.neededByUnit[unit] || 0) + parseFloat(ing.quantity);
@@ -778,6 +792,75 @@ router.post('/:id/bulk-items', auth, async (req, res) => {
         }
 
         res.json({ message: 'Items added' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ==================== PRODUCT SUBSTITUTIONS ====================
+
+// Get all substitutions for a list
+router.get('/:listId/substitutions', auth, async (req, res) => {
+    try {
+        const substitutions = await ProductSubstitution.findAll({
+            where: { ListId: req.params.listId },
+            include: [
+                { model: Product, as: 'OriginalProduct' },
+                { model: Product, as: 'SubstituteProduct' }
+            ]
+        });
+        res.json(substitutions);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Create or update a substitution
+router.post('/:listId/substitutions', auth, async (req, res) => {
+    try {
+        const { originalProductId, substituteProductId } = req.body;
+
+        // Check if substitution already exists
+        const existing = await ProductSubstitution.findOne({
+            where: {
+                ListId: req.params.listId,
+                originalProductId
+            }
+        });
+
+        if (existing) {
+            // Update
+            await existing.update({ substituteProductId });
+            res.json(existing);
+        } else {
+            // Create
+            const substitution = await ProductSubstitution.create({
+                ListId: req.params.listId,
+                originalProductId,
+                substituteProductId
+            });
+            res.status(201).json(substitution);
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Delete a substitution
+router.delete('/:listId/substitutions/:originalProductId', auth, async (req, res) => {
+    try {
+        const deleted = await ProductSubstitution.destroy({
+            where: {
+                ListId: req.params.listId,
+                originalProductId: req.params.originalProductId
+            }
+        });
+
+        if (!deleted) {
+            return res.status(404).json({ error: 'Substitution not found' });
+        }
+
+        res.json({ message: 'Substitution deleted' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
