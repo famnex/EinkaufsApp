@@ -21,6 +21,7 @@ export default function SettingsPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedStore, setSelectedStore] = useState(null);
     const [openaiKey, setOpenaiKey] = useState('');
+    const [alexaKey, setAlexaKey] = useState('');
     const [savingKey, setSavingKey] = useState(false);
     const [registrationEnabled, setRegistrationEnabled] = useState(true);
     const [appVersion, setAppVersion] = useState('...');
@@ -65,7 +66,8 @@ export default function SettingsPage() {
             const promises = [
                 api.get('/settings/openai_key'),
                 api.get('/settings/registration_enabled'),
-                api.get('/settings/system/version')
+                api.get('/settings/system/version'),
+                api.get('/settings/alexa_key')
             ];
 
             // Allow version fetch to fail gracefully if endpoint doesn't exist yet (though it should)
@@ -74,10 +76,12 @@ export default function SettingsPage() {
             const openaiRes = results[0].status === 'fulfilled' ? results[0].value : { data: {} };
             const regRes = results[1].status === 'fulfilled' ? results[1].value : { data: {} };
             const verRes = results[2].status === 'fulfilled' ? results[2].value : { data: { version: 'Unknown' } };
+            const alexaRes = results[3]?.status === 'fulfilled' ? results[3].value : { data: {} };
 
             setOpenaiKey(openaiRes.data.value || '');
             setRegistrationEnabled(regRes.data.value !== 'false');
             setAppVersion(verRes.data.version);
+            setAlexaKey(alexaRes.data.value || '');
         } catch (err) {
             console.error('Failed to fetch settings', err);
         }
@@ -106,6 +110,42 @@ export default function SettingsPage() {
         } catch (err) {
             console.error('Failed to save key', err);
             alert('Fehler beim Speichern');
+        } finally {
+            setSavingKey(false);
+        }
+    };
+
+    const handleGenerateAlexaKey = async () => {
+        if (alexaKey) {
+            const confirmed = window.confirm(
+                'ACHTUNG: Es ist bereits ein Alexa API Key vorhanden.\n\n' +
+                'Wenn Sie einen neuen generieren, müssen Sie diesen auch in Ihrem Alexa Skill aktualisieren, ' +
+                'sonst funktioniert die Verbindung nicht mehr.\n\n' +
+                'Wollen Sie wirklich einen neuen Key generieren?'
+            );
+            if (!confirmed) return;
+        }
+
+        setSavingKey(true);
+        // Generate a random UUID-like string and remove hyphens for a cleaner key, or keep them.
+        // Using native crypto.randomUUID() if available, else a fallback.
+        let newKey;
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            newKey = crypto.randomUUID().replace(/-/g, '');
+        } else {
+            newKey = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        }
+
+        try {
+            await api.post('/settings', {
+                key: 'alexa_key',
+                value: newKey
+            });
+            setAlexaKey(newKey);
+            // alert('Neuer Alexa API Key generiert: ' + newKey); // Optional, field is visible
+        } catch (err) {
+            console.error('Failed to save alexa key', err);
+            alert('Fehler beim Generieren des Keys');
         } finally {
             setSavingKey(false);
         }
@@ -316,7 +356,7 @@ export default function SettingsPage() {
                 <Building2 size={20} className="text-primary" />
                 API Integration
             </h2>
-            <div className="space-y-4">
+            <div className="space-y-6">
                 <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">OpenAI API Key</label>
                     <div className="flex gap-2">
@@ -332,6 +372,29 @@ export default function SettingsPage() {
                         </Button>
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-2">Wird benötigt für den KI-Rezept-Import.</p>
+                </div>
+
+                <div className="pt-4 border-t border-border">
+                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Alexa API Key</label>
+                    <div className="flex gap-2">
+                        <Input
+                            type="text"
+                            readOnly
+                            disabled
+                            value={alexaKey}
+                            placeholder="Nicht generiert"
+                            className="bg-muted border-transparent focus:bg-background transition-colors font-mono text-sm cursor-text select-text disabled:opacity-70 disabled:cursor-text"
+                            onClick={(e) => e.target.select()}
+                        />
+                        <Button
+                            onClick={handleGenerateAlexaKey}
+                            disabled={savingKey}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white min-w-[140px]"
+                        >
+                            {savingKey ? 'Verarbeite...' : 'Generiere API-Key'}
+                        </Button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-2">Für die Nutzung mit dem Alexa Skill. Vorsicht: Bei Neugenerierung muss der Key in der Alexa App aktualisiert werden.</p>
                 </div>
             </div>
         </Card>

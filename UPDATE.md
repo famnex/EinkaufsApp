@@ -1,7 +1,10 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.13.0
-<!-- push-lock: v0.13.0 is staging only -->
+## Aktuelle Version: v0.13.1
+<!-- push-lock: v0.13.1 is staging only -->
+
+### Changelog v0.13.1
+- **Feature (Admin):** Alexa API Key Generierung in den Einstellungen hinzugefügt. 🗣️🔑
 
 ### Changelog v0.13.0
 - **Feature (Offline):** Vollständige Offline-Synchronisation. Änderungen an der Einkaufsliste werden bei schlechtem Empfang lokal zwischengespeichert und automatisch synchronisiert, sobald wieder Netz da ist. 🌩️🔄
