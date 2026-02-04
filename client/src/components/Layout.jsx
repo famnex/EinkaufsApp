@@ -3,7 +3,8 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useEditMode } from '../contexts/EditModeContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { Edit3, Eye, Sun, Moon, List, Plus, Trash2 } from 'lucide-react';
+import { useSync } from '../contexts/SyncContext';
+import { Edit3, Eye, Sun, Moon, List, Plus, Trash2, Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import BottomNav from './BottomNav';
@@ -12,6 +13,7 @@ export default function Layout({ children }) {
     const { user } = useAuth();
     const { editMode, setEditMode } = useEditMode();
     const { theme, toggleTheme } = useTheme();
+    const { pendingChanges, isSyncing, isOffline } = useSync();
     const location = useLocation();
 
     useEffect(() => {
@@ -43,35 +45,63 @@ export default function Layout({ children }) {
                         <span className="text-xl font-bebas tracking-wider text-foreground">{getPageTitle()}</span>
                     </div>
 
-                    <div className="flex items-center gap-1 bg-muted p-1 rounded-2xl">
-                        {[
-                            { id: 'view', icon: Eye, label: 'Vorschau' },
-                            { id: 'create', icon: Plus, label: 'Erstellen' },
-                            { id: 'edit', icon: Edit3, label: 'Bearbeiten' },
-                            { id: 'delete', icon: Trash2, label: 'Löschen' }
-                        ].map((mode) => (
-                            <button
-                                key={mode.id}
-                                onClick={() => setEditMode(mode.id)}
-                                className={cn(
-                                    "p-2 rounded-xl transition-all flex items-center gap-2",
-                                    editMode === mode.id
-                                        ? "bg-primary text-primary-foreground shadow-md"
-                                        : "text-muted-foreground hover:bg-muted/80"
-                                )}
-                            >
-                                <mode.icon size={18} />
-                                {editMode === mode.id && <span className="text-xs font-bold hidden md:inline">{mode.label}</span>}
-                            </button>
-                        ))}
+                    <div className="flex-1 flex justify-center">
+                        <div className="flex items-center gap-1 bg-muted p-1 rounded-2xl">
+                            {[
+                                { id: 'view', icon: Eye, label: 'Vorschau' },
+                                { id: 'create', icon: Plus, label: 'Erstellen' },
+                                { id: 'edit', icon: Edit3, label: 'Bearbeiten' },
+                                { id: 'delete', icon: Trash2, label: 'Löschen' }
+                            ].map((mode) => (
+                                <button
+                                    key={mode.id}
+                                    onClick={() => setEditMode(mode.id)}
+                                    className={cn(
+                                        "p-2 rounded-xl transition-all flex items-center gap-2",
+                                        editMode === mode.id
+                                            ? "bg-primary text-primary-foreground shadow-md"
+                                            : "text-muted-foreground hover:bg-muted/80"
+                                    )}
+                                >
+                                    <mode.icon size={18} />
+                                    {editMode === mode.id && <span className="text-xs font-bold hidden md:inline">{mode.label}</span>}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
-                    <button
-                        onClick={toggleTheme}
-                        className="p-2 rounded-xl bg-muted text-muted-foreground hover:bg-muted/80 transition-all ml-2"
-                    >
-                        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {/* Sync Indicator */}
+                        <AnimatePresence>
+                            {(pendingChanges.length > 0 || isOffline) && (
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.8 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.8 }}
+                                    className={cn(
+                                        "relative p-2 rounded-xl flex items-center justify-center transition-colors",
+                                        isOffline ? "bg-red-500/10 text-red-500" : "bg-primary/10 text-primary"
+                                    )}
+                                >
+                                    {isOffline ? <CloudOff size={18} /> : (
+                                        isSyncing ? <RefreshCw size={18} className="animate-spin" /> : <Cloud size={18} />
+                                    )}
+                                    {pendingChanges.length > 0 && (
+                                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-background animate-in zoom-in duration-300">
+                                            {pendingChanges.length}
+                                        </span>
+                                    )}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        <button
+                            onClick={toggleTheme}
+                            className="p-2 rounded-xl bg-muted text-muted-foreground hover:bg-muted/80 transition-all"
+                        >
+                            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                        </button>
+                    </div>
                 </div>
             </header>
 

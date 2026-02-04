@@ -1,24 +1,117 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, Maximize2, Minimize2 } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, Maximize2, Minimize2, AlertTriangle } from 'lucide-react';
 import { Button } from './Button';
 import { cn, getImageUrl } from '../lib/utils';
+import api from '../lib/axios';
 
 export default function CookingMode({ recipe, onClose }) {
     const [step, setStep] = useState(0);
     const [checkedIngredients, setCheckedIngredients] = useState(new Set());
     const [textSize, setTextSize] = useState(1); // 0: Small, 1: Normal, 2: Large
     const [showIngredientsMobile, setShowIngredientsMobile] = useState(false); // For mobile toggle
+    const [futureUsage, setFutureUsage] = useState({}); // { ingredientId: [{ date, recipeName }] }
+
+    // Portal Tooltip State
+    const [tooltipData, setTooltipData] = useState(null); // { x, y, items: [] }
 
     // Parse ingredients to ensure we handle the async fetched data structure
     const ingredients = recipe.RecipeIngredients?.map(ri => ({
         id: ri.id,
+        productId: ri.ProductId, // IMPORTANT: Match by ProductId
         name: ri.Product?.name || 'Unknown',
         amount: ri.quantity,
         unit: ri.unit || ri.Product?.unit
     })) || [];
 
     const steps = recipe.instructions || [];
+
+    // Fetch future usage
+    useEffect(() => {
+        const checkFutureUsage = async () => {
+            try {
+                // 1. Fetch Lists to find determining "Next Shopping Date"
+                const { data: allLists } = await api.get('/lists');
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                // Helper to get local YYYY-MM-DD
+                const getLocalISODate = (d) => {
+                    const year = d.getFullYear();
+                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                };
+
+                // Find the closest list in the future (Date > Today)
+                // API returns desc, so reverse or sort
+                const futureLists = allLists
+                    .filter(l => new Date(l.date) > today)
+                    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                const nextShoppingList = futureLists[0];
+
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+
+                let end = new Date(today);
+                if (nextShoppingList) {
+                    // Range goes UNTIL the day before the shopping list (but API uses inclusive usually, or we filter)
+                    // We set end date TO the list date.
+                    end = new Date(nextShoppingList.date);
+                } else {
+                    // Fallback: 7 days if no list planned
+                    end.setDate(end.getDate() + 7);
+                }
+
+                const startStr = getLocalISODate(tomorrow);
+                const endStr = getLocalISODate(end);
+
+                console.log(`[CookingMode] Warning Check Window: ${startStr} to ${endStr} (Next List: ${nextShoppingList?.date || 'None'})`);
+
+                const { data: menus } = await api.get(`/menus?start=${startStr}&end=${endStr}`);
+
+                const usageMap = {};
+
+                for (const menu of menus) {
+                    // Stop if we hit the shopping list date (just to be safe/precise)
+                    // Also filter out any accidental "today" or past dates if API returns them
+                    // (Though query params should handle it, we safeguard)
+                    const menuDate = new Date(menu.date);
+                    if (menuDate < tomorrow) continue;
+                    if (nextShoppingList && menuDate >= new Date(nextShoppingList.date)) break;
+
+                    if (!menu.Recipe || !menu.Recipe.RecipeIngredients) continue;
+
+                    menu.Recipe.RecipeIngredients.forEach(ri => {
+                        const pid = ri.ProductId;
+                        if (!pid) return;
+
+                        // Check if this product is in OUR current recipe
+                        const isNeededNow = ingredients.some(i => i.productId === pid);
+
+                        if (isNeededNow) {
+                            if (!usageMap[pid]) usageMap[pid] = [];
+                            usageMap[pid].push({
+                                date: menu.date,
+                                recipeName: menu.Recipe.title
+                            });
+                        }
+                    });
+                }
+                setFutureUsage(usageMap);
+
+            } catch (err) {
+                console.error("Failed to check future usage", err);
+            }
+        };
+
+        if (recipe) {
+            checkFutureUsage();
+        }
+    }, [recipe]);
+
 
     const toggleIngredient = (id) => {
         const next = new Set(checkedIngredients);
@@ -81,13 +174,28 @@ export default function CookingMode({ recipe, onClose }) {
         }
     };
 
+    // Tooltip Interaction Handlers
+    const handleTooltipShow = (e, items) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setTooltipData({
+            x: rect.right + 10, // Default to right
+            y: rect.top,
+            items: items,
+            targetRect: rect // Store to adjust if off-screen
+        });
+    };
+
+    const handleTooltipHide = () => {
+        setTooltipData(null);
+    };
+
     return (
         <AnimatePresence>
             <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="fixed inset-0 z-[200] bg-background flex flex-col md:flex-row overflow-hidden"
+                className="fixed inset-0 z-[200] bg-background flex flex-col md:flex-row overflow-hidden select-none"
             >
                 {/* --- MOBILE HEADER (Shared, Sticky, Safe Area Aware) --- */}
                 <div
@@ -161,7 +269,7 @@ export default function CookingMode({ recipe, onClose }) {
                                         key={i}
                                         onClick={() => toggleIngredient(i)}
                                         className={cn(
-                                            "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 border",
+                                            "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 border relative group",
                                             checkedIngredients.has(i)
                                                 ? "bg-muted text-muted-foreground border-transparent line-through opacity-60"
                                                 : "bg-card border-border hover:border-primary/50 shadow-sm"
@@ -173,10 +281,32 @@ export default function CookingMode({ recipe, onClose }) {
                                         )}>
                                             {checkedIngredients.has(i) && <Check size={14} strokeWidth={3} />}
                                         </div>
-                                        <span className="font-medium text-lg">
+                                        <span className="font-medium text-lg flex-1">
                                             {ing.amount > 0 && <span className="font-bold mr-1">{ing.amount} {ing.unit}</span>}
                                             {ing.name}
                                         </span>
+
+                                        {/* Future Usage Warning */}
+                                        {futureUsage[ing.productId] && (
+                                            <div
+                                                className="relative z-10 p-2 -m-2"
+                                                onMouseEnter={(e) => handleTooltipShow(e, futureUsage[ing.productId])}
+                                                onMouseLeave={handleTooltipHide}
+                                                onTouchStart={(e) => {
+                                                    e.stopPropagation(); // Prevent card check logic
+                                                    handleTooltipShow(e, futureUsage[ing.productId]);
+                                                }}
+                                                onTouchEnd={(e) => {
+                                                    e.stopPropagation();
+                                                    handleTooltipHide();
+                                                }}
+                                                onClick={(e) => e.stopPropagation()} // Prevent card check
+                                            >
+                                                <div className="w-8 h-8 flex items-center justify-center text-amber-500 bg-amber-500/10 rounded-full animate-pulse ring-1 ring-amber-500/20">
+                                                    <AlertTriangle size={18} />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -247,6 +377,41 @@ export default function CookingMode({ recipe, onClose }) {
                         </div>
                     </div>
                 </div>
+
+                {/* --- FIXED TOOLTIP LAYER --- */}
+                <AnimatePresence>
+                    {tooltipData && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="fixed z-[300] w-64 p-4 bg-popover text-popover-foreground text-sm rounded-2xl shadow-2xl border border-border pointer-events-none"
+                            style={{
+                                top: tooltipData.y,
+                                // Smart positioning: Flip to left if too close to right edge
+                                left: (tooltipData.x + 256 > window.innerWidth)
+                                    ? (window.innerWidth - 270) // 16px padding + width
+                                    : tooltipData.x,
+                                // Vertically: Flip up if close to bottom (simplified check)
+                                ...(tooltipData.y + 200 > window.innerHeight ? { top: 'auto', bottom: 20 } : {})
+                            }}
+                        >
+                            <div className="font-bold mb-2 text-amber-500 flex items-center gap-2">
+                                <AlertTriangle size={16} /> Aufgepasst!
+                            </div>
+                            <div className="text-muted-foreground mb-2">Wird bis zum nächsten Einkauf nochmal gebraucht:</div>
+                            <ul className="space-y-1">
+                                {tooltipData.items.map((u, idx) => (
+                                    <li key={idx} className="flex gap-2 text-xs font-medium bg-muted/50 p-1.5 rounded-lg">
+                                        <span className="text-foreground shrink-0 w-10">{new Date(u.date).toLocaleDateString('de-DE', { weekday: 'short' })}</span>
+                                        <span className="truncate">{u.recipeName}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
             </motion.div>
         </AnimatePresence>
     );

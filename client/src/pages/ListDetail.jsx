@@ -12,6 +12,7 @@ import QuantityModal from '../components/QuantityModal';
 import { SessionSkeleton } from '../components/Skeleton';
 import { Store as StoreIcon, Check } from 'lucide-react';
 import { useEditMode } from '../contexts/EditModeContext';
+import { useSync } from '../contexts/SyncContext';
 import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
 import { arrayMove, SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
 import { SortableItem } from '../components/SortableItem';
@@ -20,6 +21,7 @@ export default function ListDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
     const { editMode } = useEditMode();
+    const { addChange } = useSync();
     const [list, setList] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -47,7 +49,11 @@ export default function ListDetail() {
     );
 
     // Derived Lists
-    const uncommittedItems = list?.ListItems?.filter(i => !i.is_committed) || [];
+    const uncommittedItems = (list?.ListItems?.filter(i => !i.is_committed) || []).sort((a, b) => {
+        if (a.is_bought !== b.is_bought) return a.is_bought ? 1 : -1;
+        // Keep original index as secondary sort if possible, or just default to 0
+        return 0;
+    });
     const committedItems = list?.ListItems?.filter(i => i.is_committed) || [];
 
     const handleDragStart = (event) => {
@@ -175,45 +181,37 @@ export default function ListDetail() {
             console.error('Failed to update current store', err);
         }
     };
-
     const toggleBought = async (item) => {
-        // Store must be selected to buy items
         if (!activeStoreId) {
             alert("Bitte wähle zuerst ein Geschäft aus!");
             return;
         }
 
-        try {
-            const newBoughtState = !item.is_bought;
+        const newBoughtState = !item.is_bought;
 
-            // Optimistic UI update
-            setList(prev => ({
-                ...prev,
-                ListItems: prev.ListItems.map(i =>
-                    i.id === item.id ? { ...i, is_bought: newBoughtState } : i
-                )
-            }));
+        // Optimistic UI update
+        setList(prev => ({
+            ...prev,
+            ListItems: prev.ListItems.map(i =>
+                i.id === item.id ? { ...i, is_bought: newBoughtState } : i
+            )
+        }));
 
-            await api.put(`/lists/items/${item.id}`, {
-                is_bought: newBoughtState
-            });
-
-            // Fetch fresh data to get correct sort order from server
-            fetchListDetails();
-        } catch (err) {
-            console.error('Failed to toggle item', err);
-            fetchListDetails(); // Revert on failure
-        }
+        // Queue Change
+        addChange('PUT', `/lists/items/${item.id}`, {
+            is_bought: newBoughtState
+        });
     };
 
     const deleteItem = async (itemId) => {
-        try {
-            await api.delete(`/lists/items/${itemId}`);
-            fetchListDetails(); // Sync with server for sums
-        } catch (err) {
-            console.error('Failed to delete item', err);
-            fetchListDetails();
-        }
+        // Optimistic UI update
+        setList(prev => ({
+            ...prev,
+            ListItems: prev.ListItems.filter(i => i.id !== itemId)
+        }));
+
+        // Queue Change
+        addChange('DELETE', `/lists/items/${itemId}`);
     };
 
     const handleUpdateItem = async (updates) => {

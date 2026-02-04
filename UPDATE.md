@@ -1,6 +1,12 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.12.7
+## Aktuelle Version: v0.13.0
+<!-- push-lock: v0.13.0 is staging only -->
+
+### Changelog v0.13.0
+- **Feature (Offline):** Vollständige Offline-Synchronisation. Änderungen an der Einkaufsliste werden bei schlechtem Empfang lokal zwischengespeichert und automatisch synchronisiert, sobald wieder Netz da ist. 🌩️🔄
+- **Feature (UX):** Optimistic UI in der Listenansicht. Häkchen werden sofort gesetzt, auch ohne Server-Bestätigung, für ein blitzschnelles App-Gefühl.
+- **Feature (UI):** Neue "Sync-Bubble" im Header zeigt ausstehende Änderungen und den Verbindungsstatus (Offline-Warnung) an. ✨☁️
 
 ### Changelog v0.12.7
 - **Optimization (UX):** Pull-To-Refresh Prozess optisch aufgewertet. Während die Seite neu lädt, erscheint nun ein eleganter, halbtransparenter Blur-Overlay mit einer hüpfenden Einkaufstaschen-Animation. ✨🛍️
