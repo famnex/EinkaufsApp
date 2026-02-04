@@ -1,7 +1,11 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.14.0
-<!-- push-lock: v0.14.0 is staging only -->
+## Aktuelle Version: v0.14.1
+<!-- push-lock: v0.14.1 is staging only -->
+
+### Changelog v0.14.1
+- **Bugfix (Build):** `server/logs` aus Git entfernt, um Update-Konflikte zu vermeiden. 🚫📁
+- **Info:** Falls das Update fehlschlägt, bitte auf dem Server einmalig `git checkout server/logs/alexa.jsonl` ausführen.
 
 ### Changelog v0.14.0
 - **Feature (API):** Alexa Menü-Abfrage (`/api/alexa/menu`) hinzugefügt. Alexa kann nun fragen: "Was gibt es heute zum Mittag?" 🍽️
