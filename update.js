@@ -34,7 +34,7 @@ function log(message, color = 'reset') {
 }
 
 function createBackup() {
-    log('\n📦 Creating Database Backup...', 'blue');
+    log('\n Creating Database Backup...', 'blue');
 
     // Create backups directory if it doesn't exist
     if (!fs.existsSync(BACKUP_DIR)) {
@@ -57,7 +57,7 @@ function createBackup() {
 }
 
 function findMigrations() {
-    log('\n🔍 Searching for migrations...', 'blue');
+    log('\n Searching for migrations...', 'blue');
 
     if (!fs.existsSync(MIGRATIONS_DIR)) {
         log('✓ No migrations directory found - skipping migrations', 'yellow');
@@ -80,7 +80,7 @@ function findMigrations() {
 }
 
 function runMigration(migrationFile) {
-    log(`\n🚀 Running migration: ${migrationFile}`, 'blue');
+    log(`\n Running migration: ${migrationFile}`, 'blue');
 
     const migrationPath = path.join(MIGRATIONS_DIR, migrationFile);
 
@@ -99,7 +99,7 @@ function runMigration(migrationFile) {
 }
 
 function restoreBackup(backupPath) {
-    log('\n🔄 Restoring database from backup...', 'yellow');
+    log('\n Restoring database from backup...', 'yellow');
 
     try {
         fs.copyFileSync(backupPath, DB_PATH);
@@ -111,7 +111,7 @@ function restoreBackup(backupPath) {
 }
 
 function cleanOldBackups() {
-    log('\n🧹 Cleaning old backups (keeping last 10)...', 'blue');
+    log('\n Cleaning old backups (keeping last 10)...', 'blue');
 
     if (!fs.existsSync(BACKUP_DIR)) return;
 
@@ -153,14 +153,14 @@ async function main() {
         // Step 0: Capture pre-update state for code fallback
         try {
             preUpdateHash = execSync('git rev-parse HEAD', { cwd: __dirname }).toString().trim();
-            log(`\n📌 Pre-update Git state: ${preUpdateHash.slice(0, 7)}`, 'blue');
+            log(`\n Pre-update Git state: ${preUpdateHash.slice(0, 7)}`, 'blue');
         } catch (gitErr) {
-            log('\n⚠️  Git identification failed - code fallback will be disabled.', 'yellow');
+            log('\n  Git identification failed - code fallback will be disabled.', 'yellow');
         }
 
         // Step 1: Check if database exists
         if (!fs.existsSync(DB_PATH)) {
-            log('\n⚠️  Database not found - first run? Skipping migrations.', 'yellow');
+            log('\n  Database not found - first run? Skipping migrations.', 'yellow');
             return;
         }
 
@@ -172,12 +172,12 @@ async function main() {
             backupPath = createBackup();
 
             // Step 4: Run migrations
-            log('\n📊 Running Migrations...', 'blue');
+            log('\n Running Migrations...', 'blue');
             for (const migration of migrations) {
                 runMigration(migration);
             }
 
-            log('\n✅ All migrations completed successfully!', 'green');
+            log('\n All migrations completed successfully!', 'green');
         }
 
         // Step 5: Clean old backups
@@ -189,20 +189,20 @@ async function main() {
         log('╚════════════════════════════════════════╝', 'bright');
 
         if (backupPath) {
-            log(`\n💾 Backup saved at: ${path.basename(backupPath)}`, 'blue');
+            log(`\n Backup saved at: ${path.basename(backupPath)}`, 'blue');
         }
 
-        log('\n🔄 Next steps:', 'blue');
+        log('\n Next steps:', 'blue');
         log('  1. Restart your server: pm2 restart einkaufsapp', 'reset');
         log('  2. Check logs: pm2 logs einkaufsapp', 'reset');
 
     } catch (error) {
-        log('\n❌ Update Failed!', 'red');
+        log('\n Update Failed!', 'red');
         log(`Error: ${error.message}`, 'red');
 
         // Restore Code
         if (preUpdateHash) {
-            log('\n🔄 Attempting to restore code to previous state...', 'yellow');
+            log('\n Attempting to restore code to previous state...', 'yellow');
             try {
                 execSync(`git reset --hard ${preUpdateHash}`, { stdio: 'inherit', cwd: __dirname });
                 log('✓ Code reverted to pre-update state', 'green');
@@ -214,7 +214,7 @@ async function main() {
 
         // Restore Database
         if (backupPath) {
-            log('\n🔄 Attempting to restore database from backup...', 'yellow');
+            log('\n Attempting to restore database from backup...', 'yellow');
             try {
                 restoreBackup(backupPath);
                 log('\n✓ Database restored to pre-update state', 'green');
