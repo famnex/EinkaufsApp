@@ -1,7 +1,10 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.14.2
-<!-- push-lock: v0.14.2 is staging only -->
+## Aktuelle Version: v0.14.3
+<!-- push-lock: v0.14.3 is staging only -->
+
+### Changelog v0.14.3
+- **Bugfix (API):** Fix für "Es gibt undefined". Rezepte verwenden das Feld `title` statt `name`. 🐛🍳
 
 ### Changelog v0.14.2
 - **Maintenance:** Update Trigger für Server-Sync. 🔄

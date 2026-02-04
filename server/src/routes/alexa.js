@@ -226,7 +226,7 @@ router.post('/menu', checkAlexaAuth, async (req, res) => {
         // 4. Construct Answer
         let dishName = '';
         if (menuEntry.Recipe) {
-            dishName = menuEntry.Recipe.name;
+            dishName = menuEntry.Recipe.title; // Fixed: Model uses 'title' not 'name'
         } else if (menuEntry.description) {
             dishName = menuEntry.description;
         } else {
