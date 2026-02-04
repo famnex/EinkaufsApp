@@ -1,7 +1,10 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.13.3
-<!-- push-lock: v0.13.3 is staging only -->
+## Aktuelle Version: v0.13.4
+<!-- push-lock: v0.13.4 is staging only -->
+
+### Changelog v0.13.4
+- **Bugfix (API):** Logging-Integration in Alexa-Route korrigiert. 🐛 Logs werden nun korrekt geschrieben.
 
 ### Changelog v0.13.3
 - **Feature (Admin):** Alexa API Logs (`Alexa Logs`) in den Einstellungen hinzugefügt. Ermöglicht die Einsicht in Auth-Versuche, Requests und Fehler der Alexa-Schnittstelle. 📜

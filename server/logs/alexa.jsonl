@@ -1,0 +1,2 @@
+{"timestamp":"2026-02-04T18:53:02.196Z","level":"INFO","type":"REQUEST","message":"Received Add Request","meta":{"name":"Test Log Item Rewritten","menge":1,"unit":"Stück"}}
+{"timestamp":"2026-02-04T18:53:02.206Z","level":"INFO","type":"ITEM_UPDATED","message":"Updated item \"Test Log Item Rewritten\" on list 2026-02-06","meta":{"listId":21,"newQuantity":2}}
