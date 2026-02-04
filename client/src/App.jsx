@@ -17,6 +17,8 @@ import MenuPlan from './pages/MenuPlan';
 import Recipes from './pages/Recipes';
 import SharedRecipe from './pages/SharedRecipe';
 
+import { PullToRefresh } from './components/PullToRefresh';
+
 function App() {
   // iOS Zoom Fix
   useEffect(() => {
@@ -57,73 +59,75 @@ function App() {
     <ThemeProvider>
       <EditModeProvider>
         <AuthProvider>
-          <Router basename={import.meta.env.BASE_URL}>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Signup />} />
+          <PullToRefresh>
+            <Router basename={import.meta.env.BASE_URL}>
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Signup />} />
 
-              {/* Public Shared Routes */}
-              <Route path="/shared/recipe/:id" element={<SharedRecipe />} />
+                {/* Public Shared Routes */}
+                <Route path="/shared/recipe/:id" element={<SharedRecipe />} />
 
-              <Route path="/" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Dashboard />
-                  </Layout>
-                </ProtectedRoute>
-              } />
+                <Route path="/" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Dashboard />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
 
-              <Route path="/menu" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <MenuPlan />
-                  </Layout>
-                </ProtectedRoute>
-              } />
+                <Route path="/menu" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <MenuPlan />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
 
-              <Route path="/recipes" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Recipes />
-                  </Layout>
-                </ProtectedRoute>
-              } />
+                <Route path="/recipes" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Recipes />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
 
-              <Route path="/lists" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Lists />
-                  </Layout>
-                </ProtectedRoute>
-              } />
+                <Route path="/lists" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Lists />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
 
-              <Route path="/lists/:id" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <ListDetail />
-                  </Layout>
-                </ProtectedRoute>
-              } />
+                <Route path="/lists/:id" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <ListDetail />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
 
-              <Route path="/products" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Products />
-                  </Layout>
-                </ProtectedRoute>
-              } />
+                <Route path="/products" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Products />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
 
-              <Route path="/settings" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <SettingsPage />
-                  </Layout>
-                </ProtectedRoute>
-              } />
+                <Route path="/settings" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <SettingsPage />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
 
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Router>
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Router>
+          </PullToRefresh>
         </AuthProvider>
       </EditModeProvider>
     </ThemeProvider>

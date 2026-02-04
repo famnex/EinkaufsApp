@@ -1,6 +1,10 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.12.4
+## Aktuelle Version: v0.12.5
+
+### Changelog v0.12.5
+- **Optimization (Print):** Robuste Erzwingung des hellen Modus beim Drucken von Rezepten (per Event-Listener). Ein dunkler Hintergrund im Druck ist nun ausgeschlossen.
+- **Feature (UX):** Pull-To-Refresh Funktionalität für die gesamte App hinzugefügt (Seite nach unten ziehen zum Aktualisieren).
 
 ### Changelog v0.12.4
 - **Fix (System):** ANSI-Escape-Codes werden nun in den Update-Logs gefiltert (keine kryptischen Zeichen mehr im Web-Terminal).

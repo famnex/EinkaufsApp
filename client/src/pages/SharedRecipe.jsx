@@ -28,6 +28,26 @@ export default function SharedRecipe() {
         }
     }, [isDarkMode]);
 
+    // Force light mode for printing
+    useEffect(() => {
+        const handleBeforePrint = () => {
+            document.documentElement.classList.remove('dark');
+        };
+        const handleAfterPrint = () => {
+            if (isDarkMode) {
+                document.documentElement.classList.add('dark');
+            }
+        };
+
+        window.addEventListener('beforeprint', handleBeforePrint);
+        window.addEventListener('afterprint', handleAfterPrint);
+
+        return () => {
+            window.removeEventListener('beforeprint', handleBeforePrint);
+            window.removeEventListener('afterprint', handleAfterPrint);
+        };
+    }, [isDarkMode]);
+
     // Determine API URL based on environment and base path
     const baseURL = import.meta.env.BASE_URL === '/'
         ? '/api'
