@@ -1,7 +1,10 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.14.1
-<!-- push-lock: v0.14.1 is staging only -->
+## Aktuelle Version: v0.14.2
+<!-- push-lock: v0.14.2 is staging only -->
+
+### Changelog v0.14.2
+- **Maintenance:** Update Trigger für Server-Sync. 🔄
 
 ### Changelog v0.14.1
 - **Bugfix (Build):** `server/logs` aus Git entfernt, um Update-Konflikte zu vermeiden. 🚫📁
