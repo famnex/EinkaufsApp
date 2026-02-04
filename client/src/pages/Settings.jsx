@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useEditMode } from '../contexts/EditModeContext';
 import StoreModal from '../components/StoreModal';
 import UpdateModal from '../components/UpdateModal';
+import AlexaLogsModal from '../components/AlexaLogsModal';
 import api from '../lib/axios';
 
 export default function SettingsPage() {
@@ -34,6 +35,7 @@ export default function SettingsPage() {
     const [updateInfo, setUpdateInfo] = useState(null);
     const [checkingUpdate, setCheckingUpdate] = useState(false);
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+    const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
 
     useEffect(() => {
         fetchStores();
@@ -393,6 +395,13 @@ export default function SettingsPage() {
                         >
                             {savingKey ? 'Verarbeite...' : 'Generiere API-Key'}
                         </Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsLogsModalOpen(true)}
+                            title="Logs ansehen"
+                        >
+                            <Terminal size={18} />
+                        </Button>
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-2">Für die Nutzung mit dem Alexa Skill. Vorsicht: Bei Neugenerierung muss der Key in der Alexa App aktualisiert werden.</p>
                 </div>
@@ -571,6 +580,11 @@ export default function SettingsPage() {
             <UpdateModal
                 isOpen={isUpdateModalOpen}
                 onClose={() => setIsUpdateModalOpen(false)}
+            />
+
+            <AlexaLogsModal
+                isOpen={isLogsModalOpen}
+                onClose={() => setIsLogsModalOpen(false)}
             />
         </div>
     );

@@ -1,7 +1,11 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.13.2
-<!-- push-lock: v0.13.2 is staging only -->
+## Aktuelle Version: v0.13.3
+<!-- push-lock: v0.13.3 is staging only -->
+
+### Changelog v0.13.3
+- **Feature (Admin):** Alexa API Logs (`Alexa Logs`) in den Einstellungen hinzugefügt. Ermöglicht die Einsicht in Auth-Versuche, Requests und Fehler der Alexa-Schnittstelle. 📜
+- **Improv:** Logs werden in `server/logs/alexa.jsonl` gespeichert und über das Admin-Interface visualisiert.
 
 ### Changelog v0.13.2
 - **Feature (API):** Alexa API Endpoint (`/api/alexa/add`) implementiert. Ermöglicht das Hinzufügen von Produkten per Alexa Skill. 🗣️🛒

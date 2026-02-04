@@ -3,6 +3,7 @@ const router = express.Router();
 const { auth, admin } = require('../middleware/auth');
 const { spawn } = require('child_process');
 const path = require('path');
+const { readAlexaLogs } = require('../utils/logger');
 
 // Helper to run a command and return promise (for non-streaming checks)
 const runCommand = (cmd, args, cwd) => {
@@ -45,6 +46,17 @@ router.get('/check', auth, admin, async (req, res) => {
     } catch (err) {
         console.error('Update check failed:', err);
         res.status(500).json({ error: 'Failed to check for updates: ' + err.message });
+    }
+});
+
+// Get Alexa Logs
+router.get('/alexa-logs', auth, admin, async (req, res) => {
+    try {
+        const logs = await readAlexaLogs(100);
+        res.json(logs);
+    } catch (err) {
+        console.error('Failed to read logs:', err);
+        res.status(500).json({ error: 'Failed to read logs' });
     }
 });
 
