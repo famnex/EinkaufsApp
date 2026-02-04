@@ -58,7 +58,9 @@ export default function UpdateModal({ isOpen, onClose }) {
             try {
                 const data = JSON.parse(event.data);
                 if (data.type === 'stdout' || data.type === 'stderr') {
-                    setLogs(prev => [...prev, data.message]);
+                    // Strip ANSI escape codes (colors, etc.)
+                    const cleanMessage = data.message.replace(/\x1b\[[0-9;]*[mGJK]/g, '');
+                    setLogs(prev => [...prev, cleanMessage]);
                 } else if (data.type === 'done') {
                     setLogs(prev => [...prev, `Process finished with code ${data.code}`]);
                     if (data.code === 0) {

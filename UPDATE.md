@@ -1,13 +1,18 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.12.3
+## Aktuelle Version: v0.12.4
+
+### Changelog v0.12.4
+- **Fix (System):** ANSI-Escape-Codes werden nun in den Update-Logs gefiltert (keine kryptischen Zeichen mehr im Web-Terminal).
+- **Optimization (UX):** Geteilte Rezepte unterstützen nun die Safe Area (Notch/Dynamic Island).
+- **Optimization (UX):** Zurück-Button zur geteilten Rezeptansicht hinzugefügt.
+- **Fix (Print):** Beim Drucken von geteilten Rezepten wird nun immer der helle Modus erzwungen (kein schwarzer Hintergrund im Druck).
 
 ### Changelog v0.12.3
 - **Feature (System):** Code-Fallback in der Update-Routine (`update.js`) implementiert. Bei Fehlern wird nun nicht nur die DB, sondern auch der Code-Stand per Git zurückgesetzt.
 - **Feature (Recipes):** "Drucken"-Option im Rezept-Menü hinzugefügt, die direkt die optimierte Shared-Ansicht öffnet.
 
 ### Changelog v0.12.2
-- **Fix (UX):** Korrektur der Logo-Pfade von Geschäften in der Einkaufsliste bei Verwendung in Unterordnern (Subdirectory Hosting).
 
 ### Changelog v0.12.1
 - **Fix (UX):** Swipe-Navigation im Menüplan wird nun unterdrückt, wenn ein Modal (Mahlzeiten-Selektor, Zutaten-Planer) oder der Koch-Modus offen ist.

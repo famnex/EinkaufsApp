@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Clock, Users, ChefHat, Sun, Moon, Printer } from 'lucide-react';
+import { Clock, Users, ChefHat, Sun, Moon, Printer, ArrowLeft } from 'lucide-react';
 import { Card } from '../components/Card';
 import { getImageUrl } from '../lib/utils'; // Make sure this is importable or inline it
 
 export default function SharedRecipe() {
     const { id } = useParams();
+    const navigate = useNavigate();
     const [recipe, setRecipe] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -86,9 +87,18 @@ export default function SharedRecipe() {
     return (
         <div className="min-h-screen bg-background text-foreground font-sans flex flex-col">
             {/* Header */}
-            <header className="bg-card border-b border-border p-4 shadow-sm sticky top-0 z-10 print:hidden">
-                <div className="max-w-3xl mx-auto flex items-center justify-between">
-                    <span className="font-bebas text-2xl tracking-wider text-primary">EinkaufsApp</span>
+            <header className="bg-card border-b border-border shadow-sm sticky top-0 z-10 print:hidden pt-[max(1rem,env(safe-area-inset-top))]">
+                <div className="max-w-3xl mx-auto px-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/')}
+                            className="p-2 -ml-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            title="Zurück"
+                        >
+                            <ArrowLeft size={20} />
+                        </button>
+                        <span className="font-bebas text-2xl tracking-wider text-primary">EinkaufsApp</span>
+                    </div>
                     <div className="flex gap-2">
                         <button
                             onClick={() => setIsDarkMode(!isDarkMode)}
@@ -238,6 +248,31 @@ export default function SharedRecipe() {
             <footer className="py-8 text-center text-sm text-muted-foreground print:hidden">
                 <p>EinkaufsApp &copy; Steffen Fleischer 2026</p>
             </footer>
+
+            <style>{`
+                @media print {
+                    .dark {
+                        color-scheme: light !important;
+                    }
+                    html, body {
+                        background: white !important;
+                        color: black !important;
+                    }
+                    .bg-card, .bg-muted, .bg-secondary\\/10, .bg-primary\\/10 {
+                        background-color: transparent !important;
+                        background: transparent !important;
+                    }
+                    * {
+                        box-shadow: none !important;
+                        text-shadow: none !important;
+                        border-color: #e5e7eb !important;
+                        color: black !important;
+                    }
+                    .text-primary, .text-secondary, .text-muted-foreground {
+                        color: black !important;
+                    }
+                }
+            `}</style>
         </div>
     );
 }
