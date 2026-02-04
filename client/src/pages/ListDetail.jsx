@@ -5,7 +5,7 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { ShoppingCart, Plus, Trash2, CheckCircle2, Circle, ArrowLeft, Package, Search, List, X, Euro, Settings, Lock, ZoomIn, ZoomOut } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, getImageUrl } from '../lib/utils';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import ItemSettingsModal from '../components/ItemSettingsModal';
 import QuantityModal from '../components/QuantityModal';
@@ -299,7 +299,7 @@ export default function ListDetail() {
                             if (activeStore?.logo_url) {
                                 return (
                                     <img
-                                        src={activeStore.logo_url}
+                                        src={getImageUrl(activeStore.logo_url)}
                                         alt={activeStore.name}
                                         className="w-12 h-12 object-contain bg-white rounded-xl p-1 shadow-sm border border-border"
                                     />
