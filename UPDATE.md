@@ -1,7 +1,11 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.13.1
-<!-- push-lock: v0.13.1 is staging only -->
+## Aktuelle Version: v0.13.2
+<!-- push-lock: v0.13.2 is staging only -->
+
+### Changelog v0.13.2
+- **Feature (API):** Alexa API Endpoint (`/api/alexa/add`) implementiert. Ermöglicht das Hinzufügen von Produkten per Alexa Skill. 🗣️🛒
+- **Logic (API):** Automatische Title-Case-Formatierung für Produkte und Einheiten via Alexa (z.B. "frische milch" -> "Frische Milch").
 
 ### Changelog v0.13.1
 - **Feature (Admin):** Alexa API Key Generierung in den Einstellungen hinzugefügt. 🗣️🔑
