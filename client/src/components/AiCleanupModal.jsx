@@ -62,6 +62,9 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
         }
     }, [products, selectedType]);
 
+    // Helper to check if product is hidden in current context
+    const isProductHidden = (p) => p.HiddenCleanups?.some(h => h.context === selectedType);
+
     // Handle default selections when tab changes
     useEffect(() => {
         if (!isOpen || step !== 'selection') return;
@@ -70,8 +73,12 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
         if (selectedType === 'unit') {
             // Default: All deselected for unit
         } else {
-            // Default: All selected for category and manufacturer
-            filteredProducts.forEach(p => newSelected.add(p.id));
+            // Default: All selected for category and manufacturer, EXCEPT hidden ones
+            filteredProducts.forEach(p => {
+                if (!isProductHidden(p)) {
+                    newSelected.add(p.id);
+                }
+            });
         }
         setSelectedIds(newSelected);
     }, [selectedType, filteredProducts, isOpen, step]);
@@ -87,11 +94,17 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
     };
 
     const toggleAll = () => {
-        if (selectedIds.size === filteredProducts.length) {
+        // Count selectable products (not hidden)
+        const selectable = filteredProducts.filter(p => !isProductHidden(p));
+        const allSelectableSelected = selectable.every(p => selectedIds.has(p.id));
+
+        if (allSelectableSelected && selectable.length > 0) {
+            // Deselect all
             setSelectedIds(new Set());
         } else {
+            // Select all NOT HIDDEN
             const newSelected = new Set();
-            filteredProducts.forEach(p => newSelected.add(p.id));
+            selectable.forEach(p => newSelected.add(p.id));
             setSelectedIds(newSelected);
         }
     };

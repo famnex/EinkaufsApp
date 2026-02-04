@@ -266,6 +266,12 @@ router.post('/cleanup', auth, async (req, res) => {
         // Map back to IDs if possible, but for now we rely on name matching or pure index if order preserved (OpenAI usually preserves order but name matching is safer)
         const mappedResults = result.results.map(r => {
             const original = products.find(p => p.name === r.name);
+
+            // Fix: Ensure unit does not contain leading numbers (e.g. "1 Packung" -> "Packung")
+            if (type === 'unit' && r.unit) {
+                r.unit = r.unit.replace(/^\d+\s+/, '').replace(/^\d+/, '');
+            }
+
             return {
                 id: original ? original.id : null,
                 ...r
@@ -316,7 +322,7 @@ router.post('/lookup', auth, async (req, res) => {
         Return a JSON object:
         {
             "category": "Category Name",
-            "unit": "Unit Name",
+            "unit": "Unit Name (WITHOUT amount!)",
             "amount": 1,
             "manufacturers": ["Brand A", "Brand B", "Brand C"]
         }
