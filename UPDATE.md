@@ -1,7 +1,11 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.13.4
-<!-- push-lock: v0.13.4 is staging only -->
+## Aktuelle Version: v0.14.0
+<!-- push-lock: v0.14.0 is staging only -->
+
+### Changelog v0.14.0
+- **Feature (API):** Alexa Menü-Abfrage (`/api/alexa/menu`) hinzugefügt. Alexa kann nun fragen: "Was gibt es heute zum Mittag?" 🍽️
+- **Logic:** Unterstützt "heute", "morgen" und Datumsangaben sowie verschiedene Mahlzeitentypen.
 
 ### Changelog v0.13.4
 - **Bugfix (API):** Logging-Integration in Alexa-Route korrigiert. 🐛 Logs werden nun korrekt geschrieben.

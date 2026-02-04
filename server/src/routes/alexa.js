@@ -148,4 +148,102 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
     }
 });
 
+// Menu Query Endpoint
+router.post('/menu', checkAlexaAuth, async (req, res) => {
+    try {
+        const { tag, art } = req.body;
+        logAlexa('INFO', 'REQUEST_MENU', 'Received Menu Request', { tag, art });
+
+        if (!tag || !art) {
+            return res.status(400).json({ error: 'Missing tag or art' });
+        }
+
+        // 1. Resolve Date
+        let dateQuery;
+        const now = new Date();
+        // Remove time part to avoid TZ issues, working with local dates conceptually
+        // Assuming server local time is relevant or simple UTC date string
+
+        if (tag.toLowerCase() === 'heute') {
+            dateQuery = now.toISOString().split('T')[0];
+        } else if (tag.toLowerCase() === 'morgen') {
+            const tomorrow = new Date(now);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            dateQuery = tomorrow.toISOString().split('T')[0];
+        } else {
+            // Try parse YYYY-MM-DD
+            // If regex matches YYYY-MM-DD
+            if (/^\d{4}-\d{2}-\d{2}$/.test(tag)) {
+                dateQuery = tag;
+            } else {
+                // Fallback attempt or error
+                logAlexa('WARN', 'EXECUTION', `Invalid date format: ${tag}`);
+                // return res.json({ text: "Das Datum habe ich nicht verstanden." });
+                // Better: try to be lenient or fail?
+                // Let's assume validation failure 
+                return res.status(400).json({ error: 'Invalid date format' });
+            }
+        }
+
+        // 2. Resolve Meal Type
+        const map = {
+            'frühstück': 'breakfast',
+            'mittag': 'lunch',
+            'mittagessen': 'lunch',
+            'abend': 'dinner',
+            'abendbrot': 'dinner',
+            'abendessen': 'dinner',
+            'snack': 'snack'
+        };
+
+        const mealType = map[art.toLowerCase()];
+        if (!mealType) {
+            logAlexa('WARN', 'EXECUTION', `Unknown meal type: ${art}`);
+            return res.json({ text: `Ich kenne ${art} nicht als Mahlzeit.` });
+        }
+
+        // 3. Query DB
+        // Need to import Menu and Recipe
+        const { Menu, Recipe } = require('../models');
+
+        const menuEntry = await Menu.findOne({
+            where: {
+                date: dateQuery,
+                meal_type: mealType
+            },
+            include: [Recipe]
+        });
+
+        if (!menuEntry) {
+            const dateStr = tag.toLowerCase() === 'heute' ? 'heute' : (tag.toLowerCase() === 'morgen' ? 'morgen' : `am ${tag}`);
+            const artStr = art.toLowerCase(); // 'mittag', 'abendbrot'
+
+            return res.json({
+                text: `Für ${dateStr} ist zum ${art.replace(/^\w/, c => c.toUpperCase())} nichts geplant.`
+            });
+        }
+
+        // 4. Construct Answer
+        let dishName = '';
+        if (menuEntry.Recipe) {
+            dishName = menuEntry.Recipe.name;
+        } else if (menuEntry.description) {
+            dishName = menuEntry.description;
+        } else {
+            dishName = "etwas ohne Namen";
+        }
+
+        const responseText = `Es gibt ${dishName}.`;
+
+        logAlexa('INFO', 'RESPONSE', `Menu answer: ${responseText}`, { date: dateQuery, type: mealType });
+
+        res.json({ text: responseText, card: dishName });
+
+    } catch (err) {
+        logAlexa('ERROR', 'EXECUTION', 'Menu query failed', { error: err.message });
+        console.error('[Alexa Menu Error]', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
