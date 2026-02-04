@@ -370,7 +370,7 @@ export default function SettingsPage() {
                         disabled={checkingUpdate}
                         className="gap-2"
                     >
-                        {checkingUpdate ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                        {checkingUpdate ? <Loader2 size={16} className="animate-spin" /> : <Terminal size={16} />}
                         Update suchen
                     </Button>
                 ) : updateInfo.updates_available ? (

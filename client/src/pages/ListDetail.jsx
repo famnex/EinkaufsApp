@@ -4,7 +4,7 @@ import api from '../lib/axios';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { ShoppingCart, Plus, Trash2, CheckCircle2, Circle, ArrowLeft, Package, Search, List, X, Euro, Settings, Lock } from 'lucide-react';
+import { ShoppingCart, Plus, Trash2, CheckCircle2, Circle, ArrowLeft, Package, Search, List, X, Euro, Settings, Lock, ZoomIn, ZoomOut } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import ItemSettingsModal from '../components/ItemSettingsModal';
@@ -26,6 +26,7 @@ export default function ListDetail() {
     const [suggestions, setSuggestions] = useState([]);
     const [allProducts, setAllProducts] = useState([]);
     const [selectedItem, setSelectedItem] = useState(null);
+    const [zoomLevel, setZoomLevel] = useState(1); // 0: Small, 1: Normal, 2: Large
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isQuantityModalOpen, setIsQuantityModalOpen] = useState(false);
     const [pendingProduct, setPendingProduct] = useState(null);
@@ -263,19 +264,23 @@ export default function ListDetail() {
 
     return (
         <div className="space-y-6">
-            <div className="mb-8">
-                <div className="flex items-center gap-4">
+            <div className="mb-4 md:mb-8">
+                <div className="flex items-center gap-2 md:gap-4">
                     <button
                         onClick={() => navigate('/')}
-                        className="p-3 bg-muted rounded-2xl text-muted-foreground hover:text-foreground transition-colors active:scale-95 shadow-sm"
+                        className="hidden md:block p-3 bg-muted rounded-2xl text-muted-foreground hover:text-foreground transition-colors active:scale-95 shadow-sm"
                     >
                         <ArrowLeft size={24} />
                     </button>
                     <div className="flex-1">
-                        <h1 className="text-4xl font-bebas tracking-tight text-foreground">
-                            {list.name || new Date(list.date).toLocaleDateString('de-DE')}
+                        <h1 className="text-2xl md:text-4xl font-bebas tracking-tight text-foreground">
+                            <span className="md:hidden">{list.ListItems?.length || 0} Artikel</span>
+                            <span className="hidden md:inline">{list.name || new Date(list.date).toLocaleDateString('de-DE')}</span>
                         </h1>
-                        <p className="text-muted-foreground text-sm font-medium">Einkaufsliste • {list.ListItems?.length || 0} Artikel</p>
+                        <p className="text-muted-foreground text-xs md:text-sm font-medium">
+                            <span className="md:hidden">{new Date(list.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</span>
+                            <span className="hidden md:inline">Einkaufsliste • {list.ListItems?.length || 0} Artikel</span>
+                        </p>
                     </div>
 
                     {/* Store Selector */}
@@ -388,7 +393,12 @@ export default function ListDetail() {
                                 items={uncommittedItems.map(i => i.id)}
                                 strategy={rectSortingStrategy}
                             >
-                                <motion.div layout className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                <motion.div layout className={cn(
+                                    "grid gap-4 transition-all duration-300",
+                                    zoomLevel === 0 && "grid-cols-3 md:grid-cols-6 lg:grid-cols-8 gap-2",
+                                    zoomLevel === 1 && "grid-cols-2 md:grid-cols-4 lg:grid-cols-5",
+                                    zoomLevel === 2 && "grid-cols-1 md:grid-cols-3 lg:grid-cols-4"
+                                )}>
                                     {uncommittedItems.map((item) => (
                                         <motion.div
                                             key={item.id}
@@ -434,12 +444,12 @@ export default function ListDetail() {
                                                     <div className="flex justify-between items-start z-10 md:relative pointer-events-none"> {/* Icon is purely visual now on mobile */}
                                                         <div className={cn(
                                                             "transition-all duration-300",
-                                                            // Mobile: Large Watermark
+                                                            // Mobile: Large Watermark (Base style for all)
                                                             "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 flex items-center justify-center opacity-[0.15] scale-150 text-white z-0",
-                                                            // Desktop: Standard Icon
-                                                            "md:relative md:left-auto md:top-auto md:translate-x-0 md:translate-y-0 md:w-10 md:h-10 md:rounded-full md:bg-white/20 md:opacity-100 md:scale-100 md:z-10"
+                                                            // Desktop: Standard Icon (ONLY if NOT small zoom)
+                                                            zoomLevel > 0 && "md:relative md:left-auto md:top-auto md:translate-x-0 md:translate-y-0 md:w-10 md:h-10 md:rounded-full md:bg-white/20 md:opacity-100 md:scale-100 md:z-10"
                                                         )}>
-                                                            <ShoppingCart className="w-full h-full p-6 md:p-2" />
+                                                            <ShoppingCart className={cn("w-full h-full p-6", zoomLevel > 0 && "md:p-2")} />
                                                         </div>
 
                                                         {/* Mode Indicators - Always visible and on top */}
@@ -459,17 +469,25 @@ export default function ListDetail() {
 
                                                     {/* Center: Name */}
                                                     <div className="text-center px-1 z-10 relative mt-0 mb-auto flex flex-col justify-center flex-grow pt-2 md:pt-0"> {/* Adjusted padding/flex */}
-                                                        <div className="font-bold text-xl md:text-2xl leading-none tracking-wide text-white line-clamp-2 break-words text-shadow-sm hyphens-auto" lang="de">
+                                                        <div className={cn(
+                                                            "font-bold leading-none tracking-wide text-white line-clamp-2 break-words text-shadow-sm hyphens-auto",
+                                                            zoomLevel === 0 ? "text-sm md:text-lg" : "text-xl md:text-2xl"
+                                                        )} lang="de">
                                                             {item.Product?.name}
                                                         </div>
                                                         {item.Product?.Manufacturer?.name && (
-                                                            <div className="text-[10px] text-white/70 mt-0.5 font-medium tracking-wide uppercase truncate">
+                                                            <div className={cn(
+                                                                "text-white/70 mt-0.5 font-medium tracking-wide uppercase truncate",
+                                                                zoomLevel === 0 ? "text-[8px]" : "text-[10px]"
+                                                            )}>
                                                                 {item.Product.Manufacturer.name}
                                                             </div>
                                                         )}
-                                                        <div className="text-xs text-white/80 mt-1 font-medium tracking-wider uppercase truncate">
-                                                            {item.Product?.category || 'Sonstiges'}
-                                                        </div>
+                                                        {zoomLevel > 0 && (
+                                                            <div className="text-xs text-white/80 mt-1 font-medium tracking-wider uppercase truncate">
+                                                                {item.Product?.category || 'Sonstiges'}
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                     {/* Bottom: Quantity */}
@@ -529,7 +547,12 @@ export default function ListDetail() {
                                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 pl-2 flex items-center gap-2">
                                     <Lock size={14} /> Bereits Erledigt
                                 </h3>
-                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 opacity-60 pointer-events-none select-none grayscale-[0.8]">
+                                <div className={cn(
+                                    "grid gap-4 opacity-60 pointer-events-none select-none grayscale-[0.8]",
+                                    zoomLevel === 0 && "grid-cols-3 md:grid-cols-6 lg:grid-cols-8 gap-2",
+                                    zoomLevel === 1 && "grid-cols-2 md:grid-cols-4 lg:grid-cols-5",
+                                    zoomLevel === 2 && "grid-cols-1 md:grid-cols-3 lg:grid-cols-4"
+                                )}>
                                     {committedItems.map(item => (
                                         <div key={item.id} className="relative w-full aspect-square bg-slate-50 rounded-3xl p-4 flex flex-col justify-between border border-transparent">
                                             <div className="flex justify-center pt-2"><CheckCircle2 className="w-6 h-6 text-slate-300" /></div>
@@ -569,6 +592,28 @@ export default function ListDetail() {
             />
 
 
-        </div >
+            {/* Zoom Controls */}
+            <div className="fixed bottom-24 right-4 flex flex-col gap-2 z-40">
+                <Button
+                    size="icon"
+                    variant="secondary"
+                    onClick={() => setZoomLevel(prev => Math.min(prev + 1, 2))}
+                    disabled={zoomLevel >= 2}
+                    className="rounded-full shadow-lg bg-background/80 backdrop-blur border border-border"
+                >
+                    <ZoomIn size={20} />
+                </Button>
+                <Button
+                    size="icon"
+                    variant="secondary"
+                    onClick={() => setZoomLevel(prev => Math.max(prev - 1, 0))}
+                    disabled={zoomLevel <= 0}
+                    className="rounded-full shadow-lg bg-background/80 backdrop-blur border border-border"
+                >
+                    <ZoomOut size={20} />
+                </Button>
+            </div>
+
+        </div>
     );
 }

@@ -53,6 +53,25 @@ router.get('/', auth, async (req, res) => {
     }
 });
 
+// Public recipe details (No Auth)
+router.get('/public/:id', async (req, res) => {
+    try {
+        const recipe = await Recipe.findByPk(req.params.id, {
+            include: [
+                {
+                    model: RecipeIngredient,
+                    include: [{ model: Product, include: [Manufacturer] }]
+                },
+                Tag
+            ]
+        });
+        if (!recipe) return res.status(404).json({ error: 'Recipe not found' });
+        res.json(recipe);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Get recipe details
 router.get('/:id', auth, async (req, res) => {
     try {

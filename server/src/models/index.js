@@ -114,6 +114,13 @@ const RecipeTag = sequelize.define('RecipeTag', {});
 Recipe.belongsToMany(Tag, { through: RecipeTag });
 Tag.belongsToMany(Recipe, { through: RecipeTag });
 
+const HiddenCleanup = sequelize.define('HiddenCleanup', {
+    context: { type: DataTypes.ENUM('category', 'manufacturer', 'unit'), allowNull: false }
+});
+
+HiddenCleanup.belongsTo(Product);
+Product.hasMany(HiddenCleanup);
+
 module.exports = {
     sequelize,
     User,
@@ -129,5 +136,6 @@ module.exports = {
     Tag,
     RecipeTag,
     ProductRelation,
-    Settings
+    Settings,
+    HiddenCleanup
 };

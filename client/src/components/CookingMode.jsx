@@ -113,8 +113,8 @@ export default function CookingMode({ recipe, onClose }) {
                             {showIngredientsMobile ? "Schritte" : `Zutaten (${ingredients.length})`}
                         </Button>
 
-                        {/* Text Size (Mini Version) */}
-                        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
+                        {/* Text Size (Mini Version) - Mobile Only */}
+                        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5 md:hidden">
                             <button onClick={() => setTextSize(Math.max(0, textSize - 1))} className="w-8 h-8 flex items-center justify-center hover:bg-background rounded-md"><Minus size={14} /></button>
                             <span className="text-xs font-bold w-4 text-center">Aa</span>
                             <button onClick={() => setTextSize(Math.min(2, textSize + 1))} className="w-8 h-8 flex items-center justify-center hover:bg-background rounded-md"><Plus size={14} /></button>
@@ -127,11 +127,7 @@ export default function CookingMode({ recipe, onClose }) {
 
                     {/* Close Button & Controls (Top Right Overlay) - Desktop Only */}
                     <div className="absolute top-4 right-4 z-50 hidden md:flex gap-2">
-                        <div className="bg-card/80 backdrop-blur border border-border rounded-full p-1 flex items-center gap-1 shadow-lg">
-                            <button onClick={() => setTextSize(Math.max(0, textSize - 1))} className="p-2 hover:bg-muted rounded-full w-8 h-8 flex items-center justify-center"><Minus size={16} /></button>
-                            <span className="text-xs font-bold w-4 text-center">A</span>
-                            <button onClick={() => setTextSize(Math.min(2, textSize + 1))} className="p-2 hover:bg-muted rounded-full w-8 h-8 flex items-center justify-center"><Plus size={16} /></button>
-                        </div>
+                        {/* Text Size Controls removed for desktop per request */}
                         <Button variant="secondary" onClick={onClose} className="rounded-full w-12 h-12 p-0 shadow-lg">
                             <X size={24} />
                         </Button>

@@ -41,6 +41,7 @@ export default function MenuPlan() {
     const [selectorOpen, setSelectorOpen] = useState(false);
     const [activeSlot, setActiveSlot] = useState(null);
     const [cookingRecipe, setCookingRecipe] = useState(null);
+    const [tooltip, setTooltip] = useState(null);
 
     const [bulkModal, setBulkModal] = useState({ open: false, listId: null });
 
@@ -63,10 +64,38 @@ export default function MenuPlan() {
         fetchData();
     }, [currentWeekStart]);
 
+    // Close tooltip on global click
+    useEffect(() => {
+        if (!tooltip) return;
+        const closeTooltip = () => setTooltip(null);
+        // We use capture to ensure it runs, but we need to stopProp in the tooltip itself or button
+        // Actually, easiest is a transparent overlay OR just document click.
+        document.addEventListener('click', closeTooltip);
+        return () => document.removeEventListener('click', closeTooltip);
+    }, [tooltip]);
+
+    const [direction, setDirection] = useState(0);
+
     const changeWeek = (offset) => {
+        setDirection(offset);
         const newDate = new Date(currentWeekStart);
         newDate.setDate(newDate.getDate() + (offset * 7));
         setCurrentWeekStart(newDate);
+    };
+
+    const variants = {
+        enter: (direction) => ({
+            x: direction > 0 ? 100 : -100,
+            opacity: 0
+        }),
+        center: {
+            x: 0,
+            opacity: 1
+        },
+        exit: (direction) => ({
+            x: direction < 0 ? 100 : -100,
+            opacity: 0
+        })
     };
 
     const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -83,14 +112,52 @@ export default function MenuPlan() {
     const getMealsForDay = (dateStr) => menus.filter(m => m.date === dateStr);
     const getListForDay = (dateStr) => lists.find(l => l.date && l.date.split('T')[0] === dateStr);
 
-    const handleSlotClick = (dateStr, type, meal = null) => {
+
+    const handleSlotClick = (dateStr, type, meal = null, e = null) => {
+        // Close tooltip if open and clicking same or outside
+        if (tooltip && tooltip.id === `${dateStr}-${type}`) {
+            setTooltip(null);
+            return;
+        }
+
         if (editMode === 'delete') {
             if (meal) handleDelete(meal.id);
             return;
         }
 
-        if (editMode === 'view' && meal?.Recipe) {
-            setCookingRecipe(meal.Recipe);
+        if (editMode === 'view') {
+            if (meal && meal.Recipe) {
+                if (e) {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const isMobile = window.innerWidth < 640;
+
+                    // On mobile, center horizontally. On desktop, center relative to button with bounds check.
+                    let x = isMobile ? window.innerWidth / 2 : rect.left + rect.width / 2;
+
+                    if (!isMobile) {
+                        const margin = 160; // Safe margin (approx half max tooltip width)
+                        x = Math.max(margin, Math.min(window.innerWidth - margin, x));
+                    }
+
+                    setTooltip({
+                        id: `${dateStr}-${type}`,
+                        text: meal.Recipe.title,
+                        x: x,
+                        y: rect.top - 10,
+                        recipe: meal.Recipe // Pass the full recipe object if it exists
+                    });
+                } else {
+                    // Clicked from expanded view list -> Navigate to Cooking Mode directly (as requested)
+                    navigate('/recipes', {
+                        state: {
+                            openRecipeId: meal.Recipe.id,
+                            startCooking: true
+                        }
+                    });
+                }
+            } else if (editMode === 'view' && meal && !meal.Recipe && !e) {
+                // Handle manual entry click in expanded view (optional: maybe do nothing or show toast)
+            }
             return;
         }
 
@@ -144,8 +211,41 @@ export default function MenuPlan() {
     const filledCount = menus.length;
     const totalSlots = 7 * 4;
 
+    // Swipe Logic
+    const [touchStart, setTouchStart] = useState(null);
+    const [touchEnd, setTouchEnd] = useState(null);
+
+    const minSwipeDistance = 50;
+
+    const onTouchStart = (e) => {
+        setTouchEnd(null);
+        setTouchStart(e.targetTouches[0].clientX);
+    };
+
+    const onTouchMove = (e) => {
+        setTouchEnd(e.targetTouches[0].clientX);
+    };
+
+    const onTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+        const distance = touchStart - touchEnd;
+        const isLeftSwipe = distance > minSwipeDistance;
+        const isRightSwipe = distance < -minSwipeDistance;
+        if (isLeftSwipe) {
+            changeWeek(1);
+        }
+        if (isRightSwipe) {
+            changeWeek(-1);
+        }
+    };
+
     return (
-        <div className="pb-24 space-y-4">
+        <div
+            className="pb-24 space-y-4"
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+        >
             <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm pt-4 pb-2 border-b border-border transition-all">
                 <div className="flex items-center justify-between mb-4">
                     <button onClick={() => changeWeek(-1)} className="p-2 hover:bg-muted rounded-full transition-colors">
@@ -169,226 +269,242 @@ export default function MenuPlan() {
                 </div>
             </div>
 
-            <div className="space-y-3">
-                {weekDays.map(day => {
-                    const meals = getMealsForDay(day.dateStr);
-                    const shoppingList = getListForDay(day.dateStr);
-                    const isToday = new Date().toDateString() === day.date.toDateString();
-                    const isExpanded = expandedDay === day.dateStr;
+            <div className="overflow-hidden">
+                <AnimatePresence initial={false} mode='wait' custom={direction}>
+                    <motion.div
+                        key={currentWeekStart.toISOString()}
+                        custom={direction}
+                        variants={variants}
+                        initial="enter"
+                        animate="center"
+                        exit="exit"
+                        transition={{ type: "tween", ease: "easeInOut", duration: 0.3 }}
+                        className="space-y-3"
+                    >
+                        {weekDays.map(day => {
+                            const meals = getMealsForDay(day.dateStr);
+                            const shoppingList = getListForDay(day.dateStr);
+                            const isToday = new Date().toDateString() === day.date.toDateString();
+                            const isExpanded = expandedDay === day.dateStr;
 
-                    return (
-                        <Card
-                            key={day.dateStr}
-                            className={cn(
-                                "border-border transition-all duration-300 overflow-hidden relative",
-                                isToday ? "border-primary/50 shadow-sm" : "shadow-sm",
-                                isExpanded ? "ring-1 ring-primary/20" : ""
-                            )}
-                        >
-                            <div
-                                onClick={() => setExpandedDay(isExpanded ? null : day.dateStr)}
-                                className="p-3 flex items-center gap-3 cursor-pointer"
-                            >
-                                <div className={cn(
-                                    "flex flex-col items-center justify-center w-12 h-12 rounded-xl shrink-0 transition-colors relative",
-                                    isToday ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-                                    shoppingList && !isToday && "bg-teal-500/10 text-teal-600"
-                                )}>
-                                    <span className="text-[10px] uppercase font-bold tracking-wider">{day.dayName}</span>
-                                    <span className="text-lg font-bold leading-none">{day.dayNum}</span>
-                                    {shoppingList && (
-                                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-teal-500 rounded-full border border-card" />
+                            return (
+                                <Card
+                                    key={day.dateStr}
+                                    className={cn(
+                                        "border-border transition-all duration-300 overflow-hidden relative",
+                                        isToday ? "border-primary/50 shadow-sm" : "shadow-sm",
+                                        isExpanded ? "ring-1 ring-primary/20" : ""
                                     )}
-                                </div>
-
-                                <div className="flex-1 min-w-0 flex gap-2 overflow-hidden items-center">
-                                    {!isExpanded && meals.length === 0 && !shoppingList && (
-                                        <span className="hidden md:flex text-xs text-muted-foreground italic pl-1 items-center h-full">Leer</span>
-                                    )}
-
-                                    {shoppingList && (
-                                        <>
-                                            <div className="hidden md:flex gap-2 items-center">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        navigate(`/lists/${shoppingList.id}`);
-                                                    }}
-                                                    className="inline-flex items-center gap-1.5 bg-teal-500/10 text-teal-600 px-2 py-1 rounded-lg text-xs font-bold hover:bg-teal-500/20 transition-colors shrink-0"
-                                                >
-                                                    <ShoppingCart size={12} />
-                                                    <span>Einkauf</span>
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setBulkModal({ open: true, listId: shoppingList.id });
-                                                    }}
-                                                    className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-2 py-1 rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors shrink-0"
-                                                >
-                                                    <ListChecks size={12} />
-                                                    <span>Zutaten planen</span>
-                                                </button>
-                                            </div>
-                                            <ShoppingCart size={16} className="text-teal-600 md:hidden shrink-0" />
-                                        </>
-                                    )}
-
-                                    {!isExpanded && meals.slice(0, 2).map(m => {
-                                        const slotIcon = slots.find(s => s.type === m.meal_type);
-                                        const Icon = slotIcon ? slotIcon.icon : Info;
-                                        return (
-                                            <div key={m.id} className="hidden md:inline-flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-lg text-xs font-medium min-w-0">
-                                                <Icon size={12} className="shrink-0 text-primary" />
-                                                <span className="truncate">{m.Recipe ? m.Recipe.title : m.description}</span>
-                                            </div>
-                                        );
-                                    })}
-                                    {!isExpanded && meals.length > 2 && (
-                                        <div className="hidden md:block bg-muted px-2 py-1 rounded-lg text-xs font-bold shrink-0">+{meals.length - 2}</div>
-                                    )}
-                                </div>
-
-                                <div className="flex gap-1 md:gap-2 shrink-0 ml-auto pl-2" onClick={e => e.stopPropagation()}>
-                                    {slots.map(s => {
-                                        const meal = meals.find(m => m.meal_type === s.type);
-                                        const isFilled = !!meal;
-                                        const handleClick = () => handleSlotClick(day.dateStr, s.type, meal);
-
-                                        return (
-                                            <button
-                                                key={s.type}
-                                                onClick={handleClick}
-                                                disabled={editMode === 'view'}
-                                                className={cn(
-                                                    "w-8 h-8 rounded-full flex items-center justify-center transition-all relative group",
-                                                    isFilled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
-                                                    editMode === 'delete' && isFilled && "animate-pulse bg-destructive/10 text-destructive hover:bg-destructive hover:text-white cursor-pointer",
-                                                    editMode !== 'delete' && isFilled && "hover:bg-primary/20",
-                                                    editMode !== 'delete' && !isFilled && "hover:bg-muted-foreground/10",
-                                                    editMode === 'view' && "opacity-80 cursor-default hover:bg-transparent"
-                                                )}
-                                                title={s.label}
-                                            >
-                                                <s.icon size={16} />
-                                                {isFilled && editMode !== 'delete' && <span className="absolute top-0 right-0 w-2 h-2 bg-primary rounded-full border border-card" />}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            <AnimatePresence>
-                                {isExpanded && (
-                                    <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: 'auto', opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
-                                        className="overflow-hidden"
+                                >
+                                    <div
+                                        onClick={() => setExpandedDay(isExpanded ? null : day.dateStr)}
+                                        className="p-3 flex items-center gap-3 cursor-pointer"
                                     >
-                                        <div className="p-3 pt-0 grid grid-cols-1 gap-2">
-                                            <div className="h-px bg-border/50 my-1 mx-2" />
-
+                                        <div className={cn(
+                                            "flex flex-col items-center justify-center w-12 h-12 rounded-xl shrink-0 transition-colors relative",
+                                            isToday ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                                            shoppingList && !isToday && "bg-teal-500/10 text-teal-600"
+                                        )}>
+                                            <span className="text-[10px] uppercase font-bold tracking-wider">{day.dayName}</span>
+                                            <span className="text-lg font-bold leading-none">{day.dayNum}</span>
                                             {shoppingList && (
-                                                <div className="flex gap-2">
-                                                    <div
-                                                        onClick={() => navigate(`/lists/${shoppingList.id}`)}
-                                                        className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-teal-500/10 text-teal-700 hover:bg-teal-500/20 cursor-pointer transition-colors"
-                                                    >
-                                                        <div className="w-8 h-8 rounded-lg bg-teal-500 text-white flex items-center justify-center shrink-0">
-                                                            <ShoppingCart size={16} />
-                                                        </div>
-                                                        <div className="flex-1 text-sm font-bold">
-                                                            Einkaufsliste anzeigen
-                                                        </div>
-                                                        <ChevronRight size={16} />
-                                                    </div>
-                                                    <div
-                                                        onClick={() => setBulkModal({ open: true, listId: shoppingList.id })}
-                                                        className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer transition-colors"
-                                                    >
-                                                        <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center shrink-0">
-                                                            <ListChecks size={16} />
-                                                        </div>
-                                                        <div className="flex-1 text-sm font-bold">
-                                                            Zutaten Planer
-                                                        </div>
-                                                        <ChevronRight size={16} />
-                                                    </div>
-                                                </div>
+                                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-teal-500 rounded-full border border-card" />
+                                            )}
+                                        </div>
+
+                                        <div className="flex-1 min-w-0 flex gap-2 overflow-hidden items-center">
+                                            {!isExpanded && meals.length === 0 && !shoppingList && (
+                                                <span className="hidden md:flex text-xs text-muted-foreground italic pl-1 items-center h-full">Leer</span>
                                             )}
 
-                                            {slots.map(s => {
-                                                const meal = meals.find(m => m.meal_type === s.type);
+                                            {shoppingList && (
+                                                <>
+                                                    <div className="hidden md:flex gap-2 items-center">
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                navigate(`/lists/${shoppingList.id}`);
+                                                            }}
+                                                            className="inline-flex items-center gap-1.5 bg-teal-500/10 text-teal-600 px-2 py-1 rounded-lg text-xs font-bold hover:bg-teal-500/20 transition-colors shrink-0"
+                                                        >
+                                                            <ShoppingCart size={12} />
+                                                            <span>Einkauf</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setBulkModal({ open: true, listId: shoppingList.id });
+                                                            }}
+                                                            className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-2 py-1 rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors shrink-0"
+                                                        >
+                                                            <ListChecks size={12} />
+                                                            <span>Zutaten planen</span>
+                                                        </button>
+                                                    </div>
+                                                    <ShoppingCart size={16} className="text-teal-600 md:hidden shrink-0" />
+                                                </>
+                                            )}
 
+                                            {!isExpanded && meals.slice(0, 2).map(m => {
+                                                const slotIcon = slots.find(s => s.type === m.meal_type);
+                                                const Icon = slotIcon ? slotIcon.icon : Info;
                                                 return (
-                                                    <div
-                                                        key={s.type}
-                                                        onClick={() => handleSlotClick(day.dateStr, s.type, meal)}
-                                                        className={cn(
-                                                            "flex flex-col gap-2 p-2 rounded-xl transition-colors",
-                                                            meal ? "bg-muted/30" : "",
-                                                            editMode === 'delete' && meal ? "hover:bg-destructive/10 cursor-pointer border border-transparent hover:border-destructive/30" : "",
-                                                            (editMode === 'edit' || editMode === 'create' || (editMode === 'view' && meal?.Recipe)) && meal ? "hover:bg-primary/5 cursor-pointer" : "hover:bg-muted/20"
-                                                        )}
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={cn(
-                                                                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                                                                meal ? "bg-primary/10 text-primary" : "bg-muted/50 text-muted-foreground",
-                                                                editMode === 'delete' && meal && "bg-destructive/10 text-destructive"
-                                                            )}>
-                                                                <s.icon size={16} />
-                                                            </div>
-                                                            <div className="flex-1 text-sm">
-                                                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">{s.label}</span>
-                                                                {meal ? (
-                                                                    <span className="font-medium text-foreground">{meal.Recipe ? meal.Recipe.title : meal.description}</span>
-                                                                ) : (
-                                                                    (editMode === 'create' || editMode === 'edit') ? (
-                                                                        <button
-                                                                            onClick={() => handleSlotClick(day.dateStr, s.type)}
-                                                                            className="text-muted-foreground/60 text-xs italic hover:text-primary transition-colors flex items-center gap-1"
-                                                                        >
-                                                                            <Plus size={12} /> Planen...
-                                                                        </button>
-                                                                    ) : <span className="text-muted-foreground/30 text-xs italic">-</span>
-                                                                )}
-                                                            </div>
-
-                                                            <div className="flex gap-2">
-                                                                {meal && editMode === 'delete' && (
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            handleDelete(meal.id);
-                                                                        }}
-                                                                        className="p-1.5 bg-destructive/10 text-destructive rounded-lg transition-colors"
-                                                                    >
-                                                                        <Trash2 size={16} />
-                                                                    </button>
-                                                                )}
-
-                                                                {meal && (editMode === 'edit' || editMode === 'create') && (
-                                                                    <button
-                                                                        onClick={() => handleSlotClick(day.dateStr, s.type)}
-                                                                        className="p-1.5 hover:bg-background rounded-lg text-muted-foreground transition-colors"
-                                                                    >
-                                                                        <Info size={14} />
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        </div>
+                                                    <div key={m.id} className="hidden md:inline-flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-lg text-xs font-medium min-w-0">
+                                                        <Icon size={12} className="shrink-0 text-primary" />
+                                                        <span className="truncate">{m.Recipe ? m.Recipe.title : m.description}</span>
                                                     </div>
                                                 );
                                             })}
+                                            {!isExpanded && meals.length > 2 && (
+                                                <div className="hidden md:block bg-muted px-2 py-1 rounded-lg text-xs font-bold shrink-0">+{meals.length - 2}</div>
+                                            )}
                                         </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </Card>
-                    );
-                })}
+
+                                        <div className="flex gap-1 md:gap-2 shrink-0 ml-auto pl-2" onClick={e => e.stopPropagation()}>
+                                            {slots.map(s => {
+                                                const meal = meals.find(m => m.meal_type === s.type);
+                                                const isFilled = !!meal;
+                                                const handleClick = (e) => handleSlotClick(day.dateStr, s.type, meal, e);
+
+                                                return (
+                                                    <button
+                                                        key={s.type}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation(); // prevent card expand
+                                                            handleClick(e);
+                                                        }}
+                                                        disabled={false}
+                                                        className={cn(
+                                                            "w-8 h-8 rounded-full flex items-center justify-center transition-all relative group",
+                                                            isFilled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+                                                            editMode === 'delete' && isFilled && "animate-pulse bg-destructive/10 text-destructive hover:bg-destructive hover:text-white cursor-pointer",
+                                                            editMode !== 'delete' && isFilled && "hover:bg-primary/20 cursor-pointer", // Always pointer if filled
+                                                            editMode !== 'delete' && !isFilled && "hover:bg-muted-foreground/10",
+                                                            editMode === 'view' && !isFilled && "opacity-50 cursor-default" // Only dimmed if empty in view mode
+                                                        )}
+                                                        title={s.label}
+                                                    >
+                                                        <s.icon size={16} />
+                                                        {isFilled && editMode !== 'delete' && <span className="absolute top-0 right-0 w-2 h-2 bg-primary rounded-full border border-card" />}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <AnimatePresence>
+                                        {isExpanded && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="overflow-hidden"
+                                            >
+                                                <div className="p-3 pt-0 grid grid-cols-1 gap-2">
+                                                    <div className="h-px bg-border/50 my-1 mx-2" />
+
+                                                    {shoppingList && (
+                                                        <div className="flex gap-2">
+                                                            <div
+                                                                onClick={() => navigate(`/lists/${shoppingList.id}`)}
+                                                                className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-teal-500/10 text-teal-700 hover:bg-teal-500/20 cursor-pointer transition-colors"
+                                                            >
+                                                                <div className="w-8 h-8 rounded-lg bg-teal-500 text-white flex items-center justify-center shrink-0">
+                                                                    <ShoppingCart size={16} />
+                                                                </div>
+                                                                <div className="flex-1 text-sm font-bold">
+                                                                    Einkaufsliste anzeigen
+                                                                </div>
+                                                                <ChevronRight size={16} />
+                                                            </div>
+                                                            <div
+                                                                onClick={() => setBulkModal({ open: true, listId: shoppingList.id })}
+                                                                className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer transition-colors"
+                                                            >
+                                                                <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center shrink-0">
+                                                                    <ListChecks size={16} />
+                                                                </div>
+                                                                <div className="flex-1 text-sm font-bold">
+                                                                    Zutaten Planer
+                                                                </div>
+                                                                <ChevronRight size={16} />
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {slots.map(s => {
+                                                        const meal = meals.find(m => m.meal_type === s.type);
+
+                                                        return (
+                                                            <div
+                                                                key={s.type}
+                                                                onClick={() => handleSlotClick(day.dateStr, s.type, meal)}
+                                                                className={cn(
+                                                                    "flex flex-col gap-2 p-2 rounded-xl transition-colors",
+                                                                    meal ? "bg-muted/30" : "",
+                                                                    editMode === 'delete' && meal ? "hover:bg-destructive/10 cursor-pointer border border-transparent hover:border-destructive/30" : "",
+                                                                    (editMode === 'edit' || editMode === 'create' || (editMode === 'view' && meal?.Recipe)) && meal ? "hover:bg-primary/5 cursor-pointer" : "hover:bg-muted/20"
+                                                                )}
+                                                            >
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={cn(
+                                                                        "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                                                                        meal ? "bg-primary/10 text-primary" : "bg-muted/50 text-muted-foreground",
+                                                                        editMode === 'delete' && meal && "bg-destructive/10 text-destructive"
+                                                                    )}>
+                                                                        <s.icon size={16} />
+                                                                    </div>
+                                                                    <div className="flex-1 text-sm">
+                                                                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">{s.label}</span>
+                                                                        {meal ? (
+                                                                            <span className="font-medium text-foreground">{meal.Recipe ? meal.Recipe.title : meal.description}</span>
+                                                                        ) : (
+                                                                            (editMode === 'create' || editMode === 'edit') ? (
+                                                                                <button
+                                                                                    onClick={() => handleSlotClick(day.dateStr, s.type)}
+                                                                                    className="text-muted-foreground/60 text-xs italic hover:text-primary transition-colors flex items-center gap-1"
+                                                                                >
+                                                                                    <Plus size={12} /> Planen...
+                                                                                </button>
+                                                                            ) : <span className="text-muted-foreground/30 text-xs italic">-</span>
+                                                                        )}
+                                                                    </div>
+
+                                                                    <div className="flex gap-2">
+                                                                        {meal && editMode === 'delete' && (
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleDelete(meal.id);
+                                                                                }}
+                                                                                className="p-1.5 bg-destructive/10 text-destructive rounded-lg transition-colors"
+                                                                            >
+                                                                                <Trash2 size={16} />
+                                                                            </button>
+                                                                        )}
+
+                                                                        {meal && (editMode === 'edit' || editMode === 'create') && (
+                                                                            <button
+                                                                                onClick={() => handleSlotClick(day.dateStr, s.type)}
+                                                                                className="p-1.5 hover:bg-background rounded-lg text-muted-foreground transition-colors"
+                                                                            >
+                                                                                <Info size={14} />
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </Card>
+                            );
+                        })}
+                    </motion.div>
+                </AnimatePresence>
             </div>
 
             <MealSelectorModal
@@ -411,6 +527,38 @@ export default function MenuPlan() {
                     onClose={() => setCookingRecipe(null)}
                 />
             )}
-        </div>
+
+            {/* Global Tooltip */}
+            <AnimatePresence>
+                {tooltip && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="fixed z-50 px-4 py-3 bg-popover/95 backdrop-blur-md text-popover-foreground text-sm font-medium rounded-2xl shadow-2xl border border-border/50 pointer-events-auto flex flex-col items-center gap-2 max-w-[90vw] text-center"
+                        style={{
+                            left: tooltip.x,
+                            top: tooltip.y,
+                            transform: 'translate(-50%, -100%)'
+                        }}
+
+                        onClick={(e) => {
+                            e.stopPropagation(); // Prevent closing when clicking inside
+                            if (tooltip.recipe) {
+                                setCookingRecipe(tooltip.recipe);
+                                setTooltip(null);
+                            }
+                        }}
+                    >
+                        <span className="leading-tight">{tooltip.text}</span>
+                        {tooltip.recipe && (
+                            <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full uppercase font-bold tracking-wider cursor-pointer hover:bg-primary/20 transition-colors">
+                                Rezept öffnen
+                            </span>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div >
     );
 }

@@ -3,8 +3,32 @@ const router = express.Router();
 const OpenAI = require('openai');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const { Settings, Recipe, Product, Tag } = require('../models');
+const { Settings, Recipe, Product, Tag, HiddenCleanup } = require('../models');
 const { auth } = require('../middleware/auth');
+
+router.post('/cleanup/toggle-hidden', auth, async (req, res) => {
+    try {
+        const { productId, context } = req.body;
+        if (!productId || !context) {
+            return res.status(400).json({ error: 'ProductId and Context required' });
+        }
+
+        const existing = await HiddenCleanup.findOne({
+            where: { ProductId: productId, context }
+        });
+
+        if (existing) {
+            await existing.destroy();
+            res.json({ isHidden: false });
+        } else {
+            await HiddenCleanup.create({ ProductId: productId, context });
+            res.json({ isHidden: true });
+        }
+    } catch (err) {
+        console.error('Toggle Hidden Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 router.post('/parse', auth, async (req, res) => {
     try {

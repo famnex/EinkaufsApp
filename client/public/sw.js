@@ -38,6 +38,11 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
+    // Skip cross-origin requests and API requests
+    if (!event.request.url.startsWith(self.location.origin) || event.request.url.includes('/api/')) {
+        return;
+    }
+
     event.respondWith(
         caches.match(event.request).then((response) => {
             // Return cached version or fetch from network

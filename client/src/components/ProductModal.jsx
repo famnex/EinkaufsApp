@@ -256,19 +256,19 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                         type="button"
                                         onClick={handleAiLookup}
                                         disabled={loadingAi || !formData.name}
-                                        className="h-12 gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20"
+                                        className="h-12 gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 px-4 sm:px-6"
                                     >
                                         {loadingAi ? <Sparkles size={18} className="animate-spin" /> : <Sparkles size={18} />}
-                                        {loadingAi ? 'AI sucht...' : 'AI Lookup'}
+                                        <span className="hidden sm:inline">{loadingAi ? 'AI sucht...' : 'AI Lookup'}</span>
                                     </Button>
 
                                     <Button
                                         type="submit"
                                         disabled={loading}
-                                        className="h-12 gap-2 px-8"
+                                        className="h-12 gap-2 px-4 sm:px-8"
                                     >
                                         <Save size={18} />
-                                        {loading ? 'Speichern...' : 'Speichern'}
+                                        <span className="hidden sm:inline">{loading ? 'Speichern...' : 'Speichern'}</span>
                                     </Button>
                                 </div>
                             </form>

@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { Product, Manufacturer, Store, ListItem, RecipeIngredient, sequelize } = require('../models');
+const { Product, Manufacturer, Store, ListItem, RecipeIngredient, sequelize, HiddenCleanup } = require('../models');
 const { auth, admin } = require('../middleware/auth');
 
 router.get('/', auth, async (req, res) => {
     try {
         const products = await Product.findAll({
-            include: [Manufacturer, Store],
+            include: [Manufacturer, Store, HiddenCleanup],
             order: [['name', 'ASC']]
         });
         res.json(products);
