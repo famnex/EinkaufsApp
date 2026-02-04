@@ -441,7 +441,7 @@ export default function ListDetail() {
                                                         }
                                                     }}
                                                     className={cn(
-                                                        "w-full h-full rounded-3xl p-4 flex flex-col justify-between transition-all cursor-pointer shadow-sm border relative isolate group/tile",
+                                                        "w-full h-full rounded-3xl p-4 flex flex-col justify-between transition-all cursor-pointer shadow-sm border relative isolate group/tile select-none",
                                                         item.is_bought
                                                             ? "product-tile-teal" // Teal for bought
                                                             : "product-tile-red", // Red for unbought

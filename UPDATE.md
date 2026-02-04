@@ -1,6 +1,10 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.12.0
+## Aktuelle Version: v0.12.1
+
+### Changelog v0.12.1
+- **Fix (UX):** Swipe-Navigation im Menüplan wird nun unterdrückt, wenn ein Modal (Mahlzeiten-Selektor, Zutaten-Planer) oder der Koch-Modus offen ist.
+- **Fix (UX):** Textmarkierung (Browser-Highlight) bei langem Tastendruck in der Einkaufsliste deaktiviert für ein nativeres App-Gefühl.
 
 ### Changelog v0.12.0
 - **Feature (Sharing):** Server-Side Rendering (SSR) für geteilte Rezepte implementiert. Dynamische Open Graph Meta-Tags (Bild & Titel) werden nun für WhatsApp-Previews und andere soziale Medien korrekt generiert.

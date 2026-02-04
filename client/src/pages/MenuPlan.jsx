@@ -227,6 +227,7 @@ export default function MenuPlan() {
     };
 
     const onTouchEnd = () => {
+        if (selectorOpen || bulkModal.open || cookingRecipe) return;
         if (!touchStart || !touchEnd) return;
         const distance = touchStart - touchEnd;
         const isLeftSwipe = distance > minSwipeDistance;
