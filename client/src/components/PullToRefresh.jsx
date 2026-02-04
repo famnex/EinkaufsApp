@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, ShoppingBag, ShoppingCart } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
 
 export const PullToRefresh = ({ children }) => {
@@ -43,7 +44,7 @@ export const PullToRefresh = ({ children }) => {
                 // Trigger refresh
                 setTimeout(() => {
                     window.location.reload();
-                }, 500);
+                }, 1000); // Give users a moment to see the animation
             }
             setPullStart(null);
             setPullDistance(0);
@@ -67,7 +68,7 @@ export const PullToRefresh = ({ children }) => {
             {/* Pull Indicator */}
             <div
                 className={cn(
-                    "absolute left-0 right-0 -top-12 flex justify-center items-center h-12 transition-opacity pointer-events-none",
+                    "absolute left-0 right-0 -top-12 flex justify-center items-center h-12 transition-opacity pointer-events-none z-[60]",
                     pullDistance > 10 ? "opacity-100" : "opacity-0"
                 )}
                 style={{ transform: `translateY(-${Math.min(40, pullDistance * 0.2)}px)` }}
@@ -86,10 +87,74 @@ export const PullToRefresh = ({ children }) => {
 
             {children}
 
-            {/* Refreshing Overlay (Optional, for better UX) */}
-            {isRefreshing && (
-                <div className="fixed inset-0 bg-background/20 backdrop-blur-[1px] z-[9999] pointer-events-none" />
-            )}
+            {/* Premium Refreshing Overlay */}
+            <AnimatePresence>
+                {isRefreshing && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-background/60 backdrop-blur-md z-[10000] flex flex-col items-center justify-center gap-6 pointer-events-auto"
+                    >
+                        <div className="relative">
+                            {/* Animated Shopping Bag */}
+                            <motion.div
+                                animate={{
+                                    y: [0, -20, 0],
+                                    rotate: [0, -5, 5, 0]
+                                }}
+                                transition={{
+                                    duration: 1.5,
+                                    repeat: Infinity,
+                                    ease: "easeInOut"
+                                }}
+                                className="text-primary drop-shadow-[0_0_15px_rgba(var(--primary),0.3)]"
+                            >
+                                <ShoppingBag size={64} strokeWidth={1.5} />
+                            </motion.div>
+
+                            {/* Particles/Sparkles */}
+                            <motion.div
+                                animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
+                                transition={{ duration: 2, repeat: Infinity }}
+                                className="absolute inset-0 bg-primary/20 blur-2xl rounded-full -z-10"
+                            />
+                        </div>
+
+                        <div className="flex flex-col items-center gap-2">
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.2 }}
+                                className="text-xl font-bebas tracking-widest text-primary"
+                            >
+                                Aktualisierung läuft
+                            </motion.div>
+
+                            <div className="flex gap-1">
+                                {[0, 1, 2].map((i) => (
+                                    <motion.div
+                                        key={i}
+                                        animate={{ opacity: [0.3, 1, 0.3] }}
+                                        transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                                        className="w-1.5 h-1.5 bg-primary rounded-full"
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Fun fact or quote could go here */}
+                        <motion.p
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 0.5 }}
+                            transition={{ delay: 1 }}
+                            className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground absolute bottom-12"
+                        >
+                            EinkaufsApp wird aufpoliert
+                        </motion.p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

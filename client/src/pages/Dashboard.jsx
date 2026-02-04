@@ -147,18 +147,7 @@ export default function Dashboard() {
 
             <div className="w-full pt-6 relative">
                 {/* Pull to Refresh Indicator */}
-                <motion.div
-                    className="absolute top-0 left-1/2 -translate-x-1/2 flex items-center justify-center p-2 text-muted-foreground"
-                    style={{ opacity: 0 }}
-                    animate={{ opacity: loading ? 1 : 0 }}
-                >
-                    <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                    >
-                        <ShoppingCart size={24} />
-                    </motion.div>
-                </motion.div>
+
 
                 <ViewSwitcher activeView={view} onViewChange={setView} />
 

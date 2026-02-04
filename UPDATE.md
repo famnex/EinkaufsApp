@@ -1,6 +1,9 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.12.6
+## Aktuelle Version: v0.12.7
+
+### Changelog v0.12.7
+- **Optimization (UX):** Pull-To-Refresh Prozess optisch aufgewertet. Während die Seite neu lädt, erscheint nun ein eleganter, halbtransparenter Blur-Overlay mit einer hüpfenden Einkaufstaschen-Animation. ✨🛍️
 
 ### Changelog v0.12.6
 - **Feature (System):** Update-Prozess UI komplett überarbeitet. Inklusive Fortschrittsbalken, Phasen-Anzeige und einklappbaren System-Logs für eine sauberere Benutzererfahrung.
