@@ -1,6 +1,11 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.16.0
+## Aktuelle Version: v0.16.2
+
+### Changelog v0.16.2
+- **Hotfix (Database):** Zusätzliche Migration (`is_eating_out`) hinzugefügt, um 500er Fehler im Menüplan zu beheben. 🐛🗄️
+- **Logging:** Detaillierte Fehler-Logs für die Menü-API aktiviert. 📜
+- **Build:** Warnung bezüglich `pattern.svg` im Shared Cookbook behoben. 🖼️
 
 ### Changelog v0.16.1
 - **Hotfix (Frontend):** Korrektur der Service Worker Registrierung und Logout-Weiterleitung in Unterverzeichnissen (z.B. `/EinkaufsApp/`). 🛠️🌐

@@ -9,6 +9,8 @@ const { Op } = require('sequelize');
 router.get('/', auth, async (req, res) => {
     try {
         const { start, end } = req.query;
+        console.log(`[GET /api/menus] Fetching menus from ${start} to ${end}`);
+
         const where = {};
         if (start && end) {
             where.date = { [Op.between]: [start, end] };
@@ -27,7 +29,9 @@ router.get('/', auth, async (req, res) => {
         });
         res.json(menus);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error('CRITICAL ERROR in GET /api/menus:', err);
+        console.error('Stack:', err.stack);
+        res.status(500).json({ error: err.message, stack: err.stack });
     }
 });
 

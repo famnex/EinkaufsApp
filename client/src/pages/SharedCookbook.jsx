@@ -81,7 +81,10 @@ export default function SharedCookbook() {
             {/* Hero Header */}
             <div className="relative bg-black text-white overflow-hidden mb-8">
                 <div className="absolute inset-0 bg-gradient-to-r from-purple-900/40 to-blue-900/40 z-0" />
-                <div className="absolute inset-0 bg-[url('/pattern.svg')] opacity-10 z-0" />
+                <div
+                    className="absolute inset-0 opacity-10 z-0"
+                    style={{ backgroundImage: `url(${import.meta.env.BASE_URL}pattern.svg)` }}
+                />
 
                 <div className="max-w-7xl mx-auto px-4 py-8 md:py-20 relative z-10 flex flex-col items-center text-center">
                     <motion.div
