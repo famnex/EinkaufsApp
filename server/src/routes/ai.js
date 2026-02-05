@@ -348,12 +348,7 @@ router.post('/lookup', auth, async (req, res) => {
 
 const fs = require('fs');
 const path = require('path');
-let sharp;
-try {
-    sharp = require('sharp');
-} catch (error) {
-    console.warn('Warning: simple-sharp/sharp module could not be loaded. Image optimization will be disabled.', error.message);
-}
+const Jimp = require('jimp');
 
 // Image Generation Endpoint
 router.post('/generate-image', auth, async (req, res) => {
@@ -393,18 +388,23 @@ router.post('/generate-image', auth, async (req, res) => {
         const filename = uniqueSuffix + '.jpg';
         const filepath = path.join(uploadDir, filename);
 
-        if (sharp) {
-            await sharp(imageResponse.data)
-                .resize({ height: 800, withoutEnlargement: true }) // Maintain aspect ratio, max height 800
-                .jpeg({ quality: 80 }) // Convert to JPG, 80% quality
-                .toFile(filepath);
-        } else {
-            // Fallback: Save original image without optimization
-            fs.writeFileSync(filepath, Buffer.from(imageResponse.data));
-            console.log('Image saved without sharp optimization.');
-        }
+        try {
+            const image = await Jimp.read(imageResponse.data);
 
-        console.log('Processed AI Image saved to:', filepath);
+            // Only resize if height > 800
+            if (image.bitmap.height > 800) {
+                image.resize(Jimp.AUTO, 800);
+            }
+
+            await image
+                .quality(80)
+                .writeAsync(filepath);
+
+            console.log('Processed AI Image (Jimp) saved to:', filepath);
+        } catch (jimpError) {
+            console.error('Jimp Optimization failed, saving raw:', jimpError);
+            fs.writeFileSync(filepath, Buffer.from(imageResponse.data));
+        }
 
         // Return local URL
         res.json({ url: `/uploads/recipes/${filename}` });

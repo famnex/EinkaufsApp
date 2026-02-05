@@ -1,6 +1,9 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.17.7
+## Aktuelle Version: v0.17.8
+
+### Changelog v0.17.8
+- **Refactor (Server):** Wechsel von `sharp` zu **`jimp`** für die Bildoptimierung. `jimp` ist 100% JavaScript und benötigt keine nativen Linux-Bibliotheken, was die Kompatibilität mit Uberspace/Shared Hosting sicherstellt. Bilder werden weiterhin auf max. 800px Höhe verkleinert und komprimiert. 🖼️🔄
 
 ### Changelog v0.17.7
 - **Hotfix (Server):** Behebt einen Absturz (`ERR_DLOPEN_FAILED`) auf Linux-Servern mit älteren Systembibliotheken, indem `sharp` optional geladen wird. Bildoptimierung wird übersprungen, falls das Modul fehlt. 🛠️🐧
