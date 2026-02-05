@@ -158,31 +158,71 @@ router.post('/menu', checkAlexaAuth, async (req, res) => {
             return res.status(400).json({ error: 'Missing tag' });
         }
 
-        // 1. Resolve Date
-        let dateQuery;
+        // 1. Resolve Date(s)
+        let dates = [];
+        let dateLabel = ''; // For output "Am Wochenende", "Heute", etc.
         const now = new Date();
-        // Remove time part to avoid TZ issues, working with local dates conceptually
-        // Assuming server local time is relevant or simple UTC date string
+        const currentDay = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+
+        const getNextDayOfWeek = (date, dayOfWeek) => {
+            const resultDate = new Date(date.getTime());
+            resultDate.setDate(date.getDate() + (7 + dayOfWeek - date.getDay()) % 7);
+            // If today is the day, it returns today. If we want next week:
+            // But we handle "This" vs "Next" logic manually below.
+            return resultDate;
+        };
 
         if (tag.toLowerCase() === 'heute') {
-            dateQuery = now.toISOString().split('T')[0];
+            dates.push(now.toISOString().split('T')[0]);
+            dateLabel = 'Heute';
         } else if (tag.toLowerCase() === 'morgen') {
             const tomorrow = new Date(now);
             tomorrow.setDate(tomorrow.getDate() + 1);
-            dateQuery = tomorrow.toISOString().split('T')[0];
-        } else {
-            // Try parse YYYY-MM-DD
-            // If regex matches YYYY-MM-DD
-            if (/^\d{4}-\d{2}-\d{2}$/.test(tag)) {
-                dateQuery = tag;
+            dates.push(tomorrow.toISOString().split('T')[0]);
+            dateLabel = 'Morgen';
+        } else if (tag.toLowerCase().includes('wochenende')) {
+            // "Am Wochenende" logic
+            // If Mon-Thu (1-4): Next Weekend
+            // If Fri-Sun (5,6,0): This Weekend
+
+            let saturday = new Date(now);
+            let sunday = new Date(now);
+
+            if (currentDay >= 1 && currentDay <= 4) {
+                // Next weekend
+                // Distance to next Saturday: 6 - currentDay + (if current > 6 ? 0 : 0) -> simple:
+                // Saturday is day 6.
+                const daysUntilSat = 6 - currentDay;
+                saturday.setDate(now.getDate() + daysUntilSat);
+                sunday.setDate(now.getDate() + daysUntilSat + 1);
             } else {
-                // Fallback attempt or error
-                logAlexa('WARN', 'EXECUTION', `Invalid date format: ${tag}`);
-                // return res.json({ text: "Das Datum habe ich nicht verstanden." });
-                // Better: try to be lenient or fail?
-                // Let's assume validation failure 
-                return res.status(400).json({ error: 'Invalid date format' });
+                // This weekend (Fri, Sat, Sun)
+                if (currentDay === 5) { // Friday
+                    saturday.setDate(now.getDate() + 1);
+                    sunday.setDate(now.getDate() + 2);
+                } else if (currentDay === 6) { // Saturday
+                    // Today is Sat
+                    saturday = now;
+                    sunday.setDate(now.getDate() + 1);
+                } else { // Sunday
+                    // "Weekend" on Sunday usually means "This weekend" -> yesterday and today? 
+                    // Or just today? Or next weekend?
+                    // User requirement: "am aktuell laufenden wochenende wenn wochenende ist"
+                    // If it is Sunday, "Current Weekend" implies Sat & Sun.
+                    saturday.setDate(now.getDate() - 1);
+                    sunday = now;
+                }
             }
+            dates.push(saturday.toISOString().split('T')[0]);
+            dates.push(sunday.toISOString().split('T')[0]);
+            dateLabel = 'Am Wochenende';
+
+        } else if (/^\d{4}-\d{2}-\d{2}$/.test(tag)) {
+            dates.push(tag);
+            dateLabel = `Am ${tag}`;
+        } else {
+            logAlexa('WARN', 'EXECUTION', `Invalid date format: ${tag}`);
+            return res.status(400).json({ error: 'Invalid date format' });
         }
 
         // 2. Resolve Meal Type
@@ -198,123 +238,91 @@ router.post('/menu', checkAlexaAuth, async (req, res) => {
         };
 
         const mealType = art ? map[art.toLowerCase()] : null;
-
-        // If art is provided but unknown, we treat it as "unspecified/all" effectively, 
-        // OR we could stick to the original logic of erroring. 
-        // User request: "wenn die 'art' nicht erkannt wird ... dann soll der komplette tag wiedergegeben werden"
-        // So if mealType is null (either no art provided OR art not in map), we fetch the whole day.
-
         const { Menu, Recipe } = require('../models');
 
-        if (mealType) {
-            // --- Specific Meal Query (Existing Logic) ---
-            const menuEntry = await Menu.findOne({
-                where: {
-                    date: dateQuery,
-                    meal_type: mealType
-                },
-                include: [Recipe]
-            });
+        const responses = [];
 
-            if (!menuEntry) {
-                const dateStr = tag.toLowerCase() === 'heute' ? 'heute' : (tag.toLowerCase() === 'morgen' ? 'morgen' : `am ${tag}`);
-                // Capitalize first letter for output
-                const artDisplay = art ? art.replace(/^\w/, c => c.toUpperCase()) : 'dieser Mahlzeit';
-                return res.json({
-                    text: `Für ${dateStr} ist zum ${artDisplay} nichts geplant.`
+        for (const dateQuery of dates) {
+            // Determine friendly date name for this specific iteration
+            let dayLabel = dateLabel;
+            // If we are in "Weekend" mode (multiple dates), we want specific day names
+            if (dates.length > 1) {
+                const d = new Date(dateQuery);
+                const dayName = d.toLocaleDateString('de-DE', { weekday: 'long' });
+                dayLabel = `Am ${dayName}`;
+            }
+
+            if (mealType) {
+                // --- Specific Meal Query ---
+                const menuEntry = await Menu.findOne({
+                    where: { date: dateQuery, meal_type: mealType },
+                    include: [Recipe]
                 });
-            }
 
-            let dishName = '';
-            if (menuEntry.Recipe) {
-                dishName = menuEntry.Recipe.title;
-            } else if (menuEntry.description) {
-                dishName = menuEntry.description;
-            } else {
-                dishName = "etwas ohne Namen";
-            }
-
-            const responseText = `Es gibt ${dishName}.`;
-            logAlexa('INFO', 'RESPONSE', `Menu answer: ${responseText}`, { date: dateQuery, type: mealType });
-            return res.json({ text: responseText, card: dishName });
-
-        } else {
-            // --- Full Day Query (New Logic) ---
-            const menuEntries = await Menu.findAll({
-                where: {
-                    date: dateQuery
-                },
-                include: [Recipe],
-                order: [['meal_type', 'ASC']] // Sort might not be semantic, we'll map manually
-            });
-
-            const dateStr = tag.toLowerCase() === 'heute' ? 'Heute' : (tag.toLowerCase() === 'morgen' ? 'Morgen' : `Am ${tag}`);
-
-            if (menuEntries.length === 0) {
-                return res.json({
-                    text: `${dateStr} ist nichts geplant.`
-                });
-            }
-
-            // Helper to get nice text for a meal type
-            const getGermanMealName = (type) => {
-                switch (type) {
-                    case 'breakfast': return 'Frühstück';
-                    case 'lunch': return 'Mittagessen';
-                    case 'dinner': return 'Abendessen';
-                    case 'snack': return 'Snack';
-                    default: return type;
+                if (!menuEntry) {
+                    const artDisplay = art ? art.replace(/^\w/, c => c.toUpperCase()) : 'dieser Mahlzeit';
+                    responses.push(`${dayLabel} ist zum ${artDisplay} nichts geplant.`);
+                } else {
+                    let dishName = menuEntry.Recipe ? menuEntry.Recipe.title : (menuEntry.description || "etwas ohne Namen");
+                    responses.push(`${dayLabel} gibt es ${dishName}.`);
                 }
-            };
 
-            // Build list of parts: "Schnitzel zum Abendessen", "Chips als Snack"
-            const parts = [];
+            } else {
+                // --- Full Day Query ---
+                const menuEntries = await Menu.findAll({
+                    where: { date: dateQuery },
+                    include: [Recipe],
+                    order: [['meal_type', 'ASC']]
+                });
 
-            // Define order of meals for natural flow
-            const order = ['breakfast', 'lunch', 'dinner', 'snack'];
+                if (menuEntries.length === 0) {
+                    responses.push(`${dayLabel} ist nichts geplant.`);
+                } else {
+                    const getGermanMealName = (type) => {
+                        switch (type) {
+                            case 'breakfast': return 'Frühstück';
+                            case 'lunch': return 'Mittagessen';
+                            case 'dinner': return 'Abendessen';
+                            case 'snack': return 'Snack';
+                            default: return type;
+                        }
+                    };
 
-            // Group entries by type (just in case multiple entries per type, though usually 1)
-            // But model seems to allow multiple? usually 1 per type/date.
+                    const parts = [];
+                    const order = ['breakfast', 'lunch', 'dinner', 'snack'];
 
-            for (const type of order) {
-                const entry = menuEntries.find(e => e.meal_type === type);
-                if (entry) {
-                    let dishName = '';
-                    if (entry.Recipe) {
-                        dishName = entry.Recipe.title;
-                    } else if (entry.description) {
-                        dishName = entry.description;
-                    } else {
-                        continue; // Skip valid entries with no name? or say "etwas"
+                    for (const type of order) {
+                        const entry = menuEntries.find(e => e.meal_type === type);
+                        if (entry) {
+                            let dishName = entry.Recipe ? entry.Recipe.title : (entry.description || "");
+                            if (!dishName) continue;
+                            const mealName = getGermanMealName(type);
+                            const preposition = type === 'snack' ? 'als' : 'zum';
+                            parts.push(`${dishName} ${preposition} ${mealName}`);
+                        }
                     }
 
-                    const mealName = getGermanMealName(type);
-                    const preposition = type === 'snack' ? 'als' : 'zum'; // "als Snack", "zum Mittagessen"
-
-                    parts.push(`${dishName} ${preposition} ${mealName}`);
+                    if (parts.length === 0) {
+                        responses.push(`${dayLabel} ist nichts geplant.`);
+                    } else {
+                        let dailySummary = '';
+                        if (parts.length === 1) {
+                            dailySummary = `${dayLabel} gibt es ${parts[0]}.`;
+                        } else {
+                            const last = parts.pop();
+                            dailySummary = `${dayLabel} gibt es ${parts.join(', ')} und ${last}.`;
+                        }
+                        responses.push(dailySummary);
+                    }
                 }
             }
-
-            if (parts.length === 0) {
-                return res.json({
-                    text: `${dateStr} ist nichts geplant.`
-                });
-            }
-
-            let summary = '';
-            if (parts.length === 1) {
-                summary = `${dateStr} gibt es ${parts[0]}.`;
-            } else if (parts.length === 2) {
-                summary = `${dateStr} gibt es ${parts[0]} und ${parts[1]}.`;
-            } else {
-                // Join all but last with commas
-                const last = parts.pop();
-                summary = `${dateStr} gibt es ${parts.join(', ')} und ${last}.`;
-            }
-
-            logAlexa('INFO', 'RESPONSE', `Full day answer: ${summary}`, { date: dateQuery });
-            return res.json({ text: summary, card: 'Tagesübersicht' });
         }
+
+        // Combine all responses
+        const finalSummary = responses.join(' ');
+
+        logAlexa('INFO', 'RESPONSE', `Menu answer: ${finalSummary}`, { dates, type: mealType });
+        return res.json({ text: finalSummary, card: 'Wochenplan' });
 
     } catch (err) {
         logAlexa('ERROR', 'EXECUTION', 'Menu query failed', { error: err.message });
