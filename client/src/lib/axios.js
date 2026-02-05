@@ -29,8 +29,8 @@ api.interceptors.response.use(
             // Check if we are not already on login/signup to avoid loops
             if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/signup')) {
                 // Use standard redirect, respecting base path
-                const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
-                window.location.href = `${base}login`;
+                const base = import.meta.env.BASE_URL || '/';
+                window.location.href = `${base}login`.replace('//', '/');
             }
         }
         return Promise.reject(error);

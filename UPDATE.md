@@ -2,6 +2,10 @@
 
 ## Aktuelle Version: v0.16.0
 
+### Changelog v0.16.1
+- **Hotfix (Frontend):** Korrektur der Service Worker Registrierung und Logout-Weiterleitung in Unterverzeichnissen (z.B. `/EinkaufsApp/`). 🛠️🌐
+- **Maintenance:** Datenbank-Migration (`0.16.0` Fix) verifiziert. ✅
+
 ### Changelog v0.16.0
 - **Feature (Product Management):** Neue "Neu"-Badges für Produkte, die über Alexa (Blau) oder AI (Lila) hinzugefügt wurden. ✨🏷️
 - **Feature (Product Management):** Neue Produkte werden nun oben in der Liste sortiert, um sie schneller zu finden. ⬆️

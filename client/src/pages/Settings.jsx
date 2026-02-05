@@ -255,7 +255,8 @@ export default function SettingsPage() {
                     className="w-full h-12 text-destructive hover:bg-destructive/10 border-destructive/20"
                     onClick={() => {
                         localStorage.removeItem('token');
-                        window.location.href = '/login';
+                        const baseUrl = import.meta.env.BASE_URL || '/';
+                        window.location.href = `${baseUrl}login`.replace('//', '/');
                     }}
                 >
                     Abmelden
