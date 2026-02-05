@@ -255,11 +255,31 @@ export default function Recipes() {
 
                 <div className="flex gap-2">
                     <Button
+                        onClick={() => {
+                            if (navigator.share) {
+                                navigator.share({
+                                    title: 'Mein Kochbuch',
+                                    text: 'Schau dir mein Kochbuch an!',
+                                    url: `${window.location.origin}${import.meta.env.BASE_URL}shared/cookbook`.replace(/([^:]\/)\/+/g, "$1")
+                                }).catch(console.error);
+                            } else {
+                                // Fallback
+                                alert('Teilen nicht unterstützt');
+                            }
+                        }}
+                        variant="ghost"
+                        size="icon"
+                        className="h-12 w-12 md:hidden bg-card border border-border text-muted-foreground"
+                    >
+                        <Share2 size={20} />
+                    </Button>
+
+                    <Button
                         onClick={() => setIsSlotMachineOpen(true)}
-                        className="h-12 w-12 md:w-auto md:px-6 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:via-orange-600 hover:to-rose-600 text-white border-none shadow-xl shadow-orange-500/20 active:scale-95 transition-all group overflow-hidden relative"
+                        className="h-12 w-14 md:w-auto md:px-6 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:via-orange-600 hover:to-rose-600 text-white border-none shadow-xl shadow-orange-500/20 active:scale-95 transition-all group overflow-hidden relative shrink-0"
                     >
                         <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-12" />
-                        <Dices size={18} className="md:mr-2 group-hover:rotate-180 transition-transform duration-500" />
+                        <Dices size={24} className="md:w-[18px] md:h-[18px] md:mr-2 group-hover:rotate-180 transition-transform duration-500" />
                         <span className="hidden md:inline font-bold">Zufalls-Roulette</span>
                     </Button>
 

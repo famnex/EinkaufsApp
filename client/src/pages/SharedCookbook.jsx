@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChefHat, Clock, Users, Filter, X, UtensilsCrossed, ArrowRight, ChevronDown, ChevronUp, Moon, Sun } from 'lucide-react';
+import { Search, ChefHat, Clock, Users, Filter, X, UtensilsCrossed, ArrowRight, ChevronDown, ChevronUp, Moon, Sun, Dices, Eye } from 'lucide-react';
 import axios from 'axios';
 import { cn } from '../lib/utils';
 import { useTheme } from '../contexts/ThemeContext';
+import SlotMachineModal from '../components/SlotMachineModal';
+import { Button } from '../components/Button';
 
 export default function SharedCookbook() {
     const navigate = useNavigate();
@@ -19,6 +21,7 @@ export default function SharedCookbook() {
     const [categories, setCategories] = useState(['Alle']);
     const [allTags, setAllTags] = useState([]);
     const [filtersOpen, setFiltersOpen] = useState(false); // Mobile filter toggle
+    const [isSlotMachineOpen, setIsSlotMachineOpen] = useState(false);
 
     // Determine API URL
     const baseURL = import.meta.env.BASE_URL === '/'
@@ -115,23 +118,27 @@ export default function SharedCookbook() {
                     <motion.div
                         initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="mb-4 p-3 rounded-full bg-white/10 backdrop-blur-md"
+                        className="mb-6 rounded-full shadow-2xl"
                     >
-                        <ChefHat size={32} className="text-primary-foreground" />
+                        <img
+                            src={`${import.meta.env.BASE_URL}logo_cooking_guys.jpg`}
+                            alt="The Cooking Guys"
+                            className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-white/20"
+                        />
                     </motion.div>
                     <motion.h1
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
-                        className="text-3xl md:text-6xl font-bebas tracking-wide mb-2 text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-400"
+                        className="text-4xl md:text-7xl font-black tracking-tighter mb-2 text-white drop-shadow-xl"
                     >
-                        Unser Kochbuch
+                        THECOOKINGGUYS
                     </motion.h1>
                     <motion.p
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.2 }}
-                        className="text-base md:text-xl text-gray-300 max-w-2xl mb-6 font-light"
+                        className="text-base md:text-xl text-gray-300 max-w-2xl mb-8 font-medium"
                     >
                         Entdecke {recipes.length} leckere Rezepte, kuratiert und gesammelt für jeden Geschmack.
                     </motion.p>
@@ -141,10 +148,10 @@ export default function SharedCookbook() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.3 }}
-                        className="w-full max-w-xl relative group"
+                        className="w-full max-w-xl relative group flex flex-col gap-4 items-center"
                     >
                         <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <div className="relative flex items-center bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-4 py-3 shadow-2xl transition-all focus-within:bg-white/20 focus-within:border-primary/50">
+                        <div className="relative w-full flex items-center bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-4 py-3 shadow-2xl transition-all focus-within:bg-white/20 focus-within:border-primary/50">
                             <Search className="text-gray-400 mr-3" size={20} />
                             <input
                                 type="text"
@@ -159,6 +166,14 @@ export default function SharedCookbook() {
                                 </button>
                             )}
                         </div>
+
+                        <Button
+                            onClick={() => setIsSlotMachineOpen(true)}
+                            className="h-12 px-8 rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:via-orange-600 hover:to-rose-600 text-white border-none shadow-xl shadow-orange-500/20 active:scale-95 transition-all flex items-center gap-2"
+                        >
+                            <Dices size={18} />
+                            Zufalls-Roulette
+                        </Button>
                     </motion.div>
                 </div>
             </div>
@@ -359,6 +374,17 @@ export default function SharedCookbook() {
                     </div>
                 )}
             </div>
+            <SlotMachineModal
+                isOpen={isSlotMachineOpen}
+                onClose={() => setIsSlotMachineOpen(false)}
+                recipes={recipes}
+                confirmLabel="REZEPT ANZEIGEN"
+                ActionIcon={Eye}
+                onSelect={(recipe) => {
+                    navigate(`/shared/recipe/${recipe.id}`);
+                    setIsSlotMachineOpen(false);
+                }}
+            />
         </div>
     );
 }

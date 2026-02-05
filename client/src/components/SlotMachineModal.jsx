@@ -5,7 +5,9 @@ import { Button } from './Button';
 import { cn, getImageUrl } from '../lib/utils';
 import api from '../lib/axios';
 
-export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect }) {
+export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, confirmLabel = "REZEPT EINPLANEN", ActionIcon = Calendar }) {
+    // ... (rest of the file until the button)
+    // I need to be careful not to replace the whole file. I will target the header and the button separately.
     const [isSpinning, setIsSpinning] = useState(false);
     const [result, setResult] = useState(null);
     const [excludedIngredients, setExcludedIngredients] = useState([]);
@@ -417,8 +419,8 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect })
                                             onClick={() => onSelect(result)}
                                             className="flex-1 h-16 rounded-2xl bg-primary text-primary-foreground font-bold text-lg shadow-xl shadow-primary/20 active:scale-95 transition-all"
                                         >
-                                            <Calendar size={20} className="mr-2" />
-                                            REZEPT EINPLANEN
+                                            <ActionIcon size={20} className="mr-2" />
+                                            {confirmLabel}
                                         </Button>
                                     </>
                                 )}

@@ -109,7 +109,33 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
         }
     };
 
+    const handleHideAll = async () => {
+        const toHide = filteredProducts.filter(p => !isProductHidden(p));
+        if (toHide.length === 0) return;
+
+        if (!confirm(`Möchtest du wirklich alle ${toHide.length} Produkte für "${selectedType}" ausblenden? Dies speichert sie als 'ignoriert'.`)) return;
+
+        setStep('loading');
+        try {
+            // Parallel requests might be heavy, but usually okay for <50-100 items suitable here.
+            // A dedicated bulk endpoint would be better, but this works for now.
+            await Promise.all(toHide.map(p =>
+                api.post('/ai/cleanup/toggle-hidden', { productId: p.id, context: selectedType })
+            ));
+
+            if (onRefresh) onRefresh();
+        } catch (e) {
+            console.error(e);
+            alert('Fehler beim Ausblenden');
+        } finally {
+            setStep('selection');
+        }
+    };
+
     const handleStartCleanup = async () => {
+        // ... existing handleStartCleanup ... (using context to skip replacement of this part)
+        // Actually I need to be careful with replace_file_content target.
+        // I will target from `toggleAll` down to the button render safely.
         setStep('loading');
         try {
             const productsToClean = filteredProducts
@@ -279,6 +305,18 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
                                                     </button>
                                                 </div>
                                                 <div className="flex items-center gap-2">
+                                                    {selectedType === 'unit' && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={handleHideAll}
+                                                            className="text-red-500 hover:text-red-600 hover:bg-red-50 h-8 px-2 gap-1.5"
+                                                            title="Alle sichtbaren Produkte ignorieren"
+                                                        >
+                                                            <EyeOff size={14} />
+                                                            <span className="text-xs">Alle ignorieren</span>
+                                                        </Button>
+                                                    )}
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
@@ -346,8 +384,8 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
                                                                             handleToggleHidden(product.id);
                                                                         }}
                                                                         className={cn(
-                                                                            "absolute top-1 right-1 z-30 p-2 rounded-lg hover:bg-muted/80 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100",
-                                                                            isHidden ? "text-primary bg-primary/10" : "text-muted-foreground"
+                                                                            "absolute top-1 right-1 z-30 p-2 rounded-lg hover:bg-muted/80 transition-all focus:opacity-100",
+                                                                            isHidden ? "text-primary bg-primary/10" : "text-muted-foreground bg-background/50 backdrop-blur-sm"
                                                                         )}
                                                                         title={isHidden ? "Wieder einblenden" : "Ausblenden"}
                                                                     >

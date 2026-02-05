@@ -5,6 +5,7 @@ import { Button } from './Button';
 import { Input } from './Input';
 import api from '../lib/axios';
 import { cn } from '../lib/utils';
+import ResilientImage from './ResilientImage';
 
 // Simple client-side version of German normalization
 function normalizeGerman(name) {
@@ -246,7 +247,12 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                     <div className="bg-muted/30 p-4 rounded-2xl border border-border space-y-4">
                                         <div className="relative aspect-video rounded-xl overflow-hidden bg-muted flex items-center justify-center group">
                                             {parsedData.image_url ? (
-                                                <img src={parsedData.image_url} alt="Preview" className="w-full h-full object-cover" />
+                                                <ResilientImage
+                                                    src={parsedData.image_url}
+                                                    alt="Preview"
+                                                    className="w-full h-full object-cover"
+                                                    containerClassName="w-full h-full"
+                                                />
                                             ) : (
                                                 <div className="text-muted-foreground flex flex-col items-center gap-2">
                                                     <Sparkles size={32} className="opacity-20" />

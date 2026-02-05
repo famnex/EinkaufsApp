@@ -346,6 +346,10 @@ router.post('/lookup', auth, async (req, res) => {
     }
 });
 
+const fs = require('fs');
+const path = require('path');
+const sharp = require('sharp');
+
 // Image Generation Endpoint
 router.post('/generate-image', auth, async (req, res) => {
     try {
@@ -368,7 +372,31 @@ router.post('/generate-image', auth, async (req, res) => {
         });
 
         const imageUrl = response.data[0].url;
-        res.json({ url: imageUrl });
+
+        // Download and Optimize
+        const imageResponse = await axios({
+            url: imageUrl,
+            responseType: 'arraybuffer'
+        });
+
+        const uploadDir = path.join(__dirname, '../../public/uploads/recipes');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const filename = uniqueSuffix + '.jpg';
+        const filepath = path.join(uploadDir, filename);
+
+        await sharp(imageResponse.data)
+            .resize({ height: 800, withoutEnlargement: true }) // Maintain aspect ratio, max height 800
+            .jpeg({ quality: 80 }) // Convert to JPG, 80% quality
+            .toFile(filepath);
+
+        console.log('Processed AI Image saved to:', filepath);
+
+        // Return local URL
+        res.json({ url: `/uploads/recipes/${filename}` });
 
     } catch (err) {
         console.error('Image Generation Error:', err);

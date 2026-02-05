@@ -1,6 +1,14 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.17.5
+## Aktuelle Version: v0.17.6
+
+### Changelog v0.17.6
+- **Feature (Shared Cookbook):** Rebranding zu **"THECOOKINGGUYS"** mit neuem Logo und angepasstem Hero-Design. 👨‍🍳🔥
+- **Feature (Shared Cookbook):** Integration von **"Zufalls-Roulette"** ("Auf gut Glück") im gleichen Design wie auf der Rezept-Seite. 🎲 amber-rose Gradient.
+- **Feature (Mobile UI):** Rezept-Roulette Button auf der Rezept-Seite (`/recipes`) für Mobile optimiert (Icon-only, vergrößert). 📱✨
+- **Feature (Sharing):** Neuer **Share-Button** auf der Rezept-Seite, nutzt das native Teilen-Menü (WhatsApp, etc.) auf Handys. 🔗📲
+- **Feature (Cooking Mode):** Der AI Assistant Button respektiert nun die **Safe Area** (Notch) auf iOS-Geräten. 🍎📐
+- **Feature (Produkte):** "Alexa" und "AI Neu" Badges lassen sich nun mit einem **einzelnen Tap** entfernen ("Als gelesen markieren"). 🏷️👆❌
 
 ### Changelog v0.17.5
 - **Feature (Roulette Royale):** Neues Rezept-Glücksrad mit flüssiger Reel-Animation und Casino-Soundkulisse (Gedudel & Jackpot). 🎰🔊✨

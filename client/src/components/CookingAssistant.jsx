@@ -230,7 +230,8 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
                 initial={{ opacity: 0, y: 50, scale: 0.9 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 50, scale: 0.9 }}
-                className="fixed bottom-4 right-4 md:bottom-8 md:right-8 z-[60] w-[90vw] md:w-96 h-[500px] max-h-[80vh] bg-card border border-border rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+                className="fixed right-4 md:bottom-8 md:right-8 z-[60] w-[90vw] md:w-96 h-[500px] max-h-[80vh] bg-card border border-border rounded-3xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300"
+                style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
             >
                 {/* Header */}
                 <div className="p-4 bg-primary text-primary-foreground flex items-center justify-between">
