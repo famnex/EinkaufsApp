@@ -1,6 +1,9 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.17.6
+## Aktuelle Version: v0.17.7
+
+### Changelog v0.17.7
+- **Hotfix (Server):** Behebt einen Absturz (`ERR_DLOPEN_FAILED`) auf Linux-Servern mit älteren Systembibliotheken, indem `sharp` optional geladen wird. Bildoptimierung wird übersprungen, falls das Modul fehlt. 🛠️🐧
 
 ### Changelog v0.17.6
 - **Feature (Shared Cookbook):** Rebranding zu **"THECOOKINGGUYS"** mit neuem Logo und angepasstem Hero-Design. 👨‍🍳🔥

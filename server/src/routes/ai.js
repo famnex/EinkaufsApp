@@ -348,7 +348,12 @@ router.post('/lookup', auth, async (req, res) => {
 
 const fs = require('fs');
 const path = require('path');
-const sharp = require('sharp');
+let sharp;
+try {
+    sharp = require('sharp');
+} catch (error) {
+    console.warn('Warning: simple-sharp/sharp module could not be loaded. Image optimization will be disabled.', error.message);
+}
 
 // Image Generation Endpoint
 router.post('/generate-image', auth, async (req, res) => {
@@ -388,10 +393,16 @@ router.post('/generate-image', auth, async (req, res) => {
         const filename = uniqueSuffix + '.jpg';
         const filepath = path.join(uploadDir, filename);
 
-        await sharp(imageResponse.data)
-            .resize({ height: 800, withoutEnlargement: true }) // Maintain aspect ratio, max height 800
-            .jpeg({ quality: 80 }) // Convert to JPG, 80% quality
-            .toFile(filepath);
+        if (sharp) {
+            await sharp(imageResponse.data)
+                .resize({ height: 800, withoutEnlargement: true }) // Maintain aspect ratio, max height 800
+                .jpeg({ quality: 80 }) // Convert to JPG, 80% quality
+                .toFile(filepath);
+        } else {
+            // Fallback: Save original image without optimization
+            fs.writeFileSync(filepath, Buffer.from(imageResponse.data));
+            console.log('Image saved without sharp optimization.');
+        }
 
         console.log('Processed AI Image saved to:', filepath);
 
