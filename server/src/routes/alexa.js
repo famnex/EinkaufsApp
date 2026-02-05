@@ -154,8 +154,8 @@ router.post('/menu', checkAlexaAuth, async (req, res) => {
         const { tag, art } = req.body;
         logAlexa('INFO', 'REQUEST_MENU', 'Received Menu Request', { tag, art });
 
-        if (!tag || !art) {
-            return res.status(400).json({ error: 'Missing tag or art' });
+        if (!tag) {
+            return res.status(400).json({ error: 'Missing tag' });
         }
 
         // 1. Resolve Date
@@ -186,6 +186,7 @@ router.post('/menu', checkAlexaAuth, async (req, res) => {
         }
 
         // 2. Resolve Meal Type
+        // 2. Resolve Meal Type
         const map = {
             'frühstück': 'breakfast',
             'mittag': 'lunch',
@@ -196,48 +197,124 @@ router.post('/menu', checkAlexaAuth, async (req, res) => {
             'snack': 'snack'
         };
 
-        const mealType = map[art.toLowerCase()];
-        if (!mealType) {
-            logAlexa('WARN', 'EXECUTION', `Unknown meal type: ${art}`);
-            return res.json({ text: `Ich kenne ${art} nicht als Mahlzeit.` });
-        }
+        const mealType = art ? map[art.toLowerCase()] : null;
 
-        // 3. Query DB
-        // Need to import Menu and Recipe
+        // If art is provided but unknown, we treat it as "unspecified/all" effectively, 
+        // OR we could stick to the original logic of erroring. 
+        // User request: "wenn die 'art' nicht erkannt wird ... dann soll der komplette tag wiedergegeben werden"
+        // So if mealType is null (either no art provided OR art not in map), we fetch the whole day.
+
         const { Menu, Recipe } = require('../models');
 
-        const menuEntry = await Menu.findOne({
-            where: {
-                date: dateQuery,
-                meal_type: mealType
-            },
-            include: [Recipe]
-        });
-
-        if (!menuEntry) {
-            const dateStr = tag.toLowerCase() === 'heute' ? 'heute' : (tag.toLowerCase() === 'morgen' ? 'morgen' : `am ${tag}`);
-            const artStr = art.toLowerCase(); // 'mittag', 'abendbrot'
-
-            return res.json({
-                text: `Für ${dateStr} ist zum ${art.replace(/^\w/, c => c.toUpperCase())} nichts geplant.`
+        if (mealType) {
+            // --- Specific Meal Query (Existing Logic) ---
+            const menuEntry = await Menu.findOne({
+                where: {
+                    date: dateQuery,
+                    meal_type: mealType
+                },
+                include: [Recipe]
             });
-        }
 
-        // 4. Construct Answer
-        let dishName = '';
-        if (menuEntry.Recipe) {
-            dishName = menuEntry.Recipe.title; // Fixed: Model uses 'title' not 'name'
-        } else if (menuEntry.description) {
-            dishName = menuEntry.description;
+            if (!menuEntry) {
+                const dateStr = tag.toLowerCase() === 'heute' ? 'heute' : (tag.toLowerCase() === 'morgen' ? 'morgen' : `am ${tag}`);
+                // Capitalize first letter for output
+                const artDisplay = art ? art.replace(/^\w/, c => c.toUpperCase()) : 'dieser Mahlzeit';
+                return res.json({
+                    text: `Für ${dateStr} ist zum ${artDisplay} nichts geplant.`
+                });
+            }
+
+            let dishName = '';
+            if (menuEntry.Recipe) {
+                dishName = menuEntry.Recipe.title;
+            } else if (menuEntry.description) {
+                dishName = menuEntry.description;
+            } else {
+                dishName = "etwas ohne Namen";
+            }
+
+            const responseText = `Es gibt ${dishName}.`;
+            logAlexa('INFO', 'RESPONSE', `Menu answer: ${responseText}`, { date: dateQuery, type: mealType });
+            return res.json({ text: responseText, card: dishName });
+
         } else {
-            dishName = "etwas ohne Namen";
+            // --- Full Day Query (New Logic) ---
+            const menuEntries = await Menu.findAll({
+                where: {
+                    date: dateQuery
+                },
+                include: [Recipe],
+                order: [['meal_type', 'ASC']] // Sort might not be semantic, we'll map manually
+            });
+
+            const dateStr = tag.toLowerCase() === 'heute' ? 'Heute' : (tag.toLowerCase() === 'morgen' ? 'Morgen' : `Am ${tag}`);
+
+            if (menuEntries.length === 0) {
+                return res.json({
+                    text: `${dateStr} ist nichts geplant.`
+                });
+            }
+
+            // Helper to get nice text for a meal type
+            const getGermanMealName = (type) => {
+                switch (type) {
+                    case 'breakfast': return 'Frühstück';
+                    case 'lunch': return 'Mittagessen';
+                    case 'dinner': return 'Abendessen';
+                    case 'snack': return 'Snack';
+                    default: return type;
+                }
+            };
+
+            // Build list of parts: "Schnitzel zum Abendessen", "Chips als Snack"
+            const parts = [];
+
+            // Define order of meals for natural flow
+            const order = ['breakfast', 'lunch', 'dinner', 'snack'];
+
+            // Group entries by type (just in case multiple entries per type, though usually 1)
+            // But model seems to allow multiple? usually 1 per type/date.
+
+            for (const type of order) {
+                const entry = menuEntries.find(e => e.meal_type === type);
+                if (entry) {
+                    let dishName = '';
+                    if (entry.Recipe) {
+                        dishName = entry.Recipe.title;
+                    } else if (entry.description) {
+                        dishName = entry.description;
+                    } else {
+                        continue; // Skip valid entries with no name? or say "etwas"
+                    }
+
+                    const mealName = getGermanMealName(type);
+                    const preposition = type === 'snack' ? 'als' : 'zum'; // "als Snack", "zum Mittagessen"
+
+                    parts.push(`${dishName} ${preposition} ${mealName}`);
+                }
+            }
+
+            if (parts.length === 0) {
+                return res.json({
+                    text: `${dateStr} ist nichts geplant.`
+                });
+            }
+
+            let summary = '';
+            if (parts.length === 1) {
+                summary = `${dateStr} gibt es ${parts[0]}.`;
+            } else if (parts.length === 2) {
+                summary = `${dateStr} gibt es ${parts[0]} und ${parts[1]}.`;
+            } else {
+                // Join all but last with commas
+                const last = parts.pop();
+                summary = `${dateStr} gibt es ${parts.join(', ')} und ${last}.`;
+            }
+
+            logAlexa('INFO', 'RESPONSE', `Full day answer: ${summary}`, { date: dateQuery });
+            return res.json({ text: summary, card: 'Tagesübersicht' });
         }
-
-        const responseText = `Es gibt ${dishName}.`;
-
-        logAlexa('INFO', 'RESPONSE', `Menu answer: ${responseText}`, { date: dateQuery, type: mealType });
-
-        res.json({ text: responseText, card: dishName });
 
     } catch (err) {
         logAlexa('ERROR', 'EXECUTION', 'Menu query failed', { error: err.message });
