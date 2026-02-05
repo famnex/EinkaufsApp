@@ -443,7 +443,12 @@ export default function CookingMode({ recipe, onClose }) {
                     animate={{ scale: 1 }}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => setShowAssistant(!showAssistant)}
+                    onClick={() => {
+                        // iOS PWA Audio Unlock: Synchronous User Gesture
+                        const audio = new Audio();
+                        audio.play().then(() => audio.pause()).catch(() => { });
+                        setShowAssistant(!showAssistant);
+                    }}
                     className="fixed top-[120px] right-4 md:top-auto md:right-auto md:bottom-6 md:left-6 z-[100] w-12 h-12 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-full shadow-lg flex items-center justify-center text-white border-2 border-white/20"
                 >
                     <Sparkles size={20} />

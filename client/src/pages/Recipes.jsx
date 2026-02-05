@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../lib/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
@@ -11,6 +11,7 @@ import AiImportModal from '../components/AiImportModal';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import CookingMode from '../components/CookingMode';
 import ScheduleModal from '../components/ScheduleModal';
+import SlotMachineModal from '../components/SlotMachineModal';
 import { cn, getImageUrl } from '../lib/utils';
 
 import { useLocation } from 'react-router-dom';
@@ -57,6 +58,7 @@ export default function Recipes() {
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+    const [isSlotMachineOpen, setIsSlotMachineOpen] = useState(false);
     const [selectedRecipe, setSelectedRecipe] = useState(null);
 
     const [cookingRecipe, setCookingRecipe] = useState(null);
@@ -251,14 +253,35 @@ export default function Recipes() {
 
                 <div className="h-12 w-px bg-border mx-2 hidden md:block" />
 
-                <Button
-                    onClick={() => setIsAiModalOpen(true)}
-                    className="h-12 px-3 md:px-6 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 shrink-0"
-                >
-                    <Sparkles size={18} className="md:mr-2" />
-                    <span className="hidden md:inline">AI Assistant</span>
-                </Button>
+                <div className="flex gap-2">
+                    <Button
+                        onClick={() => setIsSlotMachineOpen(true)}
+                        className="h-12 w-12 md:w-auto md:px-6 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:via-orange-600 hover:to-rose-600 text-white border-none shadow-xl shadow-orange-500/20 active:scale-95 transition-all group overflow-hidden relative"
+                    >
+                        <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-12" />
+                        <Dices size={18} className="md:mr-2 group-hover:rotate-180 transition-transform duration-500" />
+                        <span className="hidden md:inline font-bold">Zufalls-Roulette</span>
+                    </Button>
+
+                    <Button
+                        onClick={() => setIsAiModalOpen(true)}
+                        className="h-12 px-3 md:px-6 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 shrink-0"
+                    >
+                        <Sparkles size={18} className="md:mr-2" />
+                        <span className="hidden md:inline">AI Assistant</span>
+                    </Button>
+                </div>
             </div>
+
+            <SlotMachineModal
+                isOpen={isSlotMachineOpen}
+                onClose={() => setIsSlotMachineOpen(false)}
+                recipes={recipes}
+                onSelect={(recipe) => {
+                    setSchedulingRecipe(recipe);
+                    setIsSlotMachineOpen(false);
+                }}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <AnimatePresence mode="popLayout">
@@ -439,17 +462,21 @@ export default function Recipes() {
                 </AnimatePresence>
             </div>
 
-            {loading && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {[1, 2, 3].map(i => <div key={i} className="aspect-video bg-muted rounded-3xl animate-pulse" />)}
-                </div>
-            )}
+            {
+                loading && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {[1, 2, 3].map(i => <div key={i} className="aspect-video bg-muted rounded-3xl animate-pulse" />)}
+                    </div>
+                )
+            }
 
-            {!loading && filteredRecipes.length === 0 && (
-                <div className="text-center py-20 text-muted-foreground italic">
-                    Keine Rezepte gefunden.
-                </div>
-            )}
+            {
+                !loading && filteredRecipes.length === 0 && (
+                    <div className="text-center py-20 text-muted-foreground italic">
+                        Keine Rezepte gefunden.
+                    </div>
+                )
+            }
 
             <RecipeModal
                 isOpen={isModalOpen}
@@ -462,12 +489,14 @@ export default function Recipes() {
                 onClose={() => setIsAiModalOpen(false)}
                 onSave={fetchRecipes}
             />
-            {cookingRecipe && (
-                <CookingMode
-                    recipe={cookingRecipe}
-                    onClose={() => setCookingRecipe(null)}
-                />
-            )}
+            {
+                cookingRecipe && (
+                    <CookingMode
+                        recipe={cookingRecipe}
+                        onClose={() => setCookingRecipe(null)}
+                    />
+                )
+            }
 
             <ScheduleModal
                 isOpen={!!schedulingRecipe}
@@ -482,6 +511,6 @@ export default function Recipes() {
                 recipe={recipeToDelete}
                 usage={deleteUsage}
             />
-        </div>
+        </div >
     );
 }

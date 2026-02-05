@@ -14,6 +14,23 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
     const [inputText, setInputText] = useState('');
     const messagesEndRef = useRef(null);
     const recognitionRef = useRef(null);
+    const audioContextRef = useRef(null);
+    const audioRef = useRef(null); // Will hold the persistent HTMLAudioElement
+
+    // Initialize Audio System once
+    useEffect(() => {
+        if (!audioRef.current) {
+            audioRef.current = new Audio();
+            // Pre-set some properties
+            audioRef.current.preload = 'auto';
+        }
+        if (!audioContextRef.current) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) {
+                audioContextRef.current = new AudioContext();
+            }
+        }
+    }, []);
 
     // Scroll to bottom
     const scrollToBottom = () => {
@@ -49,12 +66,33 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
                 setIsListening(false);
             };
         }
-    }, [recipe]); // Re-init if recipe changes? Not strictly needed but safe.
+    }, [recipe]);
+
+    // CRITICAL: Unlock Audio on iOS PWA
+    const unlockAudio = () => {
+        // Unlock Audio Element
+        if (audioRef.current) {
+            audioRef.current.play().then(() => {
+                audioRef.current.pause();
+                console.log("Audio element unlocked");
+            }).catch(e => console.log("Audio unlock failed or not needed", e));
+        }
+
+        // Unlock AudioContext
+        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+            audioContextRef.current.resume();
+        }
+    };
 
     // Audio Cues for UX
     const playAudioCue = (type) => {
         try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            if (!audioContextRef.current) return;
+            const ctx = audioContextRef.current;
+
+            // Ensure context is running (unlock attempt)
+            if (ctx.state === 'suspended') ctx.resume();
+
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
 
@@ -71,16 +109,17 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
             osc.start();
             osc.stop(ctx.currentTime + 0.2);
         } catch (e) {
-            console.warn("Audio Context not supported", e);
+            console.warn("Audio Context error", e);
         }
     };
 
     const toggleListening = () => {
+        unlockAudio(); // SYNCHRONOUS User Gesture
         if (isListening) {
             recognitionRef.current?.stop();
         } else {
             setIsSpeaking(false);
-            window.speechSynthesis.cancel();
+            stopSpeaking();
             playAudioCue('start');
             setTimeout(() => {
                 recognitionRef.current?.start();
@@ -88,8 +127,6 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
             }, 100);
         }
     };
-
-    const audioRef = useRef(null);
 
     const speak = async (text, isEnding = false) => {
         if (!text) return;
@@ -103,17 +140,17 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
             const baseUrl = import.meta.env.VITE_API_URL || (import.meta.env.BASE_URL === '/' ? '/api' : `${import.meta.env.BASE_URL}api`.replace('//', '/'));
             const url = `${baseUrl}/ai/speak?text=${encodeURIComponent(text)}&token=${token}`;
 
-            const audio = new Audio(url);
-            audioRef.current = audio;
+            // Reuse the persistent audio object
+            const audio = audioRef.current;
+            audio.src = url;
+            audio.load();
 
             audio.onended = () => {
                 setIsSpeaking(false);
-                // Automatically start listening again for "Conversation Mode"
-                // but only if this wasn't an ending message
                 if (!isEnding) {
                     setTimeout(() => {
                         toggleListening();
-                    }, 400); // 400ms delay for natural gap
+                    }, 400);
                 }
             };
 
@@ -122,6 +159,7 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
                 console.error("Audio playback error");
             };
 
+            // This play call should now work because the object was "unlocked" during handleSend or toggleListening
             await audio.play();
         } catch (err) {
             console.error("TTS generation failed", err);
@@ -132,14 +170,15 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
     const stopSpeaking = () => {
         if (audioRef.current) {
             audioRef.current.pause();
-            audioRef.current = null;
+            audioRef.current.currentTime = 0;
+            audioRef.current.src = ""; // Clear source
         }
-        window.speechSynthesis.cancel(); // Safeguard for native TTS beeps etc if any
         setIsSpeaking(false);
     };
 
     const handleSend = async (text = inputText) => {
         if (!text.trim()) return;
+        unlockAudio(); // SYNCHRONOUS User Gesture
 
         // Detect termination
         const terminationWords = ['ok', 'danke', 'alles klar', 'fertig', 'stopp', 'tschüss', 'ciao'];

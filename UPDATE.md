@@ -1,6 +1,13 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.17.0
+## Aktuelle Version: v0.17.5
+
+### Changelog v0.17.5
+- **Feature (Roulette Royale):** Neues Rezept-Glücksrad mit flüssiger Reel-Animation und Casino-Soundkulisse (Gedudel & Jackpot). 🎰🔊✨
+- **Feature (Roulette Royale):** Intelligentes Filter-System mit Tag-Eingabe und Live-Produktvorschlägen. 🏷️🔍
+- **Feature (Roulette Royale):** Direkte Anbindung an den Menüplaner über den "Rezept einplanen" Button. 📅🥘
+- **Fix (AI Assistant):** Robuster Audio-Fix für iOS PWA (Warming-Strategie). Der Assistent spricht nun zuverlässig auch auf iPhones. 📱🔇➡️🔊
+- **Fix (UI/UX):** Fehlerbehebung für den "Schwarzer Bildschirm" Bug im Roulette und fehlende Icons. 🛠️✨
 
 ### Changelog v0.17.0
 - **Feature (AI Assistant):** Neuer freihändiger **Gesprächsmodus**. Das Mikrofon reaktiviert sich automatisch nach Antworten. Beenden per Sprache ("Danke", "Alles klar"). 🎙️👩‍🍳
