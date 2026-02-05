@@ -7,7 +7,7 @@ router.get('/', auth, async (req, res) => {
     try {
         const products = await Product.findAll({
             include: [Manufacturer, Store, HiddenCleanup],
-            order: [['name', 'ASC']]
+            order: [[sequelize.fn('lower', sequelize.col('Product.name')), 'ASC']]
         });
         res.json(products);
     } catch (err) {

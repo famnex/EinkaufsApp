@@ -91,7 +91,14 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
 
         console.log(`[Alexa] Adding "${productNameQuery}" to List ID ${targetList.id} (${targetList.date})`);
 
-        // 2. Find or Create Product
+        const { normalizeGermanProduct } = require('../utils/normalization');
+
+        // ... (existing imports)
+
+        // ... inside the route handler ...
+
+        // 2. Find or Create Product (Robust Search)
+        // Try exact match first
         let product = await Product.findOne({
             where: sequelize.where(
                 sequelize.fn('lower', sequelize.col('name')),
@@ -99,12 +106,36 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
             )
         });
 
+        // If not found, try normalized variations
+        if (!product) {
+            const variations = normalizeGermanProduct(productNameQuery);
+            // Search for any matching variation
+            // We use Op.or with ILIKE (or lowercase comparison)
+            // SQLITE is case-insensitive by default for ASCII, but let's be safe
+
+            for (const variant of variations) {
+                const p = await Product.findOne({
+                    where: sequelize.where(
+                        sequelize.fn('lower', sequelize.col('name')),
+                        sequelize.fn('lower', variant)
+                    )
+                });
+                if (p) {
+                    product = p;
+                    console.log(`[Alexa] Fuzzy match: "${productNameQuery}" -> "${p.name}"`);
+                    break;
+                }
+            }
+        }
+
         if (!product) {
             console.log(`[Alexa] Creating new product: "${productNameQuery}"`);
             product = await Product.create({
                 name: productNameQuery,
                 unit: unitName || 'Stück',
-                category: 'Uncategorized'
+                category: 'Uncategorized',
+                isNew: true,
+                source: 'alexa'
             });
             logAlexa('INFO', 'PRODUCT_CREATED', `Created new product: ${productNameQuery}`, { id: product.id });
         }
@@ -255,7 +286,14 @@ router.post('/menu', checkAlexaAuth, async (req, res) => {
             if (mealType) {
                 // --- Specific Meal Query ---
                 const menuEntry = await Menu.findOne({
-                    where: { date: dateQuery, meal_type: mealType },
+                    where: {
+                        date: dateQuery,
+                        meal_type: mealType,
+                        [Op.or]: [
+                            { is_eating_out: false },
+                            { is_eating_out: null }
+                        ]
+                    },
                     include: [Recipe]
                 });
 
@@ -270,7 +308,13 @@ router.post('/menu', checkAlexaAuth, async (req, res) => {
             } else {
                 // --- Full Day Query ---
                 const menuEntries = await Menu.findAll({
-                    where: { date: dateQuery },
+                    where: {
+                        date: dateQuery,
+                        [Op.or]: [
+                            { is_eating_out: false },
+                            { is_eating_out: null }
+                        ]
+                    },
                     include: [Recipe],
                     order: [['meal_type', 'ASC']]
                 });

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, Sun, Soup, Utensils, Apple, Check, ChevronDown } from 'lucide-react';
+import { X, Calendar, Sun, Soup, Utensils, Apple, Check, ChevronDown, CarFront } from 'lucide-react';
 import api from '../lib/axios';
 import { Button } from './Button';
 import { cn } from '../lib/utils'; // Ensure cn utility is available
@@ -102,6 +102,9 @@ export default function ScheduleModal({ isOpen, onClose, recipe }) {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     className="bg-card w-full max-w-md rounded-3xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[80vh]"
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchMove={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => e.stopPropagation()}
                 >
                     {/* Header */}
                     <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30">
@@ -116,7 +119,7 @@ export default function ScheduleModal({ isOpen, onClose, recipe }) {
 
                     {/* Scrollable Content */}
                     <div className="overflow-y-auto p-4 space-y-3 flex-1">
-                        {dates.map((date) => (
+                        {dates.map((date, index) => (
                             <div key={date.toISOString()} className="flex items-center gap-4 p-3 rounded-xl bg-muted/20 border border-transparent hover:border-border transition-all">
                                 <div className="w-16 text-center shrink-0">
                                     <div className="text-xs text-muted-foreground uppercase font-bold">{date.toLocaleDateString('de-DE', { weekday: 'short' })}</div>
@@ -125,24 +128,59 @@ export default function ScheduleModal({ isOpen, onClose, recipe }) {
                                 <div className="flex-1 grid grid-cols-4 gap-2">
                                     {MEAL_TYPES.map((type) => {
                                         const existing = getMenuForDateAndType(date, type.id);
-                                        const Icon = type.icon;
+                                        let Icon = type.icon;
+                                        let styleClass = existing
+                                            ? (existing.is_eating_out ? "bg-orange-500/10 text-orange-600 hover:bg-orange-500/20" : "bg-primary/10 text-primary hover:bg-destructive/10 hover:text-destructive")
+                                            : "bg-background border border-border hover:border-primary hover:text-primary";
+
+                                        if (existing && existing.is_eating_out) {
+                                            Icon = CarFront;
+                                        }
+
+                                        // Tooltip positioning: Flip based on row index
+                                        const isTopRow = index < 2;
+                                        const tooltipPosClass = isTopRow
+                                            ? "top-full mt-2"
+                                            : "bottom-full mb-2";
+                                        const arrowPosClass = isTopRow
+                                            ? "top-[-4px] border-l border-t"
+                                            : "bottom-[-4px] border-r border-b";
+
                                         return (
-                                            <button
-                                                key={type.id}
-                                                onClick={() => handleSchedule(date, type.id)}
-                                                className={cn(
-                                                    "h-10 rounded-lg flex items-center justify-center transition-all relative group",
-                                                    existing
-                                                        ? "bg-primary/10 text-primary hover:bg-destructive/10 hover:text-destructive"
-                                                        : "bg-background border border-border hover:border-primary hover:text-primary"
-                                                )}
-                                                title={`${type.label}${existing ? `: ${existing.Recipe?.title || 'Belegt'}` : ''}`}
-                                            >
-                                                <Icon size={18} />
-                                                {existing && (
-                                                    <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full border-2 border-card group-hover:bg-destructive transition-colors" />
-                                                )}
-                                            </button>
+                                            <div key={type.id} className="relative group/tooltip">
+                                                <button
+                                                    onClick={() => handleSchedule(date, type.id)}
+                                                    className={cn(
+                                                        "w-full h-10 rounded-lg flex items-center justify-center transition-all relative",
+                                                        styleClass
+                                                    )}
+                                                >
+                                                    <Icon size={18} />
+                                                    {existing && (
+                                                        <div className={cn("absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-card transition-colors", existing.is_eating_out ? "bg-orange-500" : "bg-primary group-hover:bg-destructive")} />
+                                                    )}
+                                                </button>
+
+                                                {/* Tooltip */}
+                                                <div className={cn(
+                                                    "absolute left-1/2 -translate-x-1/2 w-max max-w-[200px] bg-popover text-popover-foreground text-xs p-2 rounded-xl shadow-xl border border-border/50 opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity z-10",
+                                                    tooltipPosClass
+                                                )}>
+                                                    <div className="font-bold mb-0.5">{type.label}</div>
+                                                    {existing ? (
+                                                        <div className={cn("font-medium", existing.is_eating_out ? "text-orange-600" : "text-primary")}>
+                                                            {existing.is_eating_out && <CarFront size={10} className="inline mr-1" />}
+                                                            {existing.Recipe ? existing.Recipe.title : (existing.description || (existing.is_eating_out ? "Auswärts essen" : "Manuell"))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-muted-foreground italic">Frei</div>
+                                                    )}
+                                                    <div className={cn(
+                                                        "absolute left-1/2 -translate-x-1/2 w-2 h-2 bg-popover rotate-45 border-border/50",
+                                                        arrowPosClass
+                                                    )} />
+                                                </div>
+                                            </div>
                                         );
                                     })}
                                 </div>

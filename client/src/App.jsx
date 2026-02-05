@@ -17,6 +17,7 @@ import SettingsPage from './pages/Settings';
 import MenuPlan from './pages/MenuPlan';
 import Recipes from './pages/Recipes';
 import SharedRecipe from './pages/SharedRecipe';
+import SharedCookbook from './pages/SharedCookbook';
 
 import { PullToRefresh } from './components/PullToRefresh';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -78,6 +79,7 @@ function AppContent() {
 
               {/* Public Shared Routes */}
               <Route path="/shared/recipe/:id" element={<SharedRecipe />} />
+              <Route path="/shared/cookbook" element={<SharedCookbook />} />
 
               <Route path="/" element={
                 <ProtectedRoute>

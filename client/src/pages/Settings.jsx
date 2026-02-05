@@ -580,6 +580,8 @@ export default function SettingsPage() {
             <UpdateModal
                 isOpen={isUpdateModalOpen}
                 onClose={() => setIsUpdateModalOpen(false)}
+                currentVersion={appVersion}
+                updateInfo={updateInfo}
             />
 
             <AlexaLogsModal

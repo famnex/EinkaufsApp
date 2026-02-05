@@ -376,4 +376,52 @@ router.post('/generate-image', auth, async (req, res) => {
     }
 });
 
+// Chat with Recipe Assistant
+router.post('/chat', auth, async (req, res) => {
+    try {
+        const { message, context } = req.body; // context = { title, ingredients, steps }
+        if (!message) return res.status(400).json({ error: 'Message is required' });
+
+        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
+        if (!setting || !setting.value) {
+            return res.status(400).json({ error: 'OpenAI API Key not configured' });
+        }
+
+        const openai = new OpenAI({ apiKey: setting.value });
+
+        const systemPrompt = `
+        You are a smart Cooking Assistant helping a user cook a recipe.
+        
+        Recipe Context:
+        Title: ${context?.title || 'Unknown'}
+        Ingredients: ${JSON.stringify(context?.ingredients || [])}
+        Steps: ${JSON.stringify(context?.steps || [])}
+
+        Your Goal:
+        Answer the user's question about the recipe, cooking techniques, or ingredient substitutions.
+        Keep your answers CONCISE, HELPFUL, and ENCOURAGING. 
+        If asking about quantities, refer to the ingredients list.
+        If asking "What's next?", assume they are on the current step if provided, or ask which step they are on.
+        
+        IMPORTANT: Use simple formatting. Plain text is best for text-to-speech, but simple bold is okay.
+        Response language: GERMAN.
+        `;
+
+        const completion = await openai.chat.completions.create({
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: message }
+            ],
+            model: "gpt-4o",
+        });
+
+        const reply = completion.choices[0].message.content;
+        res.json({ reply });
+
+    } catch (err) {
+        console.error('AI Chat Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

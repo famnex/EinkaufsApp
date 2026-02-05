@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, ChefHat } from 'lucide-react';
+import { X, Search, ChefHat, CarFront } from 'lucide-react';
 import { Input } from './Input';
 import api from '../lib/axios';
 import { getImageUrl } from '../lib/utils';
@@ -52,6 +52,9 @@ export default function MealSelectorModal({ isOpen, onClose, onSelect, initialDa
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
                         className="w-full max-w-md bg-card border border-border rounded-3xl shadow-2xl overflow-hidden relative z-10"
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchMove={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => e.stopPropagation()}
                     >
                         <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30">
                             <div>
@@ -64,15 +67,32 @@ export default function MealSelectorModal({ isOpen, onClose, onSelect, initialDa
                         </div>
 
                         <div className="p-4 space-y-4">
-                            {/* Manual Entry */}
-                            <form onSubmit={handleManualSubmit} className="flex gap-2">
-                                <Input
-                                    placeholder="Manuelle Eingabe (z.B. Pizza bestellen)"
-                                    value={manualEntry}
-                                    onChange={e => setManualEntry(e.target.value)}
-                                />
-                                <button type="submit" disabled={!manualEntry.trim()} className="bg-primary text-primary-foreground px-4 rounded-xl font-bold text-sm disabled:opacity-50">
-                                    OK
+                            {/* Manual Entry Form */}
+                            <form onSubmit={handleManualSubmit} className="space-y-3">
+                                <div className="flex gap-2">
+                                    <Input
+                                        placeholder="Manuelle Eingabe (z.B. Pizza bestellen)"
+                                        value={manualEntry}
+                                        onChange={e => setManualEntry(e.target.value)}
+                                        className="h-10 text-sm"
+                                    />
+                                    <button type="submit" disabled={!manualEntry.trim()} className="bg-primary text-primary-foreground px-4 rounded-xl font-bold text-sm disabled:opacity-50 transition-opacity">
+                                        OK
+                                    </button>
+                                </div>
+
+                                {/* Eating Out Option - Compact */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const note = manualEntry.trim() || 'Restaurant';
+                                        onSelect({ description: note, is_eating_out: true });
+                                        onClose();
+                                    }}
+                                    className="text-xs font-medium text-orange-600 flex items-center gap-1.5 hover:text-orange-700 transition-colors ml-1"
+                                >
+                                    <CarFront size={14} />
+                                    <span>Als "Auswärts essen" markieren</span>
                                 </button>
                             </form>
 

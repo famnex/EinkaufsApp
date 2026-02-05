@@ -15,9 +15,70 @@ export default function Dashboard() {
     const [lists, setLists] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(new Date());
+    const [activeStartDate, setActiveStartDate] = useState(new Date());
+    const [direction, setDirection] = useState(0); // -1: prev, 1: next
     const [editingListId, setEditingListId] = useState(null);
     const [editingName, setEditingName] = useState('');
     const navigate = useNavigate();
+
+    // Swipe Logic for Calendar
+    const [touchStart, setTouchStart] = useState(null);
+    const [touchEnd, setTouchEnd] = useState(null);
+    const [touchStartY, setTouchStartY] = useState(null);
+    const [touchEndY, setTouchEndY] = useState(null);
+    const minSwipeDistance = 50;
+
+    const onTouchStart = (e) => {
+        setTouchEnd(null);
+        setTouchStartY(e.targetTouches[0].clientY);
+        setTouchStart(e.targetTouches[0].clientX);
+    };
+
+    const onTouchMove = (e) => {
+        setTouchEndY(e.targetTouches[0].clientY);
+        setTouchEnd(e.targetTouches[0].clientX);
+    };
+
+    const onTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+        const xDistance = touchStart - touchEnd;
+        const yDistance = (touchStartY || 0) - (touchEndY || 0);
+
+        if (Math.abs(yDistance) > Math.abs(xDistance)) return;
+
+        const isLeftSwipe = xDistance > minSwipeDistance;
+        const isRightSwipe = xDistance < -minSwipeDistance;
+
+        if (isLeftSwipe) {
+            // Next month
+            setDirection(1);
+            const nextMonth = new Date(activeStartDate);
+            nextMonth.setMonth(nextMonth.getMonth() + 1);
+            setActiveStartDate(nextMonth);
+        }
+        if (isRightSwipe) {
+            // Previous month
+            setDirection(-1);
+            const prevMonth = new Date(activeStartDate);
+            prevMonth.setMonth(prevMonth.getMonth() - 1);
+            setActiveStartDate(prevMonth);
+        }
+    };
+
+    const variants = {
+        enter: (direction) => ({
+            x: direction > 0 ? 100 : -100,
+            opacity: 0
+        }),
+        center: {
+            x: 0,
+            opacity: 1
+        },
+        exit: (direction) => ({
+            x: direction < 0 ? 100 : -100,
+            opacity: 0
+        })
+    };
 
     const fetchLists = useCallback(async () => {
         setLoading(true);
@@ -161,16 +222,44 @@ export default function Dashboard() {
                             transition={{ duration: 0.2 }}
                             className="bg-card border border-border rounded-3xl p-6 backdrop-blur-2xl shadow-xl transition-colors duration-300"
                         >
-                            <Calendar
-                                onChange={setSelectedDate}
-                                onClickDay={handleDateClick}
-                                value={selectedDate}
-                                tileClassName={tileClassName}
-                                locale="de-DE"
-                                prev2Label={null}
-                                next2Label={null}
-                                formatShortWeekday={(locale, date) => ['M', 'D', 'M', 'D', 'F', 'S', 'S'][date.getDay() === 0 ? 6 : date.getDay() - 1]}
-                            />
+
+                            {/* Swipeable Calendar Wrapper */}
+                            <div
+                                onTouchStart={onTouchStart}
+                                onTouchMove={onTouchMove}
+                                onTouchEnd={onTouchEnd}
+                                className="touch-pan-y overflow-hidden relative"
+                            >
+                                <AnimatePresence initial={false} custom={direction} mode="popLayout">
+                                    <motion.div
+                                        key={activeStartDate.toISOString()}
+                                        custom={direction}
+                                        variants={variants}
+                                        initial="enter"
+                                        animate="center"
+                                        exit="exit"
+                                        transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
+                                    >
+                                        <Calendar
+                                            onChange={setSelectedDate}
+                                            onClickDay={handleDateClick}
+                                            value={selectedDate}
+                                            activeStartDate={activeStartDate}
+                                            onActiveStartDateChange={({ activeStartDate, action }) => {
+                                                // Handle click navigation (Next/Prev buttons)
+                                                if (action === 'next') setDirection(1);
+                                                if (action === 'prev') setDirection(-1);
+                                                setActiveStartDate(activeStartDate);
+                                            }}
+                                            tileClassName={tileClassName}
+                                            locale="de-DE"
+                                            prev2Label={null}
+                                            next2Label={null}
+                                            formatShortWeekday={(locale, date) => ['M', 'D', 'M', 'D', 'F', 'S', 'S'][date.getDay() === 0 ? 6 : date.getDay() - 1]}
+                                        />
+                                    </motion.div>
+                                </AnimatePresence>
+                            </div>
                         </motion.div>
                     ) : (
                         <motion.div

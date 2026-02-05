@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../lib/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
@@ -174,6 +174,28 @@ export default function Recipes() {
         const matchesCategory = selectedCategory === 'All' || r.category === selectedCategory;
         return matchesSearch && matchesCategory;
     });
+
+    return (
+
+
+
+
+    // ... (keep existing effects)
+
+    const getRecipeStatus = (recipeId) => {
+            const recipeMenus = menus.filter(m => m.RecipeId === recipeId);
+            const today = new Date().toISOString().split('T')[0];
+
+            const past = recipeMenus.filter(m => m.date < today).sort((a, b) => b.date.localeCompare(a.date));
+            const future = recipeMenus.filter(m => m.date >= today).sort((a, b) => a.date.localeCompare(b.date));
+
+            return {
+                lastCooked: past.length > 0 ? new Date(past[0].date) : null,
+                nextPlanned: future.length > 0 ? new Date(future[0].date) : null
+            };
+        };
+
+    // ... (keep existing filteredRecipes and other logic)
 
     return (
         <div className="space-y-6">
@@ -385,18 +407,13 @@ export default function Recipes() {
                                             </div>
                                         </div>
 
-                                        {/* Recipe Status Badge (Future or Past) */}
-                                        {status.nextPlanned ? (
+                                        {/* Future Plan Badge */}
+                                        {status.nextPlanned && (
                                             <div className="absolute top-2 left-2 px-2 py-1 bg-emerald-500/90 backdrop-blur-md text-white text-xs font-bold rounded-lg shadow-sm border border-emerald-400/20 z-10 flex items-center gap-1.5">
-                                                <ArrowRight size={12} className="text-white" />
-                                                <span>{status.nextPlanned.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>
+                                                <Calendar size={12} className="text-white" />
+                                                <span>Am {status.nextPlanned.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}.</span>
                                             </div>
-                                        ) : status.lastCooked ? (
-                                            <div className="absolute top-2 left-2 px-2 py-1 bg-orange-500/90 backdrop-blur-md text-white text-xs font-bold rounded-lg shadow-sm border border-orange-400/20 z-10 flex items-center gap-1.5">
-                                                <ArrowLeft size={12} className="text-white" />
-                                                <span>{status.lastCooked.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
-                                            </div>
-                                        ) : null}
+                                        )}
 
                                         <div className="absolute bottom-4 left-4 right-4">
                                             <h3 className="text-xl font-bold text-white line-clamp-1">{recipe.title}</h3>
@@ -414,6 +431,14 @@ export default function Recipes() {
                                                 <span>{recipe.servings} Port.</span>
                                             </div>
                                         </div>
+
+                                        {/* Last Cooked Indicator */}
+                                        {status.lastCooked && (
+                                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 p-1.5 rounded-md self-start">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50" />
+                                                <span>Zuletzt: {status.lastCooked.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
+                                            </div>
+                                        )}
 
                                         {recipe.Tags && recipe.Tags.length > 0 && (
                                             <div className="flex flex-wrap gap-1.5 mt-auto pt-2">

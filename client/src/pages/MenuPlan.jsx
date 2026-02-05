@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Sun, Soup, Utensils, Apple, Info, Plus, Trash2, ShoppingCart, ListChecks } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sun, Soup, Utensils, Apple, Info, Plus, Trash2, ShoppingCart, ListChecks, CarFront } from 'lucide-react';
 import { Card } from '../components/Card';
 import { useAuth } from '../contexts/AuthContext';
 import { useEditMode } from '../contexts/EditModeContext';
@@ -126,7 +126,7 @@ export default function MenuPlan() {
         }
 
         if (editMode === 'view') {
-            if (meal && meal.Recipe) {
+            if (meal && (meal.Recipe || meal.is_eating_out)) {
                 if (e) {
                     const rect = e.currentTarget.getBoundingClientRect();
                     const isMobile = window.innerWidth < 640;
@@ -141,12 +141,13 @@ export default function MenuPlan() {
 
                     setTooltip({
                         id: `${dateStr}-${type}`,
-                        text: meal.Recipe.title,
+                        text: meal.Recipe ? meal.Recipe.title : (meal.description || "Auswärts essen"),
                         x: x,
                         y: rect.top - 10,
-                        recipe: meal.Recipe // Pass the full recipe object if it exists
+                        recipe: meal.Recipe,
+                        is_eating_out: meal.is_eating_out
                     });
-                } else {
+                } else if (meal.Recipe) {
                     // Clicked from expanded view list -> Navigate to Cooking Mode directly (as requested)
                     navigate('/recipes', {
                         state: {
@@ -177,7 +178,8 @@ export default function MenuPlan() {
                 date: activeSlot.date,
                 meal_type: activeSlot.type,
                 description: selection.description,
-                RecipeId: selection.RecipeId || null
+                RecipeId: selection.RecipeId || null,
+                is_eating_out: selection.is_eating_out || false
             };
 
             if (existing) {
@@ -217,21 +219,33 @@ export default function MenuPlan() {
 
     const minSwipeDistance = 50;
 
+    const [touchStartY, setTouchStartY] = useState(null);
+    const [touchEndY, setTouchEndY] = useState(null);
+
     const onTouchStart = (e) => {
         setTouchEnd(null);
+        setTouchStartY(e.targetTouches[0].clientY);
         setTouchStart(e.targetTouches[0].clientX);
     };
 
     const onTouchMove = (e) => {
+        setTouchEndY(e.targetTouches[0].clientY);
         setTouchEnd(e.targetTouches[0].clientX);
     };
 
     const onTouchEnd = () => {
         if (selectorOpen || bulkModal.open || cookingRecipe) return;
         if (!touchStart || !touchEnd) return;
-        const distance = touchStart - touchEnd;
-        const isLeftSwipe = distance > minSwipeDistance;
-        const isRightSwipe = distance < -minSwipeDistance;
+
+        const xDistance = touchStart - touchEnd;
+        const yDistance = (touchStartY || 0) - (touchEndY || 0);
+
+        // Ignore if vertical swipe dominates (scrolling)
+        if (Math.abs(yDistance) > Math.abs(xDistance)) return;
+
+        const isLeftSwipe = xDistance > minSwipeDistance;
+        const isRightSwipe = xDistance < -minSwipeDistance;
+
         if (isLeftSwipe) {
             changeWeek(1);
         }
@@ -246,6 +260,7 @@ export default function MenuPlan() {
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
+            style={{ touchAction: 'pan-y' }}
         >
             <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm pt-4 pb-2 border-b border-border transition-all">
                 <div className="flex items-center justify-between mb-4">
@@ -348,10 +363,17 @@ export default function MenuPlan() {
 
                                             {!isExpanded && meals.slice(0, 2).map(m => {
                                                 const slotIcon = slots.find(s => s.type === m.meal_type);
-                                                const Icon = slotIcon ? slotIcon.icon : Info;
+                                                let Icon = slotIcon ? slotIcon.icon : Info;
+                                                let styleClass = "bg-muted/50 text-foreground";
+
+                                                if (m.is_eating_out) {
+                                                    Icon = CarFront;
+                                                    styleClass = "bg-orange-500/10 text-orange-600";
+                                                }
+
                                                 return (
-                                                    <div key={m.id} className="hidden md:inline-flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-lg text-xs font-medium min-w-0">
-                                                        <Icon size={12} className="shrink-0 text-primary" />
+                                                    <div key={m.id} className={cn("hidden md:inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium min-w-0 transition-colors", styleClass)}>
+                                                        <Icon size={12} className={cn("shrink-0", m.is_eating_out ? "text-orange-600" : "text-primary")} />
                                                         <span className="truncate">{m.Recipe ? m.Recipe.title : m.description}</span>
                                                     </div>
                                                 );
@@ -377,16 +399,18 @@ export default function MenuPlan() {
                                                         disabled={false}
                                                         className={cn(
                                                             "w-8 h-8 rounded-full flex items-center justify-center transition-all relative group",
-                                                            isFilled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+                                                            isFilled
+                                                                ? (meal.is_eating_out ? "bg-orange-500/10 text-orange-600" : "bg-primary/10 text-primary")
+                                                                : "bg-muted text-muted-foreground",
                                                             editMode === 'delete' && isFilled && "animate-pulse bg-destructive/10 text-destructive hover:bg-destructive hover:text-white cursor-pointer",
-                                                            editMode !== 'delete' && isFilled && "hover:bg-primary/20 cursor-pointer", // Always pointer if filled
+                                                            editMode !== 'delete' && isFilled && (meal.is_eating_out ? "hover:bg-orange-500/20" : "hover:bg-primary/20 cursor-pointer"),
                                                             editMode !== 'delete' && !isFilled && "hover:bg-muted-foreground/10",
-                                                            editMode === 'view' && !isFilled && "opacity-50 cursor-default" // Only dimmed if empty in view mode
+                                                            editMode === 'view' && !isFilled && "opacity-50 cursor-default"
                                                         )}
                                                         title={s.label}
                                                     >
-                                                        <s.icon size={16} />
-                                                        {isFilled && editMode !== 'delete' && <span className="absolute top-0 right-0 w-2 h-2 bg-primary rounded-full border border-card" />}
+                                                        {isFilled && meal.is_eating_out ? <CarFront size={16} /> : <s.icon size={16} />}
+                                                        {isFilled && editMode !== 'delete' && <span className={cn("absolute top-0 right-0 w-2 h-2 rounded-full border border-card", meal.is_eating_out ? "bg-orange-500" : "bg-primary")} />}
                                                     </button>
                                                 );
                                             })}
@@ -449,16 +473,20 @@ export default function MenuPlan() {
                                                             >
                                                                 <div className="flex items-center gap-3">
                                                                     <div className={cn(
-                                                                        "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                                                                        meal ? "bg-primary/10 text-primary" : "bg-muted/50 text-muted-foreground",
+                                                                        "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors",
+                                                                        meal
+                                                                            ? (meal.is_eating_out ? "bg-orange-500/10 text-orange-600" : "bg-primary/10 text-primary")
+                                                                            : "bg-muted/50 text-muted-foreground",
                                                                         editMode === 'delete' && meal && "bg-destructive/10 text-destructive"
                                                                     )}>
-                                                                        <s.icon size={16} />
+                                                                        {meal && meal.is_eating_out ? <CarFront size={16} /> : <s.icon size={16} />}
                                                                     </div>
                                                                     <div className="flex-1 text-sm">
                                                                         <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">{s.label}</span>
                                                                         {meal ? (
-                                                                            <span className="font-medium text-foreground">{meal.Recipe ? meal.Recipe.title : meal.description}</span>
+                                                                            <span className={cn("font-medium", meal.is_eating_out ? "text-orange-600" : "text-foreground")}>
+                                                                                {meal.Recipe ? meal.Recipe.title : (meal.description || 'Auswärts essen')}
+                                                                            </span>
                                                                         ) : (
                                                                             (editMode === 'create' || editMode === 'edit') ? (
                                                                                 <button

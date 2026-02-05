@@ -72,6 +72,26 @@ router.get('/public/:id', async (req, res) => {
     }
 });
 
+// Public recipes list (No Auth)
+router.get('/public', async (req, res) => {
+    try {
+        const recipes = await Recipe.findAll({
+            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings'],
+            include: [
+                {
+                    model: Tag,
+                    attributes: ['id', 'name'],
+                    through: { attributes: [] }
+                }
+            ],
+            order: [['title', 'ASC']]
+        });
+        res.json(recipes);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Get recipe details
 router.get('/:id', auth, async (req, res) => {
     try {

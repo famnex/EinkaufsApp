@@ -34,13 +34,14 @@ router.get('/', auth, async (req, res) => {
 // Create menu entry
 router.post('/', auth, async (req, res) => {
     try {
-        const { date, meal_type, description, RecipeId } = req.body;
+        const { date, meal_type, description, RecipeId, is_eating_out } = req.body;
 
         const menu = await Menu.create({
             date,
             meal_type,
             description,
-            RecipeId: RecipeId || null
+            RecipeId: RecipeId || null,
+            is_eating_out: is_eating_out || false
         });
 
         // Fetch fresh to return with associations if needed

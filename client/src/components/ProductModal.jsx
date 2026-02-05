@@ -66,7 +66,8 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                 ...formData,
                 StoreId: null, // Removed Standard Store
                 ManufacturerId: formData.ManufacturerId || null,
-                price_hint: formData.price_hint || null
+                price_hint: formData.price_hint || null,
+                isNew: false // Confirming/Editing a product verifies it
             };
             if (product?.id) {
                 await api.put(`/products/${product.id}`, dataToSave);

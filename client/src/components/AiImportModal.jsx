@@ -6,6 +6,25 @@ import { Input } from './Input';
 import api from '../lib/axios';
 import { cn } from '../lib/utils';
 
+// Simple client-side version of German normalization
+function normalizeGerman(name) {
+    if (!name) return [];
+    const term = name.trim().toLowerCase();
+    const variations = new Set([term]);
+    const suffixes = ['n', 'en', 'e', 's', 'er'];
+    for (const suffix of suffixes) {
+        if (term.endsWith(suffix)) {
+            const base = term.slice(0, -suffix.length);
+            if (base.length > 2) variations.add(base);
+        }
+    }
+    // Also try adding suffixes
+    for (const suffix of suffixes) {
+        variations.add(term + suffix);
+    }
+    return Array.from(variations);
+}
+
 export default function AiImportModal({ isOpen, onClose, onSave }) {
     const [step, setStep] = useState('input'); // input, processing, review
     const [inputText, setInputText] = useState('');
@@ -55,7 +74,16 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                 // 1. Direct Name Match (Case insensitive)
                 match = products.find(p => p.name.toLowerCase() === ing.name.toLowerCase());
 
-                // 2. Alternative Names Match (was Search Terms)
+                // 2. Fuzzy German Match
+                if (!match) {
+                    const variants = normalizeGerman(ing.name);
+                    for (const v of variants) {
+                        match = products.find(p => p.name.toLowerCase() === v);
+                        if (match) break;
+                    }
+                }
+
+                // 3. Alternative Names Match (was Search Terms)
                 if (!match && ing.alternative_names && Array.isArray(ing.alternative_names)) {
                     for (const term of ing.alternative_names) {
                         const termLower = term.toLowerCase();
@@ -129,7 +157,9 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                     console.log('Creating new product:', mapping.newName);
                     const { data: newProd } = await api.post('/products', {
                         name: mapping.newName,
-                        unit: rawIng.unit || 'Stück'
+                        unit: rawIng.unit || 'Stück',
+                        isNew: true,
+                        source: 'ai'
                     });
                     productId = newProd.id;
                 }

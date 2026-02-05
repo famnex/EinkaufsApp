@@ -14,7 +14,7 @@ const UPDATE_STEPS = [
     { key: 'restart', label: 'Neustart', icon: Cpu, marker: '>>> Restarting Service' }
 ];
 
-export default function UpdateModal({ isOpen, onClose }) {
+export default function UpdateModal({ isOpen, onClose, currentVersion, updateInfo }) {
     const [logs, setLogs] = useState([]);
     const [status, setStatus] = useState('idle'); // idle, updating, restarting, success, error
     const [showLogs, setShowLogs] = useState(false);
@@ -141,7 +141,14 @@ export default function UpdateModal({ isOpen, onClose }) {
                                 </div>
                                 <div>
                                     <h3 className="font-bold tracking-tight">System-Update</h3>
-                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Version v0.12.6</p>
+                                    <div className="flex gap-2 text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
+                                        <span>Aktuell: {currentVersion || '...'}</span>
+                                        {updateInfo?.commits_behind > 0 && (
+                                            <span className="text-primary">
+                                                (+{updateInfo.commits_behind} Commits)
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                             <button onClick={onClose} className="p-2 hover:bg-muted rounded-full text-muted-foreground transition-colors">

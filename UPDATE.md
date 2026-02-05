@@ -1,7 +1,14 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.14.3
-<!-- push-lock: v0.14.3 is staging only -->
+## Aktuelle Version: v0.16.0
+
+### Changelog v0.16.0
+- **Feature (Product Management):** Neue "Neu"-Badges für Produkte, die über Alexa (Blau) oder AI (Lila) hinzugefügt wurden. ✨🏷️
+- **Feature (Product Management):** Neue Produkte werden nun oben in der Liste sortiert, um sie schneller zu finden. ⬆️
+- **Logic (Normalization):** Verbesserte Erkennung von deutschen Produktnamen (Singular/Plural) für Alexa und AI-Importe, um Duplikate zu vermeiden. 🇩🇪🧠
+- **Feature (System):** System-Update zeigt nun die aktuelle Version dynamisch an. ℹ️
+- **Fix (UX):** Robustere Swipe-Gesten im Menüplaner und Dashboard-Kalender. 📱👆
+- **Fix (Cooking Mode):** Scroll-Sprünge behoben und wischbare Schritt-Navigation hinzugefügt. 🍳📖
 
 ### Changelog v0.14.3
 - **Bugfix (API):** Fix für "Es gibt undefined". Rezepte verwenden das Feld `title` statt `name`. 🐛🍳

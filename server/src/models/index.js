@@ -33,7 +33,9 @@ const Product = sequelize.define('Product', {
     category: { type: DataTypes.STRING },
     price_hint: { type: DataTypes.DECIMAL(10, 2) },
     unit: { type: DataTypes.ENUM('Stück', 'g', 'kg', 'ml', 'l'), defaultValue: 'Stück' },
-    note: { type: DataTypes.TEXT, allowNull: true }
+    note: { type: DataTypes.TEXT, allowNull: true },
+    isNew: { type: DataTypes.BOOLEAN, defaultValue: false },
+    source: { type: DataTypes.STRING, defaultValue: 'manual' } // 'manual', 'alexa', 'ai'
 });
 
 Product.belongsTo(Manufacturer);
@@ -85,6 +87,7 @@ const Menu = sequelize.define('Menu', {
     date: { type: DataTypes.DATEONLY, allowNull: false },
     meal_type: { type: DataTypes.ENUM('breakfast', 'lunch', 'dinner', 'snack'), defaultValue: 'lunch' },
     description: { type: DataTypes.TEXT }, // Manual entry
+    is_eating_out: { type: DataTypes.BOOLEAN, defaultValue: false },
     // RecipeId will be added automatically by association, but we can depend on it
 });
 

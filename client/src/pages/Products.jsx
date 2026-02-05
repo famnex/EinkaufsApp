@@ -3,7 +3,7 @@ import api from '../lib/axios';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { Package, Plus, Search, Filter, Edit2, Trash2, Factory, Sparkles } from 'lucide-react';
+import { Package, Plus, Search, Filter, Edit2, Trash2, Factory, Sparkles, Radio } from 'lucide-react'; // Added Radio for Alexa
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProductModal from '../components/ProductModal';
@@ -118,10 +118,18 @@ export default function Products() {
         setIsModalOpen(true);
     };
 
-    const filteredProducts = products.filter(p =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.category?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredProducts = products
+        .filter(p =>
+            p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.category?.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+        .sort((a, b) => {
+            // Sort "New" items first
+            if (a.isNew && !b.isNew) return -1;
+            if (!a.isNew && b.isNew) return 1;
+            // Otherwise alphabetical
+            return a.name.localeCompare(b.name);
+        });
 
     const [mergeSource, setMergeSource] = useState(null);
     const [mergeTarget, setMergeTarget] = useState(null);
@@ -253,6 +261,19 @@ export default function Products() {
                                         <h3 className="font-bold text-foreground truncate text-lg leading-tight">{product.name}</h3>
                                         <p className="text-sm text-muted-foreground truncate mt-1">{product.category || 'Keine Kategorie'}</p>
                                         <div className="flex items-center gap-2 mt-2">
+                                            {/* Badges */}
+                                            {product.isNew && (
+                                                <span className={cn(
+                                                    "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1",
+                                                    product.source === 'alexa' ? "bg-cyan-500/10 text-cyan-500 border border-cyan-500/20" :
+                                                        product.source === 'ai' ? "bg-purple-500/10 text-purple-500 border border-purple-500/20" :
+                                                            "bg-primary/10 text-primary border border-primary/20"
+                                                )}>
+                                                    {product.source === 'alexa' && <Radio size={10} />}
+                                                    {product.source === 'ai' && <Sparkles size={10} />}
+                                                    {product.source === 'alexa' ? "Alexa" : product.source === 'ai' ? "AI Neu" : "Neu"}
+                                                </span>
+                                            )}
                                             <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full text-muted-foreground font-medium">
                                                 {product.unit || 'Stück'}
                                             </span>

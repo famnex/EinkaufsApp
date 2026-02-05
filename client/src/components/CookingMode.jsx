@@ -1,16 +1,58 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, Maximize2, Minimize2, AlertTriangle } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, Maximize2, Minimize2, AlertTriangle, Sparkles } from 'lucide-react';
 import { Button } from './Button';
 import { cn, getImageUrl } from '../lib/utils';
 import api from '../lib/axios';
+import CookingAssistant from './CookingAssistant';
 
 export default function CookingMode({ recipe, onClose }) {
     const [step, setStep] = useState(0);
     const [checkedIngredients, setCheckedIngredients] = useState(new Set());
     const [textSize, setTextSize] = useState(1); // 0: Small, 1: Normal, 2: Large
     const [showIngredientsMobile, setShowIngredientsMobile] = useState(false); // For mobile toggle
+    const [showAssistant, setShowAssistant] = useState(false);
     const [futureUsage, setFutureUsage] = useState({}); // { ingredientId: [{ date, recipeName }] }
+    const [direction, setDirection] = useState(0);
+
+    // Swipe Logic for Steps
+    const [touchStart, setTouchStart] = useState(null);
+    const [touchEnd, setTouchEnd] = useState(null);
+    const minSwipeDistance = 50;
+
+    const onTouchStart = (e) => {
+        setTouchEnd(null);
+        setTouchStart(e.targetTouches[0].clientX);
+    };
+
+    const onTouchMove = (e) => {
+        setTouchEnd(e.targetTouches[0].clientX);
+    };
+
+    const onTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+        const distance = touchStart - touchEnd;
+        const isLeftSwipe = distance > minSwipeDistance;
+        const isRightSwipe = distance < -minSwipeDistance;
+
+        if (isLeftSwipe) nextStep();
+        if (isRightSwipe) prevStep();
+    };
+
+    const variants = {
+        enter: (direction) => ({
+            x: direction > 0 ? 100 : -100,
+            opacity: 0
+        }),
+        center: {
+            x: 0,
+            opacity: 1
+        },
+        exit: (direction) => ({
+            x: direction < 0 ? 100 : -100,
+            opacity: 0
+        })
+    };
 
     // Portal Tooltip State
     const [tooltipData, setTooltipData] = useState(null); // { x, y, items: [] }
@@ -121,11 +163,17 @@ export default function CookingMode({ recipe, onClose }) {
     };
 
     const nextStep = () => {
-        if (step < steps.length - 1) setStep(step + 1);
+        if (step < steps.length - 1) {
+            setDirection(1);
+            setStep(step + 1);
+        }
     };
 
     const prevStep = () => {
-        if (step > 0) setStep(step - 1);
+        if (step > 0) {
+            setDirection(-1);
+            setStep(step - 1);
+        }
     };
 
     // Keyboard navigation
@@ -261,7 +309,12 @@ export default function CookingMode({ recipe, onClose }) {
                         </div>
 
                         {/* Ingredients List */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-4 pb-24 md:pb-6">
+                        <div
+                            className="flex-1 overflow-y-auto p-6 space-y-4 pb-24 md:pb-6"
+                            onTouchStart={(e) => e.stopPropagation()}
+                            onTouchMove={(e) => e.stopPropagation()}
+                            onTouchEnd={(e) => e.stopPropagation()}
+                        >
                             <h3 className="font-bold text-lg uppercase tracking-wider text-muted-foreground">Zutaten</h3>
                             <div className="space-y-2">
                                 {ingredients.map((ing, i) => (
@@ -317,14 +370,21 @@ export default function CookingMode({ recipe, onClose }) {
                     <div className="flex-1 flex flex-col h-full relative bg-background overflow-hidden">
 
                         {/* Step Content */}
-                        <div className="flex-1 flex items-center justify-center p-8 md:p-16 overflow-y-auto">
-                            <AnimatePresence mode="wait">
+                        <div
+                            className="flex-1 flex items-center justify-center p-8 md:p-16 overflow-y-auto"
+                            onTouchStart={onTouchStart}
+                            onTouchMove={onTouchMove}
+                            onTouchEnd={onTouchEnd}
+                        >
+                            <AnimatePresence mode="popLayout" custom={direction}>
                                 <motion.div
                                     key={step}
-                                    initial={{ opacity: 0, x: 20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -20 }}
-                                    transition={{ duration: 0.2 }}
+                                    custom={direction}
+                                    variants={variants}
+                                    initial="enter"
+                                    animate="center"
+                                    exit="exit"
+                                    transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
                                     className="max-w-3xl w-full space-y-8"
                                 >
                                     <div className="flex items-center gap-4 text-primary font-bold uppercase tracking-widest text-sm mb-4">
@@ -334,7 +394,7 @@ export default function CookingMode({ recipe, onClose }) {
                                         Schritt {step + 1} von {steps.length}
                                     </div>
 
-                                    <p className={cn("font-medium transition-all duration-300 text-foreground", getTextSizeClass())}>
+                                    <p className={cn("font-medium transition-all duration-300 text-foreground Select-text", getTextSizeClass())}>
                                         {steps[step]}
                                     </p>
                                 </motion.div>
@@ -377,6 +437,24 @@ export default function CookingMode({ recipe, onClose }) {
                         </div>
                     </div>
                 </div>
+
+                {/* AI Assistant FAB - Repositioned to be less intrusive */}
+                <motion.button
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setShowAssistant(true)}
+                    className="fixed top-20 right-4 md:top-auto md:right-auto md:bottom-6 md:left-6 z-[100] w-12 h-12 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-full shadow-lg flex items-center justify-center text-white border-2 border-white/20"
+                >
+                    <Sparkles size={20} />
+                </motion.button>
+
+                <CookingAssistant
+                    isOpen={showAssistant}
+                    onClose={() => setShowAssistant(false)}
+                    recipe={recipe}
+                />
 
                 {/* --- FIXED TOOLTIP LAYER --- */}
                 <AnimatePresence>
