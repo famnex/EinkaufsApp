@@ -1,6 +1,6 @@
 {
   "name": "server",
-  "version": "0.17.8",
+  "version": "0.17.9",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -23,7 +23,7 @@
     "nodemailer": "^7.0.13",
     "openai": "^6.17.0",
     "sequelize": "^6.37.7",
-    "sharp": "^0.34.5",
+    "jimp": "^0.22.10",
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {

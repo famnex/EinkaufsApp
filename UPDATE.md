@@ -1,6 +1,9 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.17.8
+## Aktuelle Version: v0.17.9
+
+### Changelog v0.17.9
+- **Hotfix (Dependency):** Korrigiert die `package.json` Abhängigkeiten. `sharp` wurde entfernt und `jimp` korrekt hinzugefügt. (Der vorherige Auto-Mechanismus hatte die Datei zu früh committet). 📦🔧
 
 ### Changelog v0.17.8
 - **Refactor (Server):** Wechsel von `sharp` zu **`jimp`** für die Bildoptimierung. `jimp` ist 100% JavaScript und benötigt keine nativen Linux-Bibliotheken, was die Kompatibilität mit Uberspace/Shared Hosting sicherstellt. Bilder werden weiterhin auf max. 800px Höhe verkleinert und komprimiert. 🖼️🔄
