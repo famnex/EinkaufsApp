@@ -1,12 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChefHat, Clock, Users, Filter, X, UtensilsCrossed, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, ChefHat, Clock, Users, Filter, X, UtensilsCrossed, ArrowRight, ChevronDown, ChevronUp, Moon, Sun } from 'lucide-react';
 import axios from 'axios';
 import { cn } from '../lib/utils';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function SharedCookbook() {
     const navigate = useNavigate();
+    const { theme, toggleTheme } = useTheme();
+    const isDark = theme === 'dark';
+
     const [recipes, setRecipes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -49,6 +53,12 @@ export default function SharedCookbook() {
         fetchRecipes();
     }, [API_URL]);
 
+    const toggleTag = (tag) => {
+        setSelectedTags(prev =>
+            prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+        );
+    };
+
     const filteredRecipes = useMemo(() => {
         return recipes.filter(recipe => {
             // Search
@@ -77,14 +87,29 @@ export default function SharedCookbook() {
     };
 
     return (
-        <div className="min-h-screen bg-background text-foreground font-sans">
+        <div className="min-h-screen bg-background text-foreground font-sans transition-colors duration-300">
             {/* Hero Header */}
-            <div className="relative bg-black text-white overflow-hidden mb-8">
+            <div className={cn(
+                "relative overflow-hidden mb-8 transition-all duration-700",
+                isDark ? "bg-zinc-950" : "bg-indigo-950",
+                "text-white"
+            )}>
                 <div className="absolute inset-0 bg-gradient-to-r from-purple-900/40 to-blue-900/40 z-0" />
                 <div
                     className="absolute inset-0 opacity-10 z-0"
                     style={{ backgroundImage: `url(${import.meta.env.BASE_URL}pattern.svg)` }}
                 />
+
+                {/* Theme Toggle */}
+                <div className="absolute top-4 right-4 z-20">
+                    <button
+                        onClick={toggleTheme}
+                        className="p-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all text-white"
+                        title={isDark ? "Hell-Modus" : "Dunkel-Modus"}
+                    >
+                        {isDark ? <Sun size={20} /> : <Moon size={20} />}
+                    </button>
+                </div>
 
                 <div className="max-w-7xl mx-auto px-4 py-8 md:py-20 relative z-10 flex flex-col items-center text-center">
                     <motion.div
@@ -185,17 +210,15 @@ export default function SharedCookbook() {
                                         return (
                                             <button
                                                 key={tag}
-                                                onClick={() => setSelectedTags(prev =>
-                                                    isSelected ? prev.filter(t => t !== tag) : [...prev, tag]
-                                                )}
+                                                onClick={() => toggleTag(tag)}
                                                 className={cn(
                                                     "px-3 py-1 rounded-md text-xs font-medium transition-colors border",
                                                     isSelected
-                                                        ? "bg-secondary text-secondary-foreground border-secondary"
+                                                        ? "bg-secondary text-secondary-foreground border-secondary shadow-sm"
                                                         : "bg-transparent border-transparent hover:bg-muted text-muted-foreground"
                                                 )}
                                             >
-                                                {tag}
+                                                #{tag}
                                             </button>
                                         );
                                     })}
@@ -277,11 +300,26 @@ export default function SharedCookbook() {
                                             </h3>
 
                                             <div className="flex flex-wrap gap-1 mb-4">
-                                                {recipe.Tags?.slice(0, 3).map(tag => (
-                                                    <span key={tag.name} className="text-[10px] px-2 py-0.5 bg-muted rounded text-muted-foreground">
-                                                        #{tag.name}
-                                                    </span>
-                                                ))}
+                                                {recipe.Tags?.map(tag => {
+                                                    const isSelected = selectedTags.includes(tag.name);
+                                                    return (
+                                                        <button
+                                                            key={tag.name}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                toggleTag(tag.name);
+                                                            }}
+                                                            className={cn(
+                                                                "text-[10px] px-2 py-0.5 rounded transition-colors border",
+                                                                isSelected
+                                                                    ? "bg-secondary text-secondary-foreground border-secondary"
+                                                                    : "bg-muted text-muted-foreground border-transparent hover:border-muted-foreground/30"
+                                                            )}
+                                                        >
+                                                            #{tag.name}
+                                                        </button>
+                                                    );
+                                                })}
                                             </div>
 
                                             <div className="mt-auto flex items-center justify-between pt-4 border-t border-border">

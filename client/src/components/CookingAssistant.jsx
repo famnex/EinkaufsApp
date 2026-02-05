@@ -41,6 +41,7 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
 
             recognitionRef.current.onend = () => {
                 setIsListening(false);
+                playAudioCue('end');
             };
 
             recognitionRef.current.onerror = (event) => {
@@ -50,34 +51,99 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
         }
     }, [recipe]); // Re-init if recipe changes? Not strictly needed but safe.
 
+    // Audio Cues for UX
+    const playAudioCue = (type) => {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(type === 'start' ? 880 : 440, ctx.currentTime);
+
+            gain.gain.setValueAtTime(0, ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.start();
+            osc.stop(ctx.currentTime + 0.2);
+        } catch (e) {
+            console.warn("Audio Context not supported", e);
+        }
+    };
+
     const toggleListening = () => {
         if (isListening) {
             recognitionRef.current?.stop();
         } else {
             setIsSpeaking(false);
             window.speechSynthesis.cancel();
-            recognitionRef.current?.start();
-            setIsListening(true);
+            playAudioCue('start');
+            setTimeout(() => {
+                recognitionRef.current?.start();
+                setIsListening(true);
+            }, 100);
         }
     };
 
-    const speak = (text) => {
+    const audioRef = useRef(null);
+
+    const speak = async (text, isEnding = false) => {
         if (!text) return;
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'de-DE';
-        utterance.onend = () => setIsSpeaking(false);
-        utterance.onstart = () => setIsSpeaking(true);
-        window.speechSynthesis.speak(utterance);
+
+        // Stop any current playback
+        stopSpeaking();
+
+        try {
+            setIsSpeaking(true);
+            const token = localStorage.getItem('token');
+            const baseUrl = import.meta.env.VITE_API_URL || (import.meta.env.BASE_URL === '/' ? '/api' : `${import.meta.env.BASE_URL}api`.replace('//', '/'));
+            const url = `${baseUrl}/ai/speak?text=${encodeURIComponent(text)}&token=${token}`;
+
+            const audio = new Audio(url);
+            audioRef.current = audio;
+
+            audio.onended = () => {
+                setIsSpeaking(false);
+                // Automatically start listening again for "Conversation Mode"
+                // but only if this wasn't an ending message
+                if (!isEnding) {
+                    setTimeout(() => {
+                        toggleListening();
+                    }, 400); // 400ms delay for natural gap
+                }
+            };
+
+            audio.onerror = () => {
+                setIsSpeaking(false);
+                console.error("Audio playback error");
+            };
+
+            await audio.play();
+        } catch (err) {
+            console.error("TTS generation failed", err);
+            setIsSpeaking(false);
+        }
     };
 
     const stopSpeaking = () => {
-        window.speechSynthesis.cancel();
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current = null;
+        }
+        window.speechSynthesis.cancel(); // Safeguard for native TTS beeps etc if any
         setIsSpeaking(false);
     };
 
     const handleSend = async (text = inputText) => {
         if (!text.trim()) return;
+
+        // Detect termination
+        const terminationWords = ['ok', 'danke', 'alles klar', 'fertig', 'stopp', 'tschüss', 'ciao'];
+        const isEnding = terminationWords.some(word => text.toLowerCase().includes(word));
 
         // Add User Message
         const userMsg = { role: 'user', content: text };
@@ -94,7 +160,8 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
                     amount: ri.quantity,
                     unit: ri.unit
                 })),
-                steps: recipe.instructions
+                steps: recipe.instructions,
+                isEnding // Tell AI to keep it brief if ending
             };
 
             const { data } = await api.post('/ai/chat', {
@@ -104,7 +171,9 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
 
             const replyMsg = { role: 'assistant', content: data.reply };
             setMessages(prev => [...prev, replyMsg]);
-            speak(data.reply);
+
+            // Pass the ending flag to speak so it knows whether to restart mic
+            speak(data.reply, isEnding);
 
         } catch (err) {
             console.error(err);

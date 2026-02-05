@@ -1,6 +1,16 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.16.2
+## Aktuelle Version: v0.17.0
+
+### Changelog v0.17.0
+- **Feature (AI Assistant):** Neuer freihändiger **Gesprächsmodus**. Das Mikrofon reaktiviert sich automatisch nach Antworten. Beenden per Sprache ("Danke", "Alles klar"). 🎙️👩‍🍳
+- **Feature (AI Assistant):** Upgrade auf **OpenAI Premium TTS** (Streaming). Die Stimme ist jetzt natürlich, menschlich und antwortet ohne spürbare Verzögerung. ⚡🔊
+- **Feature (AI Assistant):** Intelligente Transliteration. Abkürzungen (EL, g, Min) und Brüche werden nun korrekt ausgesprochen. 🗣️📖
+- **Feature (AI Assistant):** Präzisere Antworten. Die KI gibt nun exakte Zeiten und Mengenempfehlungen bei Anpassungen. ⚖️⏲️
+- **Feature (Shared Cookbook):** Interaktive Hashtags. Rezepte können nun durch Klick auf Tags direkt in der Übersicht gefiltert werden. 🏷️🔍
+- **Feature (Shared Cookbook):** Integrierter **Day/Night Mode**. Design-Umschalter direkt im Header (Sonne/Mond). ☀️🌙
+- **Feature (UI/UX):** AI Assistant FAB auf Mobilgeräten um 40px nach unten versetzt, um Overlap zu vermeiden. 📱🛠️
+- **Fix (Shared Cookbook):** Korrekte Pfade für Asset-Hintergründe (`pattern.svg`) in Unterverzeichnissen. 🖼️
 
 ### Changelog v0.16.2
 - **Hotfix (Database):** Zusätzliche Migration (`is_eating_out`) hinzugefügt, um 500er Fehler im Menüplan zu beheben. 🐛🗄️

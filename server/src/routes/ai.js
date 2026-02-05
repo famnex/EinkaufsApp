@@ -399,11 +399,16 @@ router.post('/chat', auth, async (req, res) => {
 
         Your Goal:
         Answer the user's question about the recipe, cooking techniques, or ingredient substitutions.
-        Keep your answers CONCISE, HELPFUL, and ENCOURAGING. 
-        If asking about quantities, refer to the ingredients list.
-        If asking "What's next?", assume they are on the current step if provided, or ask which step they are on.
+        FASSE DICH EXTREM KURZ. Gib NUR das Nötigste an Informationen. Vermeide Smalltalk oder lange Erklärungen.
+        BE EXPLICIT and ACTIONABLE. If the user asks about changing amounts or missing ingredients:
+        - Provide SPECIFIC estimates (e.g., "5 Minuten kürzer braten").
+        - Provide TEMPERATURES if relevant.
+        - Give exact alternatives.
         
-        IMPORTANT: Use simple formatting. Plain text is best for text-to-speech, but simple bold is okay.
+        ${context?.isEnding ? 'Der Benutzer hat das Gespräch beendet (z.B. mit "Danke" oder "Alles klar"). Verabschiede dich kurz und sachlich, OHNE eine weitere Frage zu stellen.' : 'Stelle am Ende immer eine kurze, KÜRZESTE Rückfrage oder einen Vorschlag für den nächsten Schritt.'}
+
+        IMPORTANT: Use ONLY plain text. NO markdown (no **bold**, no # headers). 
+        Use short, simple sentences that sound natural when read aloud.
         Response language: GERMAN.
         `;
 
@@ -420,6 +425,98 @@ router.post('/chat', auth, async (req, res) => {
 
     } catch (err) {
         console.error('AI Chat Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Helper to expand abbreviations for TTS
+function expandAbbreviations(text) {
+    if (!text) return "";
+
+    const expansions = {
+        'Min\\.': 'Minuten',
+        'Min': 'Minuten',
+        'Sek\\.': 'Sekunden',
+        'Sek': 'Sekunden',
+        'Std\\.': 'Stunden',
+        'Std': 'Stunden',
+        'g': 'Gramm',
+        'kg': 'Kilogramm',
+        'EL': 'Esslöffel',
+        'TL': 'Teelöffel',
+        'Pr\\.': 'Prise',
+        'Pkg\\.': 'Packung',
+        'Stk\\.': 'Stück',
+        'Stk': 'Stück',
+        'ml': 'Milliliter',
+        'l': 'Liter',
+        'ca\\.': 'zirka',
+        'evtl\\.': 'eventuell',
+        'bzw\\.': 'beziehungsweise',
+        'Sekt\\.': 'Sektion',
+        '/': ' slash ',
+        'Grad': 'Grad Celsius'
+    };
+
+    let expanded = text;
+
+    // Expand numbers for explicit pronunciation if they look like quantities/times
+    // e.g. "1/2" -> "ein halb", "1/4" -> "ein viertel"
+    expanded = expanded.replace(/\b1\/2\b/g, 'ein halb');
+    expanded = expanded.replace(/\b1\/4\b/g, 'ein viertel');
+    expanded = expanded.replace(/\b3\/4\b/g, 'drei viertel');
+
+    // Expand cooking abbreviations with boundaries
+    Object.entries(expansions).forEach(([abbr, full]) => {
+        const regex = new RegExp(`\\b${abbr}\\b`, 'g');
+        expanded = expanded.replace(regex, full);
+    });
+
+    return expanded;
+}
+
+// OpenAI TTS Endpoint (GET for easier streaming in browser)
+router.get('/speak', auth, async (req, res) => {
+    try {
+        const { text } = req.query;
+        if (!text) return res.status(400).json({ error: 'Text is required' });
+
+        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
+        if (!setting || !setting.value) {
+            return res.status(400).json({ error: 'OpenAI API Key not configured' });
+        }
+
+        const openai = new OpenAI({ apiKey: setting.value });
+        const speechText = expandAbbreviations(text);
+
+        const mp3 = await openai.audio.speech.create({
+            model: "tts-1",
+            voice: "shimmer",
+            input: speechText,
+        });
+
+        res.set('Content-Type', 'audio/mpeg');
+
+        // Use mp3.body if it's a stream, or pipe the result
+        if (mp3.body && mp3.body.pipe) {
+            mp3.body.pipe(res);
+        } else if (mp3.response && mp3.response.body) {
+            // Some versions of the SDK require this
+            const reader = mp3.response.body.getReader();
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                res.write(value);
+            }
+            res.end();
+        } else {
+            // Fallback: full buffer
+            const buffer = Buffer.from(await mp3.arrayBuffer());
+            res.send(buffer);
+        }
+
+    } catch (err) {
+        console.error('TTS Error:', err);
         res.status(500).json({ error: err.message });
     }
 });
