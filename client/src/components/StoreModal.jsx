@@ -5,8 +5,10 @@ import { Button } from './Button';
 import { Input } from './Input';
 import api from '../lib/axios';
 import { getImageUrl } from '../lib/utils';
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 export default function StoreModal({ isOpen, onClose, store, onSave }) {
+    useLockBodyScroll(isOpen);
     const [name, setName] = useState('');
     const [logoFile, setLogoFile] = useState(null);
     const [logoPreview, setLogoPreview] = useState(null);

@@ -66,7 +66,13 @@ router.get('/public/:id', async (req, res) => {
             ]
         });
         if (!recipe) return res.status(404).json({ error: 'Recipe not found' });
-        res.json(recipe);
+
+        // Hide image if scraped
+        const plain = recipe.get({ plain: true });
+        if (plain.imageSource === 'scraped') {
+            plain.image_url = null;
+        }
+        res.json(plain);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -76,17 +82,33 @@ router.get('/public/:id', async (req, res) => {
 router.get('/public', async (req, res) => {
     try {
         const recipes = await Recipe.findAll({
-            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings'],
+            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource'],
             include: [
                 {
                     model: Tag,
                     attributes: ['id', 'name'],
                     through: { attributes: [] }
+                },
+                {
+                    model: RecipeIngredient,
+                    include: [
+                        { model: Product, attributes: ['name'] }
+                    ]
                 }
             ],
             order: [['title', 'ASC']]
         });
-        res.json(recipes);
+
+        // Filter out images where source is 'scraped' for public view
+        const sanitizedRecipes = recipes.map(r => {
+            const plain = r.get({ plain: true });
+            if (plain.imageSource === 'scraped') {
+                plain.image_url = null; // Hide image
+            }
+            return plain;
+        });
+
+        res.json(sanitizedRecipes);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -223,7 +245,8 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
             duration: parseInt(duration) || 0,
             servings: parseInt(servings) || 1,
             instructions: parsedInstructions,
-            image_url: finalImageUrl
+            image_url: finalImageUrl,
+            imageSource: req.body.imageSource || (finalImageUrl ? (req.file ? 'upload' : 'scraped') : 'scraped')
         });
         console.log('Recipe Created ID:', recipe.id);
 
@@ -274,7 +297,8 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
             prep_time: parseInt(prep_time) || 0,
             duration: parseInt(duration) || 0,
             servings: parseInt(servings) || 1,
-            instructions: instructions ? JSON.parse(instructions) : undefined
+            instructions: instructions ? JSON.parse(instructions) : undefined,
+            imageSource: req.body.imageSource
         };
 
         if (req.file) {

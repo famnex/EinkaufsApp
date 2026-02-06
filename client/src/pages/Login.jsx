@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Card } from '../components/Card';
-import { LogIn, Zap } from 'lucide-react';
+import { LogIn, ShoppingBag } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ThemeToggle from '../components/ThemeToggle';
 import api from '../lib/axios';
@@ -72,7 +72,7 @@ export default function LoginPage() {
                             transition={{ delay: 0.2 }}
                             className="mb-6 rounded-2xl bg-primary p-4 text-primary-foreground shadow-lg shadow-primary/20 transform hover:scale-110 transition-transform duration-500"
                         >
-                            <Zap size={32} />
+                            <ShoppingBag size={32} />
                         </motion.div>
                         <motion.h1
                             initial={{ y: 20, opacity: 0 }}
@@ -88,7 +88,7 @@ export default function LoginPage() {
                             transition={{ delay: 0.4 }}
                             className="text-muted-foreground text-center"
                         >
-                            Gib deine Daten ein, um auf <span className="text-foreground font-semibold">LISTENX</span> zuzugreifen
+                            Gib deine Daten ein, um auf <span className="text-foreground font-semibold">EinkaufsApp</span> zuzugreifen
                         </motion.p>
                     </div>
 

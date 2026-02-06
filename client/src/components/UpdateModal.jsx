@@ -4,6 +4,7 @@ import { Terminal, X, CheckCircle, AlertTriangle, Loader2, ChevronDown, ChevronU
 import { Button } from './Button';
 import api from '../lib/axios';
 import { cn } from '../lib/utils';
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 const UPDATE_STEPS = [
     { key: 'pull', label: 'Code laden', icon: CloudDownload, marker: '>>> Starting Update Process...' },
@@ -15,6 +16,7 @@ const UPDATE_STEPS = [
 ];
 
 export default function UpdateModal({ isOpen, onClose, currentVersion, updateInfo }) {
+    useLockBodyScroll(isOpen);
     const [logs, setLogs] = useState([]);
     const [status, setStatus] = useState('idle'); // idle, updating, restarting, success, error
     const [showLogs, setShowLogs] = useState(false);

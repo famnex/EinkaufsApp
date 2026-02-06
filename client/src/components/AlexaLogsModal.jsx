@@ -5,7 +5,10 @@ import api from '../lib/axios';
 import { cn } from '../lib/utils';
 import { Button } from './Button';
 
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+
 export default function AlexaLogsModal({ isOpen, onClose }) {
+    useLockBodyScroll(isOpen);
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
 

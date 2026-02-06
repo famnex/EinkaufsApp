@@ -477,6 +477,9 @@ router.post('/:id/items', auth, async (req, res) => {
 
         if (isNaN(listId)) return res.status(400).json({ error: 'Invalid List ID' });
 
+        // Auto-Unarchive
+        await List.update({ status: 'active' }, { where: { id: listId, status: 'archived' } });
+
         const item = await ListItem.create({
             ListId: listId,
             ProductId: parseInt(ProductId),
@@ -484,6 +487,15 @@ router.post('/:id/items', auth, async (req, res) => {
             unit: unit || null,
             price_actual: price_actual || null
         });
+
+        // Update Product Note if provided
+        if (req.body.note !== undefined) {
+            const product = await Product.findByPk(parseInt(ProductId));
+            if (product) {
+                await product.update({ note: req.body.note });
+            }
+        }
+
         res.status(201).json(item);
     } catch (err) {
         console.error('[Add Item Error]:', err);
@@ -505,6 +517,14 @@ router.put('/items/:itemId', auth, async (req, res) => {
                 updates.bought_at = new Date();
             } else if (!updates.is_bought) {
                 updates.bought_at = null;
+            }
+        }
+
+        // Update Product Note if provided
+        if (updates.note !== undefined) {
+            const product = await Product.findByPk(item.ProductId);
+            if (product) {
+                await product.update({ note: updates.note });
             }
         }
 
@@ -552,6 +572,9 @@ router.put('/:id/recipe-items', auth, async (req, res) => {
         const { MenuId, items } = req.body; // items: [{ ProductId, quantity }]
 
         if (!items || !Array.isArray(items)) return res.status(400).json({ error: 'Invalid items array' });
+
+        // Auto-Unarchive
+        await List.update({ status: 'active' }, { where: { id: listId, status: 'archived' } });
 
         // 1. Get existing items for this Menu on this List
         const existingItems = await ListItem.findAll({
@@ -762,6 +785,9 @@ router.post('/:id/bulk-items', auth, async (req, res) => {
         const { items } = req.body; // [{ ProductId, quantity, unit }]
 
         if (!items || !Array.isArray(items)) return res.status(400).json({ error: 'Invalid items' });
+
+        // Auto-Unarchive
+        await List.update({ status: 'active' }, { where: { id: listId, status: 'archived' } });
 
         for (const item of items) {
             // Check if exists

@@ -367,8 +367,8 @@ router.post('/generate-image', auth, async (req, res) => {
             model: "dall-e-3",
             prompt: `A professional, appetizing food photography shot of: ${title}. High resolution, natural lighting, culinary magazine style.`,
             n: 1,
-            size: "1024x1024",
-            quality: "standard",
+            size: "1792x1024", // Landscape
+            quality: "hd",
         });
 
         const imageUrl = response.data[0].url;
@@ -391,13 +391,13 @@ router.post('/generate-image', auth, async (req, res) => {
         try {
             const image = await Jimp.read(imageResponse.data);
 
-            // Only resize if height > 800
-            if (image.bitmap.height > 800) {
-                image.resize(Jimp.AUTO, 800);
-            }
+            // Removed resize to keep full resolution (HD Landscape)
+            // if (image.bitmap.height > 800) {
+            //    image.resize(Jimp.AUTO, 800);
+            // }
 
             await image
-                .quality(80)
+                .quality(100)
                 .writeAsync(filepath);
 
             console.log('Processed AI Image (Jimp) saved to:', filepath);
@@ -406,11 +406,121 @@ router.post('/generate-image', auth, async (req, res) => {
             fs.writeFileSync(filepath, Buffer.from(imageResponse.data));
         }
 
-        // Return local URL
-        res.json({ url: `/uploads/recipes/${filename}` });
+        // Return local URL (relative)
+        res.json({ url: `uploads/recipes/${filename}` });
 
     } catch (err) {
         console.error('Image Generation Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Regenerate Image (GPT-Image-1-Mini Variation)
+router.post('/regenerate-image', auth, async (req, res) => {
+    try {
+        const { imageUrl, title } = req.body;
+        if (!imageUrl) return res.status(400).json({ error: 'Image URL is required' });
+
+        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
+        if (!setting || !setting.value) {
+            return res.status(400).json({ error: 'OpenAI API Key not configured' });
+        }
+
+        console.log('Regenerating image via GPT-Image-1-Mini from:', imageUrl);
+
+        // 1. Download original image
+        let targetUrl = imageUrl;
+        if (!imageUrl.startsWith('http')) {
+            if (req.headers.host) {
+                const protocol = req.secure ? 'https' : 'http';
+                targetUrl = `${protocol}://${req.headers.host}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+            }
+        }
+
+        console.log('Fetching source image:', targetUrl);
+        const sourceResponse = await axios({
+            url: targetUrl,
+            responseType: 'arraybuffer'
+        });
+
+        // 2. Prepare for GPT (Valid PNG/JPG < 4MB)
+        // Using Jimp to ensure format and optimize size if needed
+        const image = await Jimp.read(sourceResponse.data);
+
+        // Ensure max size is reasonable (e.g. max 2048 to stay well under 50MB and process fast)
+        // No cropping needed for GPT-Image-1-Mini input, it handles it.
+        if (image.bitmap.width > 2048 || image.bitmap.height > 2048) {
+            image.scaleToFit(2048, 2048);
+        }
+
+        const tempFilePath = path.join(__dirname, `temp_edit_${Date.now()}.png`);
+        await image.writeAsync(tempFilePath);
+
+        // 3. Call OpenAI "Edits" Endpoint Manual (via fetch/axios+form-data)
+        // Note: Using fetch if available (Node 18+) or 'form-data' package
+        try {
+            const recipeTitle = title || "Gericht";
+            const prompt = `Erstelle eine fotorealistische Variante dieses Fotos: ${recipeTitle}. Gleiche Speise, aber aus einer anderen Perspektive (leicht schräg von oben), anderes Geschirr, andere Deko-Objekte rundherum, natürliches Fensterlicht, Stil: hochwertiges Kochbuchfoto.`;
+
+            // Node 18+ Global Fetch & FormData check
+            if (typeof fetch !== 'function' || typeof FormData !== 'function' || typeof Blob !== 'function') {
+                throw new Error("Node versions < 18 not supported for this specific feature implementation yet.");
+            }
+
+            const buf = fs.readFileSync(tempFilePath);
+            const blob = new Blob([buf], { type: 'image/png' });
+
+            const form = new FormData();
+            form.append("model", "gpt-image-1");
+            form.append("prompt", prompt);
+            form.append("size", "1536x1024"); // Landscape requested
+            form.append("output_format", "jpeg"); // JPEG requested
+            form.append("n", "1");
+            form.append("image", blob, "input.png");
+
+            console.log('Sending request to OpenAI images/edits...');
+            const apiRes = await fetch("https://api.openai.com/v1/images/edits", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${setting.value}`
+                },
+                body: form
+            });
+
+            if (!apiRes.ok) {
+                const errText = await apiRes.text();
+                throw new Error(`OpenAI API Error: ${apiRes.status} ${errText}`);
+            }
+
+            const apiData = await apiRes.json();
+            const b64 = apiData.data?.[0]?.b64_json;
+            if (!b64) throw new Error("No b64_json image data in response");
+
+            // 4. Save Result
+            const uploadDir = path.join(__dirname, '../../public/uploads/recipes');
+            if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            const filename = uniqueSuffix + '.jpg';
+            const filepath = path.join(uploadDir, filename);
+
+            fs.writeFileSync(filepath, Buffer.from(b64, 'base64'));
+            console.log('Regenerated Image saved to:', filepath);
+
+            // Cleanup temp
+            if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+
+            // Return RELATIVE URL
+            res.json({ url: `uploads/recipes/${filename}` });
+
+        } catch (apiError) {
+            // Cleanup temp on error
+            if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+            throw apiError;
+        }
+
+    } catch (err) {
+        console.error('Image Regeneration Error:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -435,20 +545,36 @@ router.post('/chat', auth, async (req, res) => {
         Title: ${context?.title || 'Unknown'}
         Ingredients: ${JSON.stringify(context?.ingredients || [])}
         Steps: ${JSON.stringify(context?.steps || [])}
+        Current Step Index: ${context?.currentStep || 0}
+        Servings: ${context?.servings || 4}
 
         Your Goal:
-        Answer the user's question about the recipe, cooking techniques, or ingredient substitutions.
-        FASSE DICH EXTREM KURZ. Gib NUR das Nötigste an Informationen. Vermeide Smalltalk oder lange Erklärungen.
-        BE EXPLICIT and ACTIONABLE. If the user asks about changing amounts or missing ingredients:
-        - Provide SPECIFIC estimates (e.g., "5 Minuten kürzer braten").
-        - Provide TEMPERATURES if relevant.
-        - Give exact alternatives.
+        Answer the user's question AND execute commands if requested.
         
-        ${context?.isEnding ? 'Der Benutzer hat das Gespräch beendet (z.B. mit "Danke" oder "Alles klar"). Verabschiede dich kurz und sachlich, OHNE eine weitere Frage zu stellen.' : 'Stelle am Ende immer eine kurze, KÜRZESTE Rückfrage oder einen Vorschlag für den nächsten Schritt.'}
+        You must return a JSON Object:
+        {
+            "reply": "Short spoken answer (German)",
+            "action": { "type": "ACTION_TYPE", "payload": ... } // Optional, only if command detected
+        }
 
-        IMPORTANT: Use ONLY plain text. NO markdown (no **bold**, no # headers). 
-        Use short, simple sentences that sound natural when read aloud.
-        Response language: GERMAN.
+        Available Actions:
+        1. NAVIGATION:
+           - "NEXT_STEP": Go to next step. Payload: null
+           - "PREV_STEP": Go to previous step. Payload: null
+           - "GOTO_STEP": Go to specific step number (1-based). Payload: { "index": 0 } (0-based index!)
+        
+        2. SCALING:
+           - "SCALE": Change portion size. Payload: { "factor": 2.0 } (e.g. 2 for double, 0.5 for half). 
+             If user says "for 3 people" and base is 4, factor is 0.75.
+        
+        3. SUBSTITUTION:
+           - "SUBSTITUTE": Replace an ingredient. Payload: { "original": "Milk", "replacement": "Cream" }
+        
+        Rules:
+        - FASSE DICH EXTREM KURZ. Avoid Smalltalk.
+        - If the user just chats, return "action": null.
+        - If the user says "Ok" or "Danke", confirm and end.
+        - Output strictly valid JSON.
         `;
 
         const completion = await openai.chat.completions.create({
@@ -457,10 +583,11 @@ router.post('/chat', auth, async (req, res) => {
                 { role: "user", content: message }
             ],
             model: "gpt-4o",
+            response_format: { type: "json_object" },
         });
 
-        const reply = completion.choices[0].message.content;
-        res.json({ reply });
+        const result = JSON.parse(completion.choices[0].message.content);
+        res.json({ reply: result.reply, action: result.action });
 
     } catch (err) {
         console.error('AI Chat Error:', err);

@@ -5,8 +5,10 @@ import { X, Combine, ArrowRight } from 'lucide-react'; // 'Combine' requires luc
 import { Button } from './Button';
 import { Input } from './Input';
 import api from '../lib/axios';
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 export default function MergeProductModal({ isOpen, onClose, sourceProduct, targetProduct, onConfirm }) {
+    useLockBodyScroll(isOpen);
     const [newName, setNewName] = useState('');
     const [loading, setLoading] = useState(false);
 

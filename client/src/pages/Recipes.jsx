@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import api from '../lib/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices } from 'lucide-react';
+import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices, ShieldAlert } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
@@ -165,17 +166,21 @@ export default function Recipes() {
     const [selectedCategory, setSelectedCategory] = useState('All');
     const categories = ['All', ...new Set(recipes.map(r => r.category).filter(Boolean))].sort();
 
-    const filteredRecipes = recipes.filter(r => {
-        const lowerSearch = searchTerm.toLowerCase();
-        const matchesSearch =
-            r.title.toLowerCase().includes(lowerSearch) ||
-            r.category?.toLowerCase().includes(lowerSearch) ||
-            r.Tags?.some(t => t.name.toLowerCase().includes(lowerSearch)) ||
-            r.RecipeIngredients?.some(ri => ri.Product?.name.toLowerCase().includes(lowerSearch));
+    const filteredRecipes = useMemo(() => {
+        return recipes.filter(r => {
+            const lowerSearch = searchTerm.toLowerCase();
+            const matchesSearch =
+                r.title.toLowerCase().includes(lowerSearch) ||
+                r.category?.toLowerCase().includes(lowerSearch) ||
+                r.Tags?.some(t => t.name.toLowerCase().includes(lowerSearch)) ||
+                r.RecipeIngredients?.some(ri => ri.Product?.name.toLowerCase().includes(lowerSearch));
 
-        const matchesCategory = selectedCategory === 'All' || r.category === selectedCategory;
-        return matchesSearch && matchesCategory;
-    });
+            const matchesCategory = selectedCategory === 'All' || r.category === selectedCategory;
+            return matchesSearch && matchesCategory;
+        });
+    }, [recipes, searchTerm, selectedCategory]);
+
+    const { visibleItems: renderedRecipes, observerTarget } = useInfiniteScroll(filteredRecipes, 12);
 
     return (
         <div className="space-y-6">
@@ -269,7 +274,7 @@ export default function Recipes() {
                         }}
                         variant="ghost"
                         size="icon"
-                        className="h-12 w-12 md:hidden bg-card border border-border text-muted-foreground"
+                        className="h-12 w-12 bg-card border border-border text-muted-foreground hover:text-foreground shrink-0"
                     >
                         <Share2 size={20} />
                     </Button>
@@ -285,7 +290,7 @@ export default function Recipes() {
 
                     <Button
                         onClick={() => setIsAiModalOpen(true)}
-                        className="h-12 px-3 md:px-6 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 shrink-0"
+                        className="h-12 px-3 md:px-6 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 shrink-0 select-none pb-safe-0"
                     >
                         <Sparkles size={18} className="md:mr-2" />
                         <span className="hidden md:inline">AI Assistant</span>
@@ -305,7 +310,7 @@ export default function Recipes() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <AnimatePresence mode="popLayout">
-                    {filteredRecipes.map((recipe, index) => {
+                    {renderedRecipes.map((recipe, index) => {
                         const status = getRecipeStatus(recipe.id);
                         return (
                             <motion.div
@@ -340,6 +345,17 @@ export default function Recipes() {
                                             </div>
                                         )}
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60" />
+
+                                        {recipe.imageSource === 'scraped' && (
+                                            <div className="absolute bottom-2 right-2 z-20 group/tooltip">
+                                                <div className="bg-red-500/90 backdrop-blur-md p-1.5 rounded-lg shadow-lg border border-red-400/30 text-white cursor-help">
+                                                    <ShieldAlert size={16} />
+                                                </div>
+                                                <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded-xl shadow-xl border border-border opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-50">
+                                                    Achtung: Dieses Bild wird im Shared Modus nicht angezeigt (Urheberrecht unklar).
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {/* Action Menu Trigger - Prevent card click propagation */}
                                         <div
@@ -481,6 +497,9 @@ export default function Recipes() {
                     })}
                 </AnimatePresence>
             </div>
+
+            {/* Observer Target for Infinite Scroll */}
+            <div ref={observerTarget} className="h-4 w-full" />
 
             {
                 loading && (

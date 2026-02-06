@@ -14,8 +14,8 @@ export const PullToRefresh = ({ children }) => {
 
     useEffect(() => {
         const handleTouchStart = (e) => {
-            // Only capture if at the top of the page
-            if (window.scrollY === 0) {
+            // Only capture if at the top of the page AND no modal is open (body scroll not locked)
+            if (window.scrollY === 0 && document.body.style.overflow !== 'hidden') {
                 setPullStart(e.touches[0].pageY);
             }
         };

@@ -4,7 +4,7 @@ import { X, Sparkles, ArrowRight, Check, AlertCircle, Loader2, Tag } from 'lucid
 import { Button } from './Button';
 import { Input } from './Input';
 import api from '../lib/axios';
-import { cn } from '../lib/utils';
+import { cn, getImageUrl } from '../lib/utils';
 import ResilientImage from './ResilientImage';
 
 // Simple client-side version of German normalization
@@ -26,7 +26,10 @@ function normalizeGerman(name) {
     return Array.from(variations);
 }
 
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+
 export default function AiImportModal({ isOpen, onClose, onSave }) {
+    useLockBodyScroll(isOpen);
     const [step, setStep] = useState('input'); // input, processing, review
     const [inputText, setInputText] = useState('');
     const [parsedData, setParsedData] = useState(null);
@@ -71,24 +74,56 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
 
             data.ingredients.forEach((ing, idx) => {
                 let match = null;
+                const ingNameLower = ing.name.toLowerCase();
+
+                // Helper to safe parse synonyms
+                const getSynonyms = (p) => {
+                    if (Array.isArray(p.synonyms)) return p.synonyms;
+                    if (typeof p.synonyms === 'string') {
+                        try { return JSON.parse(p.synonyms); } catch { return []; }
+                    }
+                    return [];
+                };
 
                 // 1. Direct Name Match (Case insensitive)
-                match = products.find(p => p.name.toLowerCase() === ing.name.toLowerCase());
+                match = products.find(p => p.name.toLowerCase() === ingNameLower);
 
-                // 2. Fuzzy German Match
+                // 2. Synonyms Match (NEW)
+                if (!match) {
+                    match = products.find(p => {
+                        const syns = getSynonyms(p);
+                        return syns.some(s => s.toLowerCase() === ingNameLower);
+                    });
+                }
+
+                // 3. Fuzzy German Match
                 if (!match) {
                     const variants = normalizeGerman(ing.name);
                     for (const v of variants) {
-                        match = products.find(p => p.name.toLowerCase() === v);
+                        const vLower = v.toLowerCase();
+                        match = products.find(p => p.name.toLowerCase() === vLower);
+                        if (!match) {
+                            // Check synonyms for variants too
+                            match = products.find(p => {
+                                const syns = getSynonyms(p);
+                                return syns.some(s => s.toLowerCase() === vLower);
+                            });
+                        }
                         if (match) break;
                     }
                 }
 
-                // 3. Alternative Names Match (was Search Terms)
+                // 4. Alternative Names Match (from AI)
                 if (!match && ing.alternative_names && Array.isArray(ing.alternative_names)) {
                     for (const term of ing.alternative_names) {
                         const termLower = term.toLowerCase();
                         match = products.find(p => p.name.toLowerCase() === termLower);
+                        if (!match) {
+                            match = products.find(p => {
+                                const syns = getSynonyms(p);
+                                return syns.some(s => s.toLowerCase() === termLower);
+                            });
+                        }
                         if (match) break;
                     }
                 }
@@ -139,6 +174,14 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
 
             if (parsedData.image_url) {
                 formData.append('image_url', parsedData.image_url);
+                // Automatically set to 'ai' if we generated it, or default to 'scraped' if it's an external URL we haven't touched
+                // and 'upload' logic is handled by backend if file exists (but here we only have URL).
+                // If we generated it, we set imageSource='ai' in state.
+                // If it's external, it's 'scraped'.
+                const source = parsedData.imageSource || (parsedData.image_url.startsWith('http') ? 'scraped' : 'ai');
+                // Note: local URLs (not starting with http) are assumed AI/Upload here, but specifically AI since we generated them. 
+                // Better: rely on state.
+                formData.append('imageSource', parsedData.imageSource || (parsedData.image_url.startsWith('http') ? 'scraped' : 'ai'));
             }
 
             console.log('Sending Recipe FormData...');
@@ -248,7 +291,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                         <div className="relative aspect-video rounded-xl overflow-hidden bg-muted flex items-center justify-center group">
                                             {parsedData.image_url ? (
                                                 <ResilientImage
-                                                    src={parsedData.image_url}
+                                                    src={getImageUrl(parsedData.image_url)}
                                                     alt="Preview"
                                                     className="w-full h-full object-cover"
                                                     containerClassName="w-full h-full"
@@ -267,7 +310,8 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                                             setIsGenerating(true);
                                                             try {
                                                                 const { data } = await api.post('/ai/generate-image', { title: parsedData.title });
-                                                                setParsedData(prev => ({ ...prev, image_url: data.url }));
+                                                                const url = data.url.startsWith('/EinkaufsApp') ? data.url : '/EinkaufsApp' + data.url;
+                                                                setParsedData(prev => ({ ...prev, image_url: url }));
                                                             } catch (err) {
                                                                 alert('Fehler beim Generieren: ' + err.message);
                                                             } finally {
@@ -289,10 +333,21 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                                         className="gap-2"
                                                         disabled={isGenerating}
                                                         onClick={async () => {
-                                                            if (!confirm('Ein neues Bild mit AI generieren? (Kostenpflichtig)')) return;
+                                                            const isVariation = !!parsedData.image_url;
+                                                            if (!confirm(isVariation ? 'Eine Variation dieses Bildes erstellen? (Kostenpflichtig)' : 'Ein neues Bild mit AI generieren? (Kostenpflichtig)')) return;
+
                                                             setIsGenerating(true);
                                                             try {
-                                                                const { data } = await api.post('/ai/generate-image', { title: parsedData.title });
+                                                                const endpoint = isVariation ? '/ai/regenerate-image' : '/ai/generate-image';
+                                                                const payload = isVariation
+                                                                    ? { imageUrl: parsedData.image_url, title: parsedData.title }
+                                                                    : { title: parsedData.title };
+
+                                                                const { data } = await api.post(endpoint, payload);
+                                                                // data.url is relative "uploads/recipes/..."
+                                                                // We save this directly. ResilientImage needs to handle it or we wrap it with getImageUrl() in render.
+                                                                // But wait, if we use getImageUrl here, we save the resolved path.
+                                                                // Better to save the relative path as is standard in this app.
                                                                 setParsedData(prev => ({ ...prev, image_url: data.url }));
                                                             } catch (err) {
                                                                 alert('Fehler beim Generieren: ' + err.message);
@@ -302,7 +357,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                                         }}
                                                     >
                                                         {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                                                        Neu Generieren
+                                                        {parsedData.image_url ? 'Variation erstellen' : 'Neu Generieren'}
                                                     </Button>
                                                 </div>
                                             )}

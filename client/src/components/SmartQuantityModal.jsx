@@ -4,8 +4,10 @@ import { X, Check, ShoppingCart, AlertCircle } from 'lucide-react';
 import { Button } from './Button';
 import { cn } from '../lib/utils';
 import api from '../lib/axios';
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 export default function SmartQuantityModal({ isOpen, onClose, recipe, menuId, listId, onConfirm, existingItems = [] }) {
+    useLockBodyScroll(isOpen);
     const [selection, setSelection] = useState({});
     const [loading, setLoading] = useState(false);
 

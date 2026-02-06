@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Clock, Users, ChefHat, Sun, Moon, Printer, ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ChefHat, Clock, Moon, Play, Printer, Sun, Users } from 'lucide-react';
 import { Card } from '../components/Card';
-import { getImageUrl } from '../lib/utils'; // Make sure this is importable or inline it
+import SharedCookingMode from '../components/SharedCookingMode';
+import { useTheme } from '../contexts/ThemeContext';
+import { getImageUrl } from '../lib/utils';
+
 
 export default function SharedRecipe() {
     const { id } = useParams();
@@ -11,32 +14,16 @@ export default function SharedRecipe() {
     const [recipe, setRecipe] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [isDarkMode, setIsDarkMode] = useState(false);
-
-    useEffect(() => {
-        // Detect system preference initially
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            setIsDarkMode(true);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (isDarkMode) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-    }, [isDarkMode]);
+    const { theme, toggleTheme } = useTheme();
+    const [isCooking, setIsCooking] = useState(false);
+    const isDarkMode = theme === 'dark';
 
     // Force light mode for printing
     useEffect(() => {
         const handleBeforePrint = () => {
-            document.documentElement.classList.remove('dark');
+            // Optional: Force light mode logic if needed, but CSS @media print handling usually suffices
         };
         const handleAfterPrint = () => {
-            if (isDarkMode) {
-                document.documentElement.classList.add('dark');
-            }
         };
 
         window.addEventListener('beforeprint', handleBeforePrint);
@@ -46,7 +33,7 @@ export default function SharedRecipe() {
             window.removeEventListener('beforeprint', handleBeforePrint);
             window.removeEventListener('afterprint', handleAfterPrint);
         };
-    }, [isDarkMode]);
+    }, []);
 
     // Determine API URL based on environment and base path
     const baseURL = import.meta.env.BASE_URL === '/'
@@ -121,7 +108,7 @@ export default function SharedRecipe() {
                     </div>
                     <div className="flex gap-2">
                         <button
-                            onClick={() => setIsDarkMode(!isDarkMode)}
+                            onClick={toggleTheme}
                             className="p-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                             title={isDarkMode ? "Hellen Modus aktivieren" : "Dunklen Modus aktivieren"}
                         >
@@ -179,7 +166,23 @@ export default function SharedRecipe() {
                             {recipe.title}
                         </h1>
                     </div>
+                    <div className="absolute top-4 right-4 z-20">
+                        <button
+                            onClick={() => setIsCooking(true)}
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-2 px-4 rounded-full shadow-lg flex items-center gap-2 transition-transform active:scale-95"
+                        >
+                            <Play size={20} fill="currentColor" />
+                            <span className="hidden sm:inline">Kochmodus</span>
+                        </button>
+                    </div>
                 </div>
+
+                {isCooking && (
+                    <SharedCookingMode
+                        recipe={recipe}
+                        onClose={() => setIsCooking(false)}
+                    />
+                )}
 
                 {/* Meta Stats - Hide in Print (Shown in Header) */}
                 <div className="grid grid-cols-2 gap-4 print:hidden">

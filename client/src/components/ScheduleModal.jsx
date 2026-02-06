@@ -4,6 +4,7 @@ import { X, Calendar, Sun, Soup, Utensils, Apple, Check, ChevronDown, CarFront }
 import api from '../lib/axios';
 import { Button } from './Button';
 import { cn } from '../lib/utils'; // Ensure cn utility is available
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 const MEAL_TYPES = [
     { id: 'breakfast', label: 'Früh', icon: Sun },
@@ -13,6 +14,7 @@ const MEAL_TYPES = [
 ];
 
 export default function ScheduleModal({ isOpen, onClose, recipe }) {
+    useLockBodyScroll(isOpen);
     const [dates, setDates] = useState([]);
     const [existingMenus, setExistingMenus] = useState([]);
     const [loading, setLoading] = useState(false);

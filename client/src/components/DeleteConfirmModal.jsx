@@ -2,7 +2,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, AlertTriangle, Trash2, Calendar } from 'lucide-react';
 import { Button } from './Button';
 
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+
 export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, recipe, usage }) {
+    useLockBodyScroll(isOpen);
+
     if (!recipe) return null;
 
     return (

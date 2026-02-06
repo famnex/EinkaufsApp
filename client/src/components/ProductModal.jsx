@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, Package, Tag, Euro, Store as StoreIcon, Plus, Sparkles } from 'lucide-react';
 import { Button } from './Button';
@@ -22,6 +23,10 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
     const [loadingAi, setLoadingAi] = useState(false);
     const [aiManufacturers, setAiManufacturers] = useState([]);
 
+    const [synonymInput, setSynonymInput] = useState('');
+
+    useLockBodyScroll(isOpen);
+
     useEffect(() => {
         if (product) {
             setFormData({
@@ -29,11 +34,11 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                 category: product.category || '',
                 price_hint: product.price_hint || '',
                 unit: product.unit || 'Stück',
-                ManufacturerId: product.ManufacturerId || '',
-                note: product.note || ''
+                note: product.note || '',
+                synonyms: (typeof product.synonyms === 'string' ? JSON.parse(product.synonyms || '[]') : product.synonyms) || []
             });
         } else {
-            setFormData({ name: '', category: '', price_hint: '', unit: 'Stück', ManufacturerId: '', note: '' });
+            setFormData({ name: '', category: '', price_hint: '', unit: 'Stück', ManufacturerId: '', note: '', synonyms: [] });
             setAiManufacturers([]); // Reset on new
         }
 
@@ -58,6 +63,27 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
         }
     };
 
+    const handleAddSynonym = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const val = synonymInput.trim();
+            if (val && !formData.synonyms.includes(val)) {
+                setFormData(prev => ({
+                    ...prev,
+                    synonyms: [...(prev.synonyms || []), val]
+                }));
+                setSynonymInput('');
+            }
+        }
+    };
+
+    const removeSynonym = (synToRemove) => {
+        setFormData(prev => ({
+            ...prev,
+            synonyms: prev.synonyms.filter(s => s !== synToRemove)
+        }));
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -67,6 +93,7 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                 StoreId: null, // Removed Standard Store
                 ManufacturerId: formData.ManufacturerId || null,
                 price_hint: formData.price_hint || null,
+                synonyms: formData.synonyms || [], // Ensure array
                 isNew: false // Confirming/Editing a product verifies it
             };
             if (product?.id) {
@@ -168,6 +195,35 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                         required
                                         className="bg-muted/50 border-border h-12"
                                     />
+                                </div>
+
+                                {/* Synonyms Input */}
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Synonyme</label>
+                                    <div className="bg-muted/30 border border-border rounded-xl p-2 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {formData.synonyms?.map((syn, idx) => (
+                                                <span key={idx} className="bg-primary/10 text-primary px-2 py-1 rounded-md text-sm flex items-center gap-1 group">
+                                                    {syn}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeSynonym(syn)}
+                                                        className="hover:bg-primary/20 rounded-full p-0.5"
+                                                    >
+                                                        <X size={12} />
+                                                    </button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <input
+                                            value={synonymInput}
+                                            onChange={(e) => setSynonymInput(e.target.value)}
+                                            onKeyDown={handleAddSynonym}
+                                            placeholder={formData.synonyms?.length > 0 ? "" : "Synonym eingeben und Enter drücken..."}
+                                            className="w-full bg-transparent border-none text-sm focus:outline-none p-1"
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground ml-1">Drücke Enter zum Hinzufügen</p>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">

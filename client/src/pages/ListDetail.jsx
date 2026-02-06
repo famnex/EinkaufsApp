@@ -4,7 +4,7 @@ import api from '../lib/axios';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { ShoppingCart, Plus, Trash2, CheckCircle2, Circle, ArrowLeft, Package, Search, List, X, Euro, Settings, Lock, ZoomIn, ZoomOut } from 'lucide-react';
+import { ShoppingCart, Plus, Trash2, CheckCircle2, Circle, ArrowLeft, Package, Search, List, X, Euro, Settings, Lock, ZoomIn, ZoomOut, Archive } from 'lucide-react';
 import { cn, getImageUrl } from '../lib/utils';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import ItemSettingsModal from '../components/ItemSettingsModal';
@@ -92,10 +92,8 @@ export default function ListDetail() {
             setActiveStoreId(data.CurrentStoreId || '');
 
             // Server now handles smart sorting.
-            // Client only needs to respect the order, but we can ensure bought items are at bottom visually just in case.
-            // Actually, server sends [sorted_unbought, sorted_bought], so array order is already correct.
             setList(data);
-
+            return data;
             // Note: Data from server might have store set in DB, but UI starts empty.
         } catch (err) {
             console.error('Failed to fetch list details', err);
@@ -143,7 +141,7 @@ export default function ListDetail() {
         setSuggestions([]);
     };
 
-    const onConfirmQuantity = async (quantity, unit) => {
+    const onConfirmQuantity = async (quantity, unit, note) => {
         if (!pendingProduct) return;
         try {
             let productId = pendingProduct.id;
@@ -152,7 +150,8 @@ export default function ListDetail() {
             if (typeof pendingProduct === 'string') {
                 const { data: newProd } = await api.post('/products', {
                     name: pendingProduct,
-                    unit: unit
+                    unit: unit,
+                    note: note
                 });
                 productId = newProd.id;
             }
@@ -160,7 +159,8 @@ export default function ListDetail() {
             await api.post(`/lists/${id}/items`, {
                 ProductId: productId,
                 quantity: quantity,
-                unit: unit
+                unit: unit,
+                note: note
             });
 
             fetchListDetails();
@@ -227,13 +227,36 @@ export default function ListDetail() {
     const handleSearch = (val) => {
         setSearchTerm(val);
         if (val.trim().length > 0) {
-            const filtered = allProducts.filter(p =>
-                p.name.toLowerCase().includes(val.toLowerCase()) ||
-                p.category?.toLowerCase().includes(val.toLowerCase())
-            ).slice(0, 5);
+            const lowerVal = val.toLowerCase();
+            const filtered = allProducts.filter(p => {
+                // 1. Name Match
+                if (p.name.toLowerCase().includes(lowerVal)) return true;
+                // 2. Category Match
+                if (p.category?.toLowerCase().includes(lowerVal)) return true;
+
+                // 3. Synonym Match
+                let syns = [];
+                try {
+                    // Handle potential string vs array mismatch from backend
+                    syns = Array.isArray(p.synonyms) ? p.synonyms : JSON.parse(p.synonyms || '[]');
+                } catch (e) { syns = []; }
+
+                if (Array.isArray(syns) && syns.some(s => s.toLowerCase().includes(lowerVal))) return true;
+
+                return false;
+            }).slice(0, 5);
             setSuggestions(filtered);
         } else {
             setSuggestions([]);
+        }
+    };
+
+    const handleArchive = async () => {
+        try {
+            await api.put(`/lists/${id}`, { status: 'archived' });
+            navigate('/');
+        } catch (err) {
+            console.error('Failed to archive list', err);
         }
     };
 
@@ -246,7 +269,15 @@ export default function ListDetail() {
             await api.post(`/lists/${id}/commit`, {
                 storeId: activeStoreId
             });
-            fetchListDetails(); // Refresh to see locked items
+            const updatedList = await fetchListDetails(); // Refresh to see locked items
+
+            // Check if archiving is appropriate
+            const uncommitted = updatedList.ListItems.filter(i => !i.is_committed);
+            if (uncommitted.length === 0 && updatedList.status === 'active') {
+                if (window.confirm("Die Einkaufsliste ist erledigt. Möchtest du sie archivieren?")) {
+                    handleArchive();
+                }
+            }
         } catch (err) {
             console.error('Failed to commit session', err);
         }
@@ -593,7 +624,7 @@ export default function ListDetail() {
                         </DndContext>
 
                         {/* Complete Session Button */}
-                        {uncommittedItems.length > 0 && (
+                        {uncommittedItems.length > 0 ? (
                             <div className="pt-8 pb-4 flex justify-center">
                                 <Button
                                     size="lg"
@@ -603,6 +634,17 @@ export default function ListDetail() {
                                 >
                                     <CheckCircle2 className="mr-2" />
                                     Einkauf abschließen
+                                </Button>
+                            </div>
+                        ) : list.ListItems?.length > 0 && list.status === 'active' && (
+                            <div className="pt-8 pb-4 flex justify-center">
+                                <Button
+                                    size="lg"
+                                    onClick={handleArchive}
+                                    className="bg-green-600 hover:bg-green-700 text-white font-bebas tracking-wide text-xl px-8 py-6 rounded-2xl shadow-xl hover:scale-105 transition-all w-full md:w-auto"
+                                >
+                                    <Archive className="mr-2" />
+                                    Liste archivieren
                                 </Button>
                             </div>
                         )}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Save } from 'lucide-react';
 import { Button } from './Button';
@@ -10,6 +11,8 @@ export default function QuantityModal({ isOpen, onClose, productName, defaultUni
     const [unit, setUnit] = useState(defaultUnit);
     const [note, setNote] = useState('');
     const [noteSuggestions, setNoteSuggestions] = useState([]);
+
+    useLockBodyScroll(isOpen);
 
     useEffect(() => {
         if (isOpen) {

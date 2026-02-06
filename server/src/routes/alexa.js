@@ -110,9 +110,6 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
         if (!product) {
             const variations = normalizeGermanProduct(productNameQuery);
             // Search for any matching variation
-            // We use Op.or with ILIKE (or lowercase comparison)
-            // SQLITE is case-insensitive by default for ASCII, but let's be safe
-
             for (const variant of variations) {
                 const p = await Product.findOne({
                     where: sequelize.where(
@@ -123,6 +120,33 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
                 if (p) {
                     product = p;
                     console.log(`[Alexa] Fuzzy match: "${productNameQuery}" -> "${p.name}"`);
+                    break;
+                }
+            }
+        }
+
+        // 3. Try Synonyms (JSON search)
+        if (!product) {
+            // Broad search for specific term in JSON string
+            const candidates = await Product.findAll({
+                where: {
+                    synonyms: {
+                        [Op.like]: `%${productNameQuery}%` // Simple string partial match first
+                    }
+                }
+            });
+
+            // Verify exact match in the array
+            const lowerQuery = productNameQuery.toLowerCase();
+            for (const cand of candidates) {
+                let syns = [];
+                try {
+                    syns = (typeof cand.synonyms === 'string') ? JSON.parse(cand.synonyms) : cand.synonyms;
+                } catch (e) { syns = []; }
+
+                if (Array.isArray(syns) && syns.some(s => s.toLowerCase() === lowerQuery)) {
+                    product = cand;
+                    console.log(`[Alexa] Synonym match: "${productNameQuery}" -> "${cand.name}"`);
                     break;
                 }
             }

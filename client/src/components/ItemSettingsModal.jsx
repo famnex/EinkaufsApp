@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, Trash2, Plus, Minus } from 'lucide-react';
 import { Button } from './Button';
@@ -13,6 +14,8 @@ export default function ItemSettingsModal({ isOpen, onClose, item, onSave, onDel
     const [note, setNote] = useState('');
     const [availableUnits, setAvailableUnits] = useState([]);
     const [noteSuggestions, setNoteSuggestions] = useState([]);
+
+    useLockBodyScroll(isOpen);
 
     useEffect(() => {
         if (item) {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, ChefHat, Clock, Users, Filter, X, UtensilsCrossed, ArrowRight, ChevronDown, ChevronUp, Moon, Sun, Dices, Eye } from 'lucide-react';
@@ -29,6 +30,8 @@ export default function SharedCookbook() {
         : `${import.meta.env.BASE_URL}api`.replace('//', '/');
     const API_URL = import.meta.env.VITE_API_URL || baseURL;
 
+    const [availableProducts, setAvailableProducts] = useState([]);
+
     useEffect(() => {
         const fetchRecipes = async () => {
             try {
@@ -46,6 +49,19 @@ export default function SharedCookbook() {
                     r.Tags?.forEach(t => tags.add(t.name));
                 });
                 setAllTags(Array.from(tags).sort());
+
+                // Extract All Products for Filter (Client-Side)
+                const productsMap = new Map();
+                data.forEach(r => {
+                    r.RecipeIngredients?.forEach(ri => {
+                        if (ri.Product && ri.Product.name) {
+                            if (!productsMap.has(ri.Product.name)) {
+                                productsMap.set(ri.Product.name, { id: ri.Product.id || ri.Product.name, name: ri.Product.name });
+                            }
+                        }
+                    });
+                });
+                setAvailableProducts(Array.from(productsMap.values()).sort((a, b) => a.name.localeCompare(b.name)));
 
             } catch (err) {
                 console.error("Failed to load recipes", err);
@@ -80,6 +96,8 @@ export default function SharedCookbook() {
         });
     }, [recipes, searchTerm, selectedCategory, selectedTags]);
 
+    const { visibleItems: renderedRecipes, observerTarget } = useInfiniteScroll(filteredRecipes, 16);
+
     const renderImageUrl = (url) => {
         if (!url) return null;
         if (url.startsWith('http')) return url;
@@ -97,9 +115,9 @@ export default function SharedCookbook() {
                 isDark ? "bg-zinc-950" : "bg-indigo-950",
                 "text-white"
             )}>
-                <div className="absolute inset-0 bg-gradient-to-r from-purple-900/40 to-blue-900/40 z-0" />
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-900/40 to-blue-900/40 z-0 pointer-events-none" />
                 <div
-                    className="absolute inset-0 opacity-10 z-0"
+                    className="absolute inset-0 opacity-10 z-0 pointer-events-none"
                     style={{ backgroundImage: `url(${import.meta.env.BASE_URL}pattern.svg)` }}
                 />
 
@@ -150,7 +168,7 @@ export default function SharedCookbook() {
                         transition={{ delay: 0.3 }}
                         className="w-full max-w-xl relative group flex flex-col gap-4 items-center"
                     >
-                        <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+
                         <div className="relative w-full flex items-center bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-4 py-3 shadow-2xl transition-all focus-within:bg-white/20 focus-within:border-primary/50">
                             <Search className="text-gray-400 mr-3" size={20} />
                             <input
@@ -264,7 +282,7 @@ export default function SharedCookbook() {
                         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
                     >
                         <AnimatePresence>
-                            {filteredRecipes.map(recipe => (
+                            {renderedRecipes.map(recipe => (
                                 <motion.div
                                     layout
                                     initial={{ opacity: 0, scale: 0.9 }}
@@ -277,7 +295,7 @@ export default function SharedCookbook() {
                                         onClick={() => navigate(`/shared/recipe/${recipe.id}`)}
                                     >
                                         {/* Image */}
-                                        <div className="aspect-square relative overflow-hidden">
+                                        <div className="aspect-[3/2] relative overflow-hidden">
                                             {recipe.image_url ? (
                                                 <img
                                                     src={renderImageUrl(recipe.image_url)}
@@ -351,6 +369,8 @@ export default function SharedCookbook() {
                                 </motion.div>
                             ))}
                         </AnimatePresence>
+                        {/* Observer Target for Infinite Scroll */}
+                        <div ref={observerTarget} className="h-4 w-full col-span-full" />
                     </motion.div>
                 ) : (
                     <div className="py-20 text-center">
@@ -380,6 +400,7 @@ export default function SharedCookbook() {
                 recipes={recipes}
                 confirmLabel="REZEPT ANZEIGEN"
                 ActionIcon={Eye}
+                availableProducts={availableProducts}
                 onSelect={(recipe) => {
                     navigate(`/shared/recipe/${recipe.id}`);
                     setIsSlotMachineOpen(false);

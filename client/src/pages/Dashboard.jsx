@@ -3,7 +3,7 @@ import api from '../lib/axios';
 import { useNavigate } from 'react-router-dom';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
-import { Settings, X, List, Plus, Euro, Search, ShoppingCart, Trash2, ChevronRight, Edit2 } from 'lucide-react';
+import { Settings, X, List, Plus, Euro, Search, ShoppingCart, Trash2, ChevronRight, Edit2, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ViewSwitcher from '../components/ViewSwitcher';
 import { useEditMode } from '../contexts/EditModeContext';
@@ -197,7 +197,10 @@ export default function Dashboard() {
         if (view === 'month') {
             const dateStr = getLocalDateStr(date);
             const list = lists.find(l => l.date === dateStr);
-            if (list) return 'has-list';
+            if (list) {
+                if (list.status === 'archived') return 'has-list-archived';
+                return 'has-list';
+            }
         }
         return '';
     };
@@ -252,6 +255,22 @@ export default function Dashboard() {
                                                 setActiveStartDate(activeStartDate);
                                             }}
                                             tileClassName={tileClassName}
+                                            tileContent={({ date, view }) => {
+                                                if (view === 'month') {
+                                                    const dateStr = getLocalDateStr(date);
+                                                    const list = lists.find(l => l.date === dateStr);
+                                                    if (list && list.status === 'archived') {
+                                                        return (
+                                                            <div className="absolute bottom-0 right-0 p-1">
+                                                                <div className="bg-white rounded-full p-0.5 shadow-sm">
+                                                                    <Check size={8} className="text-green-600" strokeWidth={4} />
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+                                                }
+                                                return null;
+                                            }}
                                             locale="de-DE"
                                             prev2Label={null}
                                             next2Label={null}
@@ -272,8 +291,8 @@ export default function Dashboard() {
                         >
                             {loading ? (
                                 <div className="py-20 text-center text-muted-foreground italic animate-pulse">Lade Sitzungen...</div>
-                            ) : lists.length > 0 ? (
-                                lists.map((list, index) => (
+                            ) : lists.filter(l => l.status === 'active').length > 0 ? (
+                                lists.filter(l => l.status === 'active').map((list, index) => (
                                     <motion.div
                                         key={list.id}
                                         layout
@@ -299,7 +318,7 @@ export default function Dashboard() {
                                                     "w-12 h-12 rounded-xl flex items-center justify-center shadow-md shrink-0 transition-all",
                                                     // Mobile: Absolute, Transparent, Behind text
                                                     "absolute left-0 top-1/2 -translate-y-1/2 opacity-20 scale-150 sm:scale-100 sm:opacity-100 sm:relative sm:translate-y-0",
-                                                    list.status === 'active' ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                                                    "bg-primary text-primary-foreground"
                                                 )}
                                             >
                                                 <ShoppingCart size={24} />
@@ -346,7 +365,7 @@ export default function Dashboard() {
                             ) : (
                                 <div className="py-20 text-center border-2 border-dashed border-border rounded-3xl">
                                     <Plus size={48} className="mx-auto text-muted-foreground mb-4" />
-                                    <p className="text-muted-foreground font-medium">Bisher keine Sitzungen vorhanden.</p>
+                                    <p className="text-muted-foreground font-medium">Keine aktiven Sitzungen.</p>
                                     <button
                                         onClick={() => handleCreateList()}
                                         className="mt-6 px-8 py-3 bg-primary text-primary-foreground font-bold rounded-xl active:scale-95 transition-transform shadow-lg shadow-primary/20"
@@ -382,6 +401,8 @@ export default function Dashboard() {
                     background: transparent !important;
                     border: 4px solid transparent !important;
                     transition: none !important; /* Remove transition to avoid flickering on state change */
+                    position: relative;
+                    overflow: visible !important;
                 }
 
                 /* Today: Dark red border */
@@ -395,9 +416,20 @@ export default function Dashboard() {
                     background: #f43f5e !important;
                     color: white !important;
                 }
+                
+                /* Archived List Day: Green Background */
+                .react-calendar__tile.has-list-archived {
+                    background: #22c55e !important;
+                    color: white !important;
+                }
 
                 /* Today AND List: Red Background + Dark Red Border */
                 .react-calendar__tile.has-list.react-calendar__tile--now {
+                    border: 2px solid #7f1d1d !important;
+                }
+                
+                /* Today AND Archived List: Green Background + Dark Red Border */
+                .react-calendar__tile.has-list-archived.react-calendar__tile--now {
                     border: 2px solid #7f1d1d !important;
                 }
 
@@ -408,6 +440,14 @@ export default function Dashboard() {
                 .react-calendar__tile.has-list:enabled:focus,
                 .react-calendar__tile.has-list.react-calendar__tile--active {
                     background: #f43f5e !important;
+                    color: white !important;
+                }
+
+                /* Force ARchived List Days to KEEP Green Background on Hover/Active */
+                .react-calendar__tile.has-list-archived:enabled:hover,
+                .react-calendar__tile.has-list-archived:enabled:focus,
+                .react-calendar__tile.has-list-archived.react-calendar__tile--active {
+                    background: #22c55e !important;
                     color: white !important;
                 }
 

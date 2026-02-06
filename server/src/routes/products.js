@@ -83,6 +83,29 @@ router.post('/merge', auth, async (req, res) => {
             await target.update({ name: newName }, { transaction: t });
         }
 
+        // 1b. Merge Synonyms (Source Name + Source Synonyms -> Target Synonyms)
+        // Parse synonyms safely (handle string/array mismatch if any)
+        const parseSynonyms = (val) => {
+            if (Array.isArray(val)) return val;
+            if (typeof val === 'string') {
+                try { return JSON.parse(val || '[]'); } catch { return []; }
+            }
+            return [];
+        };
+
+        const targetSyns = new Set(parseSynonyms(target.synonyms));
+        const sourceSyns = parseSynonyms(source.synonyms);
+
+        // Add source name
+        if (source.name && source.name !== target.name) {
+            targetSyns.add(source.name);
+        }
+        // Add source synonyms
+        sourceSyns.forEach(s => targetSyns.add(s));
+
+        // Save updated synonyms
+        await target.update({ synonyms: [...targetSyns] }, { transaction: t });
+
         // 2. Migrate Recipe Ingredients
         await RecipeIngredient.update(
             { ProductId: target.id },

@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Card } from '../components/Card';
-import { UserPlus, Zap, ShieldCheck } from 'lucide-react';
+import { UserPlus, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -66,7 +66,7 @@ export default function SignupPage() {
                             transition={{ delay: 0.3 }}
                             className="text-3xl font-bold text-foreground tracking-tight mb-2 text-center"
                         >
-                            {isSetup ? 'System-Installation' : 'Werde Teil von LISTENX'}
+                            {isSetup ? 'System-Installation' : 'Werde Teil von EinkaufsApp'}
                         </motion.h1>
                         <motion.p
                             initial={{ y: 20, opacity: 0 }}

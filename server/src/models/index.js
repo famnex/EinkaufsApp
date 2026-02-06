@@ -35,7 +35,8 @@ const Product = sequelize.define('Product', {
     unit: { type: DataTypes.ENUM('Stück', 'g', 'kg', 'ml', 'l'), defaultValue: 'Stück' },
     note: { type: DataTypes.TEXT, allowNull: true },
     isNew: { type: DataTypes.BOOLEAN, defaultValue: false },
-    source: { type: DataTypes.STRING, defaultValue: 'manual' } // 'manual', 'alexa', 'ai'
+    source: { type: DataTypes.STRING, defaultValue: 'manual' }, // 'manual', 'alexa', 'ai'
+    synonyms: { type: DataTypes.JSON, defaultValue: [] }
 });
 
 Product.belongsTo(Manufacturer);

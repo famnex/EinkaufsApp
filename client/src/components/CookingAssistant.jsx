@@ -4,24 +4,30 @@ import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/axios';
 import { cn } from '../lib/utils';
 
-export default function CookingAssistant({ isOpen, onClose, recipe }) {
+export default function CookingAssistant(props) {
+    const { isOpen, onClose, recipe } = props;
     const [messages, setMessages] = useState([
         { role: 'assistant', content: `Hallo! Ich bin dein Koch-Assistent. Frag mich einfach, wenn du Hilfe bei "${recipe?.title}" brauchst.` }
     ]);
-    const [isListening, setIsListening] = useState(false);
+    const [isListening, setIsListening] = useState(false); // Active recording for query
+    const [isStandby, setIsStandby] = useState(false); // Waiting for wake word
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [inputText, setInputText] = useState('');
     const messagesEndRef = useRef(null);
     const recognitionRef = useRef(null);
     const audioContextRef = useRef(null);
-    const audioRef = useRef(null); // Will hold the persistent HTMLAudioElement
+    const audioRef = useRef(null);
+    const isStandbyRef = useRef(false); // Ref for closure access in onend
+    const pendingWakeRef = useRef(false);        // Wakeword gehört, wir sammeln noch Command
+    const wakeTimeoutRef = useRef(null);         // kleines Zeitfenster, um Rest des Satzes mitzunehmen
+    const wakeMatchedRef = useRef('');           // welches Wakeword wurde getroffen
+
 
     // Initialize Audio System once
     useEffect(() => {
         if (!audioRef.current) {
             audioRef.current = new Audio();
-            // Pre-set some properties
             audioRef.current.preload = 'auto';
         }
         if (!audioContextRef.current) {
@@ -46,51 +52,176 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             recognitionRef.current = new SpeechRecognition();
-            recognitionRef.current.continuous = false;
+            recognitionRef.current.continuous = false; // We restart manually for better control
             recognitionRef.current.lang = 'de-DE';
-            recognitionRef.current.interimResults = false;
+            recognitionRef.current.interimResults = true; // Need interim to catch wake word fast
 
             recognitionRef.current.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                setInputText(transcript);
-                handleSend(transcript);
+                // FULL transcript (wichtig!): alle Results zusammensetzen
+                let fullTranscript = '';
+                for (let i = 0; i < event.results.length; ++i) {
+                    fullTranscript += event.results[i][0].transcript;
+                }
+                const fullLower = fullTranscript.toLowerCase();
+
+                const wakeWords = ['hey chefkoch', 'hey checkoch', 'hallo chef', 'chef koch', 'chefkoch', 'checkoch'];
+
+                // ====== WAKE-CAPTURE MODE: entweder Standby ODER wir haben Wake schon gehört und sammeln noch ======
+                if (isStandbyRef.current || pendingWakeRef.current) {
+
+                    // 1) Falls wir noch NICHT im pendingWake sind: Wakeword erkennen
+                    if (!pendingWakeRef.current) {
+                        const detected = wakeWords.some(w => fullLower.includes(w));
+
+                        if (detected) {
+                            console.log("Wake Word Detected!");
+
+                            pendingWakeRef.current = true;
+
+                            // Wir verlassen Standby-UI-Modus sofort
+                            setIsStandby(false);
+                            isStandbyRef.current = false;
+
+                            // Cue abspielen – aber Recognition NICHT sofort stoppen!
+                            playAudioCue('start');
+
+                            // Merke Wakeword (optional)
+                            const { matched } = extractCommandAfterWake(fullLower, wakeWords);
+                            wakeMatchedRef.current = matched;
+
+                            // Kleines Zeitfenster, um den Rest des Satzes noch mitzunehmen
+                            clearTimeout(wakeTimeoutRef.current);
+                            wakeTimeoutRef.current = setTimeout(() => {
+                                // Wenn bis dahin kein Command gekommen ist: neue Session fürs "aktive" Zuhören starten
+                                if (pendingWakeRef.current) {
+                                    pendingWakeRef.current = false;
+                                    try { recognitionRef.current.stop(); } catch (e) { }
+
+                                    // Wichtig: KEINE KI-Nachfrage auslösen – einfach zuhören
+                                    setTimeout(() => {
+                                        setIsListening(true);
+                                        recognitionRef.current?.start();
+                                    }, 100);
+                                }
+                            }, 900);
+
+                            return; // wichtig: hier raus, wir warten auf mehr Speech
+                        }
+                    }
+
+                    // 2) Wenn Wake schon erkannt wurde: warten bis FINAL, dann Command extrahieren
+                    const lastResult = event.results[event.results.length - 1];
+                    const isFinal = lastResult?.isFinal;
+
+                    if (pendingWakeRef.current && isFinal) {
+                        clearTimeout(wakeTimeoutRef.current);
+
+                        const { command } = extractCommandAfterWake(fullLower, wakeWords);
+
+                        pendingWakeRef.current = false;
+
+                        // Stop diese Session sauber
+                        try { recognitionRef.current.stop(); } catch (e) { }
+
+                        if (command && command.length > 2) {
+                            console.log("Direct Command Detected:", command);
+                            setInputText(command);
+                            handleSend(command); // <-- nur wenn wirklich Command vorhanden
+                        } else {
+                            // KEINE Nachfrage: direkt weiter zuhören
+                            setTimeout(() => {
+                                setIsListening(true);
+                                recognitionRef.current?.start();
+                            }, 100);
+                        }
+                    }
+
+                    return;
+                }
+
+                // ====== ACTIVE LISTENING MODE (manuell gestartet) ======
+                setInputText(fullTranscript);
+
+                const lastResult = event.results[event.results.length - 1];
+                if (lastResult?.isFinal) {
+                    handleSend(fullTranscript);
+                }
             };
 
+
             recognitionRef.current.onend = () => {
-                setIsListening(false);
-                playAudioCue('end');
+                // Auto-Restart if in Standby
+                if (isStandbyRef.current && isOpen) {
+                    console.log("Restarting Standby Listener...");
+                    try {
+                        recognitionRef.current.start();
+                    } catch (e) { /* ignore already started */ }
+                } else {
+                    setIsListening(false);
+                    // If we just finished active listening, go back to standby? 
+                    // Maybe better to wait for user invoke or "continue" cue?
+                    // For now, let's auto-return to standby after a command unless speaking
+                }
             };
 
             recognitionRef.current.onerror = (event) => {
                 console.error("Speech recognition error", event.error);
-                setIsListening(false);
+                if (event.error === 'not-allowed') {
+                    setIsStandby(false);
+                    isStandbyRef.current = false;
+                }
             };
         }
-    }, [recipe]);
+    }, [recipe, isOpen]);
+
+    // Sync Ref with State
+    useEffect(() => {
+        isStandbyRef.current = isStandby;
+    }, [isStandby]);
+
+    // Handle closing
+    useEffect(() => {
+        if (!isOpen) {
+            setIsStandby(false);
+            isStandbyRef.current = false;
+            recognitionRef.current?.stop();
+            stopSpeaking();
+        }
+    }, [isOpen]);
+
+    const extractCommandAfterWake = (lowerText, wakeWords) => {
+        // bestes Match: frühester Treffer, bei Gleichstand längstes Wort
+        const matches = wakeWords
+            .map(w => ({ w, i: lowerText.indexOf(w) }))
+            .filter(x => x.i >= 0)
+            .sort((a, b) => a.i - b.i || b.w.length - a.w.length);
+
+        const matched = matches[0]?.w || '';
+        if (!matched) return { matched: '', command: '' };
+
+        const idx = lowerText.indexOf(matched);
+        const command = lowerText.slice(idx + matched.length).trim();
+        return { matched, command };
+    };
+
 
     // CRITICAL: Unlock Audio on iOS PWA
     const unlockAudio = () => {
-        // Unlock Audio Element
         if (audioRef.current) {
             audioRef.current.play().then(() => {
                 audioRef.current.pause();
-                console.log("Audio element unlocked");
             }).catch(e => console.log("Audio unlock failed or not needed", e));
         }
-
-        // Unlock AudioContext
         if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
             audioContextRef.current.resume();
         }
     };
 
-    // Audio Cues for UX
+    // Audio Cues
     const playAudioCue = (type) => {
         try {
             if (!audioContextRef.current) return;
             const ctx = audioContextRef.current;
-
-            // Ensure context is running (unlock attempt)
             if (ctx.state === 'suspended') ctx.resume();
 
             const osc = ctx.createOscillator();
@@ -113,18 +244,44 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
         }
     };
 
-    const toggleListening = () => {
-        unlockAudio(); // SYNCHRONOUS User Gesture
+    const startActiveListening = () => {
+        setIsListening(true);
+        // isStandby is already false
+        recognitionRef.current?.start();
+    };
+
+    const toggleStandby = () => {
+        unlockAudio();
+        if (isStandby) {
+            setIsStandby(false);
+            isStandbyRef.current = false;
+            recognitionRef.current?.stop();
+        } else {
+            setIsStandby(true);
+            isStandbyRef.current = true;
+            recognitionRef.current?.start();
+        }
+    };
+
+    const toggleActiveListening = () => {
+        unlockAudio();
         if (isListening) {
             recognitionRef.current?.stop();
         } else {
-            setIsSpeaking(false);
-            stopSpeaking();
-            playAudioCue('start');
-            setTimeout(() => {
-                recognitionRef.current?.start();
-                setIsListening(true);
-            }, 100);
+            // Stop standby first if active
+            if (isStandby) {
+                setIsStandby(false);
+                isStandbyRef.current = false;
+                recognitionRef.current?.stop();
+                // Wait a tiny bit for stop to process before starting new session
+                setTimeout(() => {
+                    playAudioCue('start');
+                    startActiveListening();
+                }, 100);
+            } else {
+                playAudioCue('start');
+                startActiveListening();
+            }
         }
     };
 
@@ -136,6 +293,9 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
 
         try {
             setIsSpeaking(true);
+            // STOP RECOGNITION to prevent self-triggering
+            if (recognitionRef.current) recognitionRef.current.stop();
+
             const token = localStorage.getItem('token');
             const baseUrl = import.meta.env.VITE_API_URL || (import.meta.env.BASE_URL === '/' ? '/api' : `${import.meta.env.BASE_URL}api`.replace('//', '/'));
             const url = `${baseUrl}/ai/speak?text=${encodeURIComponent(text)}&token=${token}`;
@@ -149,8 +309,16 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
                 setIsSpeaking(false);
                 if (!isEnding) {
                     setTimeout(() => {
-                        toggleListening();
+                        toggleActiveListening();
                     }, 400);
+                } else {
+                    // Auto-Reset to Standby if conversation ended
+                    console.log("Conversation ended. Returning to Standby...");
+                    setTimeout(() => {
+                        setIsStandby(true);
+                        isStandbyRef.current = true;
+                        try { recognitionRef.current?.start(); } catch (e) { }
+                    }, 500);
                 }
             };
 
@@ -200,6 +368,8 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
                     unit: ri.unit
                 })),
                 steps: recipe.instructions,
+                currentStep: props.currentStep || 0,
+                servings: props.servings || recipe.servings || 4,
                 isEnding // Tell AI to keep it brief if ending
             };
 
@@ -210,6 +380,12 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
 
             const replyMsg = { role: 'assistant', content: data.reply };
             setMessages(prev => [...prev, replyMsg]);
+
+            // Execute Action if present
+            if (data.action && props.onAction) {
+                console.log("Executing Action:", data.action);
+                props.onAction(data.action);
+            }
 
             // Pass the ending flag to speak so it knows whether to restart mic
             speak(data.reply, isEnding);
@@ -275,16 +451,35 @@ export default function CookingAssistant({ isOpen, onClose, recipe }) {
                 <div className="p-3 border-t border-border bg-card">
                     {/* Voice Feedback */}
                     {isListening && (
-                        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-black/80 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 animate-pulse z-10 backdrop-blur-sm">
+                        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 animate-pulse z-10 shadow-lg">
                             <Mic size={14} />
                             Ich höre zu...
+                        </div>
+                    )}
+                    {isStandby && !isListening && (
+                        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-blue-500/80 text-white px-4 py-2 rounded-full text-xs font-medium flex items-center gap-2 backdrop-blur-sm z-10 animate-bounce">
+                            <Sparkles size={12} />
+                            Warte auf "Hey Checkoch"...
                         </div>
                     )}
 
                     {/* Controls */}
                     <div className="flex gap-2 items-center">
                         <button
-                            onClick={toggleListening}
+                            onClick={toggleStandby}
+                            className={cn(
+                                "p-3 rounded-full transition-all shadow-md flex items-center justify-center",
+                                isStandby
+                                    ? "bg-blue-500 text-white ring-2 ring-blue-500/30"
+                                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                            )}
+                            title={isStandby ? "Hands-Free ausschalten" : "Hands-Free (Hey Checkoch) aktivieren"}
+                        >
+                            <Sparkles size={20} />
+                        </button>
+
+                        <button
+                            onClick={toggleActiveListening}
                             className={cn(
                                 "p-3 rounded-full transition-all shadow-md flex items-center justify-center",
                                 isListening

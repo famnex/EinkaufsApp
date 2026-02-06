@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Clock, Users, ArrowRight, Wand2, Plus, Minus, Search, Trash2, Image as ImageIcon, Sparkles, Loader2, Tag } from 'lucide-react';
+import { X, Save, Clock, Users, ArrowRight, Wand2, Plus, Minus, Search, Trash2, Image as ImageIcon, Sparkles, Loader2, Tag, ShieldAlert } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
@@ -22,7 +23,8 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
         servings: 2,
         image: null,
         imagePreview: null,
-        tags: []
+        tags: [],
+        imageSource: 'scraped'
     });
 
     // Tab 2: Ingredients
@@ -33,6 +35,10 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
 
     // Tab 3: Steps
     const [steps, setSteps] = useState(['']);
+
+
+
+    useLockBodyScroll(isOpen);
 
     useEffect(() => {
         if (isOpen) {
@@ -51,7 +57,8 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                             servings: fullRecipe.servings,
                             image: null,
                             imagePreview: fullRecipe.image_url,
-                            tags: fullRecipe.Tags ? fullRecipe.Tags.map(t => t.name) : []
+                            tags: fullRecipe.Tags ? fullRecipe.Tags.map(t => t.name) : [],
+                            imageSource: fullRecipe.imageSource || 'scraped'
                         });
 
                         // Load ingredients
@@ -97,7 +104,9 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
             servings: 2,
             image: null,
             imagePreview: null,
-            tags: []
+            imagePreview: null,
+            tags: [],
+            imageSource: 'scraped'
         });
         setIngredients([]);
         setSteps(['']);
@@ -106,7 +115,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
     const handleImageChange = (e) => {
         const file = e.target.files[0];
         if (file) {
-            setBasics({ ...basics, image: file });
+            setBasics({ ...basics, image: file, imageSource: 'upload' });
             const reader = new FileReader();
             reader.onloadend = () => {
                 setBasics(prev => ({ ...prev, imagePreview: reader.result }));
@@ -170,12 +179,14 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
             formData.append('duration', basics.duration);
             formData.append('servings', basics.servings);
             formData.append('instructions', JSON.stringify(steps.filter(s => s.trim())));
+
             formData.append('tags', JSON.stringify(basics.tags));
+            formData.append('imageSource', basics.imageSource);
 
             if (basics.image) {
                 console.log('Appending Image File:', basics.image.name);
                 formData.append('image', basics.image);
-            } else if (basics.imagePreview && basics.imagePreview.startsWith('http')) {
+            } else if (basics.imagePreview) {
                 console.log('Appending Image URL:', basics.imagePreview);
                 formData.append('image_url', basics.imagePreview);
             }
@@ -335,48 +346,124 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                                 <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1 flex items-center gap-1"><Users size={12} /> Portionen</label>
                                                 <Input type="number" value={basics.servings} onChange={e => setBasics({ ...basics, servings: e.target.value })} />
                                             </div>
+
                                         </div>
                                         <div className="w-full md:w-1/3">
                                             <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1 mb-2 block">Bild</label>
-                                            <div className="aspect-[3/4] rounded-2xl bg-muted border-2 border-dashed border-border relative overflow-hidden group cursor-pointer hover:border-primary/50 transition-colors">
-                                                <input type="file" onChange={handleImageChange} className="absolute inset-0 opacity-0 z-10 cursor-pointer" accept="image/*" />
+
+                                            {/* Image Preview Area */}
+                                            <div className="aspect-[3/4] rounded-2xl bg-muted border-2 border-dashed border-border relative overflow-hidden group">
                                                 {basics.imagePreview ? (
                                                     <img src={getImageUrl(basics.imagePreview)} alt="Preview" className="w-full h-full object-cover" />
                                                 ) : (
                                                     <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-2 p-4 text-center pointer-events-none">
                                                         <ImageIcon size={48} className="opacity-50" />
-                                                        <span className="text-sm font-medium">Bild hochladen</span>
-                                                        <span className="text-xs opacity-70">oder</span>
-                                                        <Button
-                                                            type="button"
-                                                            size="sm"
-                                                            variant="secondary"
-                                                            className="gap-2 relative z-20 pointer-events-auto transition-transform active:scale-95"
-                                                            onClick={async (e) => {
-                                                                e.stopPropagation();
-                                                                e.preventDefault();
-                                                                if (!basics.title) {
-                                                                    alert('Bitte erst einen Titel eingeben');
-                                                                    return;
-                                                                }
-                                                                if (!confirm('Ein neues Bild für "' + basics.title + '" generieren? (Kostenpflichtig)')) return;
-
-                                                                try {
-                                                                    setLoading(true);
-                                                                    const { data } = await api.post('/ai/generate-image', { title: basics.title });
-                                                                    setBasics(prev => ({ ...prev, imagePreview: data.url, image: null })); // image: null indicates no file upload, use URL
-                                                                } catch (err) {
-                                                                    alert('Fehler: ' + err.message);
-                                                                } finally {
-                                                                    setLoading(false);
-                                                                }
-                                                            }}
-                                                        >
-                                                            {loading ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
-                                                            AI Bild
-                                                        </Button>
+                                                        <span className="text-sm font-medium">Kein Bild</span>
                                                     </div>
                                                 )}
+
+                                                {/* Image Source Badge - Visual Only */}
+                                                {basics.imageSource && (
+                                                    <div className="absolute top-2 right-2 z-20 pointer-events-none">
+                                                        <div className={cn(
+                                                            "px-2 py-1 rounded-lg text-white shadow-lg backdrop-blur-md border flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider",
+                                                            basics.imageSource === 'scraped' && "bg-red-500/80 border-red-400/30",
+                                                            basics.imageSource === 'upload' && "bg-blue-500/80 border-blue-400/30",
+                                                            basics.imageSource === 'ai' && "bg-purple-500/80 border-purple-400/30"
+                                                        )}>
+                                                            {basics.imageSource === 'scraped' && <ShieldAlert size={12} />}
+                                                            {basics.imageSource === 'upload' && <ImageIcon size={12} />}
+                                                            {basics.imageSource === 'ai' && <Sparkles size={12} />}
+                                                            <span>
+                                                                {basics.imageSource === 'scraped' && 'Web'}
+                                                                {basics.imageSource === 'upload' && 'Upload'}
+                                                                {basics.imageSource === 'ai' && 'AI'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Action Bar */}
+                                            <div className="mt-3 grid grid-cols-3 gap-2">
+                                                {/* Upload Button */}
+                                                <div className="relative">
+                                                    <input
+                                                        type="file"
+                                                        onChange={handleImageChange}
+                                                        className="absolute inset-0 opacity-0 z-10 cursor-pointer"
+                                                        accept="image/*"
+                                                    />
+                                                    <Button type="button" variant="outline" size="sm" className="w-full gap-2 text-xs">
+                                                        <ImageIcon size={14} /> Upload
+                                                    </Button>
+                                                </div>
+
+                                                {/* AI Button */}
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="w-full gap-2 text-xs"
+                                                    disabled={loading}
+                                                    onClick={async () => {
+                                                        if (!basics.title) {
+                                                            alert('Bitte erst einen Titel eingeben');
+                                                            return;
+                                                        }
+
+                                                        // Decide between Variation (Img2Img) and New Generation (Txt2Img)
+                                                        if (basics.imagePreview) {
+                                                            if (!confirm('Eine Variation des aktuellen Bildes erstellen? (Kostenpflichtig)')) return;
+
+                                                            try {
+                                                                setLoading(true);
+                                                                const { data } = await api.post('/ai/regenerate-image', {
+                                                                    imageUrl: basics.imagePreview,
+                                                                    title: basics.title
+                                                                });
+                                                                // Cache buster not strictly needed if filename changes, but good practice
+                                                                setBasics(prev => ({ ...prev, imagePreview: data.url, image: null, imageSource: 'ai' }));
+                                                            } catch (err) {
+                                                                alert('Fehler: ' + err.message);
+                                                            } finally {
+                                                                setLoading(false);
+                                                            }
+                                                        } else {
+                                                            // New Generation
+                                                            if (!confirm('Ein neues Bild für "' + basics.title + '" generieren? (Kostenpflichtig)')) return;
+
+                                                            try {
+                                                                setLoading(true);
+                                                                const { data } = await api.post('/ai/generate-image', { title: basics.title });
+                                                                setBasics(prev => ({ ...prev, imagePreview: data.url, image: null, imageSource: 'ai' }));
+                                                            } catch (err) {
+                                                                alert('Fehler: ' + err.message);
+                                                            } finally {
+                                                                setLoading(false);
+                                                            }
+                                                        }
+                                                    }}
+                                                >
+                                                    {loading ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                                                    {basics.imagePreview ? 'Variante' : 'AI Neu'}
+                                                </Button>
+
+                                                {/* Delete Button */}
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="w-full gap-2 text-xs hover:text-destructive hover:border-destructive"
+                                                    disabled={!basics.imagePreview}
+                                                    onClick={() => {
+                                                        if (confirm('Bild wirklich entfernen?')) {
+                                                            setBasics(prev => ({ ...prev, imagePreview: null, image: null, imageSource: null }));
+                                                        }
+                                                    }}
+                                                >
+                                                    <Trash2 size={14} /> Weg
+                                                </Button>
                                             </div>
                                         </div>
                                     </div>

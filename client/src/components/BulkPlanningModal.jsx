@@ -11,7 +11,10 @@ import { Input } from './Input';
 // Helper to safely get adjustment value
 const getAdj = (prodId, adjustments) => adjustments[prodId] || { quantity: '', unit: '', note: '' };
 
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+
 export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }) {
+    useLockBodyScroll(isOpen);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [data, setData] = useState(null); // { range: {start, end}, ingredients: [] }

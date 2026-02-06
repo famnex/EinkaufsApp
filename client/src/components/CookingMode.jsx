@@ -15,6 +15,10 @@ export default function CookingMode({ recipe, onClose }) {
     const [futureUsage, setFutureUsage] = useState({}); // { ingredientId: [{ date, recipeName }] }
     const [direction, setDirection] = useState(0);
 
+    // AI Voice Control State
+    const [scaleFactor, setScaleFactor] = useState(1);
+    const [substitutions, setSubstitutions] = useState({}); // { "Original Name": "New Name" }
+
     // Swipe Logic for Steps
     const [touchStart, setTouchStart] = useState(null);
     const [touchEnd, setTouchEnd] = useState(null);
@@ -58,13 +62,20 @@ export default function CookingMode({ recipe, onClose }) {
     const [tooltipData, setTooltipData] = useState(null); // { x, y, items: [] }
 
     // Parse ingredients to ensure we handle the async fetched data structure
-    const ingredients = recipe.RecipeIngredients?.map(ri => ({
-        id: ri.id,
-        productId: ri.ProductId, // IMPORTANT: Match by ProductId
-        name: ri.Product?.name || 'Unknown',
-        amount: ri.quantity,
-        unit: ri.unit || ri.Product?.unit
-    })) || [];
+    const ingredients = recipe.RecipeIngredients?.map(ri => {
+        const originalName = ri.Product?.name || 'Unknown';
+        const subName = substitutions[originalName];
+
+        return {
+            id: ri.id,
+            productId: ri.ProductId,
+            name: subName || originalName,
+            originalName: originalName,
+            isSubstituted: !!subName,
+            amount: ri.quantity * scaleFactor,
+            unit: ri.unit || ri.Product?.unit
+        };
+    }) || [];
 
     const steps = recipe.instructions || [];
 
@@ -237,6 +248,40 @@ export default function CookingMode({ recipe, onClose }) {
         setTooltipData(null);
     };
 
+    const handleVoiceAction = (action) => {
+        if (!action) return;
+        switch (action.type) {
+            case 'NEXT_STEP':
+                nextStep();
+                break;
+            case 'PREV_STEP':
+                prevStep();
+                break;
+            case 'GOTO_STEP':
+                if (action.payload?.index !== undefined) {
+                    const idx = Math.max(0, Math.min(steps.length - 1, action.payload.index));
+                    setDirection(idx > step ? 1 : -1);
+                    setStep(idx);
+                }
+                break;
+            case 'SCALE':
+                if (action.payload?.factor) {
+                    setScaleFactor(action.payload.factor);
+                }
+                break;
+            case 'SUBSTITUTE':
+                if (action.payload?.original && action.payload?.replacement) {
+                    setSubstitutions(prev => ({
+                        ...prev,
+                        [action.payload.original]: action.payload.replacement
+                    }));
+                }
+                break;
+            default:
+                break;
+        }
+    };
+
     return (
         <AnimatePresence>
             <motion.div
@@ -304,7 +349,10 @@ export default function CookingMode({ recipe, onClose }) {
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                             <div className="absolute bottom-4 left-4 right-4 text-white">
                                 <h2 className="hidden md:block text-2xl font-bold leading-tight">{recipe.title}</h2>
-                                <p className="opacity-80 text-sm">{recipe.servings} Portionen • {recipe.duration} Min</p>
+                                <p className="opacity-80 text-sm">
+                                    {(recipe.servings * scaleFactor).toLocaleString('de-DE')} Portionen • {recipe.duration} Min
+                                    {scaleFactor !== 1 && <span className="ml-2 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full font-bold">Skaliert {scaleFactor}x</span>}
+                                </p>
                             </div>
                         </div>
 
@@ -335,8 +383,11 @@ export default function CookingMode({ recipe, onClose }) {
                                             {checkedIngredients.has(i) && <Check size={14} strokeWidth={3} />}
                                         </div>
                                         <span className="font-medium text-lg flex-1">
-                                            {ing.amount > 0 && <span className="font-bold mr-1">{ing.amount} {ing.unit}</span>}
-                                            {ing.name}
+                                            {ing.amount > 0 && <span className={cn("font-bold mr-1", scaleFactor !== 1 && "text-primary")}>
+                                                {Number(ing.amount.toFixed(2)).toLocaleString('de-DE')} {ing.unit}
+                                            </span>}
+                                            <span className={cn(ing.isSubstituted && "text-primary italic")}>{ing.name}</span>
+                                            {ing.isSubstituted && <span className="text-xs text-muted-foreground line-through ml-2 opacity-60">{ing.originalName}</span>}
                                         </span>
 
                                         {/* Future Usage Warning */}
@@ -449,7 +500,7 @@ export default function CookingMode({ recipe, onClose }) {
                         audio.play().then(() => audio.pause()).catch(() => { });
                         setShowAssistant(!showAssistant);
                     }}
-                    className="fixed top-[120px] right-4 md:top-auto md:right-auto md:bottom-6 md:left-6 z-[100] w-12 h-12 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-full shadow-lg flex items-center justify-center text-white border-2 border-white/20"
+                    className="fixed top-[calc(120px+env(safe-area-inset-top))] right-4 md:top-auto md:right-auto md:bottom-6 md:left-6 z-[100] w-12 h-12 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-full shadow-lg flex items-center justify-center text-white border-2 border-white/20"
                 >
                     <Sparkles size={20} />
                 </motion.button>
@@ -458,6 +509,9 @@ export default function CookingMode({ recipe, onClose }) {
                     isOpen={showAssistant}
                     onClose={() => setShowAssistant(false)}
                     recipe={recipe}
+                    currentStep={step}
+                    servings={recipe.servings * scaleFactor}
+                    onAction={handleVoiceAction}
                 />
 
                 {/* --- FIXED TOOLTIP LAYER --- */}

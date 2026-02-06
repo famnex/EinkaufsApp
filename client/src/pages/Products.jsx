@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import api from '../lib/axios';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -118,18 +119,24 @@ export default function Products() {
         setIsModalOpen(true);
     };
 
-    const filteredProducts = products
-        .filter(p =>
-            p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.category?.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-        .sort((a, b) => {
-            // Sort "New" items first
-            if (a.isNew && !b.isNew) return -1;
-            if (!a.isNew && b.isNew) return 1;
-            // Otherwise alphabetical
-            return a.name.localeCompare(b.name);
-        });
+    const filteredProducts = useMemo(() => {
+        return products
+            .filter(p =>
+                p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                p.category?.toLowerCase().includes(searchTerm.toLowerCase())
+            )
+            .sort((a, b) => {
+                // Sort "New" items first
+                if (a.isNew && !b.isNew) return -1;
+                if (!a.isNew && b.isNew) return 1;
+                // Otherwise alphabetical
+                return a.name.localeCompare(b.name);
+            });
+    }, [products, searchTerm]);
+
+
+
+    const { visibleItems: renderedProducts, observerTarget } = useInfiniteScroll(filteredProducts, 20);
 
     const [mergeSource, setMergeSource] = useState(null);
     const [mergeTarget, setMergeTarget] = useState(null);
@@ -233,74 +240,79 @@ export default function Products() {
                         loading ? (
                             Array.from({ length: 6 }).map((_, i) => <SessionSkeleton key={i} />)
                         ) : filteredProducts.length > 0 ? (
-                            filteredProducts.map((product, index) => (
-                                <motion.div
-                                    key={product.id}
-                                    layout
-                                    draggable
-                                    onDragStart={(e) => handleDragStart(e, product)}
-                                    onDragOver={handleDragOver}
-                                    onDrop={(e) => handleDrop(e, product)}
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    onClick={() => {
-                                        if (editMode === 'edit') {
-                                            handleEdit(product);
-                                        } else if (editMode === 'delete') {
-                                            handleDelete(product.id, { stopPropagation: () => { } });
-                                        }
-                                    }}
-                                    className={cn(
-                                        "bg-card border p-4 rounded-2xl flex items-center justify-between group transition-all",
-                                        "hover:shadow-md cursor-grab active:cursor-grabbing",
-                                        editMode === 'edit' && "border-primary/30 hover:bg-primary/5 cursor-pointer",
-                                        editMode === 'delete' && "border-destructive/30 hover:bg-destructive/5 cursor-pointer"
-                                    )}
-                                >
-                                    <div className="flex-1 min-w-0 text-left pointer-events-none">
-                                        <h3 className="font-bold text-foreground truncate text-lg leading-tight">{product.name}</h3>
-                                        <p className="text-sm text-muted-foreground truncate mt-1">{product.category || 'Keine Kategorie'}</p>
-                                        <div className="flex items-center gap-2 mt-2">
-                                            {/* Badges */}
-                                            {product.isNew && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        // Optimistic Update
-                                                        setProducts(prev => prev.map(p => p.id === product.id ? { ...p, isNew: false } : p));
-                                                        api.put(`/products/${product.id}`, { isNew: false }).catch(console.error);
-                                                    }}
-                                                    className={cn(
-                                                        "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity",
-                                                        product.source === 'alexa' ? "bg-cyan-500/10 text-cyan-500 border border-cyan-500/20" :
-                                                            product.source === 'ai' ? "bg-purple-500/10 text-purple-500 border border-purple-500/20" :
-                                                                "bg-primary/10 text-primary border border-primary/20"
-                                                    )}
-                                                    title="Als gelesen markieren"
-                                                >
-                                                    {product.source === 'alexa' && <Radio size={10} />}
-                                                    {product.source === 'ai' && <Sparkles size={10} />}
-                                                    {product.source === 'alexa' ? "Alexa" : product.source === 'ai' ? "AI Neu" : "Neu"}
-                                                    <X size={10} className="ml-1 opacity-50" />
-                                                </button>
-                                            )}
-                                            <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full text-muted-foreground font-medium">
-                                                {product.unit || 'Stück'}
-                                            </span>
+                            <>
+                                {renderedProducts.map((product, index) => (
+                                    <motion.div
+                                        key={product.id}
+                                        layout
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, product)}
+                                        onDragOver={handleDragOver}
+                                        onDrop={(e) => handleDrop(e, product)}
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        onClick={() => {
+                                            if (editMode === 'edit') {
+                                                handleEdit(product);
+                                            } else if (editMode === 'delete') {
+                                                handleDelete(product.id, { stopPropagation: () => { } });
+                                            }
+                                        }}
+                                        className={cn(
+                                            "bg-card border p-4 rounded-2xl flex items-center justify-between group transition-all",
+                                            "hover:shadow-md cursor-grab active:cursor-grabbing",
+                                            editMode === 'edit' && "border-primary/30 hover:bg-primary/5 cursor-pointer",
+                                            editMode === 'delete' && "border-destructive/30 hover:bg-destructive/5 cursor-pointer"
+                                        )}
+                                    >
+                                        <div className="flex-1 min-w-0 text-left pointer-events-none">
+                                            <h3 className="font-bold text-foreground truncate text-lg leading-tight">{product.name}</h3>
+                                            <p className="text-sm text-muted-foreground truncate mt-1">{product.category || 'Keine Kategorie'}</p>
+                                            <div className="flex items-center gap-2 mt-2">
+                                                {/* Badges */}
+                                                {product.isNew && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            // Optimistic Update
+                                                            setProducts(prev => prev.map(p => p.id === product.id ? { ...p, isNew: false } : p));
+                                                            api.put(`/products/${product.id}`, { isNew: false }).catch(console.error);
+                                                        }}
+                                                        className={cn(
+                                                            "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity",
+                                                            product.source === 'alexa' ? "bg-cyan-500/10 text-cyan-500 border border-cyan-500/20" :
+                                                                product.source === 'ai' ? "bg-purple-500/10 text-purple-500 border border-purple-500/20" :
+                                                                    "bg-primary/10 text-primary border border-primary/20",
+                                                            "relative z-10"
+                                                        )}
+                                                        title="Als gelesen markieren"
+                                                    >
+                                                        {product.source === 'alexa' && <Radio size={10} />}
+                                                        {product.source === 'ai' && <Sparkles size={10} />}
+                                                        {product.source === 'alexa' ? "Alexa" : product.source === 'ai' ? "AI Neu" : "Neu"}
+                                                        <X size={10} className="ml-1 opacity-50 relative z-10" />
+                                                    </button>
+                                                )}
+                                                <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full text-muted-foreground font-medium">
+                                                    {product.unit || 'Stück'}
+                                                </span>
+                                            </div>
                                         </div>
-                                    </div>
-                                    {editMode === 'edit' && (
-                                        <div className="text-primary">
-                                            <Edit2 size={18} />
-                                        </div>
-                                    )}
-                                    {editMode === 'delete' && (
-                                        <div className="text-destructive">
-                                            <Trash2 size={18} />
-                                        </div>
-                                    )}
-                                </motion.div>
-                            ))
+                                        {editMode === 'edit' && (
+                                            <div className="text-primary">
+                                                <Edit2 size={18} />
+                                            </div>
+                                        )}
+                                        {editMode === 'delete' && (
+                                            <div className="text-destructive">
+                                                <Trash2 size={18} />
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                ))}
+                                {/* Observer Target for Infinite Scroll */}
+                                <div ref={observerTarget} className="h-4 w-full col-span-full" />
+                            </>
                         ) : (
                             <div className="col-span-full py-20 text-center border-2 border-dashed border-border rounded-3xl">
                                 Keine Produkte gefunden.
@@ -375,6 +387,6 @@ export default function Products() {
                 products={products}
                 onRefresh={fetchProducts}
             />
-        </div>
+        </div >
     );
 }

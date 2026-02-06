@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, Tag, Scale, Factory, AlertCircle, CheckCircle2, Loader2, Save, ChevronRight, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { Button } from './Button';
@@ -30,6 +31,8 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
             alert('Fehler beim Ändern des Status');
         }
     };
+
+    useLockBodyScroll(isOpen);
 
     // Reset state on close or open
     useEffect(() => {

@@ -4,8 +4,10 @@ import { X, Search, ChefHat, CarFront } from 'lucide-react';
 import { Input } from './Input';
 import api from '../lib/axios';
 import { getImageUrl } from '../lib/utils';
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 export default function MealSelectorModal({ isOpen, onClose, onSelect, initialDate, initialType }) {
+    useLockBodyScroll(isOpen);
     const [searchTerm, setSearchTerm] = useState('');
     const [recipes, setRecipes] = useState([]);
     const [manualEntry, setManualEntry] = useState('');

@@ -8,7 +8,11 @@ module.exports = (sequelize) => {
         prep_time: { type: DataTypes.INTEGER }, // minutes
         duration: { type: DataTypes.INTEGER }, // minutes
         servings: { type: DataTypes.INTEGER, defaultValue: 1 },
-        instructions: { type: DataTypes.JSON } // Array of strings or rich text
+        instructions: { type: DataTypes.JSON }, // Array of strings or rich text
+        imageSource: {
+            type: DataTypes.ENUM('upload', 'scraped', 'ai'),
+            defaultValue: 'scraped'
+        }
     });
 };
 
