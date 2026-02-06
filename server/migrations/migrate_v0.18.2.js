@@ -60,3 +60,12 @@ async function up() {
 }
 
 module.exports = { up };
+
+if (require.main === module) {
+  up()
+    .then(() => process.exit(0))
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    });
+}
