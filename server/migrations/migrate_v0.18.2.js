@@ -1,96 +1,60 @@
 /**
- * Migration for v0.18.2
+ * Migration v0.18.2 (Comprehensive)
  * 
- * Includes:
- * - Product.synonyms (TEXT/JSON)
- * - Product.isNew (BOOLEAN)
- * - Product.source (STRING)
- * - Product.is_hidden (BOOLEAN) - Ensuring consistency if missed in 0.17.x
- * - Recipe.imageSource (ENUM)
- * - List.status (ENUM)
+ * Automatically detects and adds any missing columns for ALL models
+ * defined in Sequelize but missing in the SQLite database.
+ * 
+ * This covers:
+ * - Product: synonyms, isNew, source, is_hidden
+ * - Recipe: imageSource
+ * - List: status
+ * - And any future/missed columns automatically.
  */
 
-const { sequelize, DataTypes } = require('../src/models');
+const { sequelize } = require('../src/models');
 
 async function up() {
-    console.log('Running migration v0.18.2...');
+    console.log('Running comprehensive schema check (v0.18.2)...');
+
     const queryInterface = sequelize.getQueryInterface();
-    const table = 'Products';
+    const models = sequelize.models;
 
     try {
-        const description = await queryInterface.describeTable(table);
+        // Iterate over every model defined in our code
+        for (const modelName of Object.keys(models)) {
+            const model = models[modelName];
+            const tableName = model.tableName;
 
-        // 1. Synonyms (New in 0.18.0)
-        if (!description.synonyms) {
-            console.log('Adding synonyms column...');
-            await queryInterface.addColumn(table, 'synonyms', {
-                type: DataTypes.TEXT, // SQLite stores JSON as TEXT
-                defaultValue: '[]'
+            console.log(`Checking table: ${tableName}`);
+
+            // Get current DB structure
+            const tableDesc = await queryInterface.describeTable(tableName).catch(err => {
+                console.warn(`Table ${tableName} does not exist? skipping...`, err.message);
+                return null;
             });
-        } else {
-            console.log('synonyms column already exists.');
+
+            if (!tableDesc) continue;
+
+            // Iterate over every attribute (column) defined in the model
+            for (const [colName, attribute] of Object.entries(model.rawAttributes)) {
+                // Skip if column already exists
+                if (tableDesc[colName]) continue;
+
+                console.log(`[FIX] Adding missing column: ${tableName}.${colName}`);
+
+                try {
+                    // Use the definition from the model to add the column
+                    await queryInterface.addColumn(tableName, colName, attribute);
+                    console.log(`   -> Success: Added ${colName}`);
+                } catch (colErr) {
+                    console.error(`   -> Failed to add ${colName}:`, colErr.message);
+                }
+            }
         }
 
-        // 2. isNew (Likely added in 0.17.x but good to ensure)
-        if (!description.isNew) {
-            console.log('Adding isNew column...');
-            await queryInterface.addColumn(table, 'isNew', {
-                type: DataTypes.BOOLEAN,
-                defaultValue: false
-            });
-        } else {
-            console.log('isNew column already exists.');
-        }
-
-        // 3. source (Likely added in 0.17.x but good to ensure)
-        if (!description.source) {
-            console.log('Adding source column...');
-            await queryInterface.addColumn(table, 'source', {
-                type: DataTypes.STRING,
-                defaultValue: 'manual'
-            });
-        } else {
-            console.log('source column already exists.');
-        }
-
-        // 4. is_hidden (Found in schema, ensuring model consistency)
-        if (!description.is_hidden) {
-            console.log('Adding is_hidden column...');
-            await queryInterface.addColumn(table, 'is_hidden', {
-                type: DataTypes.BOOLEAN,
-                defaultValue: false
-            });
-        } else {
-            console.log('is_hidden column already exists.');
-        }
-
-        // 5. Recipe.imageSource (Added recently)
-        const recipeDesc = await queryInterface.describeTable('Recipes');
-        if (!recipeDesc.imageSource) {
-            console.log('Adding imageSource column to Recipes...');
-            await queryInterface.addColumn('Recipes', 'imageSource', {
-                type: DataTypes.ENUM('upload', 'scraped', 'ai'),
-                defaultValue: 'scraped'
-            });
-        } else {
-            console.log('Recipes.imageSource column already exists.');
-        }
-
-        // 6. List.status (Added recently)
-        const listDesc = await queryInterface.describeTable('Lists');
-        if (!listDesc.status) {
-            console.log('Adding status column to Lists...');
-            await queryInterface.addColumn('Lists', 'status', {
-                type: DataTypes.ENUM('active', 'completed', 'archived'),
-                defaultValue: 'active'
-            });
-        } else {
-            console.log('Lists.status column already exists.');
-        }
-
-        console.log('Migration v0.18.2 finished.');
+        console.log('Schema synchronization finished.');
     } catch (err) {
-        console.error('Migration v0.18.2 Failed:', err);
+        console.error('Migration Failed:', err);
         throw err;
     }
 }
