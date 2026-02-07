@@ -1,6 +1,9 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.18.3
+## Aktuelle Version: v0.18.4
+
+### Changelog v0.18.4
+- **Debug (Server):** Erweiterte Pfad-Erkennung für `regenerate-image`. Prüft nun mehrere mögliche Speicherorte (`public/`, `server/public/`), um Bilder auch in komplexen Deployment-Strukturen (wie Uberspace) zuverlässig zu finden. Inklusive detailliertem Logging zur Fehleranalyse. 🕵️‍♂️📂
 
 ### Changelog v0.18.3
 - **Fix (Server):** Fehlerbehebung für `500 Internal Server Error` beim Regenerieren von Bildern (`regenerate-image`). Der Server liest Bilder nun direkt vom Dateisystem, statt sie über HTTP anzufragen. 🖼️🛠️

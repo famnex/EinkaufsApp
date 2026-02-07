@@ -454,15 +454,34 @@ router.post('/regenerate-image', auth, async (req, res) => {
                 // Adjust relative path if it includes "EinkaufsApp" (subpath case)
                 relativePath = relativePath.replace(/^\/?EinkaufsApp\//, '');
 
-                const localPath = path.join(__dirname, '../../public', relativePath);
+                // Strategy 1: Relative to __dirname (src/routes/ai.js -> ../../public)
+                let localPath = path.join(__dirname, '../../public', relativePath);
 
-                console.log('Attempting to read local file:', localPath);
+                console.log('DEBUG: Strategy 1 Path:', localPath);
+
+                if (!fs.existsSync(localPath)) {
+                    // Strategy 2: Relative to process.cwd() (server root -> public)
+                    const rootPath = path.join(process.cwd(), 'public', relativePath);
+                    console.log('DEBUG: Strategy 2 Path (CWD):', rootPath);
+                    if (fs.existsSync(rootPath)) {
+                        localPath = rootPath;
+                    } else {
+                        // Strategy 3: Try looking in 'server/public' from CWD if we are in project root
+                        const serverPublicPath = path.join(process.cwd(), 'server/public', relativePath);
+                        console.log('DEBUG: Strategy 3 Path (server/public):', serverPublicPath);
+                        if (fs.existsSync(serverPublicPath)) {
+                            localPath = serverPublicPath;
+                        }
+                    }
+                }
+
+                console.log('Final attempt to read local file at:', localPath);
 
                 if (fs.existsSync(localPath)) {
                     sourceBuffer = fs.readFileSync(localPath);
                     console.log('Successfully read local file.');
                 } else {
-                    console.log('Local file not found, falling back to HTTP fetch.');
+                    console.log('Local file not found in any expected location. Falling back to HTTP.');
                 }
             } catch (localErr) {
                 console.error('Error reading local file:', localErr);
