@@ -428,24 +428,67 @@ router.post('/regenerate-image', auth, async (req, res) => {
 
         console.log('Regenerating image via GPT-Image-1-Mini from:', imageUrl);
 
-        // 1. Download original image
-        let targetUrl = imageUrl;
-        if (!imageUrl.startsWith('http')) {
-            if (req.headers.host) {
-                const protocol = req.secure ? 'https' : 'http';
-                targetUrl = `${protocol}://${req.headers.host}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+        // 1. Download original image or read from disk
+        let sourceBuffer;
+
+        // Check if it's a local file (relative path or contains /uploads/)
+        const isLocal = !imageUrl.startsWith('http') || imageUrl.includes('/uploads/');
+
+        if (isLocal) {
+            try {
+                // Construct standard local path
+                // Remove protocol/domain if present in case of full URL to self
+                let relativePath = imageUrl;
+                if (imageUrl.startsWith('http')) {
+                    const urlObj = new URL(imageUrl);
+                    relativePath = urlObj.pathname;
+                }
+
+                // Remove leading slash for join
+                if (relativePath.startsWith('/')) relativePath = relativePath.substring(1);
+
+                // If path points to uploads/ make sure we look in public/uploads/
+                // Our standard structure is public/uploads/...
+                // If relativePath is "uploads/recipes/foo.jpg", we need path.join(__dirname, '../../public', relativePath)
+
+                // Adjust relative path if it includes "EinkaufsApp" (subpath case)
+                relativePath = relativePath.replace(/^\/?EinkaufsApp\//, '');
+
+                const localPath = path.join(__dirname, '../../public', relativePath);
+
+                console.log('Attempting to read local file:', localPath);
+
+                if (fs.existsSync(localPath)) {
+                    sourceBuffer = fs.readFileSync(localPath);
+                    console.log('Successfully read local file.');
+                } else {
+                    console.log('Local file not found, falling back to HTTP fetch.');
+                }
+            } catch (localErr) {
+                console.error('Error reading local file:', localErr);
             }
         }
 
-        console.log('Fetching source image:', targetUrl);
-        const sourceResponse = await axios({
-            url: targetUrl,
-            responseType: 'arraybuffer'
-        });
+        if (!sourceBuffer) {
+            let targetUrl = imageUrl;
+            if (!imageUrl.startsWith('http')) {
+                if (req.headers.host) {
+                    const protocol = req.secure ? 'https' : 'http';
+                    targetUrl = `${protocol}://${req.headers.host}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+                }
+            }
+
+            console.log('Fetching source image via HTTP:', targetUrl);
+            const sourceResponse = await axios({
+                url: targetUrl,
+                responseType: 'arraybuffer'
+            });
+            sourceBuffer = sourceResponse.data;
+        }
 
         // 2. Prepare for GPT (Valid PNG/JPG < 4MB)
         // Using Jimp to ensure format and optimize size if needed
-        const image = await Jimp.read(sourceResponse.data);
+        const image = await Jimp.read(sourceBuffer);
 
         // Ensure max size is reasonable (e.g. max 2048 to stay well under 50MB and process fast)
         // No cropping needed for GPT-Image-1-Mini input, it handles it.

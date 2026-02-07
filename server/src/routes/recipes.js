@@ -246,7 +246,7 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
             servings: parseInt(servings) || 1,
             instructions: parsedInstructions,
             image_url: finalImageUrl,
-            imageSource: req.body.imageSource || (finalImageUrl ? (req.file ? 'upload' : 'scraped') : 'scraped')
+            imageSource: req.body.imageSource || (finalImageUrl ? (req.file ? 'upload' : 'scraped') : 'none')
         });
         console.log('Recipe Created ID:', recipe.id);
 
@@ -304,14 +304,26 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
         if (req.file) {
             console.log('New file uploaded:', req.file.filename);
             updates.image_url = `/uploads/recipes/${req.file.filename}`;
+            if (!updates.imageSource) updates.imageSource = 'upload';
         } else if (req.body.image_url !== undefined) {
             console.log('New image URL:', req.body.image_url);
-            if (req.body.image_url.startsWith('http')) {
+            if (req.body.image_url && req.body.image_url.startsWith('http')) {
                 const downloaded = await downloadImage(req.body.image_url);
-                if (downloaded) updates.image_url = downloaded;
+                if (downloaded) {
+                    updates.image_url = downloaded;
+                } else {
+                    updates.image_url = req.body.image_url;
+                }
             } else {
                 updates.image_url = req.body.image_url;
             }
+        }
+
+        // Logic to ensure imageSource consistency
+        // If the resulting image is empty, source MUST be 'none'
+        const resultingImage = updates.image_url !== undefined ? updates.image_url : recipe.image_url;
+        if (!resultingImage) {
+            updates.imageSource = 'none';
         }
 
         await recipe.update(updates);

@@ -1,6 +1,10 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.17.9
+## Aktuelle Version: v0.18.3
+
+### Changelog v0.18.3
+- **Fix (Server):** Fehlerbehebung für `500 Internal Server Error` beim Regenerieren von Bildern (`regenerate-image`). Der Server liest Bilder nun direkt vom Dateisystem, statt sie über HTTP anzufragen. 🖼️🛠️
+- **Fix (Recipes):** Neue Rezepte ohne Bild erhalten nun korrekt den Status `imageSource: 'none'` (statt fälschlich `scraped`). Bestehende Rezepte werden beim Update automatisch korrigiert. 🐛✨
 
 ### Changelog v0.17.9
 - **Hotfix (Dependency):** Korrigiert die `package.json` Abhängigkeiten. `sharp` wurde entfernt und `jimp` korrekt hinzugefügt. (Der vorherige Auto-Mechanismus hatte die Datei zu früh committet). 📦🔧

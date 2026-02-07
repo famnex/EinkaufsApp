@@ -10,6 +10,7 @@ import { cn, getImageUrl } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
+    const { user } = useAuth();
     const [activeTab, setActiveTab] = useState(0); // 0: Basics, 1: Ingredients, 2: Steps, 3: AI
     const [loading, setLoading] = useState(false);
     const [products, setProducts] = useState([]);
@@ -363,14 +364,26 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                                 )}
 
                                                 {/* Image Source Badge - Visual Only */}
-                                                {basics.imageSource && (
-                                                    <div className="absolute top-2 right-2 z-20 pointer-events-none">
-                                                        <div className={cn(
-                                                            "px-2 py-1 rounded-lg text-white shadow-lg backdrop-blur-md border flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider",
-                                                            basics.imageSource === 'scraped' && "bg-red-500/80 border-red-400/30",
-                                                            basics.imageSource === 'upload' && "bg-blue-500/80 border-blue-400/30",
-                                                            basics.imageSource === 'ai' && "bg-purple-500/80 border-purple-400/30"
-                                                        )}>
+                                                {/* Image Source Badge - Visual Only */}
+                                                {basics.imageSource && basics.imagePreview && (
+                                                    <div className="absolute top-2 right-2 z-20">
+                                                        <div
+                                                            onClick={(e) => {
+                                                                if (user?.role === 'admin') {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    const types = ['scraped', 'upload', 'ai'];
+                                                                    const nextIndex = (types.indexOf(basics.imageSource) + 1) % types.length;
+                                                                    setBasics(prev => ({ ...prev, imageSource: types[nextIndex] }));
+                                                                }
+                                                            }}
+                                                            className={cn(
+                                                                "px-2 py-1 rounded-lg text-white shadow-lg backdrop-blur-md border flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-all select-none",
+                                                                user?.role === 'admin' ? "cursor-pointer hover:scale-105 active:scale-95" : "pointer-events-none",
+                                                                basics.imageSource === 'scraped' && "bg-red-500/80 border-red-400/30",
+                                                                basics.imageSource === 'upload' && "bg-blue-500/80 border-blue-400/30",
+                                                                basics.imageSource === 'ai' && "bg-purple-500/80 border-purple-400/30"
+                                                            )}>
                                                             {basics.imageSource === 'scraped' && <ShieldAlert size={12} />}
                                                             {basics.imageSource === 'upload' && <ImageIcon size={12} />}
                                                             {basics.imageSource === 'ai' && <Sparkles size={12} />}
