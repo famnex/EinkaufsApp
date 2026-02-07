@@ -307,7 +307,10 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
             if (!updates.imageSource) updates.imageSource = 'upload';
         } else if (req.body.image_url !== undefined) {
             console.log('New image URL:', req.body.image_url);
-            if (req.body.image_url && req.body.image_url.startsWith('http')) {
+            // Handle explicit removal (empty string or "null" string)
+            if (req.body.image_url === '' || req.body.image_url === 'null' || req.body.image_url === null) {
+                updates.image_url = null;
+            } else if (req.body.image_url.startsWith('http')) {
                 const downloaded = await downloadImage(req.body.image_url);
                 if (downloaded) {
                     updates.image_url = downloaded;

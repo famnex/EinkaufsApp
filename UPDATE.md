@@ -1,6 +1,10 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.18.4
+## Aktuelle Version: v0.18.5
+
+### Changelog v0.18.5
+- **Fix (Recipes):** Fehlerbehebung beim Löschen von Rezeptbildern. Durch Klicken auf "Weg" wird das Bild nun zuverlässig entfernt und der Status auf `none` gesetzt. 🖼️🗑️
+- **Refactor (Server):** Erweiterung des `imageSource` ENUMs um den Wert `none`.
 
 ### Changelog v0.18.4
 - **Debug (Server):** Erweiterte Pfad-Erkennung für `regenerate-image`. Prüft nun mehrere mögliche Speicherorte (`public/`, `server/public/`), um Bilder auch in komplexen Deployment-Strukturen (wie Uberspace) zuverlässig zu finden. Inklusive detailliertem Logging zur Fehleranalyse. 🕵️‍♂️📂

@@ -190,6 +190,9 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
             } else if (basics.imagePreview) {
                 console.log('Appending Image URL:', basics.imagePreview);
                 formData.append('image_url', basics.imagePreview);
+            } else {
+                console.log('No image - clearing image_url');
+                formData.append('image_url', ''); // Explicitly clear image
             }
 
             console.log('Sending FormData...');
@@ -471,7 +474,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                                     disabled={!basics.imagePreview}
                                                     onClick={() => {
                                                         if (confirm('Bild wirklich entfernen?')) {
-                                                            setBasics(prev => ({ ...prev, imagePreview: null, image: null, imageSource: null }));
+                                                            setBasics(prev => ({ ...prev, imagePreview: null, image: null, imageSource: 'none' }));
                                                         }
                                                     }}
                                                 >

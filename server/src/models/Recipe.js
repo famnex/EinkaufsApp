@@ -10,7 +10,7 @@ module.exports = (sequelize) => {
         servings: { type: DataTypes.INTEGER, defaultValue: 1 },
         instructions: { type: DataTypes.JSON }, // Array of strings or rich text
         imageSource: {
-            type: DataTypes.ENUM('upload', 'scraped', 'ai'),
+            type: DataTypes.ENUM('upload', 'scraped', 'ai', 'none'),
             defaultValue: 'scraped'
         }
     });
