@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
+
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -17,6 +18,8 @@ export default function LoginPage() {
     const [regEnabled, setRegEnabled] = useState(true); // Default true to avoid flash
     const { login } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
+    const from = location.state?.from ? `${location.state.from.pathname}${location.state.from.search}` : '/';
 
     useEffect(() => {
         const checkReg = async () => {
@@ -40,7 +43,7 @@ export default function LoginPage() {
         setIsLoading(true);
         try {
             await login(username, password);
-            navigate('/');
+            navigate(from, { replace: true });
         } catch (err) {
             setError(err.response?.data?.error || 'Authentication failed. Please check your credentials.');
         } finally {

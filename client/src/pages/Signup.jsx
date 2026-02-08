@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom';
+
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -16,7 +17,9 @@ export default function SignupPage() {
     const [isLoading, setIsLoading] = useState(false);
     const { signup } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const [searchParams] = useSearchParams();
+    const from = location.state?.from ? `${location.state.from.pathname}${location.state.from.search}` : '/';
 
     const isSetup = searchParams.get('setup') === 'true';
 
@@ -26,7 +29,7 @@ export default function SignupPage() {
         setIsLoading(true);
         try {
             await signup(username, password, email);
-            navigate('/');
+            navigate(from, { replace: true });
         } catch (err) {
             setError(err.response?.data?.error || 'Could not create account. Please try again.');
         } finally {
