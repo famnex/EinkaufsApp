@@ -130,24 +130,11 @@ export default function SharedCookbook() {
                 isDark ? "bg-zinc-950" : "bg-indigo-950",
                 "text-white"
             )}>
-                {cookbookInfo.image ? (
-                    <div className="absolute inset-0 z-0">
-                        <img
-                            src={renderImageUrl(cookbookInfo.image)}
-                            className="w-full h-full object-cover opacity-60"
-                            alt="Cookbook Hero"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
-                    </div>
-                ) : (
-                    <>
-                        <div className="absolute inset-0 bg-gradient-to-r from-purple-900/40 to-blue-900/40 z-0 pointer-events-none" />
-                        <div
-                            className="absolute inset-0 opacity-10 z-0 pointer-events-none"
-                            style={{ backgroundImage: `url(${import.meta.env.BASE_URL}pattern.svg)` }}
-                        />
-                    </>
-                )}
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-900/40 to-blue-900/40 z-0 pointer-events-none" />
+                <div
+                    className="absolute inset-0 opacity-10 z-0 pointer-events-none"
+                    style={{ backgroundImage: `url(${import.meta.env.BASE_URL}pattern.svg)` }}
+                />
 
                 {/* Theme Toggle */}
                 <div className="absolute top-4 right-4 z-20">
@@ -166,11 +153,17 @@ export default function SharedCookbook() {
                         animate={{ opacity: 1, y: 0 }}
                         className="mb-6 rounded-full shadow-2xl"
                     >
-                        <img
-                            src={`${import.meta.env.BASE_URL}logo_cooking_guys.jpg`}
-                            alt="The Cooking Guys"
-                            className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-white/20"
-                        />
+                        {cookbookInfo.image ? (
+                            <img
+                                src={renderImageUrl(cookbookInfo.image)}
+                                alt={cookbookInfo.title}
+                                className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-white/20 object-cover"
+                            />
+                        ) : (
+                            <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-white/20 bg-white/10 backdrop-blur-md flex items-center justify-center">
+                                <ChefHat className="text-white/60" size={64} />
+                            </div>
+                        )}
                     </motion.div>
                     <motion.h1
                         initial={{ opacity: 0, y: 20 }}
