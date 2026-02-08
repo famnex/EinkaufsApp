@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, ArrowRight, Check, AlertCircle, Loader2, Tag } from 'lucide-react';
+import { X, Sparkles, ArrowRight, Check, AlertCircle, Loader2, Tag, Image as ImageIcon, Upload } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import api from '../lib/axios';
@@ -37,6 +37,8 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
     const [mappings, setMappings] = useState({}); // { index: { type: 'existing'|'new', productId: ?, newName: ? } }
     const [creating, setCreating] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [imageFile, setImageFile] = useState(null);
+    const [imagePreview, setImagePreview] = useState(null);
 
     useEffect(() => {
         if (isOpen) {
@@ -45,6 +47,8 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
             setInputText('');
             setParsedData(null);
             setMappings({});
+            setImageFile(null);
+            setImagePreview(null);
         }
     }, [isOpen]);
 
@@ -155,6 +159,19 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
         }));
     };
 
+    const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setImageFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImagePreview(reader.result);
+                setParsedData(prev => ({ ...prev, image_url: reader.result, imageSource: 'upload' }));
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
     const handleSave = async () => {
         setCreating(true);
         console.log('--- AI IMPORT SAVE START ---');
@@ -172,16 +189,14 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
             formData.append('instructions', JSON.stringify(parsedData.steps || []));
             formData.append('tags', JSON.stringify(parsedData.tags || []));
 
-            if (parsedData.image_url) {
+            if (imageFile) {
+                console.log('Appending Uploaded Image File:', imageFile.name);
+                formData.append('image', imageFile);
+                formData.append('imageSource', 'upload');
+            } else if (parsedData.image_url) {
                 formData.append('image_url', parsedData.image_url);
-                // Automatically set to 'ai' if we generated it, or default to 'scraped' if it's an external URL we haven't touched
-                // and 'upload' logic is handled by backend if file exists (but here we only have URL).
-                // If we generated it, we set imageSource='ai' in state.
-                // If it's external, it's 'scraped'.
                 const source = parsedData.imageSource || (parsedData.image_url.startsWith('http') ? 'scraped' : 'ai');
-                // Note: local URLs (not starting with http) are assumed AI/Upload here, but specifically AI since we generated them. 
-                // Better: rely on state.
-                formData.append('imageSource', parsedData.imageSource || (parsedData.image_url.startsWith('http') ? 'scraped' : 'ai'));
+                formData.append('imageSource', source);
             }
 
             console.log('Sending Recipe FormData...');
@@ -300,37 +315,52 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                                 <div className="text-muted-foreground flex flex-col items-center gap-2">
                                                     <Sparkles size={32} className="opacity-20" />
                                                     <span className="text-xs">Kein Bild gefunden</span>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="secondary"
-                                                        className="gap-2 mt-2"
-                                                        disabled={isGenerating}
-                                                        onClick={async () => {
-                                                            if (!confirm('Ein neues Bild mit AI generieren? (Kostenpflichtig)')) return;
-                                                            setIsGenerating(true);
-                                                            try {
-                                                                const { data } = await api.post('/ai/generate-image', { title: parsedData.title });
-                                                                const url = data.url.startsWith('/EinkaufsApp') ? data.url : '/EinkaufsApp' + data.url;
-                                                                setParsedData(prev => ({ ...prev, image_url: url }));
-                                                            } catch (err) {
-                                                                alert('Fehler beim Generieren: ' + err.message);
-                                                            } finally {
-                                                                setIsGenerating(false);
-                                                            }
-                                                        }}
-                                                    >
-                                                        {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                                                        AI Bild Generieren
-                                                    </Button>
+                                                    <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="secondary"
+                                                            className="gap-2"
+                                                            disabled={isGenerating}
+                                                            onClick={async () => {
+                                                                if (!confirm('Ein neues Bild mit AI generieren? (Kostenpflichtig)')) return;
+                                                                setIsGenerating(true);
+                                                                try {
+                                                                    const { data } = await api.post('/ai/generate-image', { title: parsedData.title });
+                                                                    const url = data.url.startsWith('/EinkaufsApp') ? data.url : '/EinkaufsApp' + data.url;
+                                                                    setParsedData(prev => ({ ...prev, image_url: url, imageSource: 'ai' }));
+                                                                    setImageFile(null);
+                                                                } catch (err) {
+                                                                    alert('Fehler beim Generieren: ' + err.message);
+                                                                } finally {
+                                                                    setIsGenerating(false);
+                                                                }
+                                                            }}
+                                                        >
+                                                            {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                                                            AI Bild
+                                                        </Button>
+
+                                                        <div className="relative">
+                                                            <input
+                                                                type="file"
+                                                                accept="image/*"
+                                                                className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                                                onChange={handleImageUpload}
+                                                            />
+                                                            <Button size="sm" variant="secondary" className="gap-2">
+                                                                <Upload size={14} /> Upload
+                                                            </Button>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             )}
 
                                             {parsedData.image_url && (
-                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center backdrop-blur-sm gap-2">
                                                     <Button
                                                         size="sm"
                                                         variant="secondary"
-                                                        className="gap-2"
+                                                        className="gap-2 w-32"
                                                         disabled={isGenerating}
                                                         onClick={async () => {
                                                             const isVariation = !!parsedData.image_url;
@@ -344,11 +374,8 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                                                     : { title: parsedData.title };
 
                                                                 const { data } = await api.post(endpoint, payload);
-                                                                // data.url is relative "uploads/recipes/..."
-                                                                // We save this directly. ResilientImage needs to handle it or we wrap it with getImageUrl() in render.
-                                                                // But wait, if we use getImageUrl here, we save the resolved path.
-                                                                // Better to save the relative path as is standard in this app.
-                                                                setParsedData(prev => ({ ...prev, image_url: data.url }));
+                                                                setParsedData(prev => ({ ...prev, image_url: data.url, imageSource: 'ai' }));
+                                                                setImageFile(null);
                                                             } catch (err) {
                                                                 alert('Fehler beim Generieren: ' + err.message);
                                                             } finally {
@@ -357,13 +384,34 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                                         }}
                                                     >
                                                         {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                                                        {parsedData.image_url ? 'Variation erstellen' : 'Neu Generieren'}
+                                                        AI Variation
                                                     </Button>
+
+                                                    <div className="relative">
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                                            onChange={handleImageUpload}
+                                                        />
+                                                        <Button size="sm" variant="secondary" className="gap-2 w-32">
+                                                            <Upload size={14} /> Neu Hochladen
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
 
-                                        <div className="grid grid-cols-3 gap-2">
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                            <div>
+                                                <label className="text-[10px] uppercase font-bold text-muted-foreground">Haus-Kategorie</label>
+                                                <Input
+                                                    className="h-8 text-sm"
+                                                    value={parsedData.category || ''}
+                                                    onChange={e => setParsedData(p => ({ ...p, category: e.target.value }))}
+                                                    placeholder="z.B. Pasta"
+                                                />
+                                            </div>
                                             <div>
                                                 <label className="text-[10px] uppercase font-bold text-muted-foreground">Portionen</label>
                                                 <Input
