@@ -74,6 +74,9 @@ router.post('/regenerate-sharing-key', auth, async (req, res) => {
 // Generate Household Invitation Token
 router.get('/household/invite', auth, async (req, res) => {
     try {
+        if (req.user.householdId) {
+            return res.status(403).json({ error: 'Nur der Haushalts-Besitzer kann Einladungen erstellen.' });
+        }
         const payload = {
             inviterId: req.user.id,
             householdId: req.user.householdId || req.user.id,

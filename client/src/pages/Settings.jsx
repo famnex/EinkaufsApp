@@ -522,7 +522,7 @@ export default function SettingsPage() {
                                             <p className="text-[10px] text-muted-foreground">{member.role === 'admin' ? 'Administrator' : 'Mitglied'}</p>
                                         </div>
                                     </div>
-                                    {member.id === (user.householdId || user.id) && (
+                                    {member.id === (member.householdId || member.id) && (
                                         <span className="text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-bold">Besitzer</span>
                                     )}
                                 </div>
@@ -533,19 +533,21 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
-                    <p className="text-xs text-muted-foreground mb-4 flex items-center gap-2">
-                        <CheckCircle size={14} className="text-primary" /> Zusätzliche Person einladen
-                    </p>
-                    <Button
-                        onClick={handleGenerateHouseholdInvite}
-                        disabled={generatingInvite}
-                        className="w-full h-12 gap-2 shadow-lg shadow-primary/20"
-                    >
-                        {generatingInvite ? <Loader2 size={18} className="animate-spin" /> : <Share2 size={18} />}
-                        Einladungs-Link erstellen
-                    </Button>
-                </div>
+                {!user.householdId && (
+                    <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
+                        <p className="text-xs text-muted-foreground mb-4 flex items-center gap-2">
+                            <CheckCircle size={14} className="text-primary" /> Zusätzliche Person einladen
+                        </p>
+                        <Button
+                            onClick={handleGenerateHouseholdInvite}
+                            disabled={generatingInvite}
+                            className="w-full h-12 gap-2 shadow-lg shadow-primary/20"
+                        >
+                            {generatingInvite ? <Loader2 size={18} className="animate-spin" /> : <Share2 size={18} />}
+                            Einladungs-Link erstellen
+                        </Button>
+                    </div>
+                )}
             </div>
         </Card>
     );
