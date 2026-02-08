@@ -217,8 +217,8 @@ if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging')
     // Also handle root requests if needed, or just let wildcard catch them
     app.use(express.static(path.join(__dirname, '../client/dist')));
 
-    // --- Improved Catch-all for SPA (Express 5 compatible) ---
-    app.get('(.*)', (req, res) => {
+    // --- Improved Catch-all for SPA (Express 5 compatible regex) ---
+    app.get(/.*/, (req, res) => {
         // If it's an API request or an asset (has extension), don't serve index.html
         const isApi = req.path.startsWith('/api') || (BASE_PATH && req.path.startsWith(`${BASE_PATH}/api`));
         const hasExtension = path.extname(req.path) !== '';
