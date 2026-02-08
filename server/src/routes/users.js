@@ -12,7 +12,7 @@ router.use(isAdmin);
 router.get('/', async (req, res) => {
     try {
         const users = await User.findAll({
-            attributes: ['id', 'username', 'email', 'role', 'isLdap', 'createdAt']
+            attributes: ['id', 'username', 'email', 'role', 'isLdap', 'householdId', 'createdAt']
         });
         res.json(users);
     } catch (err) {

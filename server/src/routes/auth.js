@@ -87,6 +87,25 @@ router.get('/household/invite', auth, async (req, res) => {
     }
 });
 
+// GET /auth/household/members - List members of current household
+router.get('/household/members', auth, async (req, res) => {
+    try {
+        const householdId = req.user.householdId || req.user.id;
+        const members = await User.findAll({
+            where: {
+                [require('sequelize').Op.or]: [
+                    { id: householdId },
+                    { householdId: householdId }
+                ]
+            },
+            attributes: ['id', 'username', 'email', 'role', 'cookbookTitle']
+        });
+        res.json(members);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Get Household Invitation Info
 router.get('/household/info', auth, async (req, res) => {
     const { token } = req.query;

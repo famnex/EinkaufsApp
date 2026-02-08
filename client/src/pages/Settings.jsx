@@ -43,6 +43,8 @@ export default function SettingsPage() {
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
     const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
     const [generatingInvite, setGeneratingInvite] = useState(false);
+    const [householdMembers, setHouseholdMembers] = useState([]);
+    const [fetchingMembers, setFetchingMembers] = useState(false);
 
     useEffect(() => {
         fetchStores();
@@ -50,6 +52,7 @@ export default function SettingsPage() {
         if (user?.role === 'admin') {
             fetchUsers();
         }
+        fetchHouseholdMembers();
         // Keep local cookbook state in sync with user context
         if (user) {
             setCookbookTitle(user.cookbookTitle || 'MEIN KOCHBUCH');
@@ -111,6 +114,19 @@ export default function SettingsPage() {
             console.error('Failed to fetch users', err);
         } finally {
             setLoadingUsers(false);
+        }
+    };
+
+    const fetchHouseholdMembers = async () => {
+        if (!user) return;
+        setFetchingMembers(true);
+        try {
+            const { data } = await api.get('/auth/household/members');
+            setHouseholdMembers(data);
+        } catch (err) {
+            console.error('Failed to fetch members', err);
+        } finally {
+            setFetchingMembers(false);
         }
     };
 
@@ -486,14 +502,40 @@ export default function SettingsPage() {
                 <Users size={20} />
                 Gemeinsamer Haushalt
             </h2>
-            <div className="space-y-4">
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                    Lade andere Personen ein, um gemeinsam an euren Listen, Rezepten und dem Menüplan zu arbeiten.
-                </p>
+            <div className="space-y-6">
+                <div className="space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-widest text-indigo-600/60 ml-1">Mitglieder</p>
+                    <div className="grid grid-cols-1 gap-2">
+                        {fetchingMembers ? (
+                            <div className="flex items-center justify-center p-4">
+                                <Loader2 size={24} className="animate-spin text-indigo-500/50" />
+                            </div>
+                        ) : householdMembers.length > 0 ? (
+                            householdMembers.map(member => (
+                                <div key={member.id} className="flex items-center justify-between p-3 bg-white/50 dark:bg-black/20 rounded-xl border border-indigo-500/5 shadow-sm">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                                            {member.username.substring(0, 2).toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold">{member.username}</p>
+                                            <p className="text-[10px] text-muted-foreground">{member.role === 'admin' ? 'Administrator' : 'Mitglied'}</p>
+                                        </div>
+                                    </div>
+                                    {member.id === (user.householdId || user.id) && (
+                                        <span className="text-[10px] bg-indigo-500 text-white px-2 py-0.5 rounded-full font-bold">Besitzer</span>
+                                    )}
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-sm text-muted-foreground italic px-1">Keine weiteren Mitglieder.</p>
+                        )}
+                    </div>
+                </div>
 
                 <div className="p-4 bg-white/50 dark:bg-black/20 rounded-2xl border border-indigo-500/10">
                     <p className="text-xs text-indigo-700/70 dark:text-indigo-400/70 mb-4 flex items-center gap-2">
-                        <CheckCircle size={14} /> Alle Daten werden synchronisiert
+                        <CheckCircle size={14} /> Neue Person einladen
                     </p>
                     <Button
                         onClick={handleGenerateHouseholdInvite}
@@ -501,13 +543,9 @@ export default function SettingsPage() {
                         className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-lg shadow-indigo-600/20"
                     >
                         {generatingInvite ? <Loader2 size={18} className="animate-spin" /> : <Share2 size={18} />}
-                        Person einladen
+                        Einladungs-Link erstellen
                     </Button>
                 </div>
-
-                <p className="text-[10px] text-muted-foreground/60 italic text-center">
-                    Empfänger müssen bereits ein Konto haben oder sich registrieren.
-                </p>
             </div>
         </Card>
     );
@@ -720,10 +758,27 @@ export default function SettingsPage() {
                                     {u.role === 'admin' ? <Shield size={18} /> : <User size={18} />}
                                 </div>
                                 <div>
-                                    <div className="font-bold">{u.username}</div>
-                                    <div className="text-xs text-muted-foreground flex gap-2">
-                                        <span>{u.role}</span>
-                                        {u.created_at && <span>• {new Date(u.created_at).toLocaleDateString()}</span>}
+                                    <p className="font-bold text-foreground flex items-center gap-2">
+                                        {u.username}
+                                        {u.id === user.id && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-md font-medium">Du</span>}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">{u.email}</p>
+                                    <div className="flex gap-2 mt-1">
+                                        <span className={cn(
+                                            "text-[10px] px-1.5 py-0.5 rounded-md font-medium",
+                                            u.role === 'admin' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                        )}>
+                                            {u.role.toUpperCase()}
+                                        </span>
+                                        {u.householdId ? (
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 font-medium">
+                                                Haushalt #{u.householdId}
+                                            </span>
+                                        ) : (
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 font-medium italic">
+                                                Kein Haushalt (Besitzer)
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
