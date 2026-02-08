@@ -70,6 +70,130 @@ router.post('/regenerate-sharing-key', auth, async (req, res) => {
     }
 });
 
+// Generate Household Invitation Token
+router.get('/household/invite', auth, async (req, res) => {
+    try {
+        const payload = {
+            inviterId: req.user.id,
+            householdId: req.user.householdId || req.user.id,
+            inviterName: req.user.username,
+            type: 'household_invite'
+        };
+        // Invitation expires in 48 hours
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '2d' });
+        res.json({ token, inviterName: req.user.username });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get Household Invitation Info
+router.get('/household/info', auth, async (req, res) => {
+    const { token } = req.query;
+    if (!token) return res.status(400).json({ error: 'Token is required' });
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded.type !== 'household_invite') {
+            return res.status(400).json({ error: 'Invalid invitation type' });
+        }
+        res.json({
+            inviterName: decoded.inviterName,
+            householdId: decoded.householdId
+        });
+    } catch (err) {
+        if (err.name === 'TokenExpiredError') return res.status(400).json({ error: 'Einladung ist abgelaufen' });
+        res.status(400).json({ error: 'Ungültige Einladung' });
+    }
+});
+
+// Join Household & Merge Data
+router.post('/household/join', auth, async (req, res) => {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'Token is required' });
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded.type !== 'household_invite') {
+            return res.status(400).json({ error: 'Invalid invitation type' });
+        }
+
+        const targetHouseholdId = decoded.householdId;
+        const joiningUserId = req.user.id;
+
+        if (joiningUserId === targetHouseholdId) {
+            return res.status(400).json({ error: 'You are already the owner of this household' });
+        }
+
+        if (req.user.householdId === targetHouseholdId) {
+            return res.status(400).json({ error: 'You are already in this household' });
+        }
+
+        const models = require('../models');
+        const { sequelize, Manufacturer, Store, Tag, Settings, Product, Recipe, List, ListItem, Menu, Expense, HiddenCleanup, ProductSubstitution, RecipeTag, RecipeIngredient, ProductRelation } = models;
+
+        await sequelize.transaction(async (t) => {
+            // 1. Merge tables with unique constraints [name, UserId]
+            // We'll handle Manufacturer, Store, Tag, Settings
+            const uniqueModels = [
+                { model: Manufacturer, dep: [{ model: Product, fk: 'ManufacturerId' }] },
+                { model: Store, dep: [{ model: Product, fk: 'StoreId' }, { model: List, fk: 'CurrentStoreId' }, { model: ProductRelation, fk: 'StoreId' }] },
+                { model: Tag, dep: [{ model: RecipeTag, fk: 'TagId' }] },
+                { model: Settings, dep: [] }
+            ];
+
+            for (const { model, dep } of uniqueModels) {
+                const joiningItems = await model.findAll({ where: { UserId: joiningUserId }, transaction: t });
+                for (const item of joiningItems) {
+                    const existing = await model.findOne({
+                        where: { name: item.name, UserId: targetHouseholdId },
+                        transaction: t
+                    });
+
+                    if (existing) {
+                        // Re-link dependencies
+                        for (const d of dep) {
+                            await d.model.update(
+                                { [d.fk]: existing.id },
+                                { where: { [d.fk]: item.id }, transaction: t }
+                            );
+                        }
+                        // Delete the duplicate
+                        await item.destroy({ transaction: t });
+                    } else {
+                        // Safe to just re-assign
+                        await item.update({ UserId: targetHouseholdId }, { transaction: t });
+                    }
+                }
+            }
+
+            // 2. Simple re-assignment for everything else
+            const simpleModels = [
+                Product, Recipe, List, ListItem, Menu, Expense, HiddenCleanup,
+                ProductSubstitution, RecipeTag, RecipeIngredient, ProductRelation
+            ];
+
+            for (const model of simpleModels) {
+                await model.update({ UserId: targetHouseholdId }, { where: { UserId: joiningUserId }, transaction: t });
+            }
+
+            // 3. Update User's householdId
+            await req.user.update({ householdId: targetHouseholdId }, { transaction: t });
+        });
+
+        const updatedUser = await User.findByPk(joiningUserId, {
+            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId']
+        });
+
+        res.json({ message: 'Erfolgreich dem Haushalt beigetreten', user: updatedUser });
+
+    } catch (err) {
+        console.error('Household join error:', err);
+        if (err.name === 'TokenExpiredError') return res.status(400).json({ error: 'Einladung ist abgelaufen' });
+        res.status(500).json({ error: 'Fehler beim Zusammenführen der Daten: ' + err.message });
+    }
+});
+
 // Basic Login (Local)
 router.post('/login', async (req, res) => {
     const { username, password } = req.body;

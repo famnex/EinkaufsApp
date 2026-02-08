@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat } from 'lucide-react';
+import { Settings, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2 } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -42,12 +42,19 @@ export default function SettingsPage() {
     const [checkingUpdate, setCheckingUpdate] = useState(false);
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
     const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
+    const [generatingInvite, setGeneratingInvite] = useState(false);
 
     useEffect(() => {
         fetchStores();
         fetchSettings();
         if (user?.role === 'admin') {
             fetchUsers();
+        }
+        // Keep local cookbook state in sync with user context
+        if (user) {
+            setCookbookTitle(user.cookbookTitle || 'MEIN KOCHBUCH');
+            setCookbookImage(user.cookbookImage || null);
+            setSharingKey(user.sharingKey || '');
         }
     }, [user]);
 
@@ -301,6 +308,32 @@ export default function SettingsPage() {
         }
     };
 
+    const handleGenerateHouseholdInvite = async () => {
+        setGeneratingInvite(true);
+        try {
+            const { data } = await api.get('/auth/household/invite');
+            const inviteUrl = `${window.location.origin}${import.meta.env.BASE_URL}join-household?token=${data.token}`.replace(/([^:]\/)\/+/g, "$1");
+
+            if (navigator.share) {
+                await navigator.share({
+                    title: 'Haushalt beitreten - EinkaufsApp',
+                    text: `${user.username} lädt dich ein, seinem Haushalt in der EinkaufsApp beizutreten.`,
+                    url: inviteUrl
+                });
+            } else {
+                await navigator.clipboard.writeText(inviteUrl);
+                alert('Einladungs-Link in die Zwischenablage kopiert!');
+            }
+        } catch (err) {
+            console.error('Failed to generate invite', err);
+            if (err.name !== 'AbortError') {
+                alert('Fehler beim Generieren der Einladung');
+            }
+        } finally {
+            setGeneratingInvite(false);
+        }
+    };
+
     // --- Component Sections ---
 
     const ProfileSection = (
@@ -381,7 +414,7 @@ export default function SettingsPage() {
                                     >
                                         Bild ändern
                                     </Button>
-                                    <p className="text-[10px] text-muted-foreground">Empfohlen: 1920x1080px</p>
+                                    <p className="text-[10px] text-muted-foreground">Empfohlen: 300x300px</p>
                                 </div>
                             </div>
                         </div>
@@ -443,6 +476,38 @@ export default function SettingsPage() {
                         </p>
                     </div>
                 )}
+            </div>
+        </Card>
+    );
+
+    const HouseholdSection = (
+        <Card className="p-8 border-indigo-500/20 bg-indigo-500/5 shadow-lg">
+            <h2 className="text-xl font-bold text-indigo-600 mb-6 flex items-center gap-2">
+                <Users size={20} />
+                Gemeinsamer Haushalt
+            </h2>
+            <div className="space-y-4">
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                    Lade andere Personen ein, um gemeinsam an euren Listen, Rezepten und dem Menüplan zu arbeiten.
+                </p>
+
+                <div className="p-4 bg-white/50 dark:bg-black/20 rounded-2xl border border-indigo-500/10">
+                    <p className="text-xs text-indigo-700/70 dark:text-indigo-400/70 mb-4 flex items-center gap-2">
+                        <CheckCircle size={14} /> Alle Daten werden synchronisiert
+                    </p>
+                    <Button
+                        onClick={handleGenerateHouseholdInvite}
+                        disabled={generatingInvite}
+                        className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-lg shadow-indigo-600/20"
+                    >
+                        {generatingInvite ? <Loader2 size={18} className="animate-spin" /> : <Share2 size={18} />}
+                        Person einladen
+                    </Button>
+                </div>
+
+                <p className="text-[10px] text-muted-foreground/60 italic text-center">
+                    Empfänger müssen bereits ein Konto haben oder sich registrieren.
+                </p>
             </div>
         </Card>
     );
@@ -714,6 +779,7 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                 <div className="space-y-6">
                     {ProfileSection}
+                    {HouseholdSection}
 
                     {user?.role === 'admin' && StoresSection}
                 </div>

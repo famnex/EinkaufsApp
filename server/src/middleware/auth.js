@@ -21,6 +21,8 @@ const auth = async (req, res, next) => {
             }
 
             req.user = user;
+            // Use householdId if set, otherwise fallback to own id for data scoping
+            req.user.effectiveId = user.householdId || user.id;
             next();
         } catch (ex) {
             console.error('Token verification failed:', ex.message);

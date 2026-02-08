@@ -18,6 +18,7 @@ import MenuPlan from './pages/MenuPlan';
 import Recipes from './pages/Recipes';
 import SharedRecipe from './pages/SharedRecipe';
 import SharedCookbook from './pages/SharedCookbook';
+import JoinHousehold from './pages/JoinHousehold';
 
 import { PullToRefresh } from './components/PullToRefresh';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -134,6 +135,12 @@ function AppContent() {
                   <Layout>
                     <SettingsPage />
                   </Layout>
+                </ProtectedRoute>
+              } />
+
+              <Route path="/join-household" element={
+                <ProtectedRoute>
+                  <JoinHousehold />
                 </ProtectedRoute>
               } />
 

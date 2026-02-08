@@ -20,7 +20,8 @@ const User = sequelize.define('User', {
     alexaApiKey: { type: DataTypes.STRING, allowNull: true },
     sharingKey: { type: DataTypes.STRING, allowNull: true, unique: true },
     cookbookTitle: { type: DataTypes.STRING, defaultValue: 'MEIN KOCHBUCH' },
-    cookbookImage: { type: DataTypes.STRING, allowNull: true }
+    cookbookImage: { type: DataTypes.STRING, allowNull: true },
+    householdId: { type: DataTypes.INTEGER, allowNull: true }
 });
 
 const Manufacturer = sequelize.define('Manufacturer', {

@@ -16,6 +16,7 @@ Zentrales Benutzermodell.
 - `sharingKey` (STRING, Unique): Key für öffentliche Links.
 - `cookbookTitle` (STRING): Benutzerdefinierter Titel des Kochbuchs.
 - `cookbookImage` (STRING): Pfad zum Hero-Bild des Kochbuchs.
+- `householdId` (INT): ID des gemeinsamen Haushalts (Isolationsebene).
 
 ### `Manufacturers` / `Stores`
 - `id` (INT, PK)
