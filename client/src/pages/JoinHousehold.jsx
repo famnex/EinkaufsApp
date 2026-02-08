@@ -10,7 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 export default function JoinHousehold() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const { setUser } = useAuth();
+    const { user, setUser } = useAuth();
     const token = searchParams.get('token');
 
     const [loading, setLoading] = useState(false);
@@ -28,6 +28,14 @@ export default function JoinHousehold() {
             try {
                 const { data } = await api.get(`/auth/household/info?token=${token}`);
                 setInviterName(data.inviterName);
+
+                // Check if user is already in this household
+                const targetHouseholdId = data.householdId;
+                const currentHouseholdId = user?.householdId || user?.id;
+
+                if (currentHouseholdId === targetHouseholdId) {
+                    setError('Dies ist dein eigener Haushalt oder du bist bereits Mitglied dieses Haushalts.');
+                }
             } catch (err) {
                 setError(err.response?.data?.error || 'Fehler beim Laden der Einladung.');
             }
