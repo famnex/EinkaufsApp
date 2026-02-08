@@ -125,8 +125,6 @@ router.post('/parse', auth, async (req, res) => {
         DATA:
         "${input}" 
         
-        Return a JSON object with this EXACT structure: 
-        
         Return a JSON object with this EXACT structure:
         {
             "title": "Recipe Title",
@@ -134,9 +132,9 @@ router.post('/parse', auth, async (req, res) => {
             "category": "Suggested Category (Pick from existing if fits, or suggest new)",
             "tags": ["Tag1", "Tag2"], // Authentically describe the recipe. Use existing tags if applicable, or create new ones (e.g. "Vegetarisch", "Schnell", "Party", "Sommer"). Max 5 tags.
             "image_url": "URL found in data or meta tags (return null if none found)",
-            "servings": 4, // integer. If range "4-6", average to 5. Default 4 if missing.
-            "prep_time": 20, // integer (minutes). 0 if missing.
-            "total_time": 60, // integer (minutes). 0 if missing.
+            "servings": 4, // integer. If range "4-6", average to 5. Default 2 if missing. YOu may also give an educated guess from the weight of the ingredients
+            "prep_time": 20, // integer (minutes). 0 if missing. - Look at the recipe and give an educated guess
+            "total_time": 60, // integer (minutes). 0 if missing. - Again, look at the times in the recipe and guess
             "ingredients": [
                 {
                     "amount": 2,    // number. If fraction "1/2", convert to 0.5. If string "2-3", use 2.5. If null, use 1 or 0 (never null).
