@@ -217,7 +217,24 @@ if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging')
     // Also handle root requests if needed, or just let wildcard catch them
     app.use(express.static(path.join(__dirname, '../client/dist')));
 
-    app.get(/(.*)/, (req, res) => {
+    // --- Improved Catch-all for SPA ---
+    app.get('*', (req, res) => {
+        // If it's an API request or an asset (has extension), don't serve index.html
+        const isApi = req.path.startsWith('/api') || (BASE_PATH && req.path.startsWith(`${BASE_PATH}/api`));
+        const hasExtension = path.extname(req.path) !== '';
+
+        if (isApi || (hasExtension && !req.path.endsWith('.html'))) {
+            if (process.env.NODE_ENV !== 'production') {
+                console.warn(`[404] Resource not found: ${req.path}`);
+            }
+            return res.status(404).send('Not Found');
+        }
+
+        // Diagnostic log for production white page issues
+        if (process.env.DEBUG_SPA === 'true') {
+            console.log(`[SPA] Serving index.html for: ${req.path} (BASE_PATH: ${BASE_PATH || 'not set'})`);
+        }
+
         res.sendFile(path.join(__dirname, '../client/dist/index.html'));
     });
 }

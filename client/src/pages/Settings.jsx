@@ -355,7 +355,7 @@ export default function SettingsPage() {
     const ProfileSection = (
         <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
             <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                <SettingsIcon size={20} className="text-primary" />
+                <Settings size={20} className="text-primary" />
                 Profil & Einstellungen
             </h2>
             <div className="space-y-6">
