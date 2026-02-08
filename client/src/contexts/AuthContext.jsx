@@ -10,13 +10,23 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            const userData = JSON.parse(localStorage.getItem('user'));
-            setUser(userData);
-            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        }
-        setLoading(false);
+        const initAuth = async () => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                try {
+                    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+                    const { data } = await api.get('/auth/me');
+                    setUser(data);
+                    localStorage.setItem('user', JSON.stringify(data));
+                } catch (err) {
+                    console.error('Failed to sync user profile', err);
+                    const userData = JSON.parse(localStorage.getItem('user'));
+                    setUser(userData);
+                }
+            }
+            setLoading(false);
+        };
+        initAuth();
     }, []);
 
     const login = async (username, password) => {
@@ -45,7 +55,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, signup, logout, loading }}>
+        <AuthContext.Provider value={{ user, setUser, login, signup, logout, loading }}>
             {!loading && children}
         </AuthContext.Provider>
     );

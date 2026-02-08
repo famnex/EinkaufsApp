@@ -16,8 +16,10 @@ import SlotMachineModal from '../components/SlotMachineModal';
 import { cn, getImageUrl } from '../lib/utils';
 
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Recipes() {
+    const { user } = useAuth();
     const [recipes, setRecipes] = useState([]);
     const [menus, setMenus] = useState([]);
 
@@ -265,7 +267,7 @@ export default function Recipes() {
                                 navigator.share({
                                     title: 'Mein Kochbuch',
                                     text: 'Schau dir mein Kochbuch an!',
-                                    url: `${window.location.origin}${import.meta.env.BASE_URL}shared/cookbook`.replace(/([^:]\/)\/+/g, "$1")
+                                    url: `${window.location.origin}${import.meta.env.BASE_URL}shared/${user?.sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1")
                                 }).catch(console.error);
                             } else {
                                 // Fallback
@@ -391,7 +393,7 @@ export default function Recipes() {
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     const baseUrl = import.meta.env.BASE_URL;
-                                                                    const link = `${window.location.origin}${baseUrl}shared/recipe/${recipe.id}`.replace(/([^:]\/)\/+/g, "$1");
+                                                                    const link = `${window.location.origin}${baseUrl}shared/${user?.sharingKey}/recipe/${recipe.id}`.replace(/([^:]\/)\/+/g, "$1");
 
                                                                     if (navigator.share) {
                                                                         navigator.share({
@@ -430,7 +432,7 @@ export default function Recipes() {
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     const baseUrl = import.meta.env.BASE_URL;
-                                                                    const link = `${window.location.origin}${baseUrl}shared/recipe/${recipe.id}`.replace(/([^:]\/)\/+/g, "$1");
+                                                                    const link = `${window.location.origin}${baseUrl}shared/${user?.sharingKey}/recipe/${recipe.id}`.replace(/([^:]\/)\/+/g, "$1");
                                                                     window.open(link, '_blank');
                                                                     setOpenMenuId(null);
                                                                 }}

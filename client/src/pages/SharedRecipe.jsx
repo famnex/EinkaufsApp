@@ -4,12 +4,13 @@ import axios from 'axios';
 import { ArrowLeft, ChefHat, Clock, Moon, Play, Printer, Sun, Users } from 'lucide-react';
 import { Card } from '../components/Card';
 import SharedCookingMode from '../components/SharedCookingMode';
+import SharedNotFound from '../components/SharedNotFound';
 import { useTheme } from '../contexts/ThemeContext';
 import { getImageUrl } from '../lib/utils';
 
 
 export default function SharedRecipe() {
-    const { id } = useParams();
+    const { sharingKey, id } = useParams();
     const navigate = useNavigate();
     const [recipe, setRecipe] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -45,7 +46,7 @@ export default function SharedRecipe() {
         const fetchRecipe = async () => {
             try {
                 // Ensure we don't have double slashes if API_URL ends with /
-                const url = `${API_URL.replace(/\/$/, '')}/recipes/public/${id}`;
+                const url = `${API_URL.replace(/\/$/, '')}/recipes/public/${sharingKey}/${id}`;
                 const { data } = await axios.get(url);
                 setRecipe(data);
             } catch (err) {
@@ -67,13 +68,7 @@ export default function SharedRecipe() {
     }
 
     if (error || !recipe) {
-        return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4">
-                <ChefHat size={48} className="text-muted-foreground mb-4" />
-                <h1 className="text-2xl font-bold mb-2">Ups!</h1>
-                <p className="text-muted-foreground">{error || 'Rezept konnte nicht geladen werden.'}</p>
-            </div>
-        );
+        return <SharedNotFound />;
     }
 
     // Helper for Image URL

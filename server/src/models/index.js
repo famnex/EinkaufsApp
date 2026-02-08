@@ -16,16 +16,24 @@ const User = sequelize.define('User', {
     password: { type: DataTypes.STRING, allowNull: true },
     email: { type: DataTypes.STRING, allowNull: true },
     role: { type: DataTypes.ENUM('admin', 'user'), defaultValue: 'user' },
-    isLdap: { type: DataTypes.BOOLEAN, defaultValue: false }
+    isLdap: { type: DataTypes.BOOLEAN, defaultValue: false },
+    alexaApiKey: { type: DataTypes.STRING, allowNull: true },
+    sharingKey: { type: DataTypes.STRING, allowNull: true, unique: true },
+    cookbookTitle: { type: DataTypes.STRING, defaultValue: 'MEIN KOCHBUCH' },
+    cookbookImage: { type: DataTypes.STRING, allowNull: true }
 });
 
 const Manufacturer = sequelize.define('Manufacturer', {
-    name: { type: DataTypes.STRING, allowNull: false, unique: true }
+    name: { type: DataTypes.STRING, allowNull: false }
+}, {
+    indexes: [{ unique: true, fields: ['name', 'UserId'] }]
 });
 
 const Store = sequelize.define('Store', {
-    name: { type: DataTypes.STRING, allowNull: false, unique: true },
+    name: { type: DataTypes.STRING, allowNull: false },
     logo_url: { type: DataTypes.STRING, allowNull: true }
+}, {
+    indexes: [{ unique: true, fields: ['name', 'UserId'] }]
 });
 
 const Product = sequelize.define('Product', {
@@ -42,10 +50,21 @@ const Product = sequelize.define('Product', {
 Product.belongsTo(Manufacturer);
 Product.belongsTo(Store);
 
+// User associations
+Manufacturer.belongsTo(User);
+Store.belongsTo(User);
+Product.belongsTo(User);
+User.hasMany(Manufacturer);
+User.hasMany(Store);
+User.hasMany(Product);
+
 const ProductSubstitution = sequelize.define('ProductSubstitution', {
     originalProductId: { type: DataTypes.INTEGER, allowNull: false },
     substituteProductId: { type: DataTypes.INTEGER, allowNull: false }
 });
+
+ProductSubstitution.belongsTo(User);
+User.hasMany(ProductSubstitution);
 
 const List = sequelize.define('List', {
     name: { type: DataTypes.STRING, allowNull: true },
@@ -55,6 +74,8 @@ const List = sequelize.define('List', {
 });
 
 List.belongsTo(Store, { as: 'CurrentStore', foreignKey: 'CurrentStoreId' });
+List.belongsTo(User);
+User.hasMany(List);
 
 const ListItem = sequelize.define('ListItem', {
     quantity: { type: DataTypes.FLOAT, defaultValue: 1 },
@@ -70,7 +91,9 @@ const ListItem = sequelize.define('ListItem', {
 
 ListItem.belongsTo(List);
 ListItem.belongsTo(Product);
+ListItem.belongsTo(User);
 List.hasMany(ListItem);
+User.hasMany(ListItem);
 
 const ProductRelation = sequelize.define('ProductRelation', {
     StoreId: { type: DataTypes.INTEGER, allowNull: false }, // Context
@@ -82,7 +105,9 @@ const ProductRelation = sequelize.define('ProductRelation', {
 ProductRelation.belongsTo(Store);
 ProductRelation.belongsTo(Product, { as: 'Predecessor', foreignKey: 'PredecessorId' });
 ProductRelation.belongsTo(Product, { as: 'Successor', foreignKey: 'SuccessorId' });
+ProductRelation.belongsTo(User);
 Store.hasMany(ProductRelation);
+User.hasMany(ProductRelation);
 
 const Menu = sequelize.define('Menu', {
     date: { type: DataTypes.DATEONLY, allowNull: false },
@@ -99,10 +124,20 @@ const Expense = sequelize.define('Expense', {
     category: { type: DataTypes.STRING }
 });
 
+Menu.belongsTo(User);
+Expense.belongsTo(User);
+User.hasMany(Menu);
+User.hasMany(Expense);
+
 const Settings = sequelize.define('Settings', {
-    key: { type: DataTypes.STRING, unique: true, allowNull: false },
+    key: { type: DataTypes.STRING, allowNull: false },
     value: { type: DataTypes.TEXT, allowNull: true }
+}, {
+    indexes: [{ unique: true, fields: ['key', 'UserId'] }]
 });
+
+Settings.belongsTo(User);
+User.hasMany(Settings);
 
 const Recipe = require('./Recipe')(sequelize);
 const RecipeIngredient = require('./RecipeIngredient')(sequelize);
@@ -110,6 +145,9 @@ const Tag = require('./Tag')(sequelize);
 
 Recipe.hasMany(Menu);
 Menu.belongsTo(Recipe);
+
+Recipe.belongsTo(User);
+User.hasMany(Recipe);
 
 Menu.hasMany(ListItem);
 ListItem.belongsTo(Menu);
@@ -119,16 +157,26 @@ Product.belongsToMany(Recipe, { through: RecipeIngredient });
 Recipe.hasMany(RecipeIngredient);
 RecipeIngredient.belongsTo(Recipe);
 RecipeIngredient.belongsTo(Product);
+RecipeIngredient.belongsTo(User);
+User.hasMany(RecipeIngredient);
 
 const RecipeTag = sequelize.define('RecipeTag', {});
+RecipeTag.belongsTo(User);
+User.hasMany(RecipeTag);
+
 Recipe.belongsToMany(Tag, { through: RecipeTag });
 Tag.belongsToMany(Recipe, { through: RecipeTag });
+
+Tag.belongsTo(User);
+User.hasMany(Tag);
 
 const HiddenCleanup = sequelize.define('HiddenCleanup', {
     context: { type: DataTypes.ENUM('category', 'manufacturer', 'unit'), allowNull: false }
 });
 
 HiddenCleanup.belongsTo(Product);
+HiddenCleanup.belongsTo(User);
+User.hasMany(HiddenCleanup);
 Product.hasMany(HiddenCleanup);
 
 // ProductSubstitution associations

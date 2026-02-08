@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle } from 'lucide-react';
+import { Settings, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -17,7 +17,7 @@ export default function SettingsPage() {
     const navigate = useNavigate();
     const [stores, setStores] = useState([]);
     const [loading, setLoading] = useState(true);
-    const { user } = useAuth();
+    const { user, setUser } = useAuth();
     const { editMode, setEditMode } = useEditMode();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedStore, setSelectedStore] = useState(null);
@@ -26,6 +26,12 @@ export default function SettingsPage() {
     const [savingKey, setSavingKey] = useState(false);
     const [registrationEnabled, setRegistrationEnabled] = useState(true);
     const [appVersion, setAppVersion] = useState('...');
+
+    // Cookbook Customization State
+    const [cookbookTitle, setCookbookTitle] = useState(user?.cookbookTitle || 'MEIN KOCHBUCH');
+    const [cookbookImage, setCookbookImage] = useState(user?.cookbookImage || null);
+    const [savingCookbook, setSavingCookbook] = useState(false);
+    const [sharingKey, setSharingKey] = useState(user?.sharingKey || '');
 
     // User Management State
     const [users, setUsers] = useState([]);
@@ -236,55 +242,208 @@ export default function SettingsPage() {
         }
     };
 
+    const handleSaveCookbook = async () => {
+        setSavingCookbook(true);
+        try {
+            const { data } = await api.put('/auth/profile', { cookbookTitle });
+            setUser(data);
+            localStorage.setItem('user', JSON.stringify(data));
+            alert('Kochbuch-Titel gespeichert');
+        } catch (err) {
+            console.error('Failed to save cookbook settings', err);
+            alert('Fehler beim Speichern');
+        } finally {
+            setSavingCookbook(false);
+        }
+    };
+
+    const handleCookbookImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('image', file);
+
+        setSavingCookbook(true);
+        try {
+            const { data } = await api.put('/auth/profile', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setCookbookImage(data.cookbookImage);
+            setUser(data);
+            localStorage.setItem('user', JSON.stringify(data));
+            alert('Bild hochgeladen');
+        } catch (err) {
+            console.error('Upload failed', err);
+            alert('Upload fehlgeschlagen');
+        } finally {
+            setSavingCookbook(false);
+        }
+    };
+
+    const handleRegenerateKey = async () => {
+        const confirmed = window.confirm(
+            'ACHTUNG: Alle bisher geteilten Links (Kochbuch und Rezepte) werden ungültig!\n\n' +
+            'Möchtest du wirklich einen neuen Freigabe-Key generieren?'
+        );
+        if (!confirmed) return;
+
+        try {
+            const { data } = await api.post('/auth/regenerate-sharing-key');
+            setSharingKey(data.sharingKey);
+            const updatedUser = { ...user, sharingKey: data.sharingKey };
+            setUser(updatedUser);
+            localStorage.setItem('user', JSON.stringify(updatedUser));
+            alert('Neuer Key generiert!');
+        } catch (err) {
+            console.error('Regeneration failed', err);
+            alert('Fehler bei der Generierung');
+        }
+    };
+
     // --- Component Sections ---
 
     const ProfileSection = (
         <Card className="p-8 border-border bg-card shadow-lg">
             <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                <Shield size={20} className="text-primary" />
+                <UserCog size={20} className="text-primary" />
                 Sicherheit & Profil
             </h2>
-            <div className="space-y-4">
-                <div className="p-4 bg-muted rounded-2xl">
-                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Angemeldet als</p>
-                    <p className="font-bold text-foreground">{user?.username || 'Gast'}</p>
-                    <p className="text-sm text-primary font-medium">{user?.role === 'admin' ? 'Administrator' : 'Standard-Benutzer'}</p>
+            <div className="space-y-6">
+                <div className="p-4 bg-muted rounded-2xl flex items-center justify-between">
+                    <div>
+                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Angemeldet als</p>
+                        <p className="font-bold text-foreground">{user?.username || 'Gast'}</p>
+                        <p className="text-sm text-primary font-medium">{user?.role === 'admin' ? 'Administrator' : 'Standard-Benutzer'}</p>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        className="text-destructive hover:bg-destructive/10"
+                        onClick={() => {
+                            localStorage.removeItem('token');
+                            const baseUrl = import.meta.env.BASE_URL || '/';
+                            window.location.href = `${baseUrl}login`.replace('//', '/');
+                        }}
+                    >
+                        Abmelden
+                    </Button>
                 </div>
-                <Button
-                    variant="outline"
-                    className="w-full h-12 text-destructive hover:bg-destructive/10 border-destructive/20"
-                    onClick={() => {
-                        localStorage.removeItem('token');
-                        const baseUrl = import.meta.env.BASE_URL || '/';
-                        window.location.href = `${baseUrl}login`.replace('//', '/');
-                    }}
-                >
-                    Abmelden
-                </Button>
-            </div>
 
-            {/* Registration Toggle - Admin Only */}
-            {user?.role === 'admin' && (
-                <div className="pt-4 mt-6 border-t border-border">
-                    <label className="flex items-center justify-between cursor-pointer group">
-                        <span className="font-bold text-foreground">Öffentliche Registrierung</span>
-                        <div className="relative">
-                            <input
-                                type="checkbox"
-                                className="sr-only peer"
-                                checked={registrationEnabled}
-                                onChange={handleToggleRegistration}
-                            />
-                            <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                {/* Freigabe & Kochbuch Section */}
+                <div className="pt-6 border-t border-border space-y-6">
+                    <h3 className="text-lg font-bold flex items-center gap-2">
+                        <Sparkles size={18} className="text-primary" />
+                        Dein öffentliches Kochbuch
+                    </h3>
+
+                    <div className="space-y-4">
+                        {/* Title Editing */}
+                        <div>
+                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Kochbuch-Titel</label>
+                            <div className="flex gap-2">
+                                <Input
+                                    value={cookbookTitle}
+                                    onChange={(e) => setCookbookTitle(e.target.value)}
+                                    placeholder="Z.B. MEIN REZEPTSCHREIN"
+                                    className="bg-muted border-transparent focus:bg-background"
+                                />
+                                <Button onClick={handleSaveCookbook} disabled={savingCookbook}>
+                                    {savingCookbook ? '...' : 'OK'}
+                                </Button>
+                            </div>
                         </div>
-                    </label>
-                    <p className="text-xs text-muted-foreground mt-2">
-                        {registrationEnabled
-                            ? "Neue Benutzer können sich registrieren."
-                            : "Registrierung ist deaktiviert. Neue Benutzer können sich nicht selbst registrieren."}
-                    </p>
+
+                        {/* Image Upload */}
+                        <div>
+                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Hero-Bild (Startseite)</label>
+                            <div className="flex items-center gap-4">
+                                <div className="w-20 h-20 rounded-2xl bg-muted overflow-hidden border border-border flex items-center justify-center shrink-0">
+                                    {cookbookImage ? (
+                                        <img src={getImageUrl(cookbookImage)} className="w-full h-full object-cover" alt="Cookbook Preview" />
+                                    ) : (
+                                        <ChefHat size={32} className="text-muted-foreground/30" />
+                                    )}
+                                </div>
+                                <div className="space-y-2">
+                                    <input
+                                        type="file"
+                                        id="cookbook-image"
+                                        className="hidden"
+                                        accept="image/*"
+                                        onChange={handleCookbookImageUpload}
+                                    />
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full"
+                                        onClick={() => document.getElementById('cookbook-image').click()}
+                                        disabled={savingCookbook}
+                                    >
+                                        Bild ändern
+                                    </Button>
+                                    <p className="text-[10px] text-muted-foreground">Empfohlen: 1920x1080px</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Public Link Display */}
+                        <div className="p-4 bg-muted/50 rounded-2xl border border-border/50">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Dein öffentlicher Link</label>
+                            <div className="flex gap-2">
+                                <Input
+                                    type="text"
+                                    readOnly
+                                    value={`${window.location.origin}${import.meta.env.BASE_URL}shared/${sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1")}
+                                    className="bg-background border-border text-sm font-mono truncate"
+                                    onClick={(e) => e.target.select()}
+                                />
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        const url = `${window.location.origin}${import.meta.env.BASE_URL}shared/${sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1");
+                                        navigator.clipboard.writeText(url);
+                                        alert('Link kopiert!');
+                                    }}
+                                >
+                                    Copy
+                                </Button>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full mt-3 text-[10px] text-muted-foreground hover:text-destructive gap-1"
+                                onClick={handleRegenerateKey}
+                            >
+                                <X size={12} /> Neuen Key generieren (alte Links werden ungültig)
+                            </Button>
+                        </div>
+                    </div>
                 </div>
-            )}
+
+                {/* Registration Toggle - Admin Only */}
+                {user?.role === 'admin' && (
+                    <div className="pt-6 border-t border-border">
+                        <label className="flex items-center justify-between cursor-pointer group">
+                            <span className="font-bold text-foreground">Öffentliche Registrierung</span>
+                            <div className="relative">
+                                <input
+                                    type="checkbox"
+                                    className="sr-only peer"
+                                    checked={registrationEnabled}
+                                    onChange={handleToggleRegistration}
+                                />
+                                <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            </div>
+                        </label>
+                        <p className="text-xs text-muted-foreground mt-2">
+                            {registrationEnabled
+                                ? "Neue Benutzer können sich registrieren."
+                                : "Registrierung ist deaktiviert."}
+                        </p>
+                    </div>
+                )}
+            </div>
         </Card>
     );
 
@@ -555,6 +714,7 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                 <div className="space-y-6">
                     {ProfileSection}
+
                     {user?.role === 'admin' && StoresSection}
                 </div>
 

@@ -78,8 +78,8 @@ function AppContent() {
               <Route path="/signup" element={<Signup />} />
 
               {/* Public Shared Routes */}
-              <Route path="/shared/recipe/:id" element={<SharedRecipe />} />
-              <Route path="/shared/cookbook" element={<SharedCookbook />} />
+              <Route path="/shared/:sharingKey/recipe/:id" element={<SharedRecipe />} />
+              <Route path="/shared/:sharingKey/cookbook" element={<SharedCookbook />} />
 
               <Route path="/" element={
                 <ProtectedRoute>

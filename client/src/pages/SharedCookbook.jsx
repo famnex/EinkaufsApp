@@ -1,21 +1,25 @@
 import { useState, useEffect, useMemo } from 'react';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, ChefHat, Clock, Users, Filter, X, UtensilsCrossed, ArrowRight, ChevronDown, ChevronUp, Moon, Sun, Dices, Eye } from 'lucide-react';
 import axios from 'axios';
-import { cn } from '../lib/utils';
+import { cn, getImageUrl } from '../lib/utils';
 import { useTheme } from '../contexts/ThemeContext';
 import SlotMachineModal from '../components/SlotMachineModal';
 import { Button } from '../components/Button';
+import SharedNotFound from '../components/SharedNotFound';
 
 export default function SharedCookbook() {
     const navigate = useNavigate();
+    const { sharingKey } = useParams();
     const { theme, toggleTheme } = useTheme();
     const isDark = theme === 'dark';
 
     const [recipes, setRecipes] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [cookbookInfo, setCookbookInfo] = useState({ title: 'MEIN KOCHBUCH', image: null });
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('Alle');
     const [selectedTags, setSelectedTags] = useState([]);
@@ -35,24 +39,28 @@ export default function SharedCookbook() {
     useEffect(() => {
         const fetchRecipes = async () => {
             try {
-                const url = `${API_URL.replace(/\/$/, '')}/recipes/public`;
+                const url = `${API_URL.replace(/\/$/, '')}/recipes/public/${sharingKey}`;
                 const { data } = await axios.get(url);
-                setRecipes(data);
+                setRecipes(data.recipes);
+                setCookbookInfo({
+                    title: data.cookbookTitle || 'MEIN KOCHBUCH',
+                    image: data.cookbookImage
+                });
 
                 // Extract Categories
-                const cats = ['Alle', ...new Set(data.map(r => r.category).filter(Boolean))].sort();
+                const cats = ['Alle', ...new Set(data.recipes.map(r => r.category).filter(Boolean))].sort();
                 setCategories(cats);
 
                 // Extract Tags
                 const tags = new Set();
-                data.forEach(r => {
+                data.recipes.forEach(r => {
                     r.Tags?.forEach(t => tags.add(t.name));
                 });
                 setAllTags(Array.from(tags).sort());
 
                 // Extract All Products for Filter (Client-Side)
                 const productsMap = new Map();
-                data.forEach(r => {
+                data.recipes.forEach(r => {
                     r.RecipeIngredients?.forEach(ri => {
                         if (ri.Product && ri.Product.name) {
                             if (!productsMap.has(ri.Product.name)) {
@@ -65,12 +73,15 @@ export default function SharedCookbook() {
 
             } catch (err) {
                 console.error("Failed to load recipes", err);
+                if (err.response?.status === 403 || err.response?.status === 404) {
+                    setError('Ungültiger Link');
+                }
             } finally {
                 setLoading(false);
             }
         };
         fetchRecipes();
-    }, [API_URL]);
+    }, [sharingKey, API_URL]);
 
     const toggleTag = (tag) => {
         setSelectedTags(prev =>
@@ -107,6 +118,10 @@ export default function SharedCookbook() {
         return `${cleanBase}/${cleanUrl}`;
     };
 
+    if (error) {
+        return <SharedNotFound />;
+    }
+
     return (
         <div className="min-h-screen bg-background text-foreground font-sans transition-colors duration-300">
             {/* Hero Header */}
@@ -115,11 +130,24 @@ export default function SharedCookbook() {
                 isDark ? "bg-zinc-950" : "bg-indigo-950",
                 "text-white"
             )}>
-                <div className="absolute inset-0 bg-gradient-to-r from-purple-900/40 to-blue-900/40 z-0 pointer-events-none" />
-                <div
-                    className="absolute inset-0 opacity-10 z-0 pointer-events-none"
-                    style={{ backgroundImage: `url(${import.meta.env.BASE_URL}pattern.svg)` }}
-                />
+                {cookbookInfo.image ? (
+                    <div className="absolute inset-0 z-0">
+                        <img
+                            src={renderImageUrl(cookbookInfo.image)}
+                            className="w-full h-full object-cover opacity-60"
+                            alt="Cookbook Hero"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
+                    </div>
+                ) : (
+                    <>
+                        <div className="absolute inset-0 bg-gradient-to-r from-purple-900/40 to-blue-900/40 z-0 pointer-events-none" />
+                        <div
+                            className="absolute inset-0 opacity-10 z-0 pointer-events-none"
+                            style={{ backgroundImage: `url(${import.meta.env.BASE_URL}pattern.svg)` }}
+                        />
+                    </>
+                )}
 
                 {/* Theme Toggle */}
                 <div className="absolute top-4 right-4 z-20">
@@ -148,9 +176,9 @@ export default function SharedCookbook() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
-                        className="text-4xl md:text-7xl font-black tracking-tighter mb-2 text-white drop-shadow-xl"
+                        className="text-4xl md:text-7xl font-black tracking-tighter mb-2 text-white drop-shadow-xl uppercase"
                     >
-                        THECOOKINGGUYS
+                        {cookbookInfo.title}
                     </motion.h1>
                     <motion.p
                         initial={{ opacity: 0 }}
@@ -292,7 +320,7 @@ export default function SharedCookbook() {
                                 >
                                     <div
                                         className="group relative bg-card border border-border rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer h-full flex flex-col"
-                                        onClick={() => navigate(`/shared/recipe/${recipe.id}`)}
+                                        onClick={() => navigate(`/shared/${sharingKey}/recipe/${recipe.id}`)}
                                     >
                                         {/* Image */}
                                         <div className="aspect-[3/2] relative overflow-hidden">
@@ -402,7 +430,7 @@ export default function SharedCookbook() {
                 ActionIcon={Eye}
                 availableProducts={availableProducts}
                 onSelect={(recipe) => {
-                    navigate(`/shared/recipe/${recipe.id}`);
+                    navigate(`/shared/${sharingKey}/recipe/${recipe.id}`);
                     setIsSlotMachineOpen(false);
                 }}
             />

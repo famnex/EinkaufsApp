@@ -1,5 +1,17 @@
 # Database Schema Documentation
 
+## v0.19.0 - Multiuser Transformation
+- **All Tables** (except `Users`):
+    - **Change**: Added `UserId` column.
+    - **Type**: `INTEGER`
+    - **Reference**: `Users(id)`
+    - **Purpose**: Strict data isolation per user.
+- **Table**: `Users`
+    - **Change**: Added `alexaApiKey` column.
+    - **Type**: `STRING`
+    - **Purpose**: Individual Alexa integration mapping.
+- **Constraints**: Composite unique constraints will be introduced where applicable (e.g., `Tag` name per user).
+
 ## v0.18.2 - Synonyms
 - **Table**: `Products`
 - **Change**: Added `synonyms` column.

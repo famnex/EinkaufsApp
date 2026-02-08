@@ -3,7 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
-const { sequelize, Recipe } = require('./src/models');
+const { sequelize, User, Recipe } = require('./src/models');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
@@ -12,8 +12,11 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
-app.use('/EinkaufsApp/uploads', express.static(path.join(__dirname, 'public/uploads')));
+
+const BASE_PATH = process.env.BASE_PATH || ''; // e.g. '/EinkaufsApp'
+
+// Serve static files
+app.use(`${BASE_PATH}/uploads`, express.static(path.join(__dirname, 'public/uploads')));
 
 app.get('/', (req, res) => {
     res.json({ message: 'Listenübersicht API is running' });
@@ -40,103 +43,176 @@ apiRouter.use('/users', require('./src/routes/users'));
 apiRouter.use('/system', require('./src/routes/system'));
 apiRouter.use('/alexa', require('./src/routes/alexa'));
 
-// Mount API on standard path
-app.use('/api', apiRouter);
-// Mount API on subdirectory path (for production)
-app.use('/EinkaufsApp/api', apiRouter);
+// Mount API
+app.use(`${BASE_PATH}/api`, apiRouter);
 
-// --- Server-Side Rendering for Shared Recipes (Open Graph Tags) ---
-const serveSharedRecipe = async (req, res) => {
-    try {
-        const recipeId = req.params.id;
-        const recipe = await Recipe.findByPk(recipeId);
+// Fallback for root if BASE_PATH is set
+if (BASE_PATH && BASE_PATH !== '/') {
+    app.use('/api', apiRouter);
+}
 
-        // Path to built index.html
-        let filePath = path.join(__dirname, '../client/dist/index.html');
+// --- Helper: Serve SSR Page ---
+const serveSSR = async (req, res, meta = {}) => {
+    const filePath = path.join(__dirname, '../client/dist/index.html');
 
-        // Fallback for development if dist doesn't exist (helpful for testing)
-        if (!fs.existsSync(filePath)) {
-            filePath = path.join(__dirname, '../client/index.html');
+    // In dev mode, we might not have dist/index.html, but we should handle it
+    if (!fs.existsSync(filePath)) {
+        return res.status(200).send(`
+            <!DOCTYPE html>
+            <html lang="de">
+            <head>
+                <meta charset="UTF-8">
+                <title>${meta.title || 'EinkaufsApp'}</title>
+                <meta property="og:title" content="${meta.title || 'EinkaufsApp'}" />
+                <meta property="og:description" content="${meta.description || 'Dein Kochbuch'}" />
+                <meta property="og:image" content="${meta.image || ''}" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body>
+                <div id="root">Lade... (Frontend nicht gebaut, Vorschau aktiv)</div>
+            </body>
+            </html>
+        `);
+    }
+
+    fs.readFile(filePath, 'utf8', (err, htmlData) => {
+        if (err) {
+            console.error('Error reading index.html', err);
+            return res.status(500).send('Error loading page');
         }
 
-        if (!fs.existsSync(filePath)) {
-            console.error('index.html not found at:', filePath);
-            return res.status(500).send('Frontend not built or index.html missing');
+        let injectedHtml = htmlData;
+        const title = meta.title || 'EinkaufsApp';
+        const description = meta.description || 'Deine Rezepte & Einkaufslisten';
+        const imageUrl = meta.image || '';
+
+        // 1. Replace Title
+        injectedHtml = injectedHtml.replace(/<title>.*?<\/title>/i, `<title>${title} | EinkaufsApp</title>`);
+
+        // 2. Clear existing dynamic meta tags
+        injectedHtml = injectedHtml.replace(/<meta property="og:.*?" content=".*?" \/>/g, '');
+
+        // 3. Replace or inject description
+        const metaDescriptionRegex = /<meta name="description" content=".*?" \/>/i;
+        if (metaDescriptionRegex.test(injectedHtml)) {
+            injectedHtml = injectedHtml.replace(metaDescriptionRegex, `<meta name="description" content="${description}" />`);
         }
 
-        fs.readFile(filePath, 'utf8', (err, htmlData) => {
-            if (err) {
-                console.error('Error reading index.html', err);
-                return res.status(500).send('Error loading page');
-            }
-
-            if (!recipe) {
-                return res.send(htmlData);
-            }
-
-            // Construct OG Data
-            const title = recipe.title || 'Rezept';
-            const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-            const host = req.get('host');
-            const baseUrl = `${protocol}://${host}`;
-            const appSubDir = '/EinkaufsApp';
-
-            // Construct absolute Image URL
-            // Default fallback icon
-            let imageUrl = `${baseUrl}${appSubDir}/icon-192x192.png`;
-            if (recipe.image_url) {
-                if (recipe.image_url.startsWith('http')) {
-                    imageUrl = recipe.image_url;
-                } else {
-                    const cleanPath = recipe.image_url.startsWith('/') ? recipe.image_url : `/${recipe.image_url}`;
-                    imageUrl = `${baseUrl}${appSubDir}${cleanPath}`;
-                }
-            }
-
-            const description = recipe.category ? `${recipe.category} Rezept: ${title}` : `Schau dir dieses leckere Rezept an: ${title}`;
-
-            // Robust injection using regex
-            let injectedHtml = htmlData;
-
-            // 1. Replace Title
-            injectedHtml = injectedHtml.replace(/<title>.*?<\/title>/i, `<title>${title} | EinkaufsApp</title>`);
-
-            // 2. Clear existing dynamic meta tags if any (to avoid duplicates)
-            injectedHtml = injectedHtml.replace(/<meta property="og:.*?" content=".*?" \/>/g, '');
-
-            // 3. Replace or inject description
-            const metaDescriptionRegex = /<meta name="description" content=".*?" \/>/i;
-            if (metaDescriptionRegex.test(injectedHtml)) {
-                injectedHtml = injectedHtml.replace(metaDescriptionRegex, `<meta name="description" content="${description}" />`);
-            }
-
-            // 4. Inject OG tags before </head>
-            const ogTags = `
+        // 4. Inject OG tags before </head>
+        const ogTags = `
     <meta property="og:title" content="${title}" />
     <meta property="og:description" content="${description}" />
     <meta property="og:image" content="${imageUrl}" />
-    <meta property="og:url" content="${baseUrl}${appSubDir}/shared/recipe/${recipeId}" />
-    <meta property="og:type" content="article" />
+    <meta property="og:url" content="${req.protocol}://${req.get('host')}${req.originalUrl}" />
+    <meta property="og:type" content="website" />
     <meta property="og:site_name" content="EinkaufsApp" />
 `;
-            injectedHtml = injectedHtml.replace('</head>', `${ogTags}</head>`);
+        injectedHtml = injectedHtml.replace('</head>', `${ogTags}</head>`);
 
-            res.send(injectedHtml);
+        res.send(injectedHtml);
+    });
+};
+
+const renderErrorPage = (res) => {
+    res.status(404).send(`
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Halt da! 🛑</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f9fafb; color: #111827; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
+                .card { background: white; padding: 2rem; border-radius: 1.5rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); max-width: 400px; width: 90%; }
+                h1 { font-size: 2rem; margin-bottom: 1rem; }
+                p { color: #4b5563; line-height: 1.5; margin-bottom: 2rem; }
+                a { display: inline-block; background: #4f46e5; color: white; padding: 0.75rem 1.5rem; border-radius: 0.75rem; text-decoration: none; font-weight: bold; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h1>Halt da! 🛑</h1>
+                <p>Dieser Link ist ungültig oder abgelaufen. Frag am besten noch einmal nach einem aktuellen Link.</p>
+                <a href="/">Zur Startseite</a>
+            </div>
+        </body>
+        </html>
+    `);
+};
+
+// SSR for Shared Recipe
+const serveSharedRecipe = async (req, res) => {
+    try {
+        const { sharingKey, id } = req.params;
+        const user = await User.findOne({ where: { sharingKey } });
+        if (!user) return renderErrorPage(res);
+
+        const recipe = await Recipe.findOne({ where: { id, UserId: user.id } });
+        if (!recipe) return renderErrorPage(res);
+
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.get('host');
+        const baseUrl = `${protocol}://${host}`;
+
+        // Construct absolute Image URL
+        let image = `${baseUrl}${BASE_PATH}/icon-192x192.png`;
+        if (recipe.image_url) {
+            image = recipe.image_url.startsWith('http') ? recipe.image_url : `${baseUrl}${BASE_PATH}${recipe.image_url.startsWith('/') ? '' : '/'}${recipe.image_url}`;
+        }
+
+        await serveSSR(req, res, {
+            title: recipe.title,
+            description: recipe.category ? `${recipe.category} Rezept aus dem Kochbuch von ${user.username}` : `Ein Rezept aus dem Kochbuch von ${user.username}`,
+            image: image
         });
     } catch (error) {
-        console.error('SSR Error:', error);
+        console.error('SSR Recipe Error:', error);
         res.sendFile(path.join(__dirname, '../client/dist/index.html'));
     }
 };
 
-app.get('/shared/recipe/:id', serveSharedRecipe);
-app.get('/EinkaufsApp/shared/recipe/:id', serveSharedRecipe);
+// SSR for Shared Cookbook
+const serveSharedCookbook = async (req, res) => {
+    try {
+        const { sharingKey } = req.params;
+        const user = await User.findOne({ where: { sharingKey } });
+        if (!user) return renderErrorPage(res);
+
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.get('host');
+        const baseUrl = `${protocol}://${host}`;
+
+        let image = `${baseUrl}${BASE_PATH}/icon-192x192.png`;
+        if (user.cookbookImage) {
+            image = user.cookbookImage.startsWith('http') ? user.cookbookImage : `${baseUrl}${BASE_PATH}${user.cookbookImage.startsWith('/') ? '' : '/'}${user.cookbookImage}`;
+        }
+
+        await serveSSR(req, res, {
+            title: user.cookbookTitle || 'MEIN KOCHBUCH',
+            description: `Entdecke leckere Rezepte im Kochbuch von ${user.username}.`,
+            image: image
+        });
+    } catch (error) {
+        console.error('SSR Cookbook Error:', error);
+        res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+    }
+};
+
+app.get(`${BASE_PATH}/shared/:sharingKey/recipe/:id`, serveSharedRecipe);
+app.get(`${BASE_PATH}/shared/:sharingKey/cookbook`, serveSharedCookbook);
+
+if (BASE_PATH && BASE_PATH !== '/') {
+    app.get('/shared/:sharingKey/recipe/:id', serveSharedRecipe);
+    app.get('/shared/:sharingKey/cookbook', serveSharedCookbook);
+}
 
 // Serve static files from React app
 // Serve static files from React app
 if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
     // Mount static files at the subdirectory path
-    app.use('/EinkaufsApp', express.static(path.join(__dirname, '../client/dist')));
+    if (BASE_PATH && BASE_PATH !== '/') {
+        app.use(BASE_PATH, express.static(path.join(__dirname, '../client/dist')));
+    }
 
     // Also handle root requests if needed, or just let wildcard catch them
     app.use(express.static(path.join(__dirname, '../client/dist')));

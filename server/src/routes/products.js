@@ -6,7 +6,12 @@ const { auth, admin } = require('../middleware/auth');
 router.get('/', auth, async (req, res) => {
     try {
         const products = await Product.findAll({
-            include: [Manufacturer, Store, HiddenCleanup],
+            where: { UserId: req.user.id },
+            include: [
+                { model: Manufacturer, where: { UserId: req.user.id }, required: false },
+                { model: Store, where: { UserId: req.user.id }, required: false },
+                { model: HiddenCleanup, where: { UserId: req.user.id }, required: false }
+            ],
             order: [[sequelize.fn('lower', sequelize.col('Product.name')), 'ASC']]
         });
         res.json(products);
@@ -21,6 +26,7 @@ router.get('/units', auth, async (req, res) => {
         const products = await Product.findAll({
             attributes: ['unit'],
             where: {
+                UserId: req.user.id,
                 unit: { [sequelize.Sequelize.Op.ne]: null }
             }
         });
@@ -35,7 +41,7 @@ router.get('/units', auth, async (req, res) => {
 
 router.post('/', auth, async (req, res) => {
     try {
-        const product = await Product.create(req.body);
+        const product = await Product.create({ ...req.body, UserId: req.user.id });
         res.status(201).json(product);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -44,8 +50,8 @@ router.post('/', auth, async (req, res) => {
 
 router.put('/:id', auth, async (req, res) => {
     try {
-        const product = await Product.findByPk(req.params.id);
-        if (!product) return res.status(404).json({ error: 'Product not found' });
+        const product = await Product.findOne({ where: { id: req.params.id, UserId: req.user.id } });
+        if (!product) return res.status(404).json({ error: 'Product not found or unauthorized' });
         await product.update(req.body);
         res.json(product);
     } catch (err) {
@@ -55,8 +61,8 @@ router.put('/:id', auth, async (req, res) => {
 
 router.delete('/:id', auth, async (req, res) => {
     try {
-        const product = await Product.findByPk(req.params.id);
-        if (!product) return res.status(404).json({ error: 'Product not found' });
+        const product = await Product.findOne({ where: { id: req.params.id, UserId: req.user.id } });
+        if (!product) return res.status(404).json({ error: 'Product not found or unauthorized' });
         await product.destroy();
         res.json({ message: 'Product deleted' });
     } catch (err) {
@@ -70,12 +76,12 @@ router.post('/merge', auth, async (req, res) => {
     try {
         const { sourceId, targetId, newName } = req.body;
 
-        const source = await Product.findByPk(sourceId, { transaction: t });
-        const target = await Product.findByPk(targetId, { transaction: t });
+        const source = await Product.findOne({ where: { id: sourceId, UserId: req.user.id }, transaction: t });
+        const target = await Product.findOne({ where: { id: targetId, UserId: req.user.id }, transaction: t });
 
         if (!source || !target) {
             await t.rollback();
-            return res.status(404).json({ error: 'Product not found' });
+            return res.status(404).json({ error: 'Product not found or unauthorized' });
         }
 
         // 1. Update target name if provided
@@ -109,13 +115,13 @@ router.post('/merge', auth, async (req, res) => {
         // 2. Migrate Recipe Ingredients
         await RecipeIngredient.update(
             { ProductId: target.id },
-            { where: { ProductId: source.id }, transaction: t }
+            { where: { ProductId: source.id, UserId: req.user.id }, transaction: t }
         );
 
         // 3. Migrate Shopping List Items
         await ListItem.update(
             { ProductId: target.id },
-            { where: { ProductId: source.id }, transaction: t }
+            { where: { ProductId: source.id, UserId: req.user.id }, transaction: t }
         );
 
         // 4. Delete Source

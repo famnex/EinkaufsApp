@@ -23,13 +23,16 @@ const checkAlexaAuth = async (req, res, next) => {
         }
 
         const token = authHeader.split(' ')[1];
-        const setting = await Settings.findOne({ where: { key: 'alexa_key' } });
+        const setting = await Settings.findOne({ where: { key: 'alexa_key', value: token } });
 
-        if (!setting || !setting.value || setting.value !== token) {
+        if (!setting) {
             logAlexa('WARN', 'AUTH', 'Invalid API Key attempt', { providedToken: token.substring(0, 5) + '...' });
             console.warn('[Alexa] Invalid API Key attempt');
             return res.status(403).json({ error: 'Forbidden' });
         }
+
+        // Attach user info for subsequent queries
+        req.user = { id: setting.UserId };
 
         next();
     } catch (err) {
@@ -64,7 +67,8 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
         const lists = await List.findAll({
             where: {
                 date: { [Op.gte]: today },
-                status: 'active'
+                status: 'active',
+                UserId: req.user.id
             },
             order: [['date', 'ASC']],
             limit: 2
@@ -76,7 +80,8 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
             targetList = await List.create({
                 date: today,
                 status: 'active',
-                name: 'Alexa Liste'
+                name: 'Alexa Liste',
+                UserId: req.user.id
             });
             console.log('[Alexa] Created new list for', today);
         } else if (lists.length === 1) {
@@ -100,10 +105,15 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
         // 2. Find or Create Product (Robust Search)
         // Try exact match first
         let product = await Product.findOne({
-            where: sequelize.where(
-                sequelize.fn('lower', sequelize.col('name')),
-                sequelize.fn('lower', productNameQuery)
-            )
+            where: {
+                [Op.and]: [
+                    sequelize.where(
+                        sequelize.fn('lower', sequelize.col('name')),
+                        sequelize.fn('lower', productNameQuery)
+                    ),
+                    { UserId: req.user.id }
+                ]
+            }
         });
 
         // If not found, try normalized variations
@@ -112,10 +122,15 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
             // Search for any matching variation
             for (const variant of variations) {
                 const p = await Product.findOne({
-                    where: sequelize.where(
-                        sequelize.fn('lower', sequelize.col('name')),
-                        sequelize.fn('lower', variant)
-                    )
+                    where: {
+                        [Op.and]: [
+                            sequelize.where(
+                                sequelize.fn('lower', sequelize.col('name')),
+                                sequelize.fn('lower', variant)
+                            ),
+                            { UserId: req.user.id }
+                        ]
+                    }
                 });
                 if (p) {
                     product = p;
@@ -132,7 +147,8 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
                 where: {
                     synonyms: {
                         [Op.like]: `%${productNameQuery}%` // Simple string partial match first
-                    }
+                    },
+                    UserId: req.user.id
                 }
             });
 
@@ -159,7 +175,8 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
                 unit: unitName || 'Stück',
                 category: 'Uncategorized',
                 isNew: true,
-                source: 'alexa'
+                source: 'alexa',
+                UserId: req.user.id
             });
             logAlexa('INFO', 'PRODUCT_CREATED', `Created new product: ${productNameQuery}`, { id: product.id });
         }
@@ -168,7 +185,8 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
         const existingItem = await ListItem.findOne({
             where: {
                 ListId: targetList.id,
-                ProductId: product.id
+                ProductId: product.id,
+                UserId: req.user.id
             }
         });
 
@@ -186,7 +204,8 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
                 ProductId: product.id,
                 quantity: amount,
                 unit: unitName || product.unit,
-                is_bought: false
+                is_bought: false,
+                UserId: req.user.id
             });
             logAlexa('INFO', 'ITEM_ADDED', `Added item "${productNameQuery}" to list ${targetList.date}`, {
                 listId: targetList.id,
@@ -316,7 +335,8 @@ router.post('/menu', checkAlexaAuth, async (req, res) => {
                         [Op.or]: [
                             { is_eating_out: false },
                             { is_eating_out: null }
-                        ]
+                        ],
+                        UserId: req.user.id
                     },
                     include: [Recipe]
                 });
@@ -337,7 +357,8 @@ router.post('/menu', checkAlexaAuth, async (req, res) => {
                         [Op.or]: [
                             { is_eating_out: false },
                             { is_eating_out: null }
-                        ]
+                        ],
+                        UserId: req.user.id
                     },
                     include: [Recipe],
                     order: [['meal_type', 'ASC']]
