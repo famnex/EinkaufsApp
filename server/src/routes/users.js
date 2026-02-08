@@ -8,13 +8,24 @@ const isAdmin = require('../middleware/admin');
 router.use(verifyToken);
 router.use(isAdmin);
 
-// GET / - List all users
+// GET / - List all users with household relationship
 router.get('/', async (req, res) => {
     try {
         const users = await User.findAll({
             attributes: ['id', 'username', 'email', 'role', 'isLdap', 'householdId', 'createdAt']
         });
-        res.json(users);
+
+        // Enhance with household owner names
+        const usersWithHouseholdInfo = await Promise.all(users.map(async (u) => {
+            const userJson = u.toJSON();
+            if (userJson.householdId) {
+                const owner = await User.findByPk(userJson.householdId, { attributes: ['username'] });
+                userJson.householdOwnerName = owner ? owner.username : 'Unbekannt';
+            }
+            return userJson;
+        }));
+
+        res.json(usersWithHouseholdInfo);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

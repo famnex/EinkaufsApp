@@ -353,10 +353,10 @@ export default function SettingsPage() {
     // --- Component Sections ---
 
     const ProfileSection = (
-        <Card className="p-8 border-border bg-card shadow-lg">
+        <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
             <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                <UserCog size={20} className="text-primary" />
-                Sicherheit & Profil
+                <SettingsIcon size={20} className="text-primary" />
+                Profil & Einstellungen
             </h2>
             <div className="space-y-6">
                 <div className="p-4 bg-muted rounded-2xl flex items-center justify-between">
@@ -497,24 +497,24 @@ export default function SettingsPage() {
     );
 
     const HouseholdSection = (
-        <Card className="p-8 border-indigo-500/20 bg-indigo-500/5 shadow-lg">
-            <h2 className="text-xl font-bold text-indigo-600 mb-6 flex items-center gap-2">
-                <Users size={20} />
+        <Card className="p-8 border-border bg-card/50 shadow-lg">
+            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                <Users size={20} className="text-primary" />
                 Gemeinsamer Haushalt
             </h2>
             <div className="space-y-6">
                 <div className="space-y-3">
-                    <p className="text-xs font-bold uppercase tracking-widest text-indigo-600/60 ml-1">Mitglieder</p>
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60 ml-1">Mitglieder</p>
                     <div className="grid grid-cols-1 gap-2">
                         {fetchingMembers ? (
                             <div className="flex items-center justify-center p-4">
-                                <Loader2 size={24} className="animate-spin text-indigo-500/50" />
+                                <Loader2 size={24} className="animate-spin text-primary/50" />
                             </div>
                         ) : householdMembers.length > 0 ? (
                             householdMembers.map(member => (
-                                <div key={member.id} className="flex items-center justify-between p-3 bg-white/50 dark:bg-black/20 rounded-xl border border-indigo-500/5 shadow-sm">
+                                <div key={member.id} className="flex items-center justify-between p-3 bg-white/30 dark:bg-black/10 rounded-xl border border-border/50 shadow-sm">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
                                             {member.username.substring(0, 2).toUpperCase()}
                                         </div>
                                         <div>
@@ -523,7 +523,7 @@ export default function SettingsPage() {
                                         </div>
                                     </div>
                                     {member.id === (user.householdId || user.id) && (
-                                        <span className="text-[10px] bg-indigo-500 text-white px-2 py-0.5 rounded-full font-bold">Besitzer</span>
+                                        <span className="text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-bold">Besitzer</span>
                                     )}
                                 </div>
                             ))
@@ -533,14 +533,14 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                <div className="p-4 bg-white/50 dark:bg-black/20 rounded-2xl border border-indigo-500/10">
-                    <p className="text-xs text-indigo-700/70 dark:text-indigo-400/70 mb-4 flex items-center gap-2">
-                        <CheckCircle size={14} /> Neue Person einladen
+                <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
+                    <p className="text-xs text-muted-foreground mb-4 flex items-center gap-2">
+                        <CheckCircle size={14} className="text-primary" /> Zusätzliche Person einladen
                     </p>
                     <Button
                         onClick={handleGenerateHouseholdInvite}
                         disabled={generatingInvite}
-                        className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-lg shadow-indigo-600/20"
+                        className="w-full h-12 gap-2 shadow-lg shadow-primary/20"
                     >
                         {generatingInvite ? <Loader2 size={18} className="animate-spin" /> : <Share2 size={18} />}
                         Einladungs-Link erstellen
@@ -616,7 +616,7 @@ export default function SettingsPage() {
     );
 
     const ApiSection = user?.role === 'admin' ? (
-        <Card className="p-8 border-border bg-card shadow-lg">
+        <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
             <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
                 <Building2 size={20} className="text-primary" />
                 API Integration
@@ -654,7 +654,7 @@ export default function SettingsPage() {
                         <Button
                             onClick={handleGenerateAlexaKey}
                             disabled={savingKey}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white min-w-[140px]"
+                            className="min-w-[140px]"
                         >
                             {savingKey ? 'Verarbeite...' : 'Generiere API-Key'}
                         </Button>
@@ -673,9 +673,9 @@ export default function SettingsPage() {
     ) : null;
 
     const VersionSection = (
-        <Card className="p-8 border-border bg-card shadow-lg">
+        <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
             <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-600">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600">
                     <span className="font-mono text-xs font-bold">V</span>
                 </div>
                 Version & Update
@@ -737,9 +737,9 @@ export default function SettingsPage() {
     );
 
     const UsersSection = user?.role === 'admin' ? (
-        <Card className="p-8 border-primary/20 bg-primary/5 shadow-lg">
-            <h2 className="text-xl font-bold text-primary mb-6 flex items-center gap-2">
-                <Users size={20} />
+        <Card className="p-8 border-border bg-card/50 shadow-lg">
+            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                <UserCog size={20} className="text-primary" />
                 Benutzerverwaltung
             </h2>
             {loadingUsers ? (
@@ -747,68 +747,63 @@ export default function SettingsPage() {
                     {[1, 2, 3].map(i => <div key={i} className="h-12 bg-muted/50 rounded-xl animate-pulse" />)}
                 </div>
             ) : (
-                <div className="space-y-3">
-                    {users.map(u => (
-                        <div key={u.id} className="p-3 bg-card border border-border rounded-xl flex items-center justify-between group hover:shadow-md transition-all">
-                            <div className="flex items-center gap-3">
-                                <div className={cn(
-                                    "w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg",
-                                    u.role === 'admin' ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
-                                )}>
-                                    {u.role === 'admin' ? <Shield size={18} /> : <User size={18} />}
-                                </div>
-                                <div>
-                                    <p className="font-bold text-foreground flex items-center gap-2">
-                                        {u.username}
-                                        {u.id === user.id && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-md font-medium">Du</span>}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">{u.email}</p>
-                                    <div className="flex gap-2 mt-1">
-                                        <span className={cn(
-                                            "text-[10px] px-1.5 py-0.5 rounded-md font-medium",
-                                            u.role === 'admin' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                                        )}>
-                                            {u.role.toUpperCase()}
-                                        </span>
-                                        {u.householdId ? (
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 font-medium">
-                                                Haushalt #{u.householdId}
+                <div className="space-y-4">
+                    {users.map((u) => (
+                        <div key={u.id} className="p-4 bg-white/30 dark:bg-black/10 rounded-2xl border border-border/50 group hover:border-primary/30 transition-all shadow-sm">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-muted rounded-xl group-hover:bg-primary/10 transition-colors">
+                                        {u.role === 'admin' ? <Shield size={18} className="text-amber-500" /> : <User size={18} className="text-primary" />}
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-foreground flex items-center gap-2">
+                                            {u.username}
+                                            {u.id === user.id && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-md font-medium">Du</span>}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">{u.email}</p>
+                                        <div className="flex gap-2 mt-2">
+                                            <span className={cn(
+                                                "text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-tight",
+                                                u.role === 'admin' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                            )}>
+                                                {u.role}
                                             </span>
-                                        ) : (
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 font-medium italic">
-                                                Kein Haushalt (Besitzer)
-                                            </span>
-                                        )}
+                                            {u.householdId ? (
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 font-bold uppercase tracking-tight">
+                                                    Mit {u.householdOwnerName || 'Lade...'}
+                                                </span>
+                                            ) : (
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-bold uppercase tracking-tight">
+                                                    Haushalt-Besitzer
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                                <div className="flex items-center gap-1">
+                                    {u.id !== user.id && (
+                                        <>
+                                            <button
+                                                onClick={() => handleRoleUpdate(u.id, u.role === 'admin' ? 'user' : 'admin')}
+                                                className={cn(
+                                                    "p-2 rounded-lg transition-colors",
+                                                    u.role === 'admin' ? "hover:bg-orange-500/10 text-orange-600" : "hover:bg-green-500/10 text-green-600"
+                                                )}
+                                                title={u.role === 'admin' ? "Zum User degradieren" : "Zum Admin befördern"}
+                                            >
+                                                {u.role === 'admin' ? <UserCog size={18} /> : <Shield size={18} />}
+                                            </button>
 
-                            <div className="flex items-center gap-1">
-                                {u.id !== user.id && (
-                                    <>
-                                        <button
-                                            onClick={() => handleRoleUpdate(u.id, u.role === 'admin' ? 'user' : 'admin')}
-                                            className={cn(
-                                                "p-2 rounded-lg transition-colors",
-                                                u.role === 'admin' ? "hover:bg-orange-500/10 text-orange-600" : "hover:bg-green-500/10 text-green-600"
-                                            )}
-                                            title={u.role === 'admin' ? "Zum User degradieren" : "Zum Admin befördern"}
-                                        >
-                                            {u.role === 'admin' ? <UserCog size={18} /> : <Shield size={18} />}
-                                        </button>
-
-                                        <button
-                                            onClick={() => handleDeleteUser(u.id, u.username)}
-                                            className="p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
-                                            title="Benutzer löschen"
-                                        >
-                                            <Trash2 size={18} />
-                                        </button>
-                                    </>
-                                )}
-                                {u.id === user.id && (
-                                    <span className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded-full font-bold uppercase">You</span>
-                                )}
+                                            <button
+                                                onClick={() => handleDeleteUser(u.id, u.username)}
+                                                className="p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
+                                                title="Benutzer löschen"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))}
