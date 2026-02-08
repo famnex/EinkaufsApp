@@ -330,14 +330,16 @@ export default function SettingsPage() {
             const { data } = await api.get('/auth/household/invite');
             const inviteUrl = `${window.location.origin}${import.meta.env.BASE_URL}join-household?token=${data.token}`.replace(/([^:]\/)\/+/g, "$1");
 
+            const fullInviteMessage = `Werde Teil meines Haushalts bei EinkaufsApp: ${inviteUrl}`;
+
             if (navigator.share) {
                 await navigator.share({
                     title: 'Haushalt beitreten - EinkaufsApp',
-                    text: `${user.username} lädt dich ein, seinem Haushalt in der EinkaufsApp beizutreten.`,
+                    text: `Werde Teil meines Haushalts bei EinkaufsApp: `,
                     url: inviteUrl
                 });
             } else {
-                await navigator.clipboard.writeText(inviteUrl);
+                await navigator.clipboard.writeText(fullInviteMessage);
                 alert('Einladungs-Link in die Zwischenablage kopiert!');
             }
         } catch (err) {
