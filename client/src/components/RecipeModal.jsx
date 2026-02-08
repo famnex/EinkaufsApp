@@ -105,7 +105,6 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
             servings: 2,
             image: null,
             imagePreview: null,
-            imagePreview: null,
             tags: [],
             imageSource: 'scraped'
         });
