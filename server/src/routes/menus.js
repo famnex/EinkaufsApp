@@ -17,20 +17,20 @@ router.get('/', auth, async (req, res) => {
         }
 
         const menus = await Menu.findAll({
-            where: { ...where, UserId: req.user.id },
+            where: { ...where, UserId: req.user.effectiveId },
             include: [
                 {
                     model: Recipe,
-                    where: { UserId: req.user.id },
+                    where: { UserId: req.user.effectiveId },
                     required: false,
                     include: [{
                         model: RecipeIngredient,
-                        where: { UserId: req.user.id },
+                        where: { UserId: req.user.effectiveId },
                         required: false,
-                        include: [{ model: Product, where: { UserId: req.user.id }, required: false }]
+                        include: [{ model: Product, where: { UserId: req.user.effectiveId }, required: false }]
                     }]
                 },
-                { model: ListItem, where: { UserId: req.user.id }, required: false }
+                { model: ListItem, where: { UserId: req.user.effectiveId }, required: false }
             ],
             order: [['date', 'ASC'], ['meal_type', 'ASC']]
         });
@@ -53,13 +53,13 @@ router.post('/', auth, async (req, res) => {
             description,
             RecipeId: RecipeId || null,
             is_eating_out: is_eating_out || false,
-            UserId: req.user.id
+            UserId: req.user.effectiveId
         });
 
         // Fetch fresh to return with associations if needed
         const fresh = await Menu.findOne({
-            where: { id: menu.id, UserId: req.user.id },
-            include: [{ model: Recipe, where: { UserId: req.user.id }, required: false }]
+            where: { id: menu.id, UserId: req.user.effectiveId },
+            include: [{ model: Recipe, where: { UserId: req.user.effectiveId }, required: false }]
         });
         res.status(201).json(fresh);
     } catch (err) {
@@ -70,13 +70,13 @@ router.post('/', auth, async (req, res) => {
 // Update menu entry
 router.put('/:id', auth, async (req, res) => {
     try {
-        const menu = await Menu.findOne({ where: { id: req.params.id, UserId: req.user.id } });
+        const menu = await Menu.findOne({ where: { id: req.params.id, UserId: req.user.effectiveId } });
         if (!menu) return res.status(404).json({ error: 'Menu not found or unauthorized' });
 
         await menu.update(req.body);
         const fresh = await Menu.findOne({
-            where: { id: menu.id, UserId: req.user.id },
-            include: [{ model: Recipe, where: { UserId: req.user.id }, required: false }]
+            where: { id: menu.id, UserId: req.user.effectiveId },
+            include: [{ model: Recipe, where: { UserId: req.user.effectiveId }, required: false }]
         });
         res.json(fresh);
     } catch (err) {
@@ -87,12 +87,12 @@ router.put('/:id', auth, async (req, res) => {
 // Delete menu entry
 router.delete('/:id', auth, async (req, res) => {
     try {
-        const menu = await Menu.findOne({ where: { id: req.params.id, UserId: req.user.id } });
+        const menu = await Menu.findOne({ where: { id: req.params.id, UserId: req.user.effectiveId } });
         if (menu) {
             // Optional: Remove associated ListItems if menu is deleted?
             // For now, let's keep them (or user handles manually), or simple destroy.
             // Requirement was: "auch beim löschen des Rezepts aus der mahlzeitenliste werden die Produkte wieder heruntergenommen"
-            await ListItem.destroy({ where: { MenuId: menu.id, UserId: req.user.id } });
+            await ListItem.destroy({ where: { MenuId: menu.id, UserId: req.user.effectiveId } });
             await menu.destroy();
         }
         res.json({ message: 'Deleted' });

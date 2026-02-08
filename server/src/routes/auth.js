@@ -11,7 +11,7 @@ const crypto = require('crypto');
 // Configure multer for cookbook image
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const userId = req.user.id;
+        const userId = req.user.effectiveId;
         const uploadDir = path.join(__dirname, `../../public/uploads/users/${userId}/cookbook`);
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
@@ -44,7 +44,7 @@ router.put('/profile', auth, upload.single('image'), async (req, res) => {
         const updates = {};
         if (cookbookTitle !== undefined) updates.cookbookTitle = cookbookTitle;
         if (req.file) {
-            updates.cookbookImage = `/uploads/users/${req.user.id}/cookbook/${req.file.filename}`;
+            updates.cookbookImage = `/uploads/users/${req.user.effectiveId}/cookbook/${req.file.filename}`;
         } else if (req.body.cookbookImage === null || req.body.cookbookImage === 'null') {
             updates.cookbookImage = null;
         }

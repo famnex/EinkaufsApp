@@ -31,8 +31,15 @@ const checkAlexaAuth = async (req, res, next) => {
             return res.status(403).json({ error: 'Forbidden' });
         }
 
+        const user = await User.findByPk(setting.UserId);
+        if (!user) {
+            logAlexa('WARN', 'AUTH', 'User associated with key not found');
+            return res.status(401).json({ error: 'User not found' });
+        }
+
         // Attach user info for subsequent queries
-        req.user = { id: setting.UserId };
+        req.user = user;
+        req.user.effectiveId = user.householdId || user.id;
 
         next();
     } catch (err) {
@@ -68,7 +75,7 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
             where: {
                 date: { [Op.gte]: today },
                 status: 'active',
-                UserId: req.user.id
+                UserId: req.user.effectiveId
             },
             order: [['date', 'ASC']],
             limit: 2
@@ -81,7 +88,7 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
                 date: today,
                 status: 'active',
                 name: 'Alexa Liste',
-                UserId: req.user.id
+                UserId: req.user.effectiveId
             });
             console.log('[Alexa] Created new list for', today);
         } else if (lists.length === 1) {
@@ -111,7 +118,7 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
                         sequelize.fn('lower', sequelize.col('name')),
                         sequelize.fn('lower', productNameQuery)
                     ),
-                    { UserId: req.user.id }
+                    { UserId: req.user.effectiveId }
                 ]
             }
         });
@@ -128,7 +135,7 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
                                 sequelize.fn('lower', sequelize.col('name')),
                                 sequelize.fn('lower', variant)
                             ),
-                            { UserId: req.user.id }
+                            { UserId: req.user.effectiveId }
                         ]
                     }
                 });
@@ -148,7 +155,7 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
                     synonyms: {
                         [Op.like]: `%${productNameQuery}%` // Simple string partial match first
                     },
-                    UserId: req.user.id
+                    UserId: req.user.effectiveId
                 }
             });
 
@@ -176,7 +183,7 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
                 category: 'Uncategorized',
                 isNew: true,
                 source: 'alexa',
-                UserId: req.user.id
+                UserId: req.user.effectiveId
             });
             logAlexa('INFO', 'PRODUCT_CREATED', `Created new product: ${productNameQuery}`, { id: product.id });
         }
@@ -186,7 +193,7 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
             where: {
                 ListId: targetList.id,
                 ProductId: product.id,
-                UserId: req.user.id
+                UserId: req.user.effectiveId
             }
         });
 
@@ -205,7 +212,7 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
                 quantity: amount,
                 unit: unitName || product.unit,
                 is_bought: false,
-                UserId: req.user.id
+                UserId: req.user.effectiveId
             });
             logAlexa('INFO', 'ITEM_ADDED', `Added item "${productNameQuery}" to list ${targetList.date}`, {
                 listId: targetList.id,
@@ -336,7 +343,7 @@ router.post('/menu', checkAlexaAuth, async (req, res) => {
                             { is_eating_out: false },
                             { is_eating_out: null }
                         ],
-                        UserId: req.user.id
+                        UserId: req.user.effectiveId
                     },
                     include: [Recipe]
                 });
@@ -358,7 +365,7 @@ router.post('/menu', checkAlexaAuth, async (req, res) => {
                             { is_eating_out: false },
                             { is_eating_out: null }
                         ],
-                        UserId: req.user.id
+                        UserId: req.user.effectiveId
                     },
                     include: [Recipe],
                     order: [['meal_type', 'ASC']]

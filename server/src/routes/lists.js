@@ -8,16 +8,16 @@ const { auth } = require('../middleware/auth');
 router.get('/', auth, async (req, res) => {
     try {
         const lists = await List.findAll({
-            where: { UserId: req.user.id },
+            where: { UserId: req.user.effectiveId },
             order: [['date', 'DESC']],
             include: [{
                 model: ListItem,
-                where: { UserId: req.user.id },
+                where: { UserId: req.user.effectiveId },
                 required: false, // Don't filter out empty lists
                 attributes: ['id', 'quantity'],
                 include: [{
                     model: Product,
-                    where: { UserId: req.user.id },
+                    where: { UserId: req.user.effectiveId },
                     required: false,
                     attributes: ['category', 'name']
                 }]
@@ -63,7 +63,7 @@ router.get('/', auth, async (req, res) => {
 // Create new list
 router.post('/', auth, async (req, res) => {
     try {
-        const list = await List.create({ ...req.body, UserId: req.user.id });
+        const list = await List.create({ ...req.body, UserId: req.user.effectiveId });
         res.status(201).json(list);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -74,20 +74,20 @@ router.post('/', auth, async (req, res) => {
 router.get('/:id', auth, async (req, res) => {
     try {
         const list = await List.findOne({
-            where: { id: req.params.id, UserId: req.user.id },
+            where: { id: req.params.id, UserId: req.user.effectiveId },
             include: [
-                { model: Store, as: 'CurrentStore', where: { UserId: req.user.id }, required: false },
+                { model: Store, as: 'CurrentStore', where: { UserId: req.user.effectiveId }, required: false },
                 {
                     model: ListItem,
-                    where: { UserId: req.user.id },
+                    where: { UserId: req.user.effectiveId },
                     required: false,
                     include: [{
                         model: Product,
-                        where: { UserId: req.user.id },
+                        where: { UserId: req.user.effectiveId },
                         required: false,
                         include: [
-                            { model: Store, where: { UserId: req.user.id }, required: false },
-                            { model: Manufacturer, where: { UserId: req.user.id }, required: false }
+                            { model: Store, where: { UserId: req.user.effectiveId }, required: false },
+                            { model: Manufacturer, where: { UserId: req.user.effectiveId }, required: false }
                         ]
                     }]
                 }
@@ -133,7 +133,7 @@ router.get('/:id', auth, async (req, res) => {
             // --- SMART SORT V2: GLOBAL TRANSITIVE GRAPH ---
             // 1. Fetch ALL knowledge for this store
             const allRelations = await ProductRelation.findAll({
-                where: { StoreId: currentStoreId, UserId: req.user.id }
+                where: { StoreId: currentStoreId, UserId: req.user.effectiveId }
             });
 
             if (allRelations.length > 0) {
@@ -318,8 +318,8 @@ router.get('/:id', auth, async (req, res) => {
 router.put('/:id', auth, async (req, res) => {
     try {
         const list = await List.findOne({
-            where: { id: req.params.id, UserId: req.user.id },
-            include: [{ model: ListItem, where: { UserId: req.user.id }, required: false }]
+            where: { id: req.params.id, UserId: req.user.effectiveId },
+            include: [{ model: ListItem, where: { UserId: req.user.effectiveId }, required: false }]
         });
         if (!list) return res.status(404).json({ error: 'List not found' });
 
@@ -333,12 +333,12 @@ router.put('/:id', auth, async (req, res) => {
                 const boughtItems = await ListItem.findAll({
                     where: {
                         ListId: list.id,
-                        UserId: req.user.id,
+                        UserId: req.user.effectiveId,
                         is_bought: true,
                         bought_at: { [Op.ne]: null }
                     },
                     order: [['bought_at', 'ASC']],
-                    include: [{ model: Product, where: { UserId: req.user.id } }]
+                    include: [{ model: Product, where: { UserId: req.user.effectiveId } }]
                 });
 
                 if (boughtItems.length > 1) {
@@ -354,7 +354,7 @@ router.put('/:id', auth, async (req, res) => {
                         const relation = await ProductRelation.findOne({
                             where: {
                                 StoreId: list.CurrentStoreId,
-                                UserId: req.user.id,
+                                UserId: req.user.effectiveId,
                                 PredecessorId: pred.ProductId,
                                 SuccessorId: succ.ProductId
                             }
@@ -365,7 +365,7 @@ router.put('/:id', auth, async (req, res) => {
                         } else {
                             await ProductRelation.create({
                                 StoreId: list.CurrentStoreId,
-                                UserId: req.user.id,
+                                UserId: req.user.effectiveId,
                                 PredecessorId: pred.ProductId,
                                 SuccessorId: succ.ProductId,
                                 weight: 1
@@ -397,13 +397,13 @@ router.post('/:id/commit', auth, async (req, res) => {
         const itemsToCommit = await ListItem.findAll({
             where: {
                 ListId: listId,
-                UserId: req.user.id,
+                UserId: req.user.effectiveId,
                 is_bought: true,
                 is_committed: false, // Only new ones
                 bought_at: { [Op.ne]: null }
             },
             order: [['bought_at', 'ASC']],
-            include: [{ model: Product, where: { UserId: req.user.id } }]
+            include: [{ model: Product, where: { UserId: req.user.effectiveId } }]
         });
 
         console.log(`[Commit] Found ${itemsToCommit.length} items to commit for Store ${storeId}`);
@@ -420,7 +420,7 @@ router.post('/:id/commit', auth, async (req, res) => {
                     const relation = await ProductRelation.findOne({
                         where: {
                             StoreId: storeId,
-                            UserId: req.user.id,
+                            UserId: req.user.effectiveId,
                             PredecessorId: pred.ProductId,
                             SuccessorId: succ.ProductId
                         }
@@ -431,7 +431,7 @@ router.post('/:id/commit', auth, async (req, res) => {
                     } else {
                         await ProductRelation.create({
                             StoreId: storeId,
-                            UserId: req.user.id,
+                            UserId: req.user.effectiveId,
                             PredecessorId: pred.ProductId,
                             SuccessorId: succ.ProductId,
                             weight: 1
@@ -467,7 +467,7 @@ router.put('/:id/reorder', auth, async (req, res) => {
         }
 
         // Get the list to find current store
-        const list = await List.findOne({ where: { id: listId, UserId: req.user.id } });
+        const list = await List.findOne({ where: { id: listId, UserId: req.user.effectiveId } });
         if (!list) return res.status(404).json({ error: 'List not found' });
 
         const currentStoreId = list.CurrentStoreId;
@@ -483,7 +483,7 @@ router.put('/:id/reorder', auth, async (req, res) => {
                         sort_order: item.sort_order,
                         sort_store_id: currentStoreId
                     },
-                    { where: { id: item.id, UserId: req.user.id } }
+                    { where: { id: item.id, UserId: req.user.effectiveId } }
                 )
             )
         );
@@ -504,11 +504,11 @@ router.post('/:id/items', auth, async (req, res) => {
         if (isNaN(listId)) return res.status(400).json({ error: 'Invalid List ID' });
 
         // Auto-Unarchive
-        await List.update({ status: 'active' }, { where: { id: listId, UserId: req.user.id, status: 'archived' } });
+        await List.update({ status: 'active' }, { where: { id: listId, UserId: req.user.effectiveId, status: 'archived' } });
 
         const item = await ListItem.create({
             ListId: listId,
-            UserId: req.user.id,
+            UserId: req.user.effectiveId,
             ProductId: parseInt(ProductId),
             quantity: parseFloat(quantity) || 1,
             unit: unit || null,
@@ -517,7 +517,7 @@ router.post('/:id/items', auth, async (req, res) => {
 
         // Update Product Note if provided
         if (req.body.note !== undefined) {
-            const product = await Product.findOne({ where: { id: parseInt(ProductId), UserId: req.user.id } });
+            const product = await Product.findOne({ where: { id: parseInt(ProductId), UserId: req.user.effectiveId } });
             if (product) {
                 await product.update({ note: req.body.note });
             }
@@ -533,7 +533,7 @@ router.post('/:id/items', auth, async (req, res) => {
 // Update list item
 router.put('/items/:itemId', auth, async (req, res) => {
     try {
-        const item = await ListItem.findOne({ where: { id: req.params.itemId, UserId: req.user.id } });
+        const item = await ListItem.findOne({ where: { id: req.params.itemId, UserId: req.user.effectiveId } });
         if (!item) return res.status(404).json({ error: 'Item not found' });
 
         const updates = req.body;
@@ -549,7 +549,7 @@ router.put('/items/:itemId', auth, async (req, res) => {
 
         // Update Product Note if provided
         if (updates.note !== undefined) {
-            const product = await Product.findOne({ where: { id: item.ProductId, UserId: req.user.id } });
+            const product = await Product.findOne({ where: { id: item.ProductId, UserId: req.user.effectiveId } });
             if (product) {
                 await product.update({ note: updates.note });
             }
@@ -565,11 +565,11 @@ router.put('/items/:itemId', auth, async (req, res) => {
 // Delete list
 router.delete('/:id', auth, async (req, res) => {
     try {
-        const list = await List.findOne({ where: { id: req.params.id, UserId: req.user.id } });
+        const list = await List.findOne({ where: { id: req.params.id, UserId: req.user.effectiveId } });
         if (!list) return res.status(404).json({ error: 'List not found' });
 
         // Delete all items associated with this list first
-        await ListItem.destroy({ where: { ListId: req.params.id, UserId: req.user.id } });
+        await ListItem.destroy({ where: { ListId: req.params.id, UserId: req.user.effectiveId } });
 
         await list.destroy();
         res.json({ message: 'List deleted' });
@@ -582,7 +582,7 @@ router.delete('/:id', auth, async (req, res) => {
 router.delete('/items/:itemId', auth, async (req, res) => {
     try {
         const { itemId } = req.params;
-        const item = await ListItem.findOne({ where: { id: itemId, UserId: req.user.id } });
+        const item = await ListItem.findOne({ where: { id: itemId, UserId: req.user.effectiveId } });
         if (!item) return res.status(404).json({ error: 'Item not found' });
         await item.destroy();
         res.json({ message: 'Item removed from list' });
@@ -601,11 +601,11 @@ router.put('/:id/recipe-items', auth, async (req, res) => {
         if (!items || !Array.isArray(items)) return res.status(400).json({ error: 'Invalid items array' });
 
         // Auto-Unarchive
-        await List.update({ status: 'active' }, { where: { id: listId, UserId: req.user.id, status: 'archived' } });
+        await List.update({ status: 'active' }, { where: { id: listId, UserId: req.user.effectiveId, status: 'archived' } });
 
         // 1. Get existing items for this Menu on this List
         const existingItems = await ListItem.findAll({
-            where: { ListId: listId, MenuId: MenuId, UserId: req.user.id }
+            where: { ListId: listId, MenuId: MenuId, UserId: req.user.effectiveId }
         });
 
         const existingMap = new Map(existingItems.map(i => [i.ProductId, i]));
@@ -617,7 +617,7 @@ router.put('/:id/recipe-items', auth, async (req, res) => {
             .map(i => i.id);
 
         if (toDeleteIds.length > 0) {
-            await ListItem.destroy({ where: { id: toDeleteIds, UserId: req.user.id } });
+            await ListItem.destroy({ where: { id: toDeleteIds, UserId: req.user.effectiveId } });
         }
 
         // 3. Identify items to Create or Update
@@ -633,7 +633,7 @@ router.put('/:id/recipe-items', auth, async (req, res) => {
                 // Create new
                 return ListItem.create({
                     ListId: listId,
-                    UserId: req.user.id,
+                    UserId: req.user.effectiveId,
                     ProductId: newItem.ProductId,
                     quantity: newItem.quantity,
                     MenuId: MenuId,
@@ -659,7 +659,7 @@ router.delete('/:id/recipe-items/:menuId', auth, async (req, res) => {
             where: {
                 ListId: id,
                 MenuId: menuId,
-                UserId: req.user.id
+                UserId: req.user.effectiveId
             }
         });
         res.json({ message: 'Recipe items removed' });
@@ -672,7 +672,7 @@ router.delete('/:id/recipe-items/:menuId', auth, async (req, res) => {
 router.get('/:id/planning-data', auth, async (req, res) => {
     try {
         const listId = parseInt(req.params.id);
-        const currentList = await List.findOne({ where: { id: listId, UserId: req.user.id } });
+        const currentList = await List.findOne({ where: { id: listId, UserId: req.user.effectiveId } });
         if (!currentList) return res.status(404).json({ error: 'List not found' });
 
         // 1. Determine Date Range [currentList.date, nextList.date)
@@ -680,7 +680,7 @@ router.get('/:id/planning-data', auth, async (req, res) => {
         const allLists = await List.findAll({
             where: {
                 date: { [require('sequelize').Op.gt]: currentList.date },
-                UserId: req.user.id
+                UserId: req.user.effectiveId
             },
             order: [['date', 'ASC']],
             limit: 1
@@ -707,18 +707,18 @@ router.get('/:id/planning-data', auth, async (req, res) => {
                     [Op.gte]: startDate,
                     [Op.lt]: endDate
                 },
-                UserId: req.user.id
+                UserId: req.user.effectiveId
             },
             include: [
                 {
                     model: require('../models').Recipe,
-                    where: { UserId: req.user.id },
+                    where: { UserId: req.user.effectiveId },
                     required: false,
                     include: [{
                         model: require('../models').RecipeIngredient,
-                        where: { UserId: req.user.id },
+                        where: { UserId: req.user.effectiveId },
                         required: false,
-                        include: [{ model: Product, where: { UserId: req.user.id }, required: false, include: [{ model: Store, where: { UserId: req.user.id }, required: false }] }]
+                        include: [{ model: Product, where: { UserId: req.user.effectiveId }, required: false, include: [{ model: Store, where: { UserId: req.user.effectiveId }, required: false }] }]
                     }]
                 }
             ]
@@ -726,7 +726,7 @@ router.get('/:id/planning-data', auth, async (req, res) => {
 
         // 3. Load Product Substitutions for this list
         const substitutions = await ProductSubstitution.findAll({
-            where: { ListId: listId, UserId: req.user.id }
+            where: { ListId: listId, UserId: req.user.effectiveId }
         });
         const subsMap = new Map(); // originalProductId -> substituteProductId
         substitutions.forEach(sub => {
@@ -735,7 +735,7 @@ router.get('/:id/planning-data', auth, async (req, res) => {
 
         // 4. Fetch Existing List Items
         const existingListItems = await ListItem.findAll({
-            where: { ListId: listId, UserId: req.user.id }
+            where: { ListId: listId, UserId: req.user.effectiveId }
         });
         const existingMap = new Map(); // ProductId -> { quantity, unit, id }
 
@@ -824,12 +824,12 @@ router.post('/:id/bulk-items', auth, async (req, res) => {
         if (!items || !Array.isArray(items)) return res.status(400).json({ error: 'Invalid items' });
 
         // Auto-Unarchive
-        await List.update({ status: 'active' }, { where: { id: listId, UserId: req.user.id, status: 'archived' } });
+        await List.update({ status: 'active' }, { where: { id: listId, UserId: req.user.effectiveId, status: 'archived' } });
 
         for (const item of items) {
             // Check if exists
             const existing = await ListItem.findOne({
-                where: { ListId: listId, ProductId: item.ProductId, UserId: req.user.id }
+                where: { ListId: listId, ProductId: item.ProductId, UserId: req.user.effectiveId }
             });
 
             if (existing) {
@@ -847,7 +847,7 @@ router.post('/:id/bulk-items', auth, async (req, res) => {
             } else {
                 await ListItem.create({
                     ListId: listId,
-                    UserId: req.user.id,
+                    UserId: req.user.effectiveId,
                     ProductId: item.ProductId,
                     quantity: item.quantity,
                     unit: item.unit
@@ -867,10 +867,10 @@ router.post('/:id/bulk-items', auth, async (req, res) => {
 router.get('/:listId/substitutions', auth, async (req, res) => {
     try {
         const substitutions = await ProductSubstitution.findAll({
-            where: { ListId: req.params.listId, UserId: req.user.id },
+            where: { ListId: req.params.listId, UserId: req.user.effectiveId },
             include: [
-                { model: Product, as: 'OriginalProduct', where: { UserId: req.user.id }, required: false },
-                { model: Product, as: 'SubstituteProduct', where: { UserId: req.user.id }, required: false }
+                { model: Product, as: 'OriginalProduct', where: { UserId: req.user.effectiveId }, required: false },
+                { model: Product, as: 'SubstituteProduct', where: { UserId: req.user.effectiveId }, required: false }
             ]
         });
         res.json(substitutions);
@@ -888,7 +888,7 @@ router.post('/:listId/substitutions', auth, async (req, res) => {
         const existing = await ProductSubstitution.findOne({
             where: {
                 ListId: req.params.listId,
-                UserId: req.user.id,
+                UserId: req.user.effectiveId,
                 originalProductId
             }
         });
@@ -901,7 +901,7 @@ router.post('/:listId/substitutions', auth, async (req, res) => {
             // Create
             const substitution = await ProductSubstitution.create({
                 ListId: req.params.listId,
-                UserId: req.user.id,
+                UserId: req.user.effectiveId,
                 originalProductId,
                 substituteProductId
             });
@@ -918,7 +918,7 @@ router.delete('/:listId/substitutions/:originalProductId', auth, async (req, res
         const deleted = await ProductSubstitution.destroy({
             where: {
                 ListId: req.params.listId,
-                UserId: req.user.id,
+                UserId: req.user.effectiveId,
                 originalProductId: req.params.originalProductId
             }
         });

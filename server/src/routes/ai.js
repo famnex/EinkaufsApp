@@ -14,14 +14,14 @@ router.post('/cleanup/toggle-hidden', auth, async (req, res) => {
         }
 
         const existing = await HiddenCleanup.findOne({
-            where: { ProductId: productId, context, UserId: req.user.id }
+            where: { ProductId: productId, context, UserId: req.user.effectiveId }
         });
 
         if (existing) {
             await existing.destroy();
             res.json({ isHidden: false });
         } else {
-            await HiddenCleanup.create({ ProductId: productId, context, UserId: req.user.id });
+            await HiddenCleanup.create({ ProductId: productId, context, UserId: req.user.effectiveId });
             res.json({ isHidden: true });
         }
     } catch (err) {
@@ -45,7 +45,7 @@ router.post('/parse', auth, async (req, res) => {
         const existingCategories = await Recipe.findAll({
             attributes: ['category'],
             group: ['category'],
-            where: { UserId: req.user.id },
+            where: { UserId: req.user.effectiveId },
             raw: true
         });
         const categoryList = existingCategories
@@ -54,7 +54,7 @@ router.post('/parse', auth, async (req, res) => {
             .join(', ');
 
         const existingTags = await Tag.findAll({
-            where: { UserId: req.user.id },
+            where: { UserId: req.user.effectiveId },
             attributes: ['name'],
             raw: true
         });
@@ -197,7 +197,7 @@ router.post('/cleanup', auth, async (req, res) => {
                 group: ['category'],
                 where: {
                     category: { [require('sequelize').Op.ne]: null },
-                    UserId: req.user.id
+                    UserId: req.user.effectiveId
                 },
                 raw: true
             });
@@ -313,7 +313,7 @@ router.post('/lookup', auth, async (req, res) => {
             group: ['category'],
             where: {
                 category: { [require('sequelize').Op.ne]: null },
-                UserId: req.user.id
+                UserId: req.user.effectiveId
             },
             raw: true
         });
@@ -418,7 +418,7 @@ router.post('/generate-image', auth, async (req, res) => {
         }
 
         // Return local URL (relative)
-        res.json({ url: `uploads/users/${req.user.id}/recipes/${filename}` });
+        res.json({ url: `uploads/users/${req.user.effectiveId}/recipes/${filename}` });
 
     } catch (err) {
         console.error('Image Generation Error:', err);
@@ -570,7 +570,7 @@ router.post('/regenerate-image', auth, async (req, res) => {
             if (!b64) throw new Error("No b64_json image data in response");
 
             // 4. Save Result
-            const uploadDir = path.join(__dirname, `../../public/uploads/users/${req.user.id}/recipes`);
+            const uploadDir = path.join(__dirname, `../../public/uploads/users/${req.user.effectiveId}/recipes`);
             if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
             const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -584,7 +584,7 @@ router.post('/regenerate-image', auth, async (req, res) => {
             if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
 
             // Return RELATIVE URL
-            res.json({ url: `uploads/users/${req.user.id}/recipes/${filename}` });
+            res.json({ url: `uploads/users/${req.user.effectiveId}/recipes/${filename}` });
 
         } catch (apiError) {
             // Cleanup temp on error

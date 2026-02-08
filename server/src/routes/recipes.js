@@ -12,7 +12,7 @@ const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         // userId is available on req.user if auth middleware ran BEFORE multer
         // But multer often runs before. However, our routes have 'auth' before 'upload.single'.
-        const userId = req.user ? req.user.id : 'unknown';
+        const userId = req.user ? req.user.effectiveId : 'unknown';
         const uploadDir = path.join(__dirname, `../../public/uploads/users/${userId}/recipes`);
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
@@ -30,7 +30,7 @@ const upload = multer({ storage: storage });
 router.get('/tags', auth, async (req, res) => {
     try {
         const tags = await Tag.findAll({
-            where: { UserId: req.user.id },
+            where: { UserId: req.user.effectiveId },
             order: [['name', 'ASC']]
         });
         res.json(tags);
@@ -43,14 +43,14 @@ router.get('/tags', auth, async (req, res) => {
 router.get('/', auth, async (req, res) => {
     try {
         const recipes = await Recipe.findAll({
-            where: { UserId: req.user.id },
+            where: { UserId: req.user.effectiveId },
             include: [
-                { model: Tag, where: { UserId: req.user.id }, required: false },
+                { model: Tag, where: { UserId: req.user.effectiveId }, required: false },
                 {
                     model: RecipeIngredient,
-                    where: { UserId: req.user.id },
+                    where: { UserId: req.user.effectiveId },
                     required: false,
-                    include: [{ model: Product, where: { UserId: req.user.id }, required: false }]
+                    include: [{ model: Product, where: { UserId: req.user.effectiveId }, required: false }]
                 }
             ],
             order: [['title', 'ASC']]
@@ -151,15 +151,15 @@ router.get('/public/:sharingKey', async (req, res) => {
 router.get('/:id', auth, async (req, res) => {
     try {
         const recipe = await Recipe.findOne({
-            where: { id: req.params.id, UserId: req.user.id },
+            where: { id: req.params.id, UserId: req.user.effectiveId },
             include: [
                 {
                     model: RecipeIngredient,
-                    where: { UserId: req.user.id },
+                    where: { UserId: req.user.effectiveId },
                     required: false,
-                    include: [{ model: Product, where: { UserId: req.user.id }, required: false, include: [{ model: Manufacturer, where: { UserId: req.user.id }, required: false }] }]
+                    include: [{ model: Product, where: { UserId: req.user.effectiveId }, required: false, include: [{ model: Manufacturer, where: { UserId: req.user.effectiveId }, required: false }] }]
                 },
-                { model: Tag, where: { UserId: req.user.id }, required: false }
+                { model: Tag, where: { UserId: req.user.effectiveId }, required: false }
             ]
         });
         if (!recipe) return res.status(404).json({ error: 'Recipe not found or unauthorized' });
@@ -209,7 +209,7 @@ router.get('/:id/usage', auth, async (req, res) => {
         const pastCount = await Menu.count({
             where: {
                 RecipeId: req.params.id,
-                UserId: req.user.id,
+                UserId: req.user.effectiveId,
                 date: { [Op.lt]: today }
             }
         });
@@ -217,7 +217,7 @@ router.get('/:id/usage', auth, async (req, res) => {
         const futureCount = await Menu.count({
             where: {
                 RecipeId: req.params.id,
-                UserId: req.user.id,
+                UserId: req.user.effectiveId,
                 date: { [Op.gte]: today }
             }
         });
@@ -244,12 +244,12 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
 
         let finalImageUrl = null;
         if (req.file) {
-            finalImageUrl = `/uploads/users/${req.user.id}/recipes/${req.file.filename}`;
+            finalImageUrl = `/uploads/users/${req.user.effectiveId}/recipes/${req.file.filename}`;
         } else if (req.body.image_url) {
             console.log('Process image URL:', req.body.image_url);
             if (req.body.image_url.startsWith('http')) {
                 try {
-                    const downloaded = await downloadImage(req.body.image_url, req.user.id);
+                    const downloaded = await downloadImage(req.body.image_url, req.user.effectiveId);
                     if (downloaded) {
                         finalImageUrl = downloaded;
                         console.log('Downloaded image to:', finalImageUrl);
@@ -284,7 +284,7 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
             instructions: parsedInstructions,
             image_url: finalImageUrl,
             imageSource: req.body.imageSource || (finalImageUrl ? (req.file ? 'upload' : 'scraped') : 'none'),
-            UserId: req.user.id
+            UserId: req.user.effectiveId
         });
         console.log('Recipe Created ID:', recipe.id);
 
@@ -298,8 +298,8 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
                         // Ensure tag name is valid string
                         if (typeof tagName === 'string' && tagName.trim()) {
                             const [tag] = await Tag.findOrCreate({
-                                where: { name: tagName.trim(), UserId: req.user.id },
-                                defaults: { UserId: req.user.id }
+                                where: { name: tagName.trim(), UserId: req.user.effectiveId },
+                                defaults: { UserId: req.user.effectiveId }
                             });
                             await recipe.addTag(tag);
                         }
@@ -311,8 +311,8 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
         }
 
         const reloaded = await Recipe.findOne({
-            where: { id: recipe.id, UserId: req.user.id },
-            include: [{ model: Tag, where: { UserId: req.user.id }, required: false }]
+            where: { id: recipe.id, UserId: req.user.effectiveId },
+            include: [{ model: Tag, where: { UserId: req.user.effectiveId }, required: false }]
         });
         console.log('--- RECIPE CREATE SUCCESS ---');
         res.status(201).json(reloaded);
@@ -329,7 +329,7 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
     console.log('Body:', JSON.stringify(req.body, null, 2).substring(0, 500) + '...'); // Truncate to avoid massive logs
 
     try {
-        const recipe = await Recipe.findOne({ where: { id: req.params.id, UserId: req.user.id } });
+        const recipe = await Recipe.findOne({ where: { id: req.params.id, UserId: req.user.effectiveId } });
         if (!recipe) {
             console.log('Recipe not found or unauthorized');
             return res.status(404).json({ error: 'Recipe not found or unauthorized' });
@@ -347,7 +347,7 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
 
         if (req.file) {
             console.log('New file uploaded:', req.file.filename);
-            updates.image_url = `/uploads/users/${req.user.id}/recipes/${req.file.filename}`;
+            updates.image_url = `/uploads/users/${req.user.effectiveId}/recipes/${req.file.filename}`;
             if (!updates.imageSource) updates.imageSource = 'upload';
         } else if (req.body.image_url !== undefined) {
             console.log('New image URL:', req.body.image_url);
@@ -355,7 +355,7 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
             if (req.body.image_url === '' || req.body.image_url === 'null' || req.body.image_url === null) {
                 updates.image_url = null;
             } else if (req.body.image_url.startsWith('http')) {
-                const downloaded = await downloadImage(req.body.image_url, req.user.id);
+                const downloaded = await downloadImage(req.body.image_url, req.user.effectiveId);
                 if (downloaded) {
                     updates.image_url = downloaded;
                 } else {
@@ -384,8 +384,8 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
                 const tagInstances = [];
                 for (const tagName of parsedTags) {
                     const [tag] = await Tag.findOrCreate({
-                        where: { name: tagName, UserId: req.user.id },
-                        defaults: { UserId: req.user.id }
+                        where: { name: tagName, UserId: req.user.effectiveId },
+                        defaults: { UserId: req.user.effectiveId }
                     });
                     tagInstances.push(tag);
                 }
@@ -394,8 +394,8 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
         }
 
         const reloaded = await Recipe.findOne({
-            where: { id: recipe.id, UserId: req.user.id },
-            include: [{ model: Tag, where: { UserId: req.user.id }, required: false }]
+            where: { id: recipe.id, UserId: req.user.effectiveId },
+            include: [{ model: Tag, where: { UserId: req.user.effectiveId }, required: false }]
         });
         console.log('--- RECIPE UPDATE SUCCESS ---');
         res.json(reloaded);
@@ -411,18 +411,18 @@ router.post('/:id/ingredients', auth, async (req, res) => {
         const { ProductId, quantity, unit } = req.body;
         const ingredient = await RecipeIngredient.create({
             RecipeId: req.params.id,
-            UserId: req.user.id,
+            UserId: req.user.effectiveId,
             ProductId,
             quantity,
             unit
         });
         const withProduct = await RecipeIngredient.findOne({
-            where: { id: ingredient.id, UserId: req.user.id },
+            where: { id: ingredient.id, UserId: req.user.effectiveId },
             include: [{
                 model: Product,
-                where: { UserId: req.user.id },
+                where: { UserId: req.user.effectiveId },
                 required: false,
-                include: [{ model: Manufacturer, where: { UserId: req.user.id }, required: false }]
+                include: [{ model: Manufacturer, where: { UserId: req.user.effectiveId }, required: false }]
             }]
         });
         res.status(201).json(withProduct);
@@ -469,7 +469,7 @@ router.delete('/:id', auth, async (req, res) => {
     console.log('--- RECIPE DELETE START ---', req.params.id);
 
     try {
-        const recipe = await Recipe.findOne({ where: { id: req.params.id, UserId: req.user.id }, transaction: t });
+        const recipe = await Recipe.findOne({ where: { id: req.params.id, UserId: req.user.effectiveId }, transaction: t });
         if (!recipe) {
             console.log('Recipe record not found or unauthorized');
             await t.rollback();
@@ -478,17 +478,17 @@ router.delete('/:id', auth, async (req, res) => {
 
         // 1. Remove Ingredients
         console.log('Removing Ingredients...');
-        await RecipeIngredient.destroy({ where: { RecipeId: req.params.id, UserId: req.user.id }, transaction: t });
+        await RecipeIngredient.destroy({ where: { RecipeId: req.params.id, UserId: req.user.effectiveId }, transaction: t });
 
         // 2. Remove from Menus
         console.log('Unlinking from Menus...');
-        await Menu.update({ RecipeId: null }, { where: { RecipeId: req.params.id, UserId: req.user.id }, transaction: t });
+        await Menu.update({ RecipeId: null }, { where: { RecipeId: req.params.id, UserId: req.user.effectiveId }, transaction: t });
 
         // 3. Remove Tags
         if (RecipeTag) {
             console.log('Removing Tag Links...');
             // Check if table exists (simplified check by just trying)
-            await RecipeTag.destroy({ where: { RecipeId: req.params.id, UserId: req.user.id }, transaction: t });
+            await RecipeTag.destroy({ where: { RecipeId: req.params.id, UserId: req.user.effectiveId }, transaction: t });
         }
 
         // 4. Capture image path for later deletion (Post-commit to avoid deleting if DB fail)

@@ -147,7 +147,7 @@ const serveSharedRecipe = async (req, res) => {
         const user = await User.findOne({ where: { sharingKey } });
         if (!user) return renderErrorPage(res);
 
-        const recipe = await Recipe.findOne({ where: { id, UserId: user.id } });
+        const recipe = await Recipe.findOne({ where: { id, UserId: user.householdId || user.id } });
         if (!recipe) return renderErrorPage(res);
 
         const protocol = req.headers['x-forwarded-proto'] || req.protocol;
@@ -190,7 +190,8 @@ const serveSharedCookbook = async (req, res) => {
         await serveSSR(req, res, {
             title: user.cookbookTitle || 'MEIN KOCHBUCH',
             description: `Entdecke leckere Rezepte im Kochbuch von ${user.username}.`,
-            image: image
+            image: image,
+            UserId: user.householdId || user.id
         });
     } catch (error) {
         console.error('SSR Cookbook Error:', error);
