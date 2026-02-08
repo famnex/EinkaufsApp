@@ -1,11 +1,11 @@
 // Service Worker for PWA offline support
 const CACHE_NAME = 'einkaufsapp-v1';
 const urlsToCache = [
-    '/',
-    '/index.html',
-    '/manifest.json',
-    '/icon-192x192.png',
-    '/icon-512x512.png'
+    './',
+    'index.html',
+    'manifest.json',
+    'icon-192x192.png',
+    'icon-512x512.png'
 ];
 
 // Install service worker and cache static assets

@@ -522,7 +522,7 @@ export default function SettingsPage() {
                                             <p className="text-[10px] text-muted-foreground">{member.role === 'admin' ? 'Administrator' : 'Mitglied'}</p>
                                         </div>
                                     </div>
-                                    {member.id === (member.householdId || member.id) && (
+                                    {member.householdId === null && (
                                         <span className="text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-bold">Besitzer</span>
                                     )}
                                 </div>

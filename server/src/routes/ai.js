@@ -5,6 +5,8 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const { Settings, Recipe, Product, Tag, HiddenCleanup } = require('../models');
 const { auth } = require('../middleware/auth');
+const path = require('path');
+const fs = require('fs');
 
 router.post('/cleanup/toggle-hidden', auth, async (req, res) => {
     try {
@@ -357,8 +359,6 @@ router.post('/lookup', auth, async (req, res) => {
     }
 });
 
-const fs = require('fs');
-const path = require('path');
 const Jimp = require('jimp');
 
 // Image Generation Endpoint

@@ -29,7 +29,7 @@ const upload = multer({ storage: storage });
 router.get('/me', auth, async (req, res) => {
     try {
         const user = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage']
+            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId']
         });
         if (!user) return res.status(404).json({ error: 'User not found' });
         res.json(user);
@@ -102,7 +102,7 @@ router.get('/household/members', auth, async (req, res) => {
                     { householdId: householdId }
                 ]
             },
-            attributes: ['id', 'username', 'email', 'role', 'cookbookTitle']
+            attributes: ['id', 'username', 'email', 'role', 'cookbookTitle', 'householdId']
         });
         res.json(members);
     } catch (err) {
@@ -233,7 +233,7 @@ router.post('/login', async (req, res) => {
         if (!validPass) return res.status(400).json({ error: 'Invalid username or password' });
 
         const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
-        res.json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey } });
+        res.json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId } });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
