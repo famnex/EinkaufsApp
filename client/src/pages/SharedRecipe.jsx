@@ -130,7 +130,7 @@ export default function SharedRecipe() {
                         </span>
                         <div className="flex items-center gap-1">
                             <Clock size={16} />
-                            <span>{(recipe.prep_time || 0) + (recipe.duration || 0)} Min.</span>
+                            <span>{(recipe.duration || 0)} Min.</span>
                         </div>
                         <div className="flex items-center gap-1">
                             <Users size={16} />
@@ -184,7 +184,7 @@ export default function SharedRecipe() {
                     <Card className="p-4 flex flex-col items-center justify-center gap-2 bg-card/50 backdrop-blur-sm">
                         <Clock className="text-primary" size={24} />
                         <div className="text-center">
-                            <div className="text-2xl font-bold">{(recipe.prep_time || 0) + (recipe.duration || 0)}</div>
+                            <div className="text-2xl font-bold">{(recipe.duration || 0)}</div>
                             <div className="text-xs text-muted-foreground uppercase font-bold">Minuten</div>
                         </div>
                     </Card>

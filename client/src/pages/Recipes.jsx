@@ -468,7 +468,7 @@ export default function Recipes() {
                                         <div className="flex items-center justify-between text-muted-foreground text-sm">
                                             <div className="flex items-center gap-1">
                                                 <Clock size={16} />
-                                                <span>{(recipe.prep_time || 0) + (recipe.duration || 0)} min</span>
+                                                <span>{(recipe.duration || 0)} min</span>
                                             </div>
                                             <div className="flex items-center gap-1">
                                                 <Users size={16} />

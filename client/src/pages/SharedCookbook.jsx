@@ -345,7 +345,7 @@ export default function SharedCookbook() {
                                         <div className="p-5 flex-1 flex flex-col relative">
                                             {/* Floating Time Badge (overlaps image) */}
                                             <div className="absolute -top-6 right-4 bg-card shadow-lg p-2 rounded-2xl flex flex-col items-center min-w-[3.5rem] border border-border">
-                                                <span className="text-lg font-bold leading-none">{recipe.duration + recipe.prep_time}</span>
+                                                <span className="text-lg font-bold leading-none">{recipe.duration}</span>
                                                 <span className="text-[10px] uppercase text-muted-foreground font-bold">Min</span>
                                             </div>
 
