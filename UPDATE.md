@@ -207,7 +207,7 @@
 
 ## Übersicht
 
-Die EinkaufsApp verfügt über ein vollautomatisches Update-System mit Web-Interface und automatischer Datenbank-Migration.
+GabelGuru verfügt über ein vollautomatisches Update-System mit Web-Interface und automatischer Datenbank-Migration.
 
 ## Komponenten
 

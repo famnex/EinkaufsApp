@@ -150,7 +150,7 @@ export const PullToRefresh = ({ children }) => {
                             transition={{ delay: 1 }}
                             className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground absolute bottom-12"
                         >
-                            EinkaufsApp wird aufpoliert
+                            GabelGuru wird aufpoliert
                         </motion.p>
                     </motion.div>
                 )}

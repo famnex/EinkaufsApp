@@ -78,7 +78,9 @@ export default function Lists() {
                                 }}
                                 className={cn(
                                     "bg-card border border-border rounded-2xl p-6 flex items-center justify-between group active:scale-[0.98] transition-all cursor-pointer overflow-hidden relative shadow-sm hover:shadow-md",
-                                    editMode === 'delete' ? "border-destructive/30 hover:bg-destructive/5 hover:border-destructive/50" : "hover:border-primary/20"
+                                    editMode === 'delete'
+                                        ? "border-destructive/30 hover:bg-destructive/5 hover:border-destructive/50"
+                                        : (list.status === 'active' ? "hover:border-secondary/20" : "hover:border-primary/20")
                                 )}
                             >
                                 <div className="absolute top-0 right-0 w-24 h-24 bg-primary/[0.02] rounded-bl-full pointer-events-none" />
@@ -88,7 +90,7 @@ export default function Lists() {
                                         "w-12 h-12 rounded-xl flex items-center justify-center shadow-sm transition-all",
                                         // Mobile styles: absolute, faded, big
                                         "absolute left-0 top-1/2 -translate-y-1/2 opacity-20 scale-150 sm:scale-100 sm:opacity-100 sm:relative sm:translate-y-0",
-                                        list.status === 'active' ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                                        list.status === 'active' ? "bg-secondary text-secondary-foreground" : "bg-primary text-primary-foreground"
                                     )}>
                                         <ShoppingCart size={24} />
                                     </div>
@@ -97,7 +99,7 @@ export default function Lists() {
                                         <div className="flex items-center gap-2 mt-1">
                                             <div className={cn(
                                                 "w-2 h-2 rounded-full",
-                                                list.status === 'active' ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.3)]" : "bg-muted-foreground/30"
+                                                list.status === 'active' ? "bg-secondary animate-pulse" : "bg-primary"
                                             )} />
                                             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                                                 {list.status === 'active' ? 'AKTIV' : 'ARCHIVIERT'}

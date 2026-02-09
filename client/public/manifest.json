@@ -1,6 +1,6 @@
 {
-  "name": "EinkaufsApp",
-  "short_name": "EinkaufsApp",
+  "name": "GabelGuru",
+  "short_name": "GabelGuru",
   "description": "Moderne Shopping-List und Menüplanung App",
   "start_url": "/EinkaufsApp/",
   "scope": "/EinkaufsApp/",
@@ -10,16 +10,22 @@
   "orientation": "portrait-primary",
   "icons": [
     {
+      "src": "logo_gabelguru.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
       "src": "icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "maskable"
     },
     {
       "src": "icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "maskable"
     }
   ]
 }

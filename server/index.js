@@ -19,7 +19,7 @@ const BASE_PATH = process.env.BASE_PATH || ''; // e.g. '/EinkaufsApp'
 app.use(`${BASE_PATH}/uploads`, express.static(path.join(__dirname, 'public/uploads')));
 
 app.get('/', (req, res) => {
-    res.json({ message: 'Listenübersicht API is running' });
+    res.json({ message: 'GabelGuru API is running' });
 });
 
 const authRoutes = require('./src/routes/auth');
@@ -62,8 +62,8 @@ const serveSSR = async (req, res, meta = {}) => {
             <html lang="de">
             <head>
                 <meta charset="UTF-8">
-                <title>${meta.title || 'EinkaufsApp'}</title>
-                <meta property="og:title" content="${meta.title || 'EinkaufsApp'}" />
+                <title>${meta.title || 'GabelGuru'}</title>
+                <meta property="og:title" content="${meta.title || 'GabelGuru'}" />
                 <meta property="og:description" content="${meta.description || 'Dein Kochbuch'}" />
                 <meta property="og:image" content="${meta.image || ''}" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -82,12 +82,12 @@ const serveSSR = async (req, res, meta = {}) => {
         }
 
         let injectedHtml = htmlData;
-        const title = meta.title || 'EinkaufsApp';
+        const title = meta.title || 'GabelGuru';
         const description = meta.description || 'Deine Rezepte & Einkaufslisten';
         const imageUrl = meta.image || '';
 
         // 1. Replace Title
-        injectedHtml = injectedHtml.replace(/<title>.*?<\/title>/i, `<title>${title} | EinkaufsApp</title>`);
+        injectedHtml = injectedHtml.replace(/<title>.*?<\/title>/i, `<title>${title} | GabelGuru</title>`);
 
         // 2. Clear existing dynamic meta tags
         injectedHtml = injectedHtml.replace(/<meta property="og:.*?" content=".*?" \/>/g, '');
@@ -105,7 +105,7 @@ const serveSSR = async (req, res, meta = {}) => {
     <meta property="og:image" content="${imageUrl}" />
     <meta property="og:url" content="${req.protocol}://${req.get('host')}${req.originalUrl}" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="EinkaufsApp" />
+    <meta property="og:site_name" content="GabelGuru" />
 `;
         injectedHtml = injectedHtml.replace('</head>', `${ogTags}</head>`);
 

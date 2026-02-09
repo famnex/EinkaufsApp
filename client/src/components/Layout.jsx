@@ -28,7 +28,7 @@ export default function Layout({ children }) {
         if (path === '/products') return 'Produkte';
         if (path === '/settings') return 'Optionen';
         if (path.startsWith('/lists/')) return 'Liste Details';
-        return 'Listenübersicht';
+        return 'GabelGuru';
     };
 
     return (
@@ -39,8 +39,19 @@ export default function Layout({ children }) {
             >
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                            <List className="text-primary-foreground" size={20} />
+                        <div className="w-10 h-10 bg-white dark:bg-card rounded-xl flex items-center justify-center p-1.5 shadow-sm border border-border/50 overflow-hidden">
+                            <img
+                                src="/logo_gabelguru.png"
+                                alt="GabelGuru Logo"
+                                className="w-full h-full object-contain"
+                                onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.nextSibling.style.display = 'block';
+                                }}
+                            />
+                            <div style={{ display: 'none' }} className="text-primary">
+                                <List size={20} />
+                            </div>
                         </div>
                         <span className="text-xl font-bebas tracking-wider text-foreground">{getPageTitle()}</span>
                     </div>

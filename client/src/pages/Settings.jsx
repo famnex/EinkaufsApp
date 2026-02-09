@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff } from 'lucide-react';
+import { Settings, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -48,6 +48,11 @@ export default function SettingsPage() {
     const [householdMembers, setHouseholdMembers] = useState([]);
     const [fetchingMembers, setFetchingMembers] = useState(false);
     const [isUserDetailModalOpen, setIsUserDetailModalOpen] = useState(false);
+
+    // System Design State
+    const [accentColor, setAccentColor] = useState('#14b8a6');
+    const [secondaryColor, setSecondaryColor] = useState('#ef4444');
+    const [savingDesign, setSavingDesign] = useState(false);
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [userSearchQuery, setUserSearchQuery] = useState('');
     const [userRoleFilter, setUserRoleFilter] = useState('all');
@@ -103,7 +108,8 @@ export default function SettingsPage() {
                 api.get('/settings/openai_key'),
                 api.get('/settings/registration_enabled'),
                 api.get('/settings/system/version'),
-                api.get('/settings/alexa_key')
+                api.get('/settings/alexa_key'),
+                api.get('/system/settings')
             ];
 
             // Allow version fetch to fail gracefully if endpoint doesn't exist yet (though it should)
@@ -113,11 +119,19 @@ export default function SettingsPage() {
             const regRes = results[1].status === 'fulfilled' ? results[1].value : { data: {} };
             const verRes = results[2].status === 'fulfilled' ? results[2].value : { data: { version: 'Unknown' } };
             const alexaRes = results[3]?.status === 'fulfilled' ? results[3].value : { data: {} };
+            const systemSettingsRes = results[4]?.status === 'fulfilled' ? results[4].value : { data: {} };
 
             setOpenaiKey(openaiRes.data.value || '');
             setRegistrationEnabled(regRes.data.value !== 'false');
             setAppVersion(verRes.data.version);
             setAlexaKey(alexaRes.data.value || '');
+
+            if (systemSettingsRes.data.system_accent_color) {
+                setAccentColor(systemSettingsRes.data.system_accent_color);
+            }
+            if (systemSettingsRes.data.system_secondary_color) {
+                setSecondaryColor(systemSettingsRes.data.system_secondary_color);
+            }
         } catch (err) {
             console.error('Failed to fetch settings', err);
         }
@@ -349,12 +363,12 @@ export default function SettingsPage() {
             const baseUrl = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
             const inviteUrl = `${window.location.origin}${baseUrl}join-household?token=${data.token}`;
 
-            const fullInviteMessage = `Werde Teil meines Haushalts bei EinkaufsApp: ${inviteUrl}`;
+            const fullInviteMessage = `Werde Teil meines Haushalts bei GabelGuru: ${inviteUrl}`;
 
             if (navigator.share) {
                 await navigator.share({
-                    title: 'Haushalt beitreten - EinkaufsApp',
-                    text: `Werde Teil meines Haushalts bei EinkaufsApp: `,
+                    title: 'Haushalt beitreten - GabelGuru',
+                    text: `Werde Teil meines Haushalts bei GabelGuru: `,
                     url: inviteUrl
                 });
             } else {
@@ -409,24 +423,100 @@ export default function SettingsPage() {
         }
     };
 
-    const handleClearCache = async () => {
-        if (!confirm('Möchtest du den App-Cache wirklich leeren und die Seite neu laden? Dies kann Probleme mit der PWA beheben.')) return;
-        try {
-            const names = await caches.keys();
-            await Promise.all(names.map(name => caches.delete(name)));
-
+    const handleClearCache = () => {
+        if (confirm('Bist du sicher? Alle lokalen Daten der App werden gelöscht und die Seite neu geladen.')) {
             // Unregister all service workers
-            const registrations = await navigator.serviceWorker.getRegistrations();
-            for (let registration of registrations) {
-                await registration.unregister();
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(registrations => {
+                    for (let registration of registrations) {
+                        registration.unregister();
+                    }
+                });
             }
-
-            alert('Cache geleert. Die Seite wird jetzt neu geladen.');
+            // Clear all caches
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    for (let name of names) {
+                        caches.delete(name);
+                    }
+                });
+            }
+            // Clear local storage
+            localStorage.clear();
+            // Reload
             window.location.reload(true);
-        } catch (err) {
-            console.error('Failed to clear cache', err);
-            alert('Fehler beim Leeren des Caches.');
         }
+    };
+
+    const handleSaveDesign = async () => {
+        if (!confirm('Tatsächlich die systemweiten Design-Farben ändern?')) return;
+        setSavingDesign(true);
+        try {
+            await Promise.all([
+                api.post('/system/settings', {
+                    key: 'system_accent_color',
+                    value: accentColor
+                }),
+                api.post('/system/settings', {
+                    key: 'system_secondary_color',
+                    value: secondaryColor
+                })
+            ]);
+
+            // Update local theme immediately
+            const root = document.documentElement;
+
+            const hslAccent = hexToHsl(accentColor);
+            root.style.setProperty('--primary', `${hslAccent.h} ${hslAccent.s}% ${hslAccent.l}%`);
+            root.style.setProperty('--accent', `${hslAccent.h} ${hslAccent.s}% ${hslAccent.l}%`);
+            root.style.setProperty('--ring', `${hslAccent.h} ${hslAccent.s}% ${hslAccent.l}%`);
+            root.style.setProperty('--ref-teal', accentColor);
+
+            const hslSecondary = hexToHsl(secondaryColor);
+            root.style.setProperty('--secondary', `${hslSecondary.h} ${hslSecondary.s}% ${hslSecondary.l}%`);
+            root.style.setProperty('--ref-red', secondaryColor);
+            root.style.setProperty('--destructive', `${hslSecondary.h} ${hslSecondary.s}% ${hslSecondary.l}%`);
+
+            alert('Design-Einstellungen gespeichert.');
+        } catch (err) {
+            console.error('Failed to save design settings:', err);
+            alert('Fehler beim Speichern der Design-Einstellungen.');
+        } finally {
+            setSavingDesign(false);
+        }
+    };
+
+    // Helper for local preview (duplicated from App.jsx for simplicity or move to utils)
+    const hexToHsl = (hex) => {
+        let r = 0, g = 0, b = 0;
+        if (hex.length === 4) {
+            r = parseInt(hex[1] + hex[1], 16);
+            g = parseInt(hex[2] + hex[2], 16);
+            b = parseInt(hex[3] + hex[3], 16);
+        } else if (hex.length === 7) {
+            r = parseInt(hex.substring(1, 3), 16);
+            g = parseInt(hex.substring(3, 5), 16);
+            b = parseInt(hex.substring(5, 7), 16);
+        }
+        r /= 255; g /= 255; b /= 255;
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        let h, s, l = (max + min) / 2;
+        if (max === min) { h = s = 0; }
+        else {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                case g: h = (b - r) / d + 2; break;
+                case b: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+        }
+        return {
+            h: Math.round(h * 360),
+            s: Math.round(s * 100),
+            l: Math.round(l * 100)
+        };
     };
 
     // Tab Definitions
@@ -1051,6 +1141,76 @@ export default function SettingsPage() {
                         </Button>
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-2">Wird benötigt für den KI-Rezept-Import.</p>
+                </div>
+            </Card>
+
+            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                    <Palette size={20} className="text-primary" />
+                    System Design
+                </h2>
+                <div className="space-y-6">
+                    <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">System-Akzentfarbe</label>
+                        <div className="flex items-center gap-4">
+                            <input
+                                type="color"
+                                value={accentColor}
+                                onChange={(e) => setAccentColor(e.target.value)}
+                                className="w-12 h-12 rounded-lg cursor-pointer bg-transparent border-none"
+                            />
+                            <div className="flex-1">
+                                <Input
+                                    type="text"
+                                    value={accentColor}
+                                    onChange={(e) => setAccentColor(e.target.value)}
+                                    placeholder="#14b8a6"
+                                    className="bg-muted border-transparent focus:bg-background transition-colors font-mono"
+                                />
+                            </div>
+                            <Button
+                                onClick={handleSaveDesign}
+                                disabled={savingDesign}
+                                className="shadow-lg shadow-primary/20"
+                            >
+                                {savingDesign ? <Loader2 size={16} className="animate-spin" /> : 'Sichern'}
+                            </Button>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-2">Diese Farbe wird als Hauptfarbe (Buttons, Banner, Icons) für alle Nutzer verwendet.</p>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">System-Sekundärfarbe</label>
+                        <div className="flex items-center gap-4">
+                            <input
+                                type="color"
+                                value={secondaryColor}
+                                onChange={(e) => setSecondaryColor(e.target.value)}
+                                className="w-12 h-12 rounded-lg cursor-pointer bg-transparent border-none"
+                            />
+                            <div className="flex-1">
+                                <Input
+                                    type="text"
+                                    value={secondaryColor}
+                                    onChange={(e) => setSecondaryColor(e.target.value)}
+                                    placeholder="#ef4444"
+                                    className="bg-muted border-transparent focus:bg-background transition-colors font-mono"
+                                />
+                            </div>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-2">Diese Farbe wird für noch nicht erledigte Dinge (offene Einkäufe, Listentage im Kalender) verwendet.</p>
+                    </div>
+
+                    <div className="pt-4 border-t border-border/50">
+                        <Button
+                            onClick={handleSaveDesign}
+                            disabled={savingDesign}
+                            className="w-full sm:w-auto shadow-lg shadow-primary/20"
+                        >
+                            {savingDesign ? <Loader2 size={16} className="animate-spin mr-2" /> : <Palette size={16} className="mr-2" />}
+                            {savingDesign ? 'Warten...' : 'Design-Einstellungen speichern'}
+                        </Button>
+                    </div>
                 </div>
             </Card>
             <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">

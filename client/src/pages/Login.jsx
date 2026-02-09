@@ -73,9 +73,21 @@ export default function LoginPage() {
                             initial={{ y: -20, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             transition={{ delay: 0.2 }}
-                            className="mb-6 rounded-2xl bg-primary p-4 text-primary-foreground shadow-lg shadow-primary/20 transform hover:scale-110 transition-transform duration-500"
+                            className="mb-6 rounded-2xl bg-white dark:bg-card p-4 shadow-lg shadow-black/5 transform hover:scale-110 transition-transform duration-500 overflow-hidden"
                         >
-                            <ShoppingBag size={32} />
+                            <img
+                                src="/logo_gabelguru.png"
+                                alt="GabelGuru Logo"
+                                className="w-16 h-16 object-contain"
+                                onError={(e) => {
+                                    // Fallback to Icon if image is missing
+                                    e.target.style.display = 'none';
+                                    e.target.nextSibling.style.display = 'block';
+                                }}
+                            />
+                            <div style={{ display: 'none' }} className="text-primary">
+                                <ShoppingBag size={32} />
+                            </div>
                         </motion.div>
                         <motion.h1
                             initial={{ y: 20, opacity: 0 }}
@@ -91,7 +103,7 @@ export default function LoginPage() {
                             transition={{ delay: 0.4 }}
                             className="text-muted-foreground text-center"
                         >
-                            Gib deine Daten ein, um auf <span className="text-foreground font-semibold">EinkaufsApp</span> zuzugreifen
+                            Gib deine Daten ein, um auf <span className="text-foreground font-semibold">GabelGuru</span> zuzugreifen
                         </motion.p>
                     </div>
 

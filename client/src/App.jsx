@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import axios from './lib/axios';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { EditModeProvider } from './contexts/EditModeContext';
@@ -23,8 +24,85 @@ import JoinHousehold from './pages/JoinHousehold';
 import { PullToRefresh } from './components/PullToRefresh';
 import { LoadingScreen } from './components/LoadingScreen';
 
+// Helper to convert hex to HSL for Tailwind variables
+const hexToHsl = (hex) => {
+  let r = 0, g = 0, b = 0;
+  if (hex.length === 4) {
+    r = parseInt(hex[1] + hex[1], 16);
+    g = parseInt(hex[2] + hex[2], 16);
+    b = parseInt(hex[3] + hex[3], 16);
+  } else if (hex.length === 7) {
+    r = parseInt(hex.substring(1, 3), 16);
+    g = parseInt(hex.substring(3, 5), 16);
+    b = parseInt(hex.substring(5, 7), 16);
+  }
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+  if (max === min) { h = s = 0; }
+  else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return {
+    h: Math.round(h * 360),
+    s: Math.round(s * 100),
+    l: Math.round(l * 100)
+  };
+};
+
+const applyThemeColor = (type, hexColor) => {
+  if (!hexColor) return;
+  try {
+    const hsl = hexToHsl(hexColor);
+    const root = document.documentElement;
+    const hslString = `${hsl.h} ${hsl.s}% ${hsl.l}%`;
+    const hslForeground = `${hsl.h} ${hsl.s}% ${hsl.l > 60 ? '5%' : '98%'}`;
+
+    if (type === 'accent') {
+      root.style.setProperty('--primary', hslString);
+      root.style.setProperty('--primary-foreground', hslForeground);
+      root.style.setProperty('--accent', hslString);
+      root.style.setProperty('--ring', hslString);
+      root.style.setProperty('--ref-teal', hexColor);
+    } else if (type === 'secondary') {
+      root.style.setProperty('--secondary', hslString);
+      root.style.setProperty('--secondary-foreground', hslForeground);
+      root.style.setProperty('--destructive', hslString); // Often used for "important/pending"
+      root.style.setProperty('--ref-red', hexColor);
+    }
+  } catch (err) {
+    console.error(`Failed to apply ${type} theme color:`, err);
+  }
+};
+
 function AppContent() {
-  const { loading } = useAuth();
+  const { loading, user } = useAuth();
+
+  // Fetch and apply system settings (Accent & Secondary Color)
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const { data } = await axios.get('/system/settings');
+        if (data.system_accent_color) {
+          applyThemeColor('accent', data.system_accent_color);
+        }
+        if (data.system_secondary_color) {
+          applyThemeColor('secondary', data.system_secondary_color);
+        }
+      } catch (err) {
+        console.warn('System settings could not be loaded', err);
+      }
+    };
+
+    fetchSettings();
+  }, []);
 
   // Remove initial splash screen once app is mounted
   useEffect(() => {
@@ -95,7 +173,7 @@ function AppContent() {
 
   return (
     <>
-      <LoadingScreen isVisible={loading} message="EinkaufsApp wird geladen" />
+      <LoadingScreen isVisible={loading} message="GabelGuru wird geladen" />
 
       {!loading && (
         <PullToRefresh>

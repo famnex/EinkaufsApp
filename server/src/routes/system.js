@@ -4,6 +4,7 @@ const { auth, admin } = require('../middleware/auth');
 const { spawn } = require('child_process');
 const path = require('path');
 const { readAlexaLogs } = require('../utils/logger');
+const { Settings } = require('../models');
 
 // Helper to run a command and return promise (for non-streaming checks)
 const runCommand = (cmd, args, cwd) => {
@@ -22,7 +23,61 @@ const runCommand = (cmd, args, cwd) => {
     });
 };
 
+// Get global system settings (Public for branding purposes)
+router.get('/settings', async (req, res) => {
+    try {
+        const settings = await Settings.findAll({
+            where: { UserId: null }
+        });
+
+        const settingsMap = {};
+        settings.forEach(s => {
+            settingsMap[s.key] = s.value;
+        });
+
+        res.json(settingsMap);
+    } catch (err) {
+        console.error('Failed to get system settings:', err);
+        res.status(500).json({ error: 'Failed to get system settings' });
+    }
+});
+
+// Update global system settings (Admin only)
+router.post('/settings', auth, admin, async (req, res) => {
+    try {
+        const { key, value } = req.body;
+        if (!key) return res.status(400).json({ error: 'Key is required' });
+
+        const stringValue = value !== undefined ? String(value) : null;
+
+        // Using findOne and manual logic because upsert can be tricky with NULL in unique indexes
+        let setting = await Settings.findOne({
+            where: { key, UserId: null }
+        });
+
+        if (setting) {
+            setting.value = stringValue;
+            await setting.save();
+        } else {
+            setting = await Settings.create({
+                key,
+                value: stringValue,
+                UserId: null
+            });
+        }
+
+        res.json({ message: 'Setting updated', key, value: stringValue });
+    } catch (err) {
+        console.error('SYSTEM_SETTINGS_UPDATE_ERROR:', err);
+        res.status(500).json({
+            error: 'Failed to update system setting',
+            details: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
+    }
+});
+
 // Check for updates
+// ...
 router.get('/check', auth, admin, async (req, res) => {
     try {
         const rootDir = path.join(__dirname, '../../..'); // Project Root

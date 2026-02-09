@@ -143,7 +143,7 @@ export default function JoinHousehold() {
 
                 <div className="text-center pt-4 border-t border-border/50">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
-                        EinkaufsApp Haushalt-System
+                        GabelGuru Haushalt-System
                     </p>
                 </div>
             </Card>

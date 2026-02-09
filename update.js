@@ -143,7 +143,7 @@ function cleanOldBackups() {
 
 async function main() {
     log('\n╔════════════════════════════════════════╗', 'bright');
-    log('║   EinkaufsApp Update Script v1.0      ║', 'bright');
+    log('║   GabelGuru Update Script v1.0      ║', 'bright');
     log('╚════════════════════════════════════════╝', 'bright');
 
     let backupPath = null;

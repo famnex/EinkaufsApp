@@ -69,7 +69,7 @@ export default function SignupPage() {
                             transition={{ delay: 0.3 }}
                             className="text-3xl font-bold text-foreground tracking-tight mb-2 text-center"
                         >
-                            {isSetup ? 'System-Installation' : 'Werde Teil von EinkaufsApp'}
+                            {isSetup ? 'System-Installation' : 'Werde Teil von GabelGuru'}
                         </motion.h1>
                         <motion.p
                             initial={{ y: 20, opacity: 0 }}

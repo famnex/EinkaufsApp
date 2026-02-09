@@ -99,7 +99,18 @@ export default function SharedRecipe() {
                         >
                             <ArrowLeft size={20} />
                         </button>
-                        <span className="font-bebas text-2xl tracking-wider text-primary">EinkaufsApp</span>
+                        <div className="w-10 h-10 bg-white dark:bg-card rounded-xl flex items-center justify-center p-1.5 shadow-sm border border-border/50 overflow-hidden">
+                            <img
+                                src="/logo_gabelguru.png"
+                                alt="GabelGuru Logo"
+                                className="w-full h-full object-contain"
+                                onError={(e) => {
+                                    // Fallback to text if image is missing
+                                    e.target.parentElement.style.display = 'none';
+                                }}
+                            />
+                        </div>
+                        <span className="font-bebas text-2xl tracking-wider text-primary">GabelGuru</span>
                     </div>
                     <div className="flex gap-2">
                         <button
@@ -264,7 +275,7 @@ export default function SharedRecipe() {
             </main>
 
             <footer className="py-8 text-center text-sm text-muted-foreground print:hidden">
-                <p>EinkaufsApp &copy; Steffen Fleischer 2026</p>
+                <p>GabelGuru &copy; Steffen Fleischer 2026</p>
             </footer>
 
             <style>{`

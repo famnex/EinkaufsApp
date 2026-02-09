@@ -4,7 +4,7 @@
 # Ab v0.10.1 funktioniert das Web-Interface Update automatisch.
 
 echo "╔════════════════════════════════════════╗"
-echo "║  EinkaufsApp Manual Update v0.10.0     ║"
+echo "║  GabelGuru Manual Update v0.10.0     ║"
 echo "╚════════════════════════════════════════╝"
 echo ""
 

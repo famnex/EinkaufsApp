@@ -592,8 +592,8 @@ router.post('/regenerate-image', auth, async (req, res) => {
                 // Our standard structure is public/uploads/...
                 // If relativePath is "uploads/recipes/foo.jpg", we need path.join(__dirname, '../../public', relativePath)
 
-                // Adjust relative path if it includes "EinkaufsApp" (subpath case)
-                relativePath = relativePath.replace(/^\/?EinkaufsApp\//, '');
+                // Adjust relative path if it includes "GabelGuru" (subpath case)
+                relativePath = relativePath.replace(/^\/?GabelGuru\//, '');
 
                 // Strategy 1: Relative to __dirname (src/routes/ai.js -> ../../public)
                 let localPath = path.join(__dirname, '../../public', relativePath);

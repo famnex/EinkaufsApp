@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingBag } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-export const LoadingScreen = ({ isVisible, message = "EinkaufsApp wird geladen" }) => {
+export const LoadingScreen = ({ isVisible, message = "GabelGuru wird geladen" }) => {
     return (
         <AnimatePresence>
             {isVisible && (
@@ -28,7 +28,7 @@ export const LoadingScreen = ({ isVisible, message = "EinkaufsApp wird geladen" 
                             className="absolute inset-0 bg-primary/20 rounded-full blur-2xl"
                         />
 
-                        {/* Shopping Bag Animation */}
+                        {/* Logo Animation */}
                         <motion.div
                             animate={{
                                 y: [0, -20, 0],
@@ -39,9 +39,20 @@ export const LoadingScreen = ({ isVisible, message = "EinkaufsApp wird geladen" 
                                 repeat: Infinity,
                                 ease: "easeInOut"
                             }}
-                            className="relative bg-primary text-primary-foreground p-6 rounded-3xl shadow-2xl shadow-primary/40"
+                            className="relative bg-white dark:bg-card p-6 rounded-[2.5rem] shadow-2xl shadow-primary/20 border-2 border-primary/20 overflow-hidden"
                         >
-                            <ShoppingBag size={48} strokeWidth={1.5} />
+                            <img
+                                src="/logo_gabelguru.png"
+                                alt="GabelGuru Logo"
+                                className="w-20 h-20 object-contain"
+                                onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.nextSibling.style.display = 'block';
+                                }}
+                            />
+                            <div style={{ display: 'none' }} className="text-primary">
+                                <ShoppingBag size={48} strokeWidth={1.5} />
+                            </div>
                         </motion.div>
 
                         {/* Particles */}

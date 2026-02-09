@@ -35,7 +35,7 @@ export default function SharedNotFound() {
             </Button>
 
             <footer className="mt-20 text-muted-foreground/50 text-xs">
-                EinkaufsApp &copy; 2026
+                GabelGuru &copy; 2026
             </footer>
         </div>
     );

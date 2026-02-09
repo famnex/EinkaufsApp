@@ -308,7 +308,7 @@ export default function Dashboard() {
                                         }}
                                         className={cn(
                                             "group relative flex items-center justify-between p-5 rounded-3xl transition-all border border-border/50",
-                                            "hover:bg-primary/5 hover:border-primary/20",
+                                            "hover:bg-secondary/5 hover:border-secondary/20",
                                             editMode === 'delete' ? "border-destructive/30 hover:bg-destructive/5 hover:border-destructive/50 cursor-pointer" : "cursor-pointer"
                                         )}
                                     >
@@ -318,7 +318,7 @@ export default function Dashboard() {
                                                     "w-12 h-12 rounded-xl flex items-center justify-center shadow-md shrink-0 transition-all",
                                                     // Mobile: Absolute, Transparent, Behind text
                                                     "absolute left-0 top-1/2 -translate-y-1/2 opacity-20 scale-150 sm:scale-100 sm:opacity-100 sm:relative sm:translate-y-0",
-                                                    "bg-primary text-primary-foreground"
+                                                    "bg-secondary text-secondary-foreground"
                                                 )}
                                             >
                                                 <ShoppingCart size={24} />
@@ -405,49 +405,49 @@ export default function Dashboard() {
                     overflow: visible !important;
                 }
 
-                /* Today: Dark red border */
+                /* Today: Border in Primary Color */
                 .react-calendar__tile--now {
-                    border: 2px solid #7f1d1d !important;
+                    border: 2px solid var(--ref-teal) !important;
                     border-radius: 0.75rem !important;
                 }
 
-                /* List Day: Red Background */
+                /* Active List Day (Unarchived): Secondary Color */
                 .react-calendar__tile.has-list {
-                    background: #f43f5e !important;
+                    background: var(--ref-red) !important;
                     color: white !important;
                 }
                 
-                /* Archived List Day: Green Background */
+                /* Archived List Day: Primary Color */
                 .react-calendar__tile.has-list-archived {
-                    background: #22c55e !important;
+                    background: var(--ref-teal) !important;
                     color: white !important;
                 }
 
-                /* Today AND List: Red Background + Dark Red Border */
+                /* Today AND Active List: Secondary Background + Primary Border */
                 .react-calendar__tile.has-list.react-calendar__tile--now {
-                    border: 2px solid #7f1d1d !important;
+                    border: 2px solid var(--ref-teal) !important;
                 }
                 
-                /* Today AND Archived List: Green Background + Dark Red Border */
+                /* Today AND Archived List: Primary Background + Primary Border (thick) */
                 .react-calendar__tile.has-list-archived.react-calendar__tile--now {
-                    border: 2px solid #7f1d1d !important;
+                    border: 2px solid white !important;
                 }
 
                 /* 3. Persistent State (Force colors to stay same on Hover/Active) */
 
-                /* Force List Days to KEEP Red Background on Hover/Active */
+                /* Force Active List Days to KEEP Secondary Background on Hover/Active */
                 .react-calendar__tile.has-list:enabled:hover,
                 .react-calendar__tile.has-list:enabled:focus,
                 .react-calendar__tile.has-list.react-calendar__tile--active {
-                    background: #f43f5e !important;
+                    background: var(--ref-red) !important;
                     color: white !important;
                 }
 
-                /* Force ARchived List Days to KEEP Green Background on Hover/Active */
+                /* Force Archived List Days to KEEP Primary Background on Hover/Active */
                 .react-calendar__tile.has-list-archived:enabled:hover,
                 .react-calendar__tile.has-list-archived:enabled:focus,
                 .react-calendar__tile.has-list-archived.react-calendar__tile--active {
-                    background: #22c55e !important;
+                    background: var(--ref-teal) !important;
                     color: white !important;
                 }
 
@@ -455,7 +455,7 @@ export default function Dashboard() {
                 .react-calendar__tile--now:enabled:hover,
                 .react-calendar__tile--now:enabled:focus,
                 .react-calendar__tile--now.react-calendar__tile--active {
-                    border: 2px solid #7f1d1d !important;
+                    border: 2px solid var(--ref-teal) !important;
                 }
             `}} />
         </div >

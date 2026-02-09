@@ -64,10 +64,14 @@ Aufzeichnung aller AI-Guthaben-Bewegungen.
 5. **Customization**: Spalten `cookbookTitle` und `cookbookImage` in der `Users` Tabelle hinzugefügt.
 6. **URL-Schema**: Umstellung von `/shared/recipe/:id` auf `/shared/:sharingKey/recipe/:id`.
 
-### Advanced User Management & AI Credits (v0.22.0 - Februar 2026)
+### v0.22.0 - Advanced Management, Branding & Design (Februar 2026)
 1. **User Table Update**: Spalten `tier` und `aiCredits` hinzugefügt.
 2. **Credit History**: Tabelle `CreditTransactions` für lückenlose Rückverfolgbarkeit von AI-Guthaben eingeführt.
-3. **Admin Actions**: Unterstützung für manuelle Credit-Buchungen durch Administratoren.
+3. **Branding & Rebranding**: Komplette Umstellung auf "GabelGuru" (Name, Logos, PWA-Icons).
+4. **Custom Design System**:
+    - Einführung globaler Systemeinstellungen (`UserId: NULL`) für Primär- und Sekundärfarben.
+    - Dynamische HSL-Berechnung für Kontrastfarben und Akzente.
+    - Integration der Sekundärfarbe für unbesorgte Artikel und Kalender-Highlights.
 
 ## 3. Migrations-Schritte (für neue Instanzen)
 
