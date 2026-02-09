@@ -39,18 +39,19 @@ router.get('/tags', auth, async (req, res) => {
     }
 });
 
-// Get all recipes
+// Get all recipes (optimized for list view)
 router.get('/', auth, async (req, res) => {
     try {
         const recipes = await Recipe.findAll({
             where: { UserId: req.user.effectiveId },
+            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'createdAt', 'updatedAt'],
             include: [
-                { model: Tag, where: { UserId: req.user.effectiveId }, required: false },
                 {
-                    model: RecipeIngredient,
+                    model: Tag,
                     where: { UserId: req.user.effectiveId },
                     required: false,
-                    include: [{ model: Product, where: { UserId: req.user.effectiveId }, required: false }]
+                    attributes: ['id', 'name'],
+                    through: { attributes: [] }
                 }
             ],
             order: [['title', 'ASC']]
@@ -114,15 +115,6 @@ router.get('/public/:sharingKey', async (req, res) => {
                     required: false,
                     attributes: ['id', 'name'],
                     through: { attributes: [] }
-                },
-                {
-                    model: RecipeIngredient,
-                    where: { UserId: user.id },
-                    required: false,
-                    include: [
-                        { model: Product, where: { UserId: user.id }, required: false, attributes: ['name'] }
-                    ],
-                    attributes: ['id', 'quantity', 'unit']
                 }
             ],
             order: [['title', 'ASC']]

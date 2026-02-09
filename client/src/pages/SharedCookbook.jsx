@@ -58,19 +58,6 @@ export default function SharedCookbook() {
                 });
                 setAllTags(Array.from(tags).sort());
 
-                // Extract All Products for Filter (Client-Side)
-                const productsMap = new Map();
-                data.recipes.forEach(r => {
-                    r.RecipeIngredients?.forEach(ri => {
-                        if (ri.Product && ri.Product.name) {
-                            if (!productsMap.has(ri.Product.name)) {
-                                productsMap.set(ri.Product.name, { id: ri.Product.id || ri.Product.name, name: ri.Product.name });
-                            }
-                        }
-                    });
-                });
-                setAvailableProducts(Array.from(productsMap.values()).sort((a, b) => a.name.localeCompare(b.name)));
-
             } catch (err) {
                 console.error("Failed to load recipes", err);
                 if (err.response?.status === 403 || err.response?.status === 404) {

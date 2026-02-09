@@ -87,7 +87,7 @@ export default function Recipes() {
             const target = recipes.find(r => r.id === location.state.openRecipeId);
             if (target) {
                 if (location.state.startCooking) {
-                    setCookingRecipe(target);
+                    handleOpenCookingMode(target);
                 } else {
                     setSelectedRecipe(target);
                     setIsModalOpen(true);
@@ -115,6 +115,19 @@ export default function Recipes() {
             console.error('Failed to fetch recipes', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Load full recipe data for cooking mode (includes ingredients)
+    const handleOpenCookingMode = async (recipe) => {
+        try {
+            // Fetch full recipe details with ingredients
+            const { data } = await api.get(`/recipes/${recipe.id}`);
+            setCookingRecipe(data);
+        } catch (err) {
+            console.error('Failed to load recipe details', err);
+            // Fallback to basic data if fetch fails
+            setCookingRecipe(recipe);
         }
     };
 
@@ -166,7 +179,7 @@ export default function Recipes() {
     };
 
     const [selectedCategory, setSelectedCategory] = useState('All');
-    const categories = ['All', ...new Set(recipes.map(r => r.category).filter(Boolean))].sort();
+    const categories = ['All', ...new Set(recipes.map(r => r.category).filter(Boolean))].sort().concat(['Ohne Bilder']);
 
     const filteredRecipes = useMemo(() => {
         return recipes.filter(r => {
@@ -177,7 +190,13 @@ export default function Recipes() {
                 r.Tags?.some(t => t.name.toLowerCase().includes(lowerSearch)) ||
                 r.RecipeIngredients?.some(ri => ri.Product?.name.toLowerCase().includes(lowerSearch));
 
-            const matchesCategory = selectedCategory === 'All' || r.category === selectedCategory;
+            // Special category: 'Ohne Bilder' shows only recipes without images
+            const matchesCategory = selectedCategory === 'All'
+                ? true
+                : selectedCategory === 'Ohne Bilder'
+                    ? !r.image_url
+                    : r.category === selectedCategory;
+
             return matchesSearch && matchesCategory;
         });
     }, [recipes, searchTerm, selectedCategory]);
@@ -317,10 +336,10 @@ export default function Recipes() {
                         return (
                             <motion.div
                                 key={recipe.id}
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.9 }}
-                                transition={{ delay: index * 0.05 }}
+                                transition={{ duration: 0.3, delay: index * 0.05, ease: "easeOut" }}
                                 onClick={() => {
                                     if (editMode === 'delete') {
                                         handleDelete(recipe.id, recipe.title);
@@ -328,7 +347,7 @@ export default function Recipes() {
                                         setSelectedRecipe(recipe);
                                         setIsModalOpen(true);
                                     } else {
-                                        setCookingRecipe(recipe);
+                                        handleOpenCookingMode(recipe);
                                     }
                                 }}
                                 className={`cursor-pointer group relative ${editMode === 'delete' ? 'ring-2 ring-destructive ring-offset-2 rounded-3xl' : ''}`}
@@ -339,6 +358,7 @@ export default function Recipes() {
                                             <img
                                                 src={getImageUrl(recipe.image_url)}
                                                 alt={recipe.title}
+                                                loading="lazy"
                                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 max-h-[230px]"
                                             />
                                         ) : (

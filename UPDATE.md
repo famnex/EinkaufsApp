@@ -1,6 +1,14 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.21.2
+## Aktuelle Version: v0.21.3
+
+### Changelog v0.21.3
+- **Performance (Recipes):** Drastische Ladezeit-Verbesserung für Rezeptliste. Backend-Query optimiert - lädt nur Basis-Daten statt aller Ingredients. Ladezeit von ~4s auf <1s reduziert. ⚡🚀
+- **Performance (Recipes):** Lazy Loading für Rezeptbilder implementiert - Bilder werden erst geladen, wenn sie im Viewport sichtbar sind. 🖼️📱
+- **Performance (Cookbook):** Gleiche Optimierungen auch für Shared Cookbook angewendet. 🌐⚡
+- **Feature (Recipes):** Neue Kategorie "Ohne Bilder" im Kategorienfilter - zeigt nur Rezepte ohne Bilder an. Perfekt um zu sehen, welche Rezepte noch Bilder benötigen. 🔍📷
+- **Fix (Cooking Mode):** Kochmodus lädt jetzt vollständige Rezeptdaten (inkl. Ingredients) nach, wenn er geöffnet wird. Broken durch Performance-Optimierung, jetzt gefixt. 👨‍🍳✅
+- **Improvement (UI):** Gestaffelte Animation (0.05s delay) beibehalten für visuell ansprechenden Rezept-Aufbau. ✨
 
 ### Changelog v0.21.2
 - **Feature (Recipes):** "Bearbeiten"-Option zum Rezept-Aktionsmenü hinzugefügt. Rezepte können nun direkt aus der Übersicht heraus bearbeitet werden. 📝✏️
