@@ -9,6 +9,7 @@ import { cn, getImageUrl } from '../lib/utils';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import ItemSettingsModal from '../components/ItemSettingsModal';
 import QuantityModal from '../components/QuantityModal';
+import ProductSubstituteModal from '../components/ProductSubstituteModal';
 import { SessionSkeleton } from '../components/Skeleton';
 import { Store as StoreIcon, Check } from 'lucide-react';
 import { useEditMode } from '../contexts/EditModeContext';
@@ -41,6 +42,17 @@ export default function ListDetail() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [activeNoteId, setActiveNoteId] = useState(null);
 
+    // Product Substitution State
+    const [substituteModalOpen, setSubstituteModalOpen] = useState(false);
+    const [substituteTarget, setSubstituteTarget] = useState(null);
+    const [substituteSuggestions, setSubstituteSuggestions] = useState([]);
+    const [substituteLoading, setSubstituteLoading] = useState(false);
+
+    // Double-Tap Detection (use ref to avoid closure issues)
+    const lastTapTimeRef = useRef(null);
+    const lastTapItemRef = useRef(null);
+    const singleTapTimeoutRef = useRef(null);
+
     // DnD State
     const [activeId, setActiveId] = useState(null);
     const sensors = useSensors(
@@ -51,7 +63,16 @@ export default function ListDetail() {
     // Derived Lists
     const uncommittedItems = (list?.ListItems?.filter(i => !i.is_committed) || []).sort((a, b) => {
         if (a.is_bought !== b.is_bought) return a.is_bought ? 1 : -1;
-        // Keep original index as secondary sort if possible, or just default to 0
+
+        // Sort bought items by timestamp
+        if (a.is_bought && b.is_bought) {
+            if (a.bought_at && b.bought_at) {
+                return new Date(a.bought_at) - new Date(b.bought_at);
+            }
+            return a.id - b.id; // Fallback
+        }
+
+        // Keep server-side sort order for unbought items
         return 0;
     });
     const committedItems = list?.ListItems?.filter(i => i.is_committed) || [];
@@ -181,6 +202,77 @@ export default function ListDetail() {
             console.error('Failed to update current store', err);
         }
     };
+
+    // === Product Substitution Handlers ===
+    const handleOpenSubstituteModal = async (item) => {
+        setSubstituteTarget(item);
+        setSubstituteModalOpen(true);
+        setSubstituteLoading(true);
+        setSubstituteSuggestions([]);
+
+        try {
+            const { data } = await api.post('/ai/suggest-substitute', {
+                productName: item.Product.name,
+                context: 'Einkaufen'
+            });
+
+            setSubstituteSuggestions(data.suggestions || []);
+        } catch (err) {
+            console.error('Failed to get AI suggestions:', err);
+            alert('KI-Vorschläge konnten nicht geladen werden.');
+            setSubstituteModalOpen(false);
+        } finally {
+            setSubstituteLoading(false);
+        }
+    };
+
+    const handleSelectSubstitute = async (suggestion) => {
+        if (!window.confirm(`"${substituteTarget.Product.name}" durch "${suggestion.name}" ersetzen?`)) {
+            return;
+        }
+
+        try {
+            // 1. Check if product exists, create if not
+            let substituteProduct = allProducts.find(p =>
+                p.name.toLowerCase() === suggestion.name.toLowerCase()
+            );
+
+            if (!substituteProduct) {
+                // Create new product
+                const { data: newProduct } = await api.post('/products', {
+                    name: suggestion.name,
+                    category: substituteTarget.Product.category,
+                    unit: substituteTarget.Product.unit || 'Stück'
+                });
+                substituteProduct = newProduct;
+
+                // Refresh products list
+                fetchProducts();
+            }
+
+            // 2. Add substitute to list (same quantity/unit)
+            await api.post(`/lists/${id}/items`, {
+                ProductId: substituteProduct.id,
+                quantity: substituteTarget.quantity,
+                unit: substituteTarget.unit || substituteTarget.Product.unit
+            });
+
+            // 3. Delete original product from list
+            await api.delete(`/lists/items/${substituteTarget.id}`);
+
+            // 4. Refresh list
+            await fetchListDetails();
+
+            // 5. Close modal
+            setSubstituteModalOpen(false);
+            setSubstituteTarget(null);
+
+        } catch (err) {
+            console.error('Failed to substitute product:', err);
+            alert('Austausch fehlgeschlagen.');
+        }
+    };
+
     const toggleBought = async (item) => {
         if (!activeStoreId) {
             alert("Bitte wähle zuerst ein Geschäft aus!");
@@ -188,12 +280,13 @@ export default function ListDetail() {
         }
 
         const newBoughtState = !item.is_bought;
+        const newBoughtAt = newBoughtState ? new Date().toISOString() : null;
 
         // Optimistic UI update
         setList(prev => ({
             ...prev,
             ListItems: prev.ListItems.map(i =>
-                i.id === item.id ? { ...i, is_bought: newBoughtState } : i
+                i.id === item.id ? { ...i, is_bought: newBoughtState, bought_at: newBoughtAt } : i
             )
         }));
 
@@ -459,8 +552,45 @@ export default function ListDetail() {
                                                 {/* Card Content - Restored Visual Identity */}
                                                 <div
                                                     onClick={() => {
-                                                        if (activeId) return;
-                                                        if (editMode === 'view') toggleBought(item);
+                                                        if (activeId) return; // Ignore during drag
+
+                                                        // DOUBLE-TAP DETECTION (only in view mode)
+                                                        if (editMode === 'view') {
+                                                            const now = Date.now();
+
+                                                            // Check for double-tap
+                                                            if (lastTapTimeRef.current && now - lastTapTimeRef.current < 300 && lastTapItemRef.current === item.id) {
+                                                                // DOUBLE TAP DETECTED!
+                                                                // Cancel pending single-tap action
+                                                                if (singleTapTimeoutRef.current) {
+                                                                    clearTimeout(singleTapTimeoutRef.current);
+                                                                    singleTapTimeoutRef.current = null;
+                                                                }
+
+                                                                handleOpenSubstituteModal(item);
+                                                                lastTapTimeRef.current = null;
+                                                                lastTapItemRef.current = null;
+                                                                return;
+                                                            }
+
+                                                            // SINGLE TAP - Delayed execution (wait for potential 2nd tap)
+                                                            lastTapTimeRef.current = now;
+                                                            lastTapItemRef.current = item.id;
+
+                                                            // Clear any existing timeout
+                                                            if (singleTapTimeoutRef.current) {
+                                                                clearTimeout(singleTapTimeoutRef.current);
+                                                            }
+
+                                                            // Execute after 300ms (if no 2nd tap arrives)
+                                                            singleTapTimeoutRef.current = setTimeout(() => {
+                                                                toggleBought(item);
+                                                                singleTapTimeoutRef.current = null;
+                                                            }, 300);
+                                                            return;
+                                                        }
+
+                                                        // Other modes (edit, delete) - immediate action
                                                         if (editMode === 'edit') {
                                                             setSelectedItem(item);
                                                             setIsSettingsOpen(true);
@@ -698,6 +828,18 @@ export default function ListDetail() {
                 defaultUnit={typeof pendingProduct === 'object' ? pendingProduct?.unit : 'Stück'}
                 productNote={typeof pendingProduct === 'object' ? pendingProduct?.note : ''}
                 onConfirm={onConfirmQuantity}
+            />
+
+            <ProductSubstituteModal
+                isOpen={substituteModalOpen}
+                onClose={() => {
+                    setSubstituteModalOpen(false);
+                    setSubstituteTarget(null);
+                }}
+                originalProduct={substituteTarget?.Product}
+                suggestions={substituteSuggestions}
+                loading={substituteLoading}
+                onSelect={handleSelectSubstitute}
             />
 
 

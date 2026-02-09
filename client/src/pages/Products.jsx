@@ -125,13 +125,7 @@ export default function Products() {
                 p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 p.category?.toLowerCase().includes(searchTerm.toLowerCase())
             )
-            .sort((a, b) => {
-                // Sort "New" items first
-                if (a.isNew && !b.isNew) return -1;
-                if (!a.isNew && b.isNew) return 1;
-                // Otherwise alphabetical
-                return a.name.localeCompare(b.name);
-            });
+            .sort((a, b) => a.name.localeCompare(b.name));
     }, [products, searchTerm]);
 
 
@@ -269,30 +263,6 @@ export default function Products() {
                                             <h3 className="font-bold text-foreground truncate text-lg leading-tight">{product.name}</h3>
                                             <p className="text-sm text-muted-foreground truncate mt-1">{product.category || 'Keine Kategorie'}</p>
                                             <div className="flex items-center gap-2 mt-2">
-                                                {/* Badges */}
-                                                {product.isNew && (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            // Optimistic Update
-                                                            setProducts(prev => prev.map(p => p.id === product.id ? { ...p, isNew: false } : p));
-                                                            api.put(`/products/${product.id}`, { isNew: false }).catch(console.error);
-                                                        }}
-                                                        className={cn(
-                                                            "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity",
-                                                            product.source === 'alexa' ? "bg-cyan-500/10 text-cyan-500 border border-cyan-500/20" :
-                                                                product.source === 'ai' ? "bg-purple-500/10 text-purple-500 border border-purple-500/20" :
-                                                                    "bg-primary/10 text-primary border border-primary/20",
-                                                            "relative z-10"
-                                                        )}
-                                                        title="Als gelesen markieren"
-                                                    >
-                                                        {product.source === 'alexa' && <Radio size={10} />}
-                                                        {product.source === 'ai' && <Sparkles size={10} />}
-                                                        {product.source === 'alexa' ? "Alexa" : product.source === 'ai' ? "AI Neu" : "Neu"}
-                                                        <X size={10} className="ml-1 opacity-50 relative z-10" />
-                                                    </button>
-                                                )}
                                                 <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full text-muted-foreground font-medium">
                                                     {product.unit || 'Stück'}
                                                 </span>

@@ -124,7 +124,18 @@ router.post('/merge', auth, async (req, res) => {
             { where: { ProductId: source.id, UserId: req.user.effectiveId }, transaction: t }
         );
 
-        // 4. Delete Source
+        // 4. Migrate Product Substitutions (both original and substitute references)
+        const { ProductSubstitution } = require('../models');
+        await ProductSubstitution.update(
+            { originalProductId: target.id },
+            { where: { originalProductId: source.id, UserId: req.user.effectiveId }, transaction: t }
+        );
+        await ProductSubstitution.update(
+            { substituteProductId: target.id },
+            { where: { substituteProductId: source.id, UserId: req.user.effectiveId }, transaction: t }
+        );
+
+        // 5. Delete Source
         await source.destroy({ transaction: t });
 
         await t.commit();

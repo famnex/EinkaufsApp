@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, Tag, Scale, Factory, AlertCircle, CheckCircle2, Loader2, Save, ChevronRight, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { X, Sparkles, Tag, Scale, Factory, AlertCircle, CheckCircle2, Loader2, Save, ChevronRight, ArrowRight, Eye, EyeOff, Copy } from 'lucide-react';
 import { Button } from './Button';
 import { Card } from './Card';
 import { cn } from '../lib/utils';
@@ -9,12 +9,17 @@ import { Input } from './Input';
 import api from '../lib/axios';
 
 export default function AiCleanupModal({ isOpen, onClose, products = [], onRefresh }) {
-    const [selectedType, setSelectedType] = useState('category'); // 'category', 'manufacturer', 'unit'
+    const [selectedType, setSelectedType] = useState('category'); // 'category', 'manufacturer', 'unit', 'duplicates'
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [step, setStep] = useState('selection'); // 'selection', 'loading', 'review'
     const [results, setResults] = useState([]); // [{ id, name, original, suggestion, accepted: true, value: '' }]
     const [saving, setSaving] = useState(false);
     const [showHidden, setShowHidden] = useState(false);
+
+    // Duplicate Detection State
+    const [duplicateSuggestions, setDuplicateSuggestions] = useState([]);
+    const [duplicateLoading, setDuplicateLoading] = useState(false);
+    const [duplicateAnalyzed, setDuplicateAnalyzed] = useState(false);
 
     const handleToggleHidden = async (productId) => {
         try {
@@ -212,10 +217,58 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
         }
     };
 
+    const handleStartDuplicateAnalysis = async () => {
+        setDuplicateLoading(true);
+        setDuplicateAnalyzed(false);
+        try {
+            const productList = products.map(p => ({ id: p.id, name: p.name }));
+            const { data } = await api.post('/ai/find-duplicates', { products: productList });
+            setDuplicateSuggestions(data.suggestions || []);
+            setDuplicateAnalyzed(true);
+        } catch (err) {
+            console.error(err);
+            alert('Fehler bei der Duplikatserkennung: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setDuplicateLoading(false);
+        }
+    };
+
+    const handleMergeDuplicate = async (suggestion) => {
+        const sourceProduct = products.find(p => p.id === suggestion.sourceId);
+        const targetProduct = products.find(p => p.id === suggestion.targetId);
+
+        if (!sourceProduct || !targetProduct) {
+            alert('Produkte nicht gefunden');
+            return;
+        }
+
+        if (!confirm(`"${sourceProduct.name}" mit "${targetProduct.name}" zusammenführen?\n\n${suggestion.reason}`)) {
+            return;
+        }
+
+        try {
+            await api.post('/products/merge', {
+                sourceId: sourceProduct.id,
+                targetId: targetProduct.id,
+                newName: targetProduct.name
+            });
+
+            // Remove merged suggestion from list
+            setDuplicateSuggestions(prev => prev.filter(s => s.sourceId !== suggestion.sourceId));
+
+            // Refresh products
+            if (onRefresh) onRefresh();
+        } catch (err) {
+            console.error(err);
+            alert('Fehler beim Zusammenführen: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
     const tabs = [
         { id: 'category', label: 'Fehlende Kategorien', icon: Tag, count: stats.category, color: 'text-blue-500', bg: 'bg-blue-500/10' },
         { id: 'manufacturer', label: 'Fehlende Hersteller', icon: Factory, count: stats.manufacturer, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-        { id: 'unit', label: 'Einheiten normalisieren', icon: Scale, count: stats.unit, color: 'text-green-500', bg: 'bg-green-500/10' },
+        { id: 'unit', label: 'Normalisieren', icon: Scale, count: stats.unit, color: 'text-green-500', bg: 'bg-green-500/10' },
+        { id: 'duplicates', label: 'Doppeleinträge', icon: Copy, count: products.length, color: 'text-purple-500', bg: 'bg-purple-500/10' },
     ];
 
     if (!isOpen) return null;
@@ -293,7 +346,117 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
 
                                 {/* Content Area */}
                                 <div className="flex-1 flex flex-col bg-background/50 min-h-0 overflow-x-hidden">
-                                    {step === 'selection' ? (
+                                    {selectedType === 'duplicates' ? (
+                                        /* Duplicates Tab */
+                                        <div className="flex-1 flex flex-col min-h-0">
+                                            {!duplicateAnalyzed ? (
+                                                /* Empty State */
+                                                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                                                    <div className="w-20 h-20 bg-purple-500/10 text-purple-500 rounded-full flex items-center justify-center mb-6">
+                                                        <Copy size={40} />
+                                                    </div>
+                                                    <h3 className="text-2xl font-bold mb-3">Doppelte Einträge finden</h3>
+                                                    <p className="text-muted-foreground mb-6 max-w-md">
+                                                        Lass die KI deine Produktliste analysieren und potenzielle Duplikate identifizieren, die zusammengeführt werden können.
+                                                    </p>
+                                                    <Button
+                                                        onClick={handleStartDuplicateAnalysis}
+                                                        disabled={duplicateLoading || products.length === 0}
+                                                        className="h-12 px-8 gap-2 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white shadow-lg shadow-purple-500/20"
+                                                    >
+                                                        {duplicateLoading ? (
+                                                            <>
+                                                                <Loader2 className="animate-spin" size={18} />
+                                                                KI analysiert...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Sparkles size={18} />
+                                                                Analyse starten ({products.length} Produkte)
+                                                            </>
+                                                        )}
+                                                    </Button>
+                                                </div>
+                                            ) : duplicateSuggestions.length === 0 ? (
+                                                /* No Results */
+                                                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                                                    <div className="w-16 h-16 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mb-4">
+                                                        <CheckCircle2 size={32} />
+                                                    </div>
+                                                    <h4 className="text-xl font-semibold text-foreground mb-2">Keine Duplikate gefunden!</h4>
+                                                    <p className="text-muted-foreground mb-4">Alle Produkte sind einzigartig.</p>
+                                                    <Button
+                                                        variant="outline"
+                                                        onClick={() => setDuplicateAnalyzed(false)}
+                                                        className="gap-2"
+                                                    >
+                                                        Erneut analysieren
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                /* Results */
+                                                <>
+                                                    <div className="p-4 border-b border-border flex items-center justify-between bg-background/50 sticky top-0 z-10 backdrop-blur-sm">
+                                                        <h3 className="font-bold text-lg flex items-center gap-2">
+                                                            {duplicateSuggestions.length} Vorschläge gefunden
+                                                        </h3>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => setDuplicateAnalyzed(false)}
+                                                            className="gap-2"
+                                                        >
+                                                            Erneut analysieren
+                                                        </Button>
+                                                    </div>
+                                                    <div className="flex-1 overflow-y-auto p-4">
+                                                        <div className="grid grid-cols-1 gap-3">
+                                                            {duplicateSuggestions.map((suggestion, idx) => {
+                                                                const sourceProduct = products.find(p => p.id === suggestion.sourceId);
+                                                                const targetProduct = products.find(p => p.id === suggestion.targetId);
+
+                                                                if (!sourceProduct || !targetProduct) return null;
+
+                                                                return (
+                                                                    <motion.div
+                                                                        key={`${suggestion.sourceId}-${suggestion.targetId}`}
+                                                                        initial={{ opacity: 0, y: 10 }}
+                                                                        animate={{ opacity: 1, y: 0 }}
+                                                                        transition={{ delay: idx * 0.05 }}
+                                                                        onClick={() => handleMergeDuplicate(suggestion)}
+                                                                        className="p-4 rounded-xl border bg-card hover:bg-muted/50 transition-all cursor-pointer group hover:shadow-md"
+                                                                    >
+                                                                        <div className="flex items-center gap-4 mb-3">
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <div className="text-sm text-muted-foreground mb-1">Wird gelöscht</div>
+                                                                                <div className="font-bold truncate text-destructive">{sourceProduct.name}</div>
+                                                                            </div>
+                                                                            <ArrowRight className="text-muted-foreground shrink-0 group-hover:translate-x-1 transition-transform" size={20} />
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <div className="text-sm text-muted-foreground mb-1">Bleibt erhalten</div>
+                                                                                <div className="font-bold truncate text-primary">{targetProduct.name}</div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between text-xs">
+                                                                            <div className="text-muted-foreground italic">{suggestion.reason}</div>
+                                                                            <div className={cn(
+                                                                                "px-2 py-1 rounded-full font-medium",
+                                                                                suggestion.confidence >= 95 ? "bg-green-500/10 text-green-500" :
+                                                                                    suggestion.confidence >= 90 ? "bg-yellow-500/10 text-yellow-500" :
+                                                                                        "bg-orange-500/10 text-orange-500"
+                                                                            )}>
+                                                                                {suggestion.confidence}% sicher
+                                                                            </div>
+                                                                        </div>
+                                                                    </motion.div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    ) : step === 'selection' ? (
                                         <>
                                             <div className="p-3 md:p-4 border-b border-border flex items-center justify-between bg-background/50 sticky top-0 z-10 backdrop-blur-sm shrink-0">
                                                 <div className="flex items-center gap-2 overflow-hidden">

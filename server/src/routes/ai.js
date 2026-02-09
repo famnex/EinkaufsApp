@@ -357,6 +357,138 @@ router.post('/lookup', auth, async (req, res) => {
     }
 });
 
+// Product Substitution Suggestions
+router.post('/suggest-substitute', auth, async (req, res) => {
+    try {
+        const { productName, context } = req.body;
+
+        if (!productName) {
+            return res.status(400).json({ error: 'Product name required' });
+        }
+
+        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
+        if (!setting || !setting.value) {
+            return res.status(400).json({ error: 'OpenAI API Key not configured' });
+        }
+
+        const openai = new OpenAI({ apiKey: setting.value });
+
+        const prompt = `
+Du bist ein Experte für deutsche Lebensmittel und Zutaten.
+Ich brauche einen Ersatz für "${productName}" ${context ? `für ${context}` : ''}.
+
+Gib mir 5 gute Alternativen, die:
+- In deutschen Supermärkten verfügbar sind
+- Ähnliche Eigenschaften haben
+- Praktisch austauschbar sind
+
+WICHTIG: Antworte nur mit gültigem JSON in diesem exakten Format:
+{
+  "suggestions": [
+    {
+      "name": "Produktname",
+      "reason": "Kurze Begründung (max 50 Zeichen)",
+      "confidence": 0.9
+    }
+  ]
+}
+
+Sortiere nach confidence (höchste zuerst).
+`;
+
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.7,
+            max_tokens: 500,
+            response_format: { type: "json_object" }
+        });
+
+        const result = JSON.parse(completion.choices[0].message.content);
+        res.json(result);
+
+    } catch (err) {
+        console.error('AI Substitute Suggestion Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// AI Duplicate Product Detection
+router.post('/find-duplicates', auth, async (req, res) => {
+    try {
+        const { products } = req.body;
+        if (!products || !Array.isArray(products) || products.length === 0) {
+            return res.status(400).json({ error: 'Products array is required' });
+        }
+
+        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
+        if (!setting || !setting.value) {
+            return res.status(400).json({ error: 'OpenAI API Key ist nicht konfiguriert' });
+        }
+
+        const openai = new OpenAI({ apiKey: setting.value });
+
+        // Create prompt for duplicate detection
+        const prompt = `Analysiere diese Liste deutscher Lebensmittelprodukte und identifiziere ECHTE DUPLIKATE - also Produkte, die das GLEICHE Produkt bezeichnen, aber unterschiedlich geschrieben sind.
+
+WICHTIG - NUR DUPLIKATE, KEINE SUBSTITUTIONEN:
+- ✅ RICHTIG: "Gemüsebrühe" und "Gemüsebouillon" (gleiches Produkt, verschiedene Namen)
+- ✅ RICHTIG: "Tomaaten" und "Tomaten" (Tippfehler)
+- ✅ RICHTIG: "Milch" und "Vollmilch 3,5%" (gleiches Produkt, unterschiedlich spezifisch)
+- ✅ RICHTIG: "Äpfel" und "Aepfel" (gleiche Schreibweise, nur Umlaut-Unterschied)
+- ❌ FALSCH: "Mango" und "Apfel" (verschiedene Produkte, auch wenn beide süß sind)
+- ❌ FALSCH: "Butter" und "Margarine" (Substitution, aber verschiedene Produkte)
+- ❌ FALSCH: "Rinderhackfleisch" und "Schweinehackfleisch" (verschiedene Produkte)
+
+Gebe ein JSON-Objekt zurück mit einem Array "suggestions", wobei jeder Eintrag folgendes Format hat:
+{
+  "sourceId": <ID des zu löschenden Produkts>,
+  "targetId": <ID des beizubehaltenden Produkts>,
+  "reason": "<kurze deutsche Begründung warum das DUPLIKATE sind>",
+  "confidence": <Konfidenz-Score 0-100>
+}
+
+KRITERIEN:
+- Sei SEHR konservativ - schlage nur Zusammenführungen vor, bei denen du zu 95%+ sicher bist, dass es DASSELBE Produkt ist
+- Das "source" Produkt wird gelöscht und als Synonym zum "target" hinzugefügt
+- Berücksichtige: Singular/Plural, Abkürzungen, Tippfehler, unterschiedliche Schreibweisen, Umlaute
+- Ignoriere Groß-/Kleinschreibung
+- Maximal 20 Vorschläge
+- NUR echte Duplikate, KEINE Substitutionen oder ähnliche Produkte
+
+Produkte: ${JSON.stringify(products)}
+
+Beispiel Output:
+{
+  "suggestions": [
+    {"sourceId": 5, "targetId": 12, "reason": "Beide bezeichnen dasselbe Produkt: Gemüsebrühe", "confidence": 97},
+    {"sourceId": 23, "targetId": 8, "reason": "Tippfehler: Tomaaten ist identisch mit Tomaten", "confidence": 99}
+  ]
+}`;
+
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.3, // Lower temperature for more consistent results
+            max_tokens: 2000,
+            response_format: { type: "json_object" }
+        });
+
+        const result = JSON.parse(completion.choices[0].message.content);
+
+        // Validate and filter results
+        const suggestions = (result.suggestions || [])
+            .filter(s => s.sourceId && s.targetId && s.confidence >= 90)
+            .slice(0, 20); // Limit to 20 suggestions
+
+        res.json({ suggestions });
+
+    } catch (err) {
+        console.error('AI Duplicate Detection Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 const Jimp = require('jimp');
 
 // Image Generation Endpoint
@@ -388,7 +520,7 @@ router.post('/generate-image', auth, async (req, res) => {
             responseType: 'arraybuffer'
         });
 
-        const uploadDir = path.join(__dirname, '../../public/uploads/recipes');
+        const uploadDir = path.join(__dirname, `../../public/uploads/users/${req.user.effectiveId}/recipes`);
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }

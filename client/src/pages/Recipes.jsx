@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import api from '../lib/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices, ShieldAlert } from 'lucide-react';
+import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices, ShieldAlert, Edit } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
@@ -393,7 +393,7 @@ export default function Recipes() {
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     const baseUrl = import.meta.env.BASE_URL;
-                                                                    const link = `${window.location.origin}${baseUrl}shared/${user?.sharingKey}/recipe/${recipe.id}`.replace(/([^:]\/)\/+/g, "$1");
+                                                                    const link = `${window.location.origin}${baseUrl}shared/${user?.sharingKey}/recipe/${recipe.id}`.replace(/([^:]\/)\//g, "$1");
 
                                                                     if (navigator.share) {
                                                                         navigator.share({
@@ -415,6 +415,18 @@ export default function Recipes() {
                                                             >
                                                                 <Share2 size={16} />
                                                                 Teilen
+                                                            </button>
+                                                            <button
+                                                                className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedRecipe(recipe);
+                                                                    setIsModalOpen(true);
+                                                                    setOpenMenuId(null);
+                                                                }}
+                                                            >
+                                                                <Edit size={16} />
+                                                                Bearbeiten
                                                             </button>
                                                             <button
                                                                 className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"

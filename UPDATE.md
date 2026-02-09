@@ -1,6 +1,15 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.18.5
+## Aktuelle Version: v0.21.2
+
+### Changelog v0.21.2
+- **Feature (Recipes):** "Bearbeiten"-Option zum Rezept-Aktionsmenü hinzugefügt. Rezepte können nun direkt aus der Übersicht heraus bearbeitet werden. 📝✏️
+- **Feature (AI Cleanup):** Neue Tab "Doppelte Einträge" im AI Cleanup Modal. KI-powered Duplikatserkennung identifiziert identische Produkte mit unterschiedlichen Schreibweisen (z.B. "Gemüsebrühe" ↔ "Gemüsebouillon"). 🤖🔍
+- **Feature (AI Cleanup):** Ein-Klick-Merge für doppelte Produkte mit Konfidenz-Bewertung und automatischer Synonym-Verwaltung. ⚡🔗
+- **Fix (Products):** "AI NEU" und "ALEXA" Badges aus der Produktliste entfernt, rein alphabetische Sortierung wiederhergestellt. 🏷️❌
+- **Fix (Recipes):** Korrektur des AI-Bildgenerierungs-Pfads - generierte Bilder werden jetzt korrekt angezeigt (404-Fehler behoben). 🖼️✅
+- **Fix (Products):** Foreign Key Constraint Fehler beim Zusammenführen von Produkten behoben. Migration von ProductSubstitution-Referenzen hinzugefügt. 🔧🗄️
+- **Improvement (AI):** Präzisierter ChatGPT-Prompt für Duplikatserkennung - unterscheidet jetzt klar zwischen echten Duplikaten und Substitutionen. 🎯
 
 ### Changelog v0.18.5
 - **Fix (Recipes):** Fehlerbehebung beim Löschen von Rezeptbildern. Durch Klicken auf "Weg" wird das Bild nun zuverlässig entfernt und der Status auf `none` gesetzt. 🖼️🗑️
