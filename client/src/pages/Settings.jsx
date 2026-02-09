@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2 } from 'lucide-react';
+import { Settings, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -45,6 +45,18 @@ export default function SettingsPage() {
     const [generatingInvite, setGeneratingInvite] = useState(false);
     const [householdMembers, setHouseholdMembers] = useState([]);
     const [fetchingMembers, setFetchingMembers] = useState(false);
+
+    // Tab State
+    const [activeTab, setActiveTab] = useState('profile');
+
+    // Email/Password Change State
+    const [emailChangeData, setEmailChangeData] = useState({ currentPassword: '', newEmail: '' });
+    const [passwordChangeData, setPasswordChangeData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    const [changingEmail, setChangingEmail] = useState(false);
+    const [changingPassword, setChangingPassword] = useState(false);
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     useEffect(() => {
         fetchStores();
@@ -328,7 +340,8 @@ export default function SettingsPage() {
         setGeneratingInvite(true);
         try {
             const { data } = await api.get('/auth/household/invite');
-            const inviteUrl = `${window.location.origin}${import.meta.env.BASE_URL}join-household?token=${data.token}`.replace(/([^:]\/)\/+/g, "$1");
+            const baseUrl = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
+            const inviteUrl = `${window.location.origin}${baseUrl}join-household?token=${data.token}`;
 
             const fullInviteMessage = `Werde Teil meines Haushalts bei EinkaufsApp: ${inviteUrl}`;
 
@@ -352,19 +365,90 @@ export default function SettingsPage() {
         }
     };
 
+    const handleChangeEmail = async () => {
+        if (!emailChangeData.currentPassword || !emailChangeData.newEmail) {
+            alert('Bitte alle Felder ausfüllen');
+            return;
+        }
+
+        setChangingEmail(true);
+        try {
+            const { data } = await api.put('/auth/email', emailChangeData);
+            setUser(data.user);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            alert('Email erfolgreich geändert');
+            setEmailChangeData({ currentPassword: '', newEmail: '' });
+        } catch (err) {
+            alert(err.response?.data?.error || 'Fehler beim Ändern der Email');
+        } finally {
+            setChangingEmail(false);
+        }
+    };
+
+    const handleChangePassword = async () => {
+        if (!passwordChangeData.currentPassword || !passwordChangeData.newPassword || !passwordChangeData.confirmPassword) {
+            alert('Bitte alle Felder ausfüllen');
+            return;
+        }
+
+        setChangingPassword(true);
+        try {
+            await api.put('/auth/password', passwordChangeData);
+            alert('Passwort erfolgreich geändert');
+            setPasswordChangeData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        } catch (err) {
+            alert(err.response?.data?.error || 'Fehler beim Ändern des Passworts');
+        } finally {
+            setChangingPassword(false);
+        }
+    };
+
+    const handleClearCache = async () => {
+        if (!confirm('Möchtest du den App-Cache wirklich leeren und die Seite neu laden? Dies kann Probleme mit der PWA beheben.')) return;
+        try {
+            const names = await caches.keys();
+            await Promise.all(names.map(name => caches.delete(name)));
+
+            // Unregister all service workers
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (let registration of registrations) {
+                await registration.unregister();
+            }
+
+            alert('Cache geleert. Die Seite wird jetzt neu geladen.');
+            window.location.reload(true);
+        } catch (err) {
+            console.error('Failed to clear cache', err);
+            alert('Fehler beim Leeren des Caches.');
+        }
+    };
+
+    // Tab Definitions
+    const tabs = [
+        { id: 'profile', label: 'Profil & Sicherheit', icon: User },
+        { id: 'household', label: 'Haushalt', icon: Users },
+        { id: 'cookbook', label: 'Öffentliches Kochbuch', icon: ChefHat },
+        { id: 'stores', label: 'Geschäfte', icon: StoreIcon },
+        { id: 'integration', label: 'Integration', icon: Building2 },
+        ...(user?.role === 'admin' ? [
+            { id: 'users', label: 'Benutzerverwaltung', icon: UserCog },
+            { id: 'system', label: 'System', icon: Terminal }
+        ] : [])
+    ];
+
     // --- Component Sections ---
 
     const ProfileSection = (
-        <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
-            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                <Settings size={20} className="text-primary" />
-                Profil & Einstellungen
-            </h2>
-            <div className="space-y-6">
+        <div className="space-y-6">
+            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                    <User size={20} className="text-primary" />
+                    Benutzerprofil
+                </h2>
                 <div className="p-4 bg-muted rounded-2xl flex items-center justify-between">
                     <div>
                         <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Angemeldet als</p>
-                        <p className="font-bold text-foreground">{user?.username || 'Gast'}</p>
+                        <p className="font-bold text-foreground text-lg">{user?.username || 'Gast'}</p>
                         <p className="text-sm text-primary font-medium">{user?.role === 'admin' ? 'Administrator' : 'Standard-Benutzer'}</p>
                     </div>
                     <Button
@@ -379,121 +463,210 @@ export default function SettingsPage() {
                         Abmelden
                     </Button>
                 </div>
+            </Card>
 
-                {/* Freigabe & Kochbuch Section */}
-                <div className="pt-6 border-t border-border space-y-6">
-                    <h3 className="text-lg font-bold flex items-center gap-2">
-                        <Sparkles size={18} className="text-primary" />
-                        Dein öffentliches Kochbuch
-                    </h3>
-
-                    <div className="space-y-4">
-                        {/* Title Editing */}
-                        <div>
-                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Kochbuch-Titel</label>
-                            <div className="flex gap-2">
-                                <Input
-                                    value={cookbookTitle}
-                                    onChange={(e) => setCookbookTitle(e.target.value)}
-                                    placeholder="Z.B. MEIN REZEPTSCHREIN"
-                                    className="bg-muted border-transparent focus:bg-background"
-                                />
-                                <Button onClick={handleSaveCookbook} disabled={savingCookbook}>
-                                    {savingCookbook ? '...' : 'OK'}
-                                </Button>
-                            </div>
-                        </div>
-
-                        {/* Image Upload */}
-                        <div>
-                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Hero-Bild (Startseite)</label>
-                            <div className="flex items-center gap-4">
-                                <div className="w-20 h-20 rounded-2xl bg-muted overflow-hidden border border-border flex items-center justify-center shrink-0">
-                                    {cookbookImage ? (
-                                        <img src={getImageUrl(cookbookImage)} className="w-full h-full object-cover" alt="Cookbook Preview" />
-                                    ) : (
-                                        <ChefHat size={32} className="text-muted-foreground/30" />
-                                    )}
-                                </div>
-                                <div className="space-y-2">
-                                    <input
-                                        type="file"
-                                        id="cookbook-image"
-                                        className="hidden"
-                                        accept="image/*"
-                                        onChange={handleCookbookImageUpload}
-                                    />
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="w-full"
-                                        onClick={() => document.getElementById('cookbook-image').click()}
-                                        disabled={savingCookbook}
-                                    >
-                                        Bild ändern
-                                    </Button>
-                                    <p className="text-[10px] text-muted-foreground">Empfohlen: 300x300px</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Public Link Display */}
-                        <div className="p-4 bg-muted/50 rounded-2xl border border-border/50">
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Dein öffentlicher Link</label>
-                            <div className="flex gap-2">
-                                <Input
-                                    type="text"
-                                    readOnly
-                                    value={`${window.location.origin}${import.meta.env.BASE_URL}shared/${sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1")}
-                                    className="bg-background border-border text-sm font-mono truncate"
-                                    onClick={(e) => e.target.select()}
-                                />
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                        const url = `${window.location.origin}${import.meta.env.BASE_URL}shared/${sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1");
-                                        navigator.clipboard.writeText(url);
-                                        alert('Link kopiert!');
-                                    }}
-                                >
-                                    Copy
-                                </Button>
-                            </div>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="w-full mt-3 text-[10px] text-muted-foreground hover:text-destructive gap-1"
-                                onClick={handleRegenerateKey}
+            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                    <Mail size={20} className="text-primary" />
+                    Email-Adresse ändern
+                </h2>
+                <div className="space-y-4">
+                    <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Neue Email-Adresse</label>
+                        <Input
+                            type="email"
+                            placeholder="neue@email.de"
+                            value={emailChangeData.newEmail}
+                            onChange={(e) => setEmailChangeData({ ...emailChangeData, newEmail: e.target.value })}
+                            className="bg-muted border-transparent focus:bg-background"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Aktuelles Passwort zur Bestätigung</label>
+                        <div className="relative">
+                            <Input
+                                type={showCurrentPassword ? "text" : "password"}
+                                placeholder="Dein Passwort"
+                                value={emailChangeData.currentPassword}
+                                onChange={(e) => setEmailChangeData({ ...emailChangeData, currentPassword: e.target.value })}
+                                className="bg-muted border-transparent focus:bg-background"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                             >
-                                <X size={12} /> Neuen Key generieren (alte Links werden ungültig)
+                                {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
+                    </div>
+                    <Button
+                        onClick={handleChangeEmail}
+                        disabled={changingEmail}
+                        className="w-full"
+                    >
+                        {changingEmail ? <Loader2 size={18} className="animate-spin" /> : "Email speichern"}
+                    </Button>
+                </div>
+            </Card>
+
+            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                    <Lock size={20} className="text-primary" />
+                    Passwort ändern
+                </h2>
+                <div className="space-y-4">
+                    <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Aktuelles Passwort</label>
+                        <div className="relative">
+                            <Input
+                                type={showCurrentPassword ? "text" : "password"}
+                                value={passwordChangeData.currentPassword}
+                                onChange={(e) => setPasswordChangeData({ ...passwordChangeData, currentPassword: e.target.value })}
+                                className="bg-muted border-transparent focus:bg-background"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            >
+                                {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Neues Passwort</label>
+                        <div className="relative">
+                            <Input
+                                type={showNewPassword ? "text" : "password"}
+                                value={passwordChangeData.newPassword}
+                                onChange={(e) => setPasswordChangeData({ ...passwordChangeData, newPassword: e.target.value })}
+                                className="bg-muted border-transparent focus:bg-background"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowNewPassword(!showNewPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            >
+                                {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Neues Passwort bestätigen</label>
+                        <div className="relative">
+                            <Input
+                                type={showConfirmPassword ? "text" : "password"}
+                                value={passwordChangeData.confirmPassword}
+                                onChange={(e) => setPasswordChangeData({ ...passwordChangeData, confirmPassword: e.target.value })}
+                                className="bg-muted border-transparent focus:bg-background"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            >
+                                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
+                    </div>
+                    <Button
+                        onClick={handleChangePassword}
+                        disabled={changingPassword}
+                        className="w-full"
+                    >
+                        {changingPassword ? <Loader2 size={18} className="animate-spin" /> : "Passwort aktualisieren"}
+                    </Button>
+                </div>
+            </Card>
+        </div>
+    );
+
+    const CookbookSection = (
+        <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                <ChefHat size={20} className="text-primary" />
+                Dein öffentliches Kochbuch
+            </h2>
+            <div className="space-y-6">
+                <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Kochbuch-Titel</label>
+                    <div className="flex gap-2">
+                        <Input
+                            value={cookbookTitle}
+                            onChange={(e) => setCookbookTitle(e.target.value)}
+                            placeholder="Z.B. MEIN REZEPTSCHREIN"
+                            className="bg-muted border-transparent focus:bg-background"
+                        />
+                        <Button onClick={handleSaveCookbook} disabled={savingCookbook}>
+                            {savingCookbook ? '...' : 'OK'}
+                        </Button>
+                    </div>
+                </div>
+
+                <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Hero-Bild (Startseite)</label>
+                    <div className="flex items-center gap-4">
+                        <div className="w-20 h-20 rounded-2xl bg-muted overflow-hidden border border-border flex items-center justify-center shrink-0">
+                            {cookbookImage ? (
+                                <img src={getImageUrl(cookbookImage)} className="w-full h-full object-cover" alt="Cookbook Preview" />
+                            ) : (
+                                <ChefHat size={32} className="text-muted-foreground/30" />
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <input
+                                type="file"
+                                id="cookbook-image"
+                                className="hidden"
+                                accept="image/*"
+                                onChange={handleCookbookImageUpload}
+                            />
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full"
+                                onClick={() => document.getElementById('cookbook-image').click()}
+                                disabled={savingCookbook}
+                            >
+                                Bild ändern
                             </Button>
+                            <p className="text-[10px] text-muted-foreground">Empfohlen: 300x300px</p>
                         </div>
                     </div>
                 </div>
 
-                {/* Registration Toggle - Admin Only */}
-                {user?.role === 'admin' && (
-                    <div className="pt-6 border-t border-border">
-                        <label className="flex items-center justify-between cursor-pointer group">
-                            <span className="font-bold text-foreground">Öffentliche Registrierung</span>
-                            <div className="relative">
-                                <input
-                                    type="checkbox"
-                                    className="sr-only peer"
-                                    checked={registrationEnabled}
-                                    onChange={handleToggleRegistration}
-                                />
-                                <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                            </div>
-                        </label>
-                        <p className="text-xs text-muted-foreground mt-2">
-                            {registrationEnabled
-                                ? "Neue Benutzer können sich registrieren."
-                                : "Registrierung ist deaktiviert."}
-                        </p>
+                <div className="p-4 bg-muted/50 rounded-2xl border border-border/50">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Dein öffentlicher Link</label>
+                    <div className="flex gap-2">
+                        <Input
+                            type="text"
+                            readOnly
+                            value={`${window.location.origin}${import.meta.env.BASE_URL}shared/${sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1")}
+                            className="bg-background border-border text-sm font-mono truncate"
+                            onClick={(e) => e.target.select()}
+                        />
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                                const url = `${window.location.origin}${import.meta.env.BASE_URL}shared/${sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1");
+                                navigator.clipboard.writeText(url);
+                                alert('Link kopiert!');
+                            }}
+                        >
+                            Copy
+                        </Button>
                     </div>
-                )}
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full mt-3 text-[10px] text-muted-foreground hover:text-destructive gap-1"
+                        onClick={handleRegenerateKey}
+                    >
+                        <X size={12} /> Neuen Key generieren (alte Links werden ungültig)
+                    </Button>
+                </div>
             </div>
         </Card>
     );
@@ -560,6 +733,35 @@ export default function SettingsPage() {
                 <StoreIcon size={20} className="text-primary" />
                 Alle Geschäfte
             </h2>
+            <div className="flex flex-wrap gap-2 mb-6 px-2">
+                <Button
+                    variant={editMode === 'edit' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setEditMode(editMode === 'edit' ? 'add' : 'edit')}
+                    className="gap-2 rounded-xl"
+                >
+                    <Settings size={14} /> Bearbeiten
+                </Button>
+                <Button
+                    variant={editMode === 'delete' ? 'destructive' : 'outline'}
+                    size="sm"
+                    onClick={() => setEditMode(editMode === 'delete' ? 'add' : 'delete')}
+                    className="gap-2 rounded-xl"
+                >
+                    <Trash2 size={14} /> Löschen
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                        setSelectedStore(null);
+                        setIsModalOpen(true);
+                    }}
+                    className="gap-2 rounded-xl text-primary hover:text-primary hover:bg-primary/10"
+                >
+                    <Plus size={14} /> Neu
+                </Button>
+            </div>
             <AnimatePresence mode="popLayout">
                 {loading ? (
                     <div className="space-y-4">
@@ -619,13 +821,173 @@ export default function SettingsPage() {
         </div>
     );
 
-    const ApiSection = user?.role === 'admin' ? (
-        <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
-            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                <Building2 size={20} className="text-primary" />
-                API Integration
-            </h2>
-            <div className="space-y-6">
+    const UsersSection = user?.role === 'admin' ? (
+        <div className="space-y-6">
+            <Card className="p-8 border-border bg-card/50 shadow-lg">
+                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                    <UserCog size={20} className="text-primary" />
+                    Benutzerverwaltung
+                </h2>
+
+                <div className="mb-6 p-4 bg-muted/30 rounded-2xl border border-border/50">
+                    <label className="flex items-center justify-between cursor-pointer group">
+                        <span className="font-bold text-foreground">Öffentliche Registrierung</span>
+                        <div className="relative">
+                            <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={registrationEnabled}
+                                onChange={handleToggleRegistration}
+                            />
+                            <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                        </div>
+                    </label>
+                    <p className="text-xs text-muted-foreground mt-2">
+                        {registrationEnabled
+                            ? "Neue Benutzer können sich registrieren."
+                            : "Registrierung ist deaktiviert."}
+                    </p>
+                </div>
+
+                {loadingUsers ? (
+                    <div className="space-y-3">
+                        {[1, 2, 3].map(i => <div key={i} className="h-12 bg-muted/50 rounded-xl animate-pulse" />)}
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {users.map((u) => (
+                            <div key={u.id} className="p-4 bg-white/30 dark:bg-black/10 rounded-2xl border border-border/50 group hover:border-primary/30 transition-all shadow-sm">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 bg-muted rounded-xl group-hover:bg-primary/10 transition-colors">
+                                            {u.role === 'admin' ? <Shield size={18} className="text-amber-500" /> : <User size={18} className="text-primary" />}
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-foreground flex items-center gap-2">
+                                                {u.username}
+                                                {u.id === user.id && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-md font-medium">Du</span>}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">{u.email}</p>
+                                            <div className="flex gap-2 mt-2">
+                                                <span className={cn(
+                                                    "text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-tight",
+                                                    u.role === 'admin' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                                )}>
+                                                    {u.role}
+                                                </span>
+                                                {u.householdId ? (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 font-bold uppercase tracking-tight">
+                                                        Mit {u.householdOwnerName || 'Lade...'}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-bold uppercase tracking-tight">
+                                                        Haushalt-Besitzer
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        {u.id !== user.id && (
+                                            <>
+                                                <button
+                                                    onClick={() => handleRoleUpdate(u.id, u.role === 'admin' ? 'user' : 'admin')}
+                                                    className={cn(
+                                                        "p-2 rounded-lg transition-colors",
+                                                        u.role === 'admin' ? "hover:bg-orange-500/10 text-orange-600" : "hover:bg-green-500/10 text-green-600"
+                                                    )}
+                                                    title={u.role === 'admin' ? "Zum User degradieren" : "Zum Admin befördern"}
+                                                >
+                                                    {u.role === 'admin' ? <UserCog size={18} /> : <Shield size={18} />}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteUser(u.id, u.username)}
+                                                    className="p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
+                                                    title="Benutzer löschen"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </Card>
+        </div>
+    ) : null;
+
+    const SystemSection = (
+        <div className="space-y-6">
+            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                        <span className="font-mono text-xs font-bold">V</span>
+                    </div>
+                    Version & Update
+                </h2>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Installierte Version</p>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <p className="font-bold text-foreground text-lg font-mono">
+                                {appVersion}
+                            </p>
+                            {updateInfo?.updates_available && (
+                                <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full font-medium whitespace-nowrap">
+                                    Update verfügbar ({updateInfo.commits_behind} Commits)
+                                </span>
+                            )}
+                        </div>
+
+                        {updateInfo && !updateInfo.updates_available && (
+                            <p className="text-xs text-green-600 flex items-center gap-1 pt-1">
+                                <CheckCircle size={12} /> System ist aktuell
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="shrink-0">
+                        {!updateInfo ? (
+                            <Button
+                                variant="outline"
+                                onClick={handleCheckUpdate}
+                                disabled={checkingUpdate}
+                                className="gap-2 whitespace-nowrap w-full sm:w-auto"
+                            >
+                                {checkingUpdate ? <Loader2 size={16} className="animate-spin" /> : <Terminal size={16} />}
+                                Update suchen
+                            </Button>
+                        ) : updateInfo.updates_available ? (
+                            <Button
+                                onClick={() => setIsUpdateModalOpen(true)}
+                                className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 whitespace-nowrap w-full sm:w-auto"
+                            >
+                                <Terminal size={16} />
+                                Update starten
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="outline"
+                                onClick={handleCheckUpdate}
+                                disabled={checkingUpdate}
+                                className="gap-2 whitespace-nowrap w-full sm:w-auto hover:bg-muted"
+                            >
+                                <CheckCircle size={16} />
+                                Erneut prüfen
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            </Card>
+
+            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                    <Building2 size={20} className="text-primary" />
+                    OpenAI Integration
+                </h2>
                 <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">OpenAI API Key</label>
                     <div className="flex gap-2">
@@ -642,8 +1004,37 @@ export default function SettingsPage() {
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-2">Wird benötigt für den KI-Rezept-Import.</p>
                 </div>
+            </Card>
+            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                    <Sparkles size={20} className="text-primary" />
+                    App-Verwaltung
+                </h2>
+                <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                        Sollte die App nicht korrekt laden oder weiß bleiben, kannst du hier den lokalen Speicher der PWA leeren.
+                    </p>
+                    <Button
+                        variant="outline"
+                        onClick={handleClearCache}
+                        className="w-full sm:w-auto text-destructive hover:bg-destructive/10 border-destructive/20"
+                    >
+                        <Trash2 size={18} className="mr-2" />
+                        App-Cache leeren & neu laden
+                    </Button>
+                </div>
+            </Card>
+        </div>
+    );
 
-                <div className="pt-4 border-t border-border">
+    const ApiSection = (
+        <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                <Building2 size={20} className="text-primary" />
+                Integrationen
+            </h2>
+            <div className="space-y-6">
+                <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Alexa API Key</label>
                     <div className="flex gap-2">
                         <Input
@@ -674,147 +1065,7 @@ export default function SettingsPage() {
                 </div>
             </div>
         </Card>
-    ) : null;
-
-    const VersionSection = (
-        <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
-            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600">
-                    <span className="font-mono text-xs font-bold">V</span>
-                </div>
-                Version & Update
-            </h2>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Installierte Version</p>
-                    <div className="flex flex-wrap items-center gap-3">
-                        <p className="font-bold text-foreground text-lg font-mono">
-                            {appVersion}
-                        </p>
-                        {updateInfo?.updates_available && (
-                            <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full font-medium whitespace-nowrap">
-                                Update verfügbar ({updateInfo.commits_behind} Commits)
-                            </span>
-                        )}
-                    </div>
-
-                    {updateInfo && !updateInfo.updates_available && (
-                        <p className="text-xs text-green-600 flex items-center gap-1 pt-1">
-                            <CheckCircle size={12} /> System ist aktuell
-                        </p>
-                    )}
-                </div>
-
-                <div className="shrink-0">
-                    {!updateInfo ? (
-                        <Button
-                            variant="outline"
-                            onClick={handleCheckUpdate}
-                            disabled={checkingUpdate}
-                            className="gap-2 whitespace-nowrap w-full sm:w-auto"
-                        >
-                            {checkingUpdate ? <Loader2 size={16} className="animate-spin" /> : <Terminal size={16} />}
-                            Update suchen
-                        </Button>
-                    ) : updateInfo.updates_available ? (
-                        <Button
-                            onClick={() => setIsUpdateModalOpen(true)}
-                            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 whitespace-nowrap w-full sm:w-auto"
-                        >
-                            <Terminal size={16} />
-                            Update starten
-                        </Button>
-                    ) : (
-                        <Button
-                            variant="outline"
-                            onClick={handleCheckUpdate}
-                            disabled={checkingUpdate}
-                            className="gap-2 whitespace-nowrap w-full sm:w-auto hover:bg-muted"
-                        >
-                            <CheckCircle size={16} />
-                            Erneut prüfen
-                        </Button>
-                    )}
-                </div>
-            </div>
-        </Card>
     );
-
-    const UsersSection = user?.role === 'admin' ? (
-        <Card className="p-8 border-border bg-card/50 shadow-lg">
-            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                <UserCog size={20} className="text-primary" />
-                Benutzerverwaltung
-            </h2>
-            {loadingUsers ? (
-                <div className="space-y-3">
-                    {[1, 2, 3].map(i => <div key={i} className="h-12 bg-muted/50 rounded-xl animate-pulse" />)}
-                </div>
-            ) : (
-                <div className="space-y-4">
-                    {users.map((u) => (
-                        <div key={u.id} className="p-4 bg-white/30 dark:bg-black/10 rounded-2xl border border-border/50 group hover:border-primary/30 transition-all shadow-sm">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-3 bg-muted rounded-xl group-hover:bg-primary/10 transition-colors">
-                                        {u.role === 'admin' ? <Shield size={18} className="text-amber-500" /> : <User size={18} className="text-primary" />}
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-foreground flex items-center gap-2">
-                                            {u.username}
-                                            {u.id === user.id && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-md font-medium">Du</span>}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">{u.email}</p>
-                                        <div className="flex gap-2 mt-2">
-                                            <span className={cn(
-                                                "text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-tight",
-                                                u.role === 'admin' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                                            )}>
-                                                {u.role}
-                                            </span>
-                                            {u.householdId ? (
-                                                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 font-bold uppercase tracking-tight">
-                                                    Mit {u.householdOwnerName || 'Lade...'}
-                                                </span>
-                                            ) : (
-                                                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-bold uppercase tracking-tight">
-                                                    Haushalt-Besitzer
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    {u.id !== user.id && (
-                                        <>
-                                            <button
-                                                onClick={() => handleRoleUpdate(u.id, u.role === 'admin' ? 'user' : 'admin')}
-                                                className={cn(
-                                                    "p-2 rounded-lg transition-colors",
-                                                    u.role === 'admin' ? "hover:bg-orange-500/10 text-orange-600" : "hover:bg-green-500/10 text-green-600"
-                                                )}
-                                                title={u.role === 'admin' ? "Zum User degradieren" : "Zum Admin befördern"}
-                                            >
-                                                {u.role === 'admin' ? <UserCog size={18} /> : <Shield size={18} />}
-                                            </button>
-
-                                            <button
-                                                onClick={() => handleDeleteUser(u.id, u.username)}
-                                                className="p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
-                                                title="Benutzer löschen"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </Card>
-    ) : null;
 
     return (
         <div className="space-y-8 pb-20">
@@ -830,26 +1081,45 @@ export default function SettingsPage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                <div className="space-y-6">
-                    {ProfileSection}
-                    {HouseholdSection}
-
-                    {user?.role === 'admin' && StoresSection}
-                </div>
-
-                <div className="space-y-6">
-                    {user?.role === 'admin' ? (
-                        <>
-                            {ApiSection}
-                            {VersionSection}
-                            {UsersSection}
-                        </>
-                    ) : (
-                        StoresSection
-                    )}
-                </div>
+            {/* Tab Navigation */}
+            <div className="flex overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 gap-2 mb-8 sticky top-0 bg-background/80 backdrop-blur-md py-2 z-10 border-b border-border sm:border-none sm:static sm:bg-transparent sm:backdrop-blur-none transition-all">
+                {tabs.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-2.5 rounded-2xl whitespace-nowrap transition-all active:scale-95 text-sm font-bold",
+                                isActive
+                                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                            )}
+                        >
+                            <Icon size={18} />
+                            {tab.label}
+                        </button>
+                    );
+                })}
             </div>
+
+            {/* Tab Content */}
+            <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                className="max-w-4xl mx-auto"
+            >
+                {activeTab === 'profile' && ProfileSection}
+                {activeTab === 'household' && HouseholdSection}
+                {activeTab === 'cookbook' && CookbookSection}
+                {activeTab === 'stores' && StoresSection}
+                {activeTab === 'integration' && ApiSection}
+                {activeTab === 'users' && UsersSection}
+                {activeTab === 'system' && SystemSection}
+            </motion.div>
 
             <StoreModal
                 isOpen={isModalOpen}

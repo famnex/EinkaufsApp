@@ -162,6 +162,19 @@ body {
   font-family: 'Outfit', sans-serif;
   min-height: 100vh;
   transition: background-color 0.3s ease, color 0.3s ease;
+  
+  /* Prevent double-tap to zoom while keeping scrolling smooth */
+  touch-action: manipulation;
+  
+  /* Make it feel more like a native app */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* Allow text selection only where it makes sense (inputs, content) */
+input, textarea, [contenteditable="true"], .selectable-text {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 

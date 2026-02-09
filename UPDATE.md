@@ -1,6 +1,13 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.21.3
+## Aktuelle Version: v0.21.4
+
+### Changelog v0.21.4
+- **Fix (PWA):** Robustere Service Worker Strategie ("Network First" für Navigation) - verhindert leere Seiten nach App-Updates. 🔄🌐
+- **Fix (PWA):** Automatisches Caching von statischen Assets (JS/CSS) für Offline-Modus verbessert. 📦📡
+- **Feature (Settings):** Button "App-Cache leeren & neu laden" hinzugefügt - ermöglicht manuelles Zurücksetzen der PWA bei Problemen. 🧹✨
+- **UX (Zoom):** Umfassende Zoom-Sperre implementiert: Pinch-to-zoom blockiert, Double-tap Zoom deaktivert und automatischer Scale-Reset bei Rotation/Resize (iOS). 📱🚫🔍
+- **UX (Native-Feel):** Native Browser-Effekte (Tap-Highlight, Callouts) deaktiviert für ein echtes App-Gefühl. ⚡📱
 
 ### Changelog v0.21.3
 - **Performance (Recipes):** Drastische Ladezeit-Verbesserung für Rezeptliste. Backend-Query optimiert - lädt nur Basis-Daten statt aller Ingredients. Ladezeit von ~4s auf <1s reduziert. ⚡🚀

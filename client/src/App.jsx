@@ -35,36 +35,52 @@ function AppContent() {
     }
   }, []);
 
-  // iOS Zoom Fix
+  // iOS Zoom & Keyboard Fix
   useEffect(() => {
-    const handleFocusOut = (e) => {
-      const { tagName } = e.target;
-      if (['INPUT', 'TEXTAREA'].includes(tagName)) {
-        setTimeout(() => {
-          const activeElement = document.activeElement;
-          const isInput =
-            activeElement &&
-            (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeElement.tagName) ||
-              activeElement.isContentEditable);
+    // 1. Prevent Pinch-to-Zoom (iOS)
+    const handleGestureStart = (e) => {
+      e.preventDefault();
+    };
 
-          if (!isInput) {
-            const viewport = document.querySelector('meta[name="viewport"]');
-            if (viewport) {
-              const originalContent = viewport.getAttribute('content');
-              viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1');
-              setTimeout(() => {
-                if (viewport.getAttribute('content') !== originalContent) {
-                  viewport.setAttribute('content', originalContent);
-                }
-              }, 100);
-            }
-          }
-        }, 50);
+    // 2. Force Scale Reset after Blur/Resize/Rotation
+    const resetScale = () => {
+      // Small timeout to let the browser finish its layout shift
+      setTimeout(() => {
+        const viewport = document.querySelector('meta[name="viewport"]');
+        if (viewport) {
+          const originalContent = viewport.getAttribute('content');
+          // Temporarily lock scale to 1.0
+          viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
+          setTimeout(() => {
+            // Restore original but keep user-scalable=no if that was the goal
+            // In our case, we want it fixed at 1.0/no-zoom normally.
+            viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+          }, 100);
+        }
+      }, 100);
+    };
+
+    const handleFocusOut = (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) {
+        resetScale();
       }
     };
 
+    // Listen for zoom/resize events on visualViewport (iOS specific fix for rotation/keyboard)
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', resetScale);
+    }
+
+    document.addEventListener('gesturestart', handleGestureStart);
     document.addEventListener('focusout', handleFocusOut);
-    return () => document.removeEventListener('focusout', handleFocusOut);
+
+    return () => {
+      document.removeEventListener('gesturestart', handleGestureStart);
+      document.removeEventListener('focusout', handleFocusOut);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', resetScale);
+      }
+    };
   }, []);
 
   return (

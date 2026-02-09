@@ -71,6 +71,89 @@ router.post('/regenerate-sharing-key', auth, async (req, res) => {
     }
 });
 
+// Change Email
+router.put('/email', auth, async (req, res) => {
+    try {
+        const { currentPassword, newEmail } = req.body;
+
+        if (!currentPassword || !newEmail) {
+            return res.status(400).json({ error: 'Passwort und neue Email sind erforderlich' });
+        }
+
+        // Verify current password
+        const user = await User.findByPk(req.user.id);
+        const validPass = await bcrypt.compare(currentPassword, user.password);
+        if (!validPass) {
+            return res.status(401).json({ error: 'Falsches Passwort' });
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(newEmail)) {
+            return res.status(400).json({ error: 'Ungültiges Email-Format' });
+        }
+
+        // Check if email already exists
+        const existingUser = await User.findOne({ where: { email: newEmail } });
+        if (existingUser && existingUser.id !== req.user.id) {
+            return res.status(400).json({ error: 'Diese Email-Adresse wird bereits verwendet' });
+        }
+
+        // Update email
+        await user.update({ email: newEmail });
+
+        const updatedUser = await User.findByPk(req.user.id, {
+            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId']
+        });
+
+        res.json({ success: true, user: updatedUser });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Change Password
+router.put('/password', auth, async (req, res) => {
+    try {
+        const { currentPassword, newPassword, confirmPassword } = req.body;
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            return res.status(400).json({ error: 'Alle Felder sind erforderlich' });
+        }
+
+        // Verify passwords match
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({ error: 'Neue Passwörter stimmen nicht überein' });
+        }
+
+        // Password requirements
+        if (newPassword.length < 6) {
+            return res.status(400).json({ error: 'Passwort muss mindestens 6 Zeichen lang sein' });
+        }
+
+        // Verify current password
+        const user = await User.findByPk(req.user.id);
+        const validPass = await bcrypt.compare(currentPassword, user.password);
+        if (!validPass) {
+            return res.status(401).json({ error: 'Aktuelles Passwort ist falsch' });
+        }
+
+        // Check that new password is different
+        const sameAsOld = await bcrypt.compare(newPassword, user.password);
+        if (sameAsOld) {
+            return res.status(400).json({ error: 'Neues Passwort muss sich vom alten unterscheiden' });
+        }
+
+        // Hash and update password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await user.update({ password: hashedPassword });
+
+        res.json({ success: true, message: 'Passwort erfolgreich geändert' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Generate Household Invitation Token
 router.get('/household/invite', auth, async (req, res) => {
     try {
