@@ -21,7 +21,12 @@ const User = sequelize.define('User', {
     sharingKey: { type: DataTypes.STRING, allowNull: true, unique: true },
     cookbookTitle: { type: DataTypes.STRING, defaultValue: 'MEIN KOCHBUCH' },
     cookbookImage: { type: DataTypes.STRING, allowNull: true },
-    householdId: { type: DataTypes.INTEGER, allowNull: true }
+    householdId: { type: DataTypes.INTEGER, allowNull: true },
+    tier: {
+        type: DataTypes.ENUM('Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon'),
+        defaultValue: 'Plastikgabel'
+    },
+    aiCredits: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0.00 }
 });
 
 const Manufacturer = sequelize.define('Manufacturer', {
@@ -140,6 +145,15 @@ const Settings = sequelize.define('Settings', {
 Settings.belongsTo(User);
 User.hasMany(Settings);
 
+const CreditTransaction = sequelize.define('CreditTransaction', {
+    delta: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+    description: { type: DataTypes.STRING, allowNull: false },
+    type: { type: DataTypes.ENUM('booking', 'usage'), defaultValue: 'usage' } // booking = +/- by admin, usage = spent on AI
+});
+
+CreditTransaction.belongsTo(User);
+User.hasMany(CreditTransaction);
+
 const Recipe = require('./Recipe')(sequelize);
 const RecipeIngredient = require('./RecipeIngredient')(sequelize);
 const Tag = require('./Tag')(sequelize);
@@ -203,5 +217,6 @@ module.exports = {
     ProductRelation,
     Settings,
     HiddenCleanup,
-    ProductSubstitution
+    ProductSubstitution,
+    CreditTransaction
 };

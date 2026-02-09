@@ -11,7 +11,9 @@ import { useEditMode } from '../contexts/EditModeContext';
 import StoreModal from '../components/StoreModal';
 import UpdateModal from '../components/UpdateModal';
 import AlexaLogsModal from '../components/AlexaLogsModal';
+import UserDetailModal from '../components/UserDetailModal';
 import api from '../lib/axios';
+import { Search } from 'lucide-react';
 
 export default function SettingsPage() {
     const navigate = useNavigate();
@@ -45,6 +47,10 @@ export default function SettingsPage() {
     const [generatingInvite, setGeneratingInvite] = useState(false);
     const [householdMembers, setHouseholdMembers] = useState([]);
     const [fetchingMembers, setFetchingMembers] = useState(false);
+    const [isUserDetailModalOpen, setIsUserDetailModalOpen] = useState(false);
+    const [selectedUserId, setSelectedUserId] = useState(null);
+    const [userSearchQuery, setUserSearchQuery] = useState('');
+    const [userRoleFilter, setUserRoleFilter] = useState('all');
 
     // Tab State
     const [activeTab, setActiveTab] = useState('profile');
@@ -821,13 +827,43 @@ export default function SettingsPage() {
         </div>
     );
 
+    const filteredUsers = users.filter(u => {
+        const matchesSearch = u.username.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+            (u.email && u.email.toLowerCase().includes(userSearchQuery.toLowerCase()));
+        const matchesRole = userRoleFilter === 'all' || u.role === userRoleFilter;
+        return matchesSearch && matchesRole;
+    });
+
     const UsersSection = user?.role === 'admin' ? (
         <div className="space-y-6">
             <Card className="p-8 border-border bg-card/50 shadow-lg">
-                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                    <UserCog size={20} className="text-primary" />
-                    Benutzerverwaltung
-                </h2>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                        <UserCog size={20} className="text-primary" />
+                        Benutzerverwaltung
+                    </h2>
+
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex-1 md:w-64">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                            <Input
+                                placeholder="Suchen..."
+                                value={userSearchQuery}
+                                onChange={(e) => setUserSearchQuery(e.target.value)}
+                                className="pl-9 h-10 text-sm bg-muted/50 border-transparent focus:bg-background"
+                            />
+                        </div>
+                        <select
+                            value={userRoleFilter}
+                            onChange={(e) => setUserRoleFilter(e.target.value)}
+                            className="h-10 bg-muted/50 border-transparent rounded-xl px-3 text-sm font-medium outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                            <option value="all">Alle Rollen</option>
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </div>
 
                 <div className="mb-6 p-4 bg-muted/30 rounded-2xl border border-border/50">
                     <label className="flex items-center justify-between cursor-pointer group">
@@ -855,8 +891,15 @@ export default function SettingsPage() {
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        {users.map((u) => (
-                            <div key={u.id} className="p-4 bg-white/30 dark:bg-black/10 rounded-2xl border border-border/50 group hover:border-primary/30 transition-all shadow-sm">
+                        {filteredUsers.length > 0 ? filteredUsers.map((u) => (
+                            <div
+                                key={u.id}
+                                onClick={() => {
+                                    setSelectedUserId(u.id);
+                                    setIsUserDetailModalOpen(true);
+                                }}
+                                className="p-4 bg-white/30 dark:bg-black/10 rounded-2xl border border-border/50 group hover:border-primary/50 cursor-pointer transition-all shadow-sm hover:shadow-md hover:scale-[1.01] active:scale-100"
+                            >
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-4">
                                         <div className="p-3 bg-muted rounded-xl group-hover:bg-primary/10 transition-colors">
@@ -875,44 +918,49 @@ export default function SettingsPage() {
                                                 )}>
                                                     {u.role}
                                                 </span>
+                                                <span className={cn(
+                                                    "text-[10px] px-1.5 py-0.5 rounded-md border font-bold uppercase tracking-tight",
+                                                    u.tier === 'Rainbowspoon' ? "bg-gradient-to-r from-red-400 via-yellow-400 to-blue-400 text-white border-transparent" : "bg-muted/50 text-muted-foreground border-border/50"
+                                                )}>
+                                                    {u.tier || 'Plastikgabel'}
+                                                </span>
                                                 {u.householdId ? (
                                                     <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 font-bold uppercase tracking-tight">
-                                                        Mit {u.householdOwnerName || 'Lade...'}
+                                                        Mit {u.householdOwnerName || '...'}
                                                     </span>
                                                 ) : (
                                                     <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-bold uppercase tracking-tight">
-                                                        Haushalt-Besitzer
+                                                        Besitzer
                                                     </span>
                                                 )}
                                             </div>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-1">
+                                        <div className="text-right mr-4 hidden sm:block">
+                                            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Credits</p>
+                                            <p className="text-xs font-bold text-primary">{parseFloat(u.aiCredits || 0).toFixed(2)}</p>
+                                        </div>
                                         {u.id !== user.id && (
-                                            <>
-                                                <button
-                                                    onClick={() => handleRoleUpdate(u.id, u.role === 'admin' ? 'user' : 'admin')}
-                                                    className={cn(
-                                                        "p-2 rounded-lg transition-colors",
-                                                        u.role === 'admin' ? "hover:bg-orange-500/10 text-orange-600" : "hover:bg-green-500/10 text-green-600"
-                                                    )}
-                                                    title={u.role === 'admin' ? "Zum User degradieren" : "Zum Admin befördern"}
-                                                >
-                                                    {u.role === 'admin' ? <UserCog size={18} /> : <Shield size={18} />}
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteUser(u.id, u.username)}
-                                                    className="p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
-                                                    title="Benutzer löschen"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
-                                            </>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteUser(u.id, u.username);
+                                                }}
+                                                className="p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
+                                                title="Benutzer löschen"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
                                         )}
                                     </div>
                                 </div>
                             </div>
-                        ))}
+                        )) : (
+                            <div className="text-center py-10 bg-muted/20 border border-dashed border-border rounded-3xl text-muted-foreground italic">
+                                Keine Benutzer gefunden.
+                            </div>
+                        )}
                     </div>
                 )}
             </Card>
@@ -1138,6 +1186,13 @@ export default function SettingsPage() {
             <AlexaLogsModal
                 isOpen={isLogsModalOpen}
                 onClose={() => setIsLogsModalOpen(false)}
+            />
+
+            <UserDetailModal
+                isOpen={isUserDetailModalOpen}
+                onClose={() => setIsUserDetailModalOpen(false)}
+                userId={selectedUserId}
+                onUpdate={fetchUsers}
             />
         </div>
     );

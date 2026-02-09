@@ -42,31 +42,40 @@ function AppContent() {
       e.preventDefault();
     };
 
-    // 2. Force Scale Reset after Blur/Resize/Rotation
+    // 2. Optimized Scale Reset (fixes flickering on scroll)
+    let resetTimeout;
+    let lastWidth = window.innerWidth;
     const resetScale = () => {
-      // Small timeout to let the browser finish its layout shift
-      setTimeout(() => {
-        const viewport = document.querySelector('meta[name="viewport"]');
-        if (viewport) {
-          const originalContent = viewport.getAttribute('content');
-          // Temporarily lock scale to 1.0
-          viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
-          setTimeout(() => {
-            // Restore original but keep user-scalable=no if that was the goal
-            // In our case, we want it fixed at 1.0/no-zoom normally.
-            viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
-          }, 100);
-        }
-      }, 100);
+      clearTimeout(resetTimeout);
+
+      const viewport = window.visualViewport;
+      const currentWidth = window.innerWidth;
+      const isOrientationChange = Math.abs(currentWidth - lastWidth) > 50;
+
+      // Only reset if zoomed in, OR if orientation changed, OR if an input was just blurred
+      // This prevents the flickering during normal scrolling where the address bar hides/shows
+      if (viewport && (viewport.scale !== 1.0 || isOrientationChange)) {
+        resetTimeout = setTimeout(() => {
+          const metaViewport = document.querySelector('meta[name="viewport"]');
+          if (metaViewport) {
+            // "The Reset Trick": Temporarily change content to force browser to recalculate scale
+            metaViewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
+            setTimeout(() => {
+              metaViewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+              lastWidth = window.innerWidth;
+            }, 50);
+          }
+        }, 150); // Debounce to allow scroll/resize to settle
+      }
     };
 
     const handleFocusOut = (e) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) {
-        resetScale();
+        // Delay reset slightly after blur to ensure keyboard dismissal layout is stable
+        setTimeout(resetScale, 50);
       }
     };
 
-    // Listen for zoom/resize events on visualViewport (iOS specific fix for rotation/keyboard)
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', resetScale);
     }
@@ -75,6 +84,7 @@ function AppContent() {
     document.addEventListener('focusout', handleFocusOut);
 
     return () => {
+      clearTimeout(resetTimeout);
       document.removeEventListener('gesturestart', handleGestureStart);
       document.removeEventListener('focusout', handleFocusOut);
       if (window.visualViewport) {

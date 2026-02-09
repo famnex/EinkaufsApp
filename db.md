@@ -17,6 +17,16 @@ Zentrales Benutzermodell.
 - `cookbookTitle` (STRING): Benutzerdefinierter Titel des Kochbuchs.
 - `cookbookImage` (STRING): Pfad zum Hero-Bild des Kochbuchs.
 - `householdId` (INT): ID des gemeinsamen Haushalts (Isolationsebene).
+- `tier` (ENUM: 'Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon'): Abonnement-Status.
+- `aiCredits` (DECIMAL): Aktuelles AI-Guthaben.
+
+### `CreditTransactions` [NEW]
+Aufzeichnung aller AI-Guthaben-Bewegungen.
+- `id` (INT, PK)
+- `UserId` (INT, FK): Bezug zum Benutzer.
+- `delta` (DECIMAL): Betrag der Änderung (+/-).
+- `description` (STRING): Grund der Buchung.
+- `createdAt` / `updatedAt` (DATE)
 
 ### `Manufacturers` / `Stores`
 - `id` (INT, PK)
@@ -54,6 +64,11 @@ Zentrales Benutzermodell.
 5. **Customization**: Spalten `cookbookTitle` und `cookbookImage` in der `Users` Tabelle hinzugefügt.
 6. **URL-Schema**: Umstellung von `/shared/recipe/:id` auf `/shared/:sharingKey/recipe/:id`.
 
+### Advanced User Management & AI Credits (v0.22.0 - Februar 2026)
+1. **User Table Update**: Spalten `tier` und `aiCredits` hinzugefügt.
+2. **Credit History**: Tabelle `CreditTransactions` für lückenlose Rückverfolgbarkeit von AI-Guthaben eingeführt.
+3. **Admin Actions**: Unterstützung für manuelle Credit-Buchungen durch Administratoren.
+
 ## 3. Migrations-Schritte (für neue Instanzen)
 
 Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert werden soll:
@@ -64,6 +79,10 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
     - Weist bestehende Daten dem Admin zu.
     - Generiert `sharingKey` für alle User.
     - Fügt `cookbookTitle` und `cookbookImage` Spalten hinzu.
+
+4.  **Admin Update (v0.22.0)**: `node server/migrations/migrate_v0.22.0_user_management.js`
+    - Fügt `tier` und `aiCredits` Spalten zu `Users` hinzu.
+    - Erstellt die Tabelle `CreditTransactions`.
 
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*

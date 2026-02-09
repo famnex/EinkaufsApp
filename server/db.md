@@ -38,3 +38,11 @@
 - **Columns Ensured**:
   - `status` (ENUM 'active', 'completed', 'archived', Default: `'active'`)
 - **Note**: These columns might have been introduced in v0.17.x but are now explicitly checked/added in the v0.18.2 migration script to ensure consistency for all users.
+
+## v0.22.0 - Advanced User Management
+- **Table**: `Users`
+    - **Change**: Added `tier` and `aiCredits` columns.
+    - **Purpose**: Subscription tracking and AI resource management.
+- **Table**: `CreditTransactions` [NEW]
+    - **Purpose**: Logging all AI credit movements.
+    - **Columns**: `id`, `UserId`, `delta`, `description`, `createdAt`, `updatedAt`.

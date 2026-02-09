@@ -1,6 +1,14 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.21.5
+## Aktuelle Version: v0.22.0
+
+### Changelog v0.22.0
+- **Feature (Admin):** Erweiterte Benutzerverwaltung in den Einstellungen. 👥⚙️
+- **Feature (Admin):** Einführung von Abo-Stufen (Plastikgabel bis Rainbowspoon) und AI-Credits. 🍴🌈✨
+- **Feature (Admin):** Neues Benutzer-Detail-Modal mit Tabs für Profil, Haushalt, Kochbuch, Integration und Abo/Credits. 📋💎
+- **Feature (Admin):** Manuelles Buchungssystem für AI-Credits inkl. Transaktions-Historie. 💰📈
+- **Fix (PWA):** Beseitigung von Bildschirm-Flackern auf iOS durch optimierte Zoom-Prävention (Debouncing & Scale-aware Reset). 📱🚫✨
+- **DB:** Migration v0.22.0 ausgeführt (Tiers, Credits, Transactions). 🗄️✅
 
 ### Changelog v0.21.5
 - **Fix (Alexa):** Fehler in der Authentifizierung behoben (Missing User Import). Alexa-Anfragen funktionieren nun wieder korrekt. 🗣️🔐
