@@ -1,6 +1,9 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.21.4
+## Aktuelle Version: v0.21.5
+
+### Changelog v0.21.5
+- **Fix (Alexa):** Fehler in der Authentifizierung behoben (Missing User Import). Alexa-Anfragen funktionieren nun wieder korrekt. 🗣️🔐
 
 ### Changelog v0.21.4
 - **Fix (PWA):** Robustere Service Worker Strategie ("Network First" für Navigation) - verhindert leere Seiten nach App-Updates. 🔄🌐

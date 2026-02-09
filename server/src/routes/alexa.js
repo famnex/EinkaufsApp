@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { List, ListItem, Product, Settings, sequelize } = require('../models');
+const { List, ListItem, Product, Settings, User, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { logAlexa } = require('../utils/logger'); // Import Logger
 
