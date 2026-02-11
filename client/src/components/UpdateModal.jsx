@@ -42,6 +42,18 @@ export default function UpdateModal({ isOpen, onClose, currentVersion, updateInf
     }, []);
 
     useEffect(() => {
+        const handleBeforeUnload = (e) => {
+            if (status === 'updating' || status === 'restarting') {
+                e.preventDefault();
+                e.returnValue = ''; // Chrome requires this to be set
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [status]);
+
+    useEffect(() => {
         if (isOpen && status === 'idle') {
             startUpdate();
         }
@@ -65,7 +77,16 @@ export default function UpdateModal({ isOpen, onClose, currentVersion, updateInf
                 const data = JSON.parse(event.data);
                 if (data.type === 'stdout' || data.type === 'stderr') {
                     const cleanMessage = data.message.replace(/\x1b\[[0-9;]*[mGJK]/g, '');
-                    setLogs(prev => [...prev, cleanMessage]);
+
+                    // Filter out "npm notice" and other spam from logs if needed
+                    if (!cleanMessage.trim()) return;
+
+                    setLogs(prev => {
+                        // Keep log buffer size reasonable (last 200 lines)
+                        const newLogs = [...prev, cleanMessage];
+                        if (newLogs.length > 200) return newLogs.slice(newLogs.length - 200);
+                        return newLogs;
+                    });
 
                     // Update Progress based on markers
                     const stepIdx = UPDATE_STEPS.findIndex(s => cleanMessage.includes(s.marker));
@@ -75,6 +96,7 @@ export default function UpdateModal({ isOpen, onClose, currentVersion, updateInf
                 } else if (data.type === 'done') {
                     setLogs(prev => [...prev, `Process finished with code ${data.code}`]);
                     if (data.code === 0) {
+                        evtSource.close();
                         startRestartCheck();
                     } else {
                         setStatus('error');
@@ -94,24 +116,53 @@ export default function UpdateModal({ isOpen, onClose, currentVersion, updateInf
         evtSource.onerror = (err) => {
             console.log('Stream disconnected (likely server restart)', err);
             evtSource.close();
-            setCurrentStepIndex(UPDATE_STEPS.length - 1); // Last step
-            setLogs(prev => [...prev, '>>> Connection lost. Server is likely restarting...']);
-            startRestartCheck();
+            // If we are deep in the process (e.g. step 4 or 5), assume it's a restart
+            // If it fails immediately (step -1 or 0), it's an error
+            if (currentStepIndex >= 3) {
+                setCurrentStepIndex(UPDATE_STEPS.length - 1); // Last step
+                setLogs(prev => [...prev, '>>> Connection lost. Server is likely restarting...']);
+                startRestartCheck();
+            } else {
+                setStatus('error');
+                setLogs(prev => [...prev, '>>> Connection lost unexpectedly.']);
+            }
         };
     };
 
     const startRestartCheck = () => {
         setStatus('restarting');
+        let attempts = 0;
+        const maxAttempts = 60; // 2 minutes
+
         const checkInterval = setInterval(async () => {
+            attempts++;
             try {
-                await api.get('/');
+                // Try to hit a specific API endpoint that confirms the DB is up
+                await api.get('/system/settings?check=1', { timeout: 2000 });
+
                 clearInterval(checkInterval);
                 setStatus('success');
                 setCurrentStepIndex(UPDATE_STEPS.length); // All done
                 setFinalMessage('System successfully updated and restarted!');
-                setLogs(prev => [...prev, '>>> Server is back online!']);
+                setLogs(prev => [...prev, '>>> Server is back online and responding!']);
+
+                // Optional: Auto-reload after short delay
+                setTimeout(() => window.location.reload(), 1500);
+
             } catch (e) {
-                console.log('Waiting for server...', e.message);
+                const status = e.response ? e.response.status : 'Network Error';
+                console.log(`Waiting for server... (${attempts}/${maxAttempts}) - Status: ${status}`);
+
+                if (attempts % 5 === 0) {
+                    setLogs(prev => [...prev, `... waiting for server (${status})`]);
+                }
+
+                if (attempts >= maxAttempts) {
+                    clearInterval(checkInterval);
+                    setStatus('error');
+                    setFinalMessage('Time out waiting for server restart.');
+                    setLogs(prev => [...prev, '>>> Server took too long to restart.']);
+                }
             }
         }, 2000);
     };
