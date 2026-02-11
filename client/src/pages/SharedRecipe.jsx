@@ -101,7 +101,7 @@ export default function SharedRecipe() {
                         </button>
                         <div className="w-10 h-10 bg-white dark:bg-card rounded-xl flex items-center justify-center p-1.5 shadow-sm border border-border/50 overflow-hidden">
                             <img
-                                src={`${import.meta.env.BASE_URL}logo_gabelguru.png`}
+                                src={`${import.meta.env.BASE_URL}icon-512x512.png`}
                                 alt="GabelGuru Logo"
                                 className="w-full h-full object-contain"
                                 onError={(e) => {
