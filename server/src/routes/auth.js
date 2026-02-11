@@ -29,7 +29,7 @@ const upload = multer({ storage: storage });
 router.get('/me', auth, async (req, res) => {
     try {
         const user = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId']
+            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook']
         });
         if (!user) return res.status(404).json({ error: 'User not found' });
         res.json(user);
@@ -41,9 +41,10 @@ router.get('/me', auth, async (req, res) => {
 // Update Profile (Title & Image)
 router.put('/profile', auth, upload.single('image'), async (req, res) => {
     try {
-        const { cookbookTitle } = req.body;
+        const { cookbookTitle, isPublicCookbook } = req.body;
         const updates = {};
         if (cookbookTitle !== undefined) updates.cookbookTitle = cookbookTitle;
+        if (isPublicCookbook !== undefined) updates.isPublicCookbook = isPublicCookbook;
         if (req.file) {
             updates.cookbookImage = `/uploads/users/${req.user.effectiveId}/cookbook/${req.file.filename}`;
         } else if (req.body.cookbookImage === null || req.body.cookbookImage === 'null') {
@@ -52,7 +53,7 @@ router.put('/profile', auth, upload.single('image'), async (req, res) => {
 
         await User.update(updates, { where: { id: req.user.id } });
         const updatedUser = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage']
+            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook']
         });
         res.json(updatedUser);
     } catch (err) {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette } from 'lucide-react';
+import { Settings, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -689,90 +689,119 @@ export default function SettingsPage() {
 
     const CookbookSection = (
         <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
-            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                <ChefHat size={20} className="text-primary" />
-                Dein öffentliches Kochbuch
-            </h2>
-            <div className="space-y-6">
-                <div>
-                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Kochbuch-Titel</label>
-                    <div className="flex gap-2">
-                        <Input
-                            value={cookbookTitle}
-                            onChange={(e) => setCookbookTitle(e.target.value)}
-                            placeholder="Z.B. MEIN REZEPTSCHREIN"
-                            className="bg-muted border-transparent focus:bg-background"
-                        />
-                        <Button onClick={handleSaveCookbook} disabled={savingCookbook}>
-                            {savingCookbook ? '...' : 'OK'}
-                        </Button>
-                    </div>
-                </div>
+            <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                    <ChefHat size={20} className="text-primary" />
+                    Dein öffentliches Kochbuch
+                </h2>
+                <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={user?.isPublicCookbook || false}
+                        onChange={(e) => {
+                            const newVal = e.target.checked;
+                            // Optimistic update
+                            setUser({ ...user, isPublicCookbook: newVal });
+                            // API call
+                            api.put('/auth/profile', { isPublicCookbook: newVal }).catch(() => {
+                                setUser({ ...user, isPublicCookbook: !newVal }); // Revert on error
+                                alert('Fehler beim Speichern');
+                            });
+                        }}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+            </div>
 
-                <div>
-                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Hero-Bild (Startseite)</label>
-                    <div className="flex items-center gap-4">
-                        <div className="w-20 h-20 rounded-2xl bg-muted overflow-hidden border border-border flex items-center justify-center shrink-0">
-                            {cookbookImage ? (
-                                <img src={getImageUrl(cookbookImage)} className="w-full h-full object-cover" alt="Cookbook Preview" />
-                            ) : (
-                                <ChefHat size={32} className="text-muted-foreground/30" />
-                            )}
+            {user?.isPublicCookbook && (
+                <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-6"
+                >
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Kochbuch-Titel</label>
+                        <div className="flex gap-2">
+                            <Input
+                                value={cookbookTitle}
+                                onChange={(e) => setCookbookTitle(e.target.value)}
+                                placeholder="Z.B. MEIN REZEPTSCHREIN"
+                                className="bg-muted border-transparent focus:bg-background"
+                            />
+                            <Button onClick={handleSaveCookbook} disabled={savingCookbook}>
+                                {savingCookbook ? <Loader2 size={16} className="animate-spin" /> : 'OK'}
+                            </Button>
                         </div>
-                        <div className="space-y-2">
-                            <input
-                                type="file"
-                                id="cookbook-image"
-                                className="hidden"
-                                accept="image/*"
-                                onChange={handleCookbookImageUpload}
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Hero-Bild (Startseite)</label>
+                        <div className="flex items-center gap-4">
+                            <div className="w-20 h-20 rounded-2xl bg-muted overflow-hidden border border-border flex items-center justify-center shrink-0">
+                                {cookbookImage ? (
+                                    <img src={getImageUrl(cookbookImage)} className="w-full h-full object-cover" alt="Cookbook Preview" />
+                                ) : (
+                                    <ChefHat size={32} className="text-muted-foreground/30" />
+                                )}
+                            </div>
+                            <div className="space-y-2 flex-1">
+                                <input
+                                    type="file"
+                                    id="cookbook-image"
+                                    className="hidden"
+                                    accept="image/*"
+                                    onChange={handleCookbookImageUpload}
+                                />
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full"
+                                    onClick={() => document.getElementById('cookbook-image').click()}
+                                    disabled={savingCookbook}
+                                >
+                                    Bild ändern
+                                </Button>
+                                <p className="text-[10px] text-muted-foreground">Empfohlen: 300x300px</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-4 bg-muted/50 rounded-xl border border-border/50 space-y-3">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Dein öffentlicher Link</label>
+                        <div className="flex gap-2">
+                            <Input
+                                type="text"
+                                readOnly
+                                value={`${window.location.origin}${import.meta.env.BASE_URL}shared/${sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1")}
+                                className="bg-background border-border text-sm font-mono truncate h-9"
+                                onClick={(e) => e.target.select()}
                             />
                             <Button
                                 variant="outline"
                                 size="sm"
-                                className="w-full"
-                                onClick={() => document.getElementById('cookbook-image').click()}
-                                disabled={savingCookbook}
+                                className="h-9 shrink-0"
+                                onClick={() => {
+                                    const url = `${window.location.origin}${import.meta.env.BASE_URL}shared/${sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1");
+                                    navigator.clipboard.writeText(url);
+                                    alert('Link kopiert!');
+                                }}
                             >
-                                Bild ändern
+                                <Copy size={14} />
                             </Button>
-                            <p className="text-[10px] text-muted-foreground">Empfohlen: 300x300px</p>
                         </div>
-                    </div>
-                </div>
-
-                <div className="p-4 bg-muted/50 rounded-2xl border border-border/50">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Dein öffentlicher Link</label>
-                    <div className="flex gap-2">
-                        <Input
-                            type="text"
-                            readOnly
-                            value={`${window.location.origin}${import.meta.env.BASE_URL}shared/${sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1")}
-                            className="bg-background border-border text-sm font-mono truncate"
-                            onClick={(e) => e.target.select()}
-                        />
                         <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            onClick={() => {
-                                const url = `${window.location.origin}${import.meta.env.BASE_URL}shared/${sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1");
-                                navigator.clipboard.writeText(url);
-                                alert('Link kopiert!');
-                            }}
+                            className="w-full text-[10px] text-muted-foreground hover:text-destructive gap-1 h-auto py-1"
+                            onClick={handleRegenerateKey}
                         >
-                            Copy
+                            <X size={12} /> Neuen Key generieren (alte Links werden ungültig)
                         </Button>
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full mt-3 text-[10px] text-muted-foreground hover:text-destructive gap-1"
-                        onClick={handleRegenerateKey}
-                    >
-                        <X size={12} /> Neuen Key generieren (alte Links werden ungültig)
-                    </Button>
-                </div>
-            </div>
+                </motion.div>
+            )}
         </Card>
     );
 

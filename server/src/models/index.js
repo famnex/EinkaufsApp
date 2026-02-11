@@ -20,6 +20,7 @@ const User = sequelize.define('User', {
     alexaApiKey: { type: DataTypes.STRING, allowNull: true },
     sharingKey: { type: DataTypes.STRING, allowNull: true, unique: true },
     cookbookTitle: { type: DataTypes.STRING, defaultValue: 'MEIN KOCHBUCH' },
+    isPublicCookbook: { type: DataTypes.BOOLEAN, defaultValue: false },
     cookbookImage: { type: DataTypes.STRING, allowNull: true },
     householdId: { type: DataTypes.INTEGER, allowNull: true },
     tier: {

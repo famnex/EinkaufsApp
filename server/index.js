@@ -113,7 +113,7 @@ const serveSSR = async (req, res, meta = {}) => {
     });
 };
 
-const renderErrorPage = (res) => {
+const renderErrorPage = (res, message = 'Dieser Link ist ungültig oder abgelaufen. Frag am besten noch einmal nach einem aktuellen Link.') => {
     res.status(404).send(`
         <!DOCTYPE html>
         <html lang="de">
@@ -132,7 +132,7 @@ const renderErrorPage = (res) => {
         <body>
             <div class="card">
                 <h1>Halt da! 🛑</h1>
-                <p>Dieser Link ist ungültig oder abgelaufen. Frag am besten noch einmal nach einem aktuellen Link.</p>
+                <p>${message}</p>
                 <a href="/">Zur Startseite</a>
             </div>
         </body>
@@ -146,6 +146,9 @@ const serveSharedRecipe = async (req, res) => {
         const { sharingKey, id } = req.params;
         const user = await User.findOne({ where: { sharingKey } });
         if (!user) return renderErrorPage(res);
+
+        // CHECK PUBLIC FLAG
+        if (!user.isPublicCookbook) return renderErrorPage(res, 'Dieses Kochbuch ist privat.');
 
         const recipe = await Recipe.findOne({ where: { id, UserId: user.householdId || user.id } });
         if (!recipe) return renderErrorPage(res);
@@ -177,6 +180,9 @@ const serveSharedCookbook = async (req, res) => {
         const { sharingKey } = req.params;
         const user = await User.findOne({ where: { sharingKey } });
         if (!user) return renderErrorPage(res);
+
+        // CHECK PUBLIC FLAG
+        if (!user.isPublicCookbook) return renderErrorPage(res, 'Dieses Kochbuch ist privat.');
 
         const protocol = req.headers['x-forwarded-proto'] || req.protocol;
         const host = req.get('host');

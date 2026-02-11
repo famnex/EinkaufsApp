@@ -6,6 +6,7 @@ import { cn, getImageUrl } from '../lib/utils';
 import api from '../lib/axios';
 import CookingAssistant from './CookingAssistant';
 import { useAuth } from '../contexts/AuthContext';
+import ShareConfirmationModal from './ShareConfirmationModal';
 
 export default function CookingMode({ recipe, onClose }) {
     const [step, setStep] = useState(0);
@@ -284,32 +285,62 @@ export default function CookingMode({ recipe, onClose }) {
         }
     };
 
-    const handleShare = async () => {
-        if (!user || !user.sharingKey) {
-            alert('Kein Sharing-Key gefunden. Bitte in den Einstellungen generieren.');
-            return;
-        }
+    // Share Logic Consolidation
+    const [shareModalConfig, setShareModalConfig] = useState(null);
+    const { setUser } = useAuth(); // Ensure we can update user state locally if needed
 
-        const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}shared/${user.sharingKey}/recipe/${recipe.id}`.replace(/\/\//g, '/').replace('http:/', 'http://').replace('https:/', 'https://');
-
+    const executeShare = async (title, text, url) => {
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: recipe.title,
-                    text: `Probier mal dieses Rezept: ${recipe.title}`,
-                    url: shareUrl
+                    title,
+                    text,
+                    url
                 });
             } catch (err) {
                 console.error('Error sharing', err);
             }
         } else {
             try {
-                await navigator.clipboard.writeText(shareUrl);
+                await navigator.clipboard.writeText(`${text}: ${url}`); // Modified to copy text+url for clipboard fallback compatibility
                 alert('Link in Zwischenablage kopiert!');
             } catch (err) {
                 console.error('Failed to copy', err);
                 alert('Link konnte nicht kopiert werden.');
             }
+        }
+    };
+
+    const handleShareRequest = () => {
+        if (!user || !user.sharingKey) {
+            alert('Kein Sharing-Key gefunden. Bitte in den Einstellungen generieren.');
+            return;
+        }
+
+        const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}shared/${user.sharingKey}/recipe/${recipe.id}`.replace(/\/\//g, '/').replace('http:/', 'http://').replace('https:/', 'https://');
+        const shareTitle = recipe.title;
+        const shareText = `Probier mal dieses Rezept: ${recipe.title}`;
+
+        if (user.isPublicCookbook) {
+            executeShare(shareTitle, shareText, shareUrl);
+        } else {
+            setShareModalConfig({ title: shareTitle, text: shareText, url: shareUrl });
+        }
+    };
+
+    const handleConfirmShare = async () => {
+        if (!shareModalConfig) return;
+        try {
+            await api.put('/auth/profile', { isPublicCookbook: true });
+            if (user && setUser) {
+                setUser({ ...user, isPublicCookbook: true });
+            }
+            executeShare(shareModalConfig.title, shareModalConfig.text, shareModalConfig.url);
+        } catch (err) {
+            console.error('Failed to enable public cookbook', err);
+            alert('Fehler beim Aktivieren.');
+        } finally {
+            setShareModalConfig(null);
         }
     };
 
@@ -330,7 +361,7 @@ export default function CookingMode({ recipe, onClose }) {
                     <div className="flex items-center justify-between p-4 pb-2">
                         <h3 className="font-bold truncate pr-4 text-lg">{recipe.title}</h3>
                         <div className="flex items-center gap-2">
-                            <Button size="sm" onClick={handleShare} className="bg-secondary text-secondary-foreground hover:bg-secondary/90 px-4">
+                            <Button size="sm" onClick={handleShareRequest} className="bg-secondary text-secondary-foreground hover:bg-secondary/90 px-4">
                                 <Share2 size={20} />
                             </Button>
                             <Button size="sm" onClick={onClose} className="bg-primary text-primary-foreground hover:bg-primary/90 px-4">
@@ -365,7 +396,7 @@ export default function CookingMode({ recipe, onClose }) {
                     {/* Close Button & Controls (Top Right Overlay) - Desktop Only */}
                     <div className="absolute top-4 right-4 z-50 hidden md:flex gap-2">
                         {/* Text Size Controls removed for desktop per request */}
-                        <Button onClick={handleShare} className="rounded-full w-12 h-12 p-0 shadow-lg bg-secondary text-secondary-foreground hover:bg-secondary/90 border-none">
+                        <Button onClick={handleShareRequest} className="rounded-full w-12 h-12 p-0 shadow-lg bg-secondary text-secondary-foreground hover:bg-secondary/90 border-none">
                             <Share2 size={24} />
                         </Button>
                         <Button onClick={onClose} className="rounded-full w-12 h-12 p-0 shadow-lg bg-primary text-primary-foreground hover:bg-primary/90 border-none">
@@ -587,6 +618,11 @@ export default function CookingMode({ recipe, onClose }) {
                     )}
                 </AnimatePresence>
 
+                <ShareConfirmationModal
+                    isOpen={!!shareModalConfig}
+                    onClose={() => setShareModalConfig(null)}
+                    onConfirm={handleConfirmShare}
+                />
             </motion.div>
         </AnimatePresence>
     );

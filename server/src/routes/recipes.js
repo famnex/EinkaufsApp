@@ -70,6 +70,7 @@ router.get('/public/:sharingKey/:id', async (req, res) => {
         const user = await User.findOne({ where: { sharingKey } });
 
         if (!user) return res.status(403).json({ error: 'Ungültiger Freigabe-Link.' });
+        if (!user.isPublicCookbook) return res.status(403).json({ error: 'Dieses Kochbuch ist privat.' });
 
         const recipe = await Recipe.findOne({
             where: { id: id, UserId: user.id },
@@ -104,6 +105,7 @@ router.get('/public/:sharingKey', async (req, res) => {
         const user = await User.findOne({ where: { sharingKey } });
 
         if (!user) return res.status(403).json({ error: 'Ungültiger Freigabe-Link.' });
+        if (!user.isPublicCookbook) return res.status(403).json({ error: 'Dieses Kochbuch ist privat.' });
 
         const recipes = await Recipe.findAll({
             where: { UserId: user.id },

@@ -1,5 +1,6 @@
-import { ChefHat, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Button } from './Button';
 
 export default function SharedNotFound() {
@@ -7,9 +8,23 @@ export default function SharedNotFound() {
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-6 text-center">
-            <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-8 animate-bounce">
-                <ChefHat size={48} />
-            </div>
+            <motion.div
+                initial={{ opacity: 0, scale: 0.8, rotate: -5 }}
+                animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                transition={{
+                    type: "spring",
+                    stiffness: 200,
+                    damping: 15,
+                    duration: 0.6
+                }}
+                className="mb-8"
+            >
+                <img
+                    src={`${import.meta.env.BASE_URL}error-fork.png`}
+                    alt="Verwirrte Gabel"
+                    className="w-64 h-auto mx-auto drop-shadow-2xl"
+                />
+            </motion.div>
 
             <h1 className="text-4xl font-black tracking-tighter mb-4 text-foreground">
                 Halt da! 🛑

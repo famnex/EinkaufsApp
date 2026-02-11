@@ -13,6 +13,7 @@ import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import CookingMode from '../components/CookingMode';
 import ScheduleModal from '../components/ScheduleModal';
 import SlotMachineModal from '../components/SlotMachineModal';
+import ShareConfirmationModal from '../components/ShareConfirmationModal';
 import { cn, getImageUrl } from '../lib/utils';
 
 import { useLocation } from 'react-router-dom';
@@ -203,6 +204,61 @@ export default function Recipes() {
 
     const { visibleItems: renderedRecipes, observerTarget } = useInfiniteScroll(filteredRecipes, 12);
 
+    const [shareModalConfig, setShareModalConfig] = useState(null); // { title, text, url }
+    const { setUser } = useAuth(); // Ensure we can update user state locally
+
+    const executeShare = async (title, text, url) => {
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title,
+                    text,
+                    url
+                });
+            } catch (err) {
+                console.error('Error sharing', err);
+            }
+        } else {
+            try {
+                await navigator.clipboard.writeText(`${text}: ${url}`);
+                alert('Link in die Zwischenablage kopiert!');
+            } catch (err) {
+                console.error('Copy failed', err);
+                alert('Kopieren fehlgeschlagen');
+            }
+        }
+    };
+
+    const handleShareRequest = (title, text, url) => {
+        if (user?.isPublicCookbook) {
+            executeShare(title, text, url);
+        } else {
+            setShareModalConfig({ title, text, url });
+        }
+    };
+
+    const handleConfirmShare = async () => {
+        if (!shareModalConfig) return;
+
+        try {
+            // Enable public cookbook
+            await api.put('/auth/profile', { isPublicCookbook: true });
+
+            // Update local state
+            if (user) {
+                setUser({ ...user, isPublicCookbook: true });
+            }
+
+            // Proceed with share
+            executeShare(shareModalConfig.title, shareModalConfig.text, shareModalConfig.url);
+        } catch (err) {
+            console.error('Failed to enable public cookbook', err);
+            alert('Fehler beim Aktivieren des öffentlichen Kochbuchs.');
+        } finally {
+            setShareModalConfig(null);
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* ... (Search/Filter UI unchanged) ... */}
@@ -282,16 +338,11 @@ export default function Recipes() {
                 <div className="flex gap-2">
                     <Button
                         onClick={() => {
-                            if (navigator.share) {
-                                navigator.share({
-                                    title: 'Mein Kochbuch',
-                                    text: 'Schau dir mein Kochbuch an!',
-                                    url: `${window.location.origin}${import.meta.env.BASE_URL}shared/${user?.sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1")
-                                }).catch(console.error);
-                            } else {
-                                // Fallback
-                                alert('Teilen nicht unterstützt');
-                            }
+                            handleShareRequest(
+                                'Mein Kochbuch',
+                                'Schau dir mein Kochbuch an!',
+                                `${window.location.origin}${import.meta.env.BASE_URL}shared/${user?.sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1")
+                            );
                         }}
                         variant="ghost"
                         size="icon"
@@ -415,22 +466,12 @@ export default function Recipes() {
                                                                     const baseUrl = import.meta.env.BASE_URL;
                                                                     const link = `${window.location.origin}${baseUrl}shared/${user?.sharingKey}/recipe/${recipe.id}`.replace(/([^:]\/)\//g, "$1");
 
-                                                                    if (navigator.share) {
-                                                                        navigator.share({
-                                                                            title: recipe.title,
-                                                                            text: `Schau mal, ich habe ein Rezept für dich: ${recipe.title}`,
-                                                                            url: link
-                                                                        })
-                                                                            .then(() => setOpenMenuId(null))
-                                                                            .catch((error) => console.log('Error sharing', error));
-                                                                    } else {
-                                                                        navigator.clipboard.writeText(`Schau mal, ich habe ein Rezept für dich: ${link}`)
-                                                                            .then(() => {
-                                                                                alert('Link in die Zwischenablage kopiert!');
-                                                                                setOpenMenuId(null);
-                                                                            })
-                                                                            .catch(err => console.error('Copy failed', err));
-                                                                    }
+                                                                    handleShareRequest(
+                                                                        recipe.title,
+                                                                        `Schau mal, ich habe ein Rezept für dich: ${recipe.title}`,
+                                                                        link
+                                                                    );
+                                                                    setOpenMenuId(null);
                                                                 }}
                                                             >
                                                                 <Share2 size={16} />
@@ -584,6 +625,13 @@ export default function Recipes() {
                 recipe={recipeToDelete}
                 usage={deleteUsage}
             />
-        </div >
+
+            {/* Share Confirmation Modal */}
+            <ShareConfirmationModal
+                isOpen={!!shareModalConfig}
+                onClose={() => setShareModalConfig(null)}
+                onConfirm={handleConfirmShare}
+            />
+        </div>
     );
 }

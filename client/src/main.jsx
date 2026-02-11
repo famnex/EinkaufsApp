@@ -3,11 +3,28 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
-createRoot(document.getElementById('root')).render(
+const startTime = Date.now();
+const root = createRoot(document.getElementById('root'));
+
+root.render(
   <StrictMode>
     <App />
-  </StrictMode>,
-)
+  </StrictMode>
+);
+
+// Remove splash screen after min 1 second
+window.addEventListener('load', () => {
+  const splash = document.getElementById('splash-screen');
+  if (splash) {
+    const elapsed = Date.now() - startTime;
+    const remaining = Math.max(0, 1000 - elapsed);
+
+    setTimeout(() => {
+      splash.classList.add('hidden');
+      setTimeout(() => splash.remove(), 500); // Remove from DOM after fade out
+    }, remaining);
+  }
+});
 
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
