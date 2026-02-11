@@ -23,6 +23,10 @@ const runCommand = (cmd, args, cwd) => {
     });
 };
 
+const { Op } = require('sequelize');
+
+// ... (existing helper)
+
 // Get global system settings (Public for branding purposes)
 router.get('/settings', async (req, res) => {
     try {
@@ -52,6 +56,40 @@ router.get('/debug-settings', async (req, res) => {
     }
 });
 
+// FIX Endpoint: Migrate User-Bound settings to Global
+router.post('/fix-legacy-settings', auth, admin, async (req, res) => {
+    try {
+        const legacySettings = await Settings.findAll({
+            where: { UserId: { [Op.ne]: null } }
+        });
+
+        const fixed = [];
+        for (const s of legacySettings) {
+            // Identify system keys
+            if (s.key.startsWith('system_') || ['openai_key', 'alexa_key', 'registration_enabled'].includes(s.key)) {
+
+                // Check if a global one already exists (conflict)
+                const globalExists = await Settings.findOne({ where: { key: s.key, UserId: null } });
+
+                if (globalExists) {
+                    // Conflict: We assume the User-bound one is the 'latest' attempt by admin, 
+                    // or we keep the global one? 
+                    // Logic: If global is empty/default and user has value, take user.
+                    // Safer: Delete global, promote user one.
+                    await globalExists.destroy();
+                }
+
+                s.UserId = null;
+                await s.save();
+                fixed.push(s.key);
+            }
+        }
+        res.json({ message: 'Fixed legacy settings', fixed, count: fixed.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Update global system settings (Admin only)
 router.post('/settings', auth, admin, async (req, res) => {
     try {
@@ -62,36 +100,47 @@ router.post('/settings', auth, admin, async (req, res) => {
 
         const stringValue = value !== undefined ? String(value) : null;
 
-        let setting = await Settings.findOne({
-            where: { key, UserId: null }
-        });
+        // "Self-Healing" Logic:
+        // 1. Check for legacy user-bound setting first
+        let legacy = await Settings.findOne({ where: { key, UserId: { [Op.ne]: null } } });
+        let global = await Settings.findOne({ where: { key, UserId: null } });
 
-        if (setting) {
-            console.log(`[SYSTEM] Found existing setting ${setting.id}, updating...`);
-            setting.value = stringValue;
-            await setting.save();
+        if (legacy) {
+            console.log(`[SYSTEM] Found legacy setting ${legacy.id} (User ${legacy.UserId}), converting to Global...`);
+            // Convert legacy to global
+            if (global) {
+                console.log(`[SYSTEM] Removing conflicting global setting ${global.id}...`);
+                await global.destroy();
+            }
+            legacy.UserId = null;
+            legacy.value = stringValue;
+            await legacy.save();
+        } else if (global) {
+            console.log(`[SYSTEM] Found existing global setting ${global.id}, updating...`);
+            global.value = stringValue;
+            await global.save();
         } else {
-            console.log(`[SYSTEM] Creating new setting...`);
-            // Check if one was created in parallel (race condition mitigation)
+            console.log(`[SYSTEM] Creating new global setting...`);
             try {
-                setting = await Settings.create({
+                await Settings.create({
                     key,
                     value: stringValue,
                     UserId: null
                 });
             } catch (createErr) {
-                // If unique constraint fails here, it means it exists now, try updating again
                 if (createErr.name === 'SequelizeUniqueConstraintError') {
-                    setting = await Settings.findOne({ where: { key, UserId: null } });
-                    if (setting) {
-                        setting.value = stringValue;
-                        await setting.save();
+                    // Retry verify
+                    const retry = await Settings.findOne({ where: { key, UserId: null } });
+                    if (retry) {
+                        retry.value = stringValue;
+                        await retry.save();
                     }
                 } else {
                     throw createErr;
                 }
             }
         }
+
         console.log(`[SYSTEM] Setting ${key} updated successfully.`);
         res.json({ message: 'Setting updated', key, value: stringValue });
     } catch (err) {
