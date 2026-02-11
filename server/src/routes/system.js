@@ -50,7 +50,6 @@ router.post('/settings', auth, admin, async (req, res) => {
 
         const stringValue = value !== undefined ? String(value) : null;
 
-        // Using findOne and manual logic because upsert can be tricky with NULL in unique indexes
         let setting = await Settings.findOne({
             where: { key, UserId: null }
         });
@@ -59,11 +58,25 @@ router.post('/settings', auth, admin, async (req, res) => {
             setting.value = stringValue;
             await setting.save();
         } else {
-            setting = await Settings.create({
-                key,
-                value: stringValue,
-                UserId: null
-            });
+            // Check if one was created in parallel (race condition mitigation)
+            try {
+                setting = await Settings.create({
+                    key,
+                    value: stringValue,
+                    UserId: null
+                });
+            } catch (createErr) {
+                // If unique constraint fails here, it means it exists now, try updating again
+                if (createErr.name === 'SequelizeUniqueConstraintError') {
+                    setting = await Settings.findOne({ where: { key, UserId: null } });
+                    if (setting) {
+                        setting.value = stringValue;
+                        await setting.save();
+                    }
+                } else {
+                    throw createErr;
+                }
+            }
         }
 
         res.json({ message: 'Setting updated', key, value: stringValue });

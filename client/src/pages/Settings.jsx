@@ -76,18 +76,18 @@ export default function SettingsPage() {
             fetchUsers();
         }
         fetchHouseholdMembers();
-        // Keep local cookbook state in sync with user context
+    }, [user?.role]); // Only re-fetch if user role changes or component mounts
+
+    // Separate effect for syncing local state when user or members change
+    useEffect(() => {
         if (user) {
             if (user.householdId && user.householdOwnerName) {
-                // If user is a member, try to find the owner's details from household members list
-                // We might need to fetch members first or rely on users list if admin
-                // For now, let's trigger a fetch of the household owner if we don't have the data
-                // Accessing the owner's data from the members list
                 const owner = householdMembers.find(m => m.id === user.householdId);
+                // Only update if we actually found the owner to avoid clearing state unnecessarily
                 if (owner) {
                     setCookbookTitle(owner.cookbookTitle || 'MEIN KOCHBUCH');
                     setCookbookImage(owner.cookbookImage || null);
-                    setSharingKey(owner.sharingKey || ''); // Also the sharing key!
+                    setSharingKey(owner.sharingKey || '');
                 }
             } else {
                 setCookbookTitle(user.cookbookTitle || 'MEIN KOCHBUCH');
