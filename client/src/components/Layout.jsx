@@ -38,10 +38,10 @@ export default function Layout({ children }) {
                 style={{ paddingTop: 'env(safe-area-inset-top)' }}
             >
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 bg-white dark:bg-card rounded-xl flex items-center justify-center p-1.5 shadow-sm border border-border/50 overflow-hidden">
+                    <div className="flex items-center gap-2 h-full">
+                        <div className="w-20 h-20 -mt-2 -ml-4 self-start flex items-center justify-center overflow-visible z-50">
                             <img
-                                src="/logo_gabelguru.png"
+                                src={`${import.meta.env.BASE_URL}logo_wide.png`}
                                 alt="GabelGuru Logo"
                                 className="w-full h-full object-contain"
                                 onError={(e) => {

@@ -57,7 +57,7 @@ export default function LoginPage() {
             <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-primary/5 dark:bg-primary/10 rounded-full blur-[150px]" />
             <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-secondary/5 dark:bg-secondary/10 rounded-full blur-[150px]" />
 
-            <div className="absolute top-6 right-6 z-50">
+            <div className="absolute right-6 z-50" style={{ top: 'calc(1.5rem + env(safe-area-inset-top))' }}>
                 <ThemeToggle />
             </div>
 
@@ -76,7 +76,7 @@ export default function LoginPage() {
                             className="mb-6 rounded-2xl bg-white dark:bg-card p-4 shadow-lg shadow-black/5 transform hover:scale-110 transition-transform duration-500 overflow-hidden"
                         >
                             <img
-                                src="/logo_gabelguru.png"
+                                src={`${import.meta.env.BASE_URL}icon-512x512.png`}
                                 alt="GabelGuru Logo"
                                 className="w-16 h-16 object-contain"
                                 onError={(e) => {

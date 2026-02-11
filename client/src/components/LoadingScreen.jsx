@@ -42,7 +42,7 @@ export const LoadingScreen = ({ isVisible, message = "GabelGuru wird geladen" })
                             className="relative bg-white dark:bg-card p-6 rounded-[2.5rem] shadow-2xl shadow-primary/20 border-2 border-primary/20 overflow-hidden"
                         >
                             <img
-                                src="/logo_gabelguru.png"
+                                src={`${import.meta.env.BASE_URL}logo_gabelguru.png`}
                                 alt="GabelGuru Logo"
                                 className="w-20 h-20 object-contain"
                                 onError={(e) => {

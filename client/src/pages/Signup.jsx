@@ -43,7 +43,7 @@ export default function SignupPage() {
             <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[60%] bg-primary/5 dark:bg-primary/10 rounded-full blur-[150px]" />
             <div className="absolute bottom-[-20%] left-[-10%] w-[60%] h-[60%] bg-secondary/5 dark:bg-secondary/10 rounded-full blur-[150px]" />
 
-            <div className="absolute top-6 right-6 z-50">
+            <div className="absolute right-6 z-50" style={{ top: 'calc(1.5rem + env(safe-area-inset-top))' }}>
                 <ThemeToggle />
             </div>
 
