@@ -141,9 +141,33 @@ function cleanOldBackups() {
     }
 }
 
+// ... (previous code)
+
+const DATA_DIR = path.join(__dirname, 'server', 'data');
+const MIGRATION_STATE_FILE = path.join(DATA_DIR, 'migrations.json');
+
+function loadMigrationState() {
+    if (fs.existsSync(MIGRATION_STATE_FILE)) {
+        try {
+            return JSON.parse(fs.readFileSync(MIGRATION_STATE_FILE, 'utf8'));
+        } catch (e) {
+            log('Warning: Could not read migration state file, starting fresh.', 'yellow');
+            return [];
+        }
+    }
+    return [];
+}
+
+function saveMigrationState(state) {
+    if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(MIGRATION_STATE_FILE, JSON.stringify(state, null, 2));
+}
+
 async function main() {
     log('\n╔════════════════════════════════════════╗', 'bright');
-    log('║   GabelGuru Update Script v1.0      ║', 'bright');
+    log('║   GabelGuru Update Script v1.1      ║', 'bright'); // Bumped script version
     log('╚════════════════════════════════════════╝', 'bright');
 
     let backupPath = null;
@@ -165,19 +189,27 @@ async function main() {
         }
 
         // Step 2: Find migrations
-        const migrations = findMigrations();
+        const allMigrations = findMigrations();
+        const executedMigrations = loadMigrationState();
 
-        // Step 3: Create backup (only if migrations exist)
-        if (migrations.length > 0) {
+        // Filter out already executed migrations
+        const migrationsToRun = allMigrations.filter(m => !executedMigrations.includes(m));
+
+        if (migrationsToRun.length === 0) {
+            log('\n no pending migrations.', 'green');
+        } else {
+            // Step 3: Create backup (only if NEW migrations exist)
             backupPath = createBackup();
 
             // Step 4: Run migrations
             log('\n Running Migrations...', 'blue');
-            for (const migration of migrations) {
+            for (const migration of migrationsToRun) {
                 runMigration(migration);
+                executedMigrations.push(migration);
+                saveMigrationState(executedMigrations); // Save after each successful migration
             }
 
-            log('\n All migrations completed successfully!', 'green');
+            log('\n All pending migrations completed successfully!', 'green');
         }
 
         // Step 5: Clean old backups

@@ -132,38 +132,59 @@ export default function UpdateModal({ isOpen, onClose, currentVersion, updateInf
     const startRestartCheck = () => {
         setStatus('restarting');
         let attempts = 0;
-        const maxAttempts = 60; // 2 minutes
+        const maxAttempts = 120; // 4 minutes (increased to be safe)
 
         const checkInterval = setInterval(async () => {
             attempts++;
             try {
-                // Try to hit a specific API endpoint that confirms the DB is up
-                await api.get('/system/settings?check=1', { timeout: 2000 });
+                // Use fetch to bypass axios interceptors (like 401 redirect)
+                // Construct URL manually to be safe, or use api.getUri if available
+                const baseUrl = api.defaults.baseURL || '/api';
+                const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+                const checkUrl = `${cleanBase}/system/settings?check=1&t=${Date.now()}`;
 
-                clearInterval(checkInterval);
-                setStatus('success');
-                setCurrentStepIndex(UPDATE_STEPS.length); // All done
-                setFinalMessage('System successfully updated and restarted!');
-                setLogs(prev => [...prev, '>>> Server is back online and responding!']);
+                const response = await fetch(checkUrl);
 
-                // Optional: Auto-reload after short delay
-                setTimeout(() => window.location.reload(), 1500);
+                if (response.ok) {
+                    clearInterval(checkInterval);
+                    setStatus('success');
+                    setCurrentStepIndex(UPDATE_STEPS.length); // All done
+                    setFinalMessage('System successfully updated and restarted!');
+                    setLogs(prev => [...prev, `>>> Server responding (Status: ${response.status}). Validating... OK!`]);
+
+                    // Optional: Auto-reload after short delay
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    // 404, 500, 502 etc.
+                    if (attempts % 2 === 0) {
+                        setLogs(prev => {
+                            const newLogs = [...prev, `... ping (Status: ${response.status})`];
+                            if (newLogs.length > 200) return newLogs.slice(newLogs.length - 200);
+                            return newLogs;
+                        });
+                    }
+                }
 
             } catch (e) {
-                const status = e.response ? e.response.status : 'Network Error';
-                console.log(`Waiting for server... (${attempts}/${maxAttempts}) - Status: ${status}`);
+                // Network error (fetch failed completely)
+                // console.log(`Waiting for server... (${attempts}/${maxAttempts}) - Error: ${e.message}`);
 
-                if (attempts % 5 === 0) {
-                    setLogs(prev => [...prev, `... waiting for server (${status})`]);
-                }
-
-                if (attempts >= maxAttempts) {
-                    clearInterval(checkInterval);
-                    setStatus('error');
-                    setFinalMessage('Time out waiting for server restart.');
-                    setLogs(prev => [...prev, '>>> Server took too long to restart.']);
+                if (attempts % 2 === 0) {
+                    setLogs(prev => {
+                        const newLogs = [...prev, `... ping (Network: ${e.message || 'Connection Refused'})`];
+                        if (newLogs.length > 200) return newLogs.slice(newLogs.length - 200);
+                        return newLogs;
+                    });
                 }
             }
+
+            if (attempts >= maxAttempts) {
+                clearInterval(checkInterval);
+                setStatus('error');
+                setFinalMessage('Time out waiting for server restart.');
+                setLogs(prev => [...prev, '>>> Server took too long to restart.']);
+            }
+
         }, 2000);
     };
 

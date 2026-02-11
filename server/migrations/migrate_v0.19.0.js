@@ -95,7 +95,8 @@ async function migrate() {
             { model: RecipeIngredient, table: 'RecipeIngredients' },
             { model: Tag, table: 'Tags' },
             { model: ProductRelation, table: 'ProductRelations' },
-            { model: Settings, table: 'Settings' },
+            // Settings excluded to prevent resetting global settings to admin user
+            // { model: Settings, table: 'Settings' },
             { model: HiddenCleanup, table: 'HiddenCleanups' },
             { model: ProductSubstitution, table: 'ProductSubstitutions' },
             { model: RecipeTag, table: 'RecipeTags' }
