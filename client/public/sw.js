@@ -1,12 +1,11 @@
 // Service Worker for PWA offline support
-const CACHE_NAME = 'einkaufsapp-v2'; // Bumped version to force cache refresh
+const CACHE_NAME = 'einkaufsapp-0.22.6'; // Bumped version to force cache refresh
 const STATIC_ASSETS = [
     './',
     'index.html',
     'manifest.json',
     'icon-192x192.png',
     'icon-512x512.png',
-    'logo_cooking_guys.jpg',
     'pattern.svg'
 ];
 
@@ -43,6 +42,7 @@ self.addEventListener('fetch', (event) => {
     // Skip cross-origin requests, API requests, and browser extensions
     if (!event.request.url.startsWith(self.location.origin) ||
         event.request.url.includes('/api/') ||
+        event.request.url.includes('/system/') || // Explicitly exclude system settings
         event.request.url.includes('/uploads/') ||
         event.request.url.startsWith('chrome-extension:')) {
         return;

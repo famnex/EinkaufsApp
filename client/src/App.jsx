@@ -88,9 +88,26 @@ function AppContent() {
   // Fetch and apply system settings (Accent & Secondary Color)
   useEffect(() => {
     const fetchSettings = async () => {
+      // 1. Try to load from localStorage first for immediate results
       try {
-        // Force timestamp to avoid caching
+        const cached = localStorage.getItem('system_settings_cache');
+        if (cached) {
+          const data = JSON.parse(cached);
+          if (data.system_accent_color) applyThemeColor('accent', data.system_accent_color);
+          if (data.system_secondary_color) applyThemeColor('secondary', data.system_secondary_color);
+        }
+      } catch (e) {
+        console.warn('Failed to load cached settings', e);
+      }
+
+      // 2. Fetch fresh data from server
+      try {
         const { data } = await axios.get(`/system/settings?t=${Date.now()}`);
+
+        // Update Cache
+        localStorage.setItem('system_settings_cache', JSON.stringify(data));
+
+        // Apply if different (applyThemeColor handles idempotent calls efficiently enough)
         if (data.system_accent_color) {
           console.log('App: Applying accent color from server:', data.system_accent_color);
           applyThemeColor('accent', data.system_accent_color);
@@ -100,12 +117,12 @@ function AppContent() {
           applyThemeColor('secondary', data.system_secondary_color);
         }
       } catch (err) {
-        console.error('System settings could not be loaded - defaults will be used', err);
+        console.error('System settings could not be loaded - defaults/cache will be used', err);
       }
     };
 
     fetchSettings();
-  }, [user]); // Re-run when user auth state changes (just in case, though route is public, network might recover)
+  }, [user]); // Re-run when user auth state changes
 
   // Remove initial splash screen once app is mounted
   useEffect(() => {
