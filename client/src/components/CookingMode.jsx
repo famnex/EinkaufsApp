@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, Maximize2, Minimize2, AlertTriangle, Sparkles } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, Maximize2, Minimize2, AlertTriangle, Sparkles, Share2 } from 'lucide-react';
 import { Button } from './Button';
 import { cn, getImageUrl } from '../lib/utils';
 import api from '../lib/axios';
 import CookingAssistant from './CookingAssistant';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function CookingMode({ recipe, onClose }) {
     const [step, setStep] = useState(0);
@@ -12,6 +13,7 @@ export default function CookingMode({ recipe, onClose }) {
     const [textSize, setTextSize] = useState(1); // 0: Small, 1: Normal, 2: Large
     const [showIngredientsMobile, setShowIngredientsMobile] = useState(false); // For mobile toggle
     const [showAssistant, setShowAssistant] = useState(false);
+    const { user } = useAuth();
     const [futureUsage, setFutureUsage] = useState({}); // { ingredientId: [{ date, recipeName }] }
     const [direction, setDirection] = useState(0);
 
@@ -282,6 +284,35 @@ export default function CookingMode({ recipe, onClose }) {
         }
     };
 
+    const handleShare = async () => {
+        if (!user || !user.sharingKey) {
+            alert('Kein Sharing-Key gefunden. Bitte in den Einstellungen generieren.');
+            return;
+        }
+
+        const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}shared/${user.sharingKey}/${recipe.id}`.replace(/\/\//g, '/').replace('http:/', 'http://').replace('https:/', 'https://');
+
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: recipe.title,
+                    text: `Probier mal dieses Rezept: ${recipe.title}`,
+                    url: shareUrl
+                });
+            } catch (err) {
+                console.error('Error sharing', err);
+            }
+        } else {
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                alert('Link in Zwischenablage kopiert!');
+            } catch (err) {
+                console.error('Failed to copy', err);
+                alert('Link konnte nicht kopiert werden.');
+            }
+        }
+    };
+
     return (
         <AnimatePresence>
             <motion.div
@@ -298,9 +329,14 @@ export default function CookingMode({ recipe, onClose }) {
                     {/* Top Row: Title & Close */}
                     <div className="flex items-center justify-between p-4 pb-2">
                         <h3 className="font-bold truncate pr-4 text-lg">{recipe.title}</h3>
-                        <Button variant="ghost" size="icon" onClick={onClose} className="-mr-2">
-                            <X size={24} />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Button size="sm" onClick={handleShare} className="bg-secondary text-secondary-foreground hover:bg-secondary/90 px-4">
+                                <Share2 size={20} />
+                            </Button>
+                            <Button size="sm" onClick={onClose} className="bg-primary text-primary-foreground hover:bg-primary/90 px-4">
+                                <X size={20} />
+                            </Button>
+                        </div>
                     </div>
 
                     {/* Bottom Row: Actions */}
@@ -329,7 +365,10 @@ export default function CookingMode({ recipe, onClose }) {
                     {/* Close Button & Controls (Top Right Overlay) - Desktop Only */}
                     <div className="absolute top-4 right-4 z-50 hidden md:flex gap-2">
                         {/* Text Size Controls removed for desktop per request */}
-                        <Button variant="secondary" onClick={onClose} className="rounded-full w-12 h-12 p-0 shadow-lg">
+                        <Button onClick={handleShare} className="rounded-full w-12 h-12 p-0 shadow-lg bg-secondary text-secondary-foreground hover:bg-secondary/90 border-none">
+                            <Share2 size={24} />
+                        </Button>
+                        <Button onClick={onClose} className="rounded-full w-12 h-12 p-0 shadow-lg bg-primary text-primary-foreground hover:bg-primary/90 border-none">
                             <X size={24} />
                         </Button>
                     </div>
