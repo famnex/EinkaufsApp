@@ -185,7 +185,7 @@ router.get('/household/members', auth, async (req, res) => {
                     { householdId: householdId }
                 ]
             },
-            attributes: ['id', 'username', 'email', 'role', 'cookbookTitle', 'householdId']
+            attributes: ['id', 'username', 'email', 'role', 'cookbookTitle', 'cookbookImage', 'householdId']
         });
         res.json(members);
     } catch (err) {

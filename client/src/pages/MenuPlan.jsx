@@ -319,12 +319,12 @@ export default function MenuPlan() {
                                         <div className={cn(
                                             "flex flex-col items-center justify-center w-12 h-12 rounded-xl shrink-0 transition-colors relative",
                                             isToday ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-                                            shoppingList && !isToday && "bg-teal-500/10 text-teal-600"
+                                            shoppingList && !isToday && "bg-secondary/10 text-secondary"
                                         )}>
                                             <span className="text-[10px] uppercase font-bold tracking-wider">{day.dayName}</span>
                                             <span className="text-lg font-bold leading-none">{day.dayNum}</span>
                                             {shoppingList && (
-                                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-teal-500 rounded-full border border-card" />
+                                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-secondary rounded-full border border-card" />
                                             )}
                                         </div>
 
@@ -341,7 +341,7 @@ export default function MenuPlan() {
                                                                 e.stopPropagation();
                                                                 navigate(`/lists/${shoppingList.id}`);
                                                             }}
-                                                            className="inline-flex items-center gap-1.5 bg-teal-500/10 text-teal-600 px-2 py-1 rounded-lg text-xs font-bold hover:bg-teal-500/20 transition-colors shrink-0"
+                                                            className="inline-flex items-center gap-1.5 bg-secondary/10 text-secondary px-2 py-1 rounded-lg text-xs font-bold hover:bg-secondary/20 transition-colors shrink-0"
                                                         >
                                                             <ShoppingCart size={12} />
                                                             <span>Einkauf</span>
@@ -357,7 +357,7 @@ export default function MenuPlan() {
                                                             <span>Zutaten planen</span>
                                                         </button>
                                                     </div>
-                                                    <ShoppingCart size={16} className="text-teal-600 md:hidden shrink-0" />
+                                                    <ShoppingCart size={16} className="text-secondary md:hidden shrink-0" />
                                                 </>
                                             )}
 
@@ -432,9 +432,9 @@ export default function MenuPlan() {
                                                         <div className="flex gap-2">
                                                             <div
                                                                 onClick={() => navigate(`/lists/${shoppingList.id}`)}
-                                                                className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-teal-500/10 text-teal-700 hover:bg-teal-500/20 cursor-pointer transition-colors"
+                                                                className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-secondary/10 text-secondary hover:bg-secondary/20 cursor-pointer transition-colors"
                                                             >
-                                                                <div className="w-8 h-8 rounded-lg bg-teal-500 text-white flex items-center justify-center shrink-0">
+                                                                <div className="w-8 h-8 rounded-lg bg-secondary text-white flex items-center justify-center shrink-0">
                                                                     <ShoppingCart size={16} />
                                                                 </div>
                                                                 <div className="flex-1 text-sm font-bold">

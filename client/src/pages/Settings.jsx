@@ -78,11 +78,24 @@ export default function SettingsPage() {
         fetchHouseholdMembers();
         // Keep local cookbook state in sync with user context
         if (user) {
-            setCookbookTitle(user.cookbookTitle || 'MEIN KOCHBUCH');
-            setCookbookImage(user.cookbookImage || null);
-            setSharingKey(user.sharingKey || '');
+            if (user.householdId && user.householdOwnerName) {
+                // If user is a member, try to find the owner's details from household members list
+                // We might need to fetch members first or rely on users list if admin
+                // For now, let's trigger a fetch of the household owner if we don't have the data
+                // Accessing the owner's data from the members list
+                const owner = householdMembers.find(m => m.id === user.householdId);
+                if (owner) {
+                    setCookbookTitle(owner.cookbookTitle || 'MEIN KOCHBUCH');
+                    setCookbookImage(owner.cookbookImage || null);
+                    setSharingKey(owner.sharingKey || ''); // Also the sharing key!
+                }
+            } else {
+                setCookbookTitle(user.cookbookTitle || 'MEIN KOCHBUCH');
+                setCookbookImage(user.cookbookImage || null);
+                setSharingKey(user.sharingKey || '');
+            }
         }
-    }, [user]);
+    }, [user, householdMembers]);
 
     useEffect(() => {
         if (editMode === 'create') {
@@ -452,16 +465,12 @@ export default function SettingsPage() {
         if (!confirm('Tatsächlich die systemweiten Design-Farben ändern?')) return;
         setSavingDesign(true);
         try {
-            await Promise.all([
-                api.post('/system/settings', {
-                    key: 'system_accent_color',
-                    value: accentColor
-                }),
-                api.post('/system/settings', {
-                    key: 'system_secondary_color',
-                    value: secondaryColor
-                })
-            ]);
+            for (const payload of [
+                { key: 'system_accent_color', value: accentColor },
+                { key: 'system_secondary_color', value: secondaryColor }
+            ]) {
+                await api.post('/system/settings', payload);
+            }
 
             // Update local theme immediately
             const root = document.documentElement;
@@ -1168,13 +1177,6 @@ export default function SettingsPage() {
                                     className="bg-muted border-transparent focus:bg-background transition-colors font-mono"
                                 />
                             </div>
-                            <Button
-                                onClick={handleSaveDesign}
-                                disabled={savingDesign}
-                                className="shadow-lg shadow-primary/20"
-                            >
-                                {savingDesign ? <Loader2 size={16} className="animate-spin" /> : 'Sichern'}
-                            </Button>
                         </div>
                         <p className="text-[10px] text-muted-foreground mt-2">Diese Farbe wird als Hauptfarbe (Buttons, Banner, Icons) für alle Nutzer verwendet.</p>
                     </div>

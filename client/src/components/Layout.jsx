@@ -22,7 +22,7 @@ export default function Layout({ children }) {
 
     const getPageTitle = () => {
         const path = location.pathname;
-        if (path === '/') return 'Home';
+        if (path === '/') return 'Listen';
         if (path === '/menu') return 'Menüplan';
         if (path === '/recipes') return 'Rezepte';
         if (path === '/products') return 'Produkte';
