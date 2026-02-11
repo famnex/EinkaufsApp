@@ -89,20 +89,23 @@ function AppContent() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const { data } = await axios.get('/system/settings');
+        // Force timestamp to avoid caching
+        const { data } = await axios.get(`/system/settings?t=${Date.now()}`);
         if (data.system_accent_color) {
+          console.log('App: Applying accent color from server:', data.system_accent_color);
           applyThemeColor('accent', data.system_accent_color);
         }
         if (data.system_secondary_color) {
+          console.log('App: Applying secondary color from server:', data.system_secondary_color);
           applyThemeColor('secondary', data.system_secondary_color);
         }
       } catch (err) {
-        console.warn('System settings could not be loaded', err);
+        console.error('System settings could not be loaded - defaults will be used', err);
       }
     };
 
     fetchSettings();
-  }, []);
+  }, [user]); // Re-run when user auth state changes (just in case, though route is public, network might recover)
 
   // Remove initial splash screen once app is mounted
   useEffect(() => {

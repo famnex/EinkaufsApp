@@ -46,6 +46,8 @@ router.get('/settings', async (req, res) => {
 router.post('/settings', auth, admin, async (req, res) => {
     try {
         const { key, value } = req.body;
+        console.log(`[SYSTEM] Update Request: ${key} = ${value} (User: ${req.user.username})`);
+
         if (!key) return res.status(400).json({ error: 'Key is required' });
 
         const stringValue = value !== undefined ? String(value) : null;
@@ -55,9 +57,11 @@ router.post('/settings', auth, admin, async (req, res) => {
         });
 
         if (setting) {
+            console.log(`[SYSTEM] Found existing setting ${setting.id}, updating...`);
             setting.value = stringValue;
             await setting.save();
         } else {
+            console.log(`[SYSTEM] Creating new setting...`);
             // Check if one was created in parallel (race condition mitigation)
             try {
                 setting = await Settings.create({
@@ -78,7 +82,7 @@ router.post('/settings', auth, admin, async (req, res) => {
                 }
             }
         }
-
+        console.log(`[SYSTEM] Setting ${key} updated successfully.`);
         res.json({ message: 'Setting updated', key, value: stringValue });
     } catch (err) {
         console.error('SYSTEM_SETTINGS_UPDATE_ERROR:', err);

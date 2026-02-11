@@ -290,7 +290,7 @@ export default function CookingMode({ recipe, onClose }) {
             return;
         }
 
-        const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}shared/${user.sharingKey}/${recipe.id}`.replace(/\/\//g, '/').replace('http:/', 'http://').replace('https:/', 'https://');
+        const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}shared/${user.sharingKey}/recipe/${recipe.id}`.replace(/\/\//g, '/').replace('http:/', 'http://').replace('https:/', 'https://');
 
         if (navigator.share) {
             try {
