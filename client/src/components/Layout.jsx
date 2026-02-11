@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useEditMode } from '../contexts/EditModeContext';
@@ -17,9 +17,37 @@ export default function Layout({ children }) {
     const { pendingChanges, isSyncing, isOffline } = useSync();
     const location = useLocation();
 
+    // Navigation Order for animation direction
+    // Lists (/) -> Menu -> Recipes -> Products -> Settings
+    const navOrder = ['/', '/menu', '/recipes', '/products', '/settings'];
+    const getNavIndex = (path) => {
+        // Handle detail paths or unknown paths by defaulting to a logical parent or -1
+        if (path.startsWith('/lists/')) return 0; // Treat list details as part of "Lists" tab
+        if (path.startsWith('/shared/')) return -1;
+        return navOrder.indexOf(path);
+    };
+
+    const [direction, setDirection] = useState(0);
+    const prevPathRef = useRef(location.pathname);
+    const prevIndexRef = useRef(getNavIndex(location.pathname));
+
     useEffect(() => {
         setEditMode('view');
     }, [location.pathname, setEditMode]);
+
+    useEffect(() => {
+        const currIndex = getNavIndex(location.pathname);
+        const prevIndex = prevIndexRef.current;
+
+        if (currIndex !== -1 && prevIndex !== -1 && currIndex !== prevIndex) {
+            setDirection(currIndex > prevIndex ? 1 : -1);
+        } else {
+            setDirection(0); // Default or cross-level navigation (fade)
+        }
+
+        prevPathRef.current = location.pathname;
+        prevIndexRef.current = currIndex;
+    }, [location.pathname]);
 
     const getPageTitle = () => {
         const path = location.pathname;
@@ -32,6 +60,26 @@ export default function Layout({ children }) {
         return 'GabelGuru';
     };
 
+    const variants = {
+        enter: (direction) => ({
+            x: direction > 0 ? 20 : direction < 0 ? -20 : 0,
+            opacity: 0,
+            scale: 0.95
+        }),
+        center: {
+            x: 0,
+            opacity: 1,
+            scale: 1,
+            transition: { duration: 0.3, type: "spring", stiffness: 300, damping: 30 }
+        },
+        exit: (direction) => ({
+            x: direction > 0 ? -20 : direction < 0 ? 20 : 0,
+            opacity: 0,
+            scale: 0.95,
+            transition: { duration: 0.2 }
+        })
+    };
+
     return (
         <div className="min-h-screen bg-background pb-24">
             <header
@@ -39,8 +87,8 @@ export default function Layout({ children }) {
                 style={{ paddingTop: 'env(safe-area-inset-top)' }}
             >
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-2 h-full">
-                        <div className="w-20 h-20 -mt-2 -ml-4 self-start flex items-center justify-center overflow-visible z-50">
+                    <div className="flex items-center gap-2 h-full overflow-hidden">
+                        <div className="w-20 h-20 -mt-2 -ml-4 self-start flex items-center justify-center overflow-visible z-50 flex-shrink-0">
                             <img
                                 src={`${import.meta.env.BASE_URL}logo_wide.png`}
                                 alt="GabelGuru Logo"
@@ -54,7 +102,22 @@ export default function Layout({ children }) {
                                 <List size={20} />
                             </div>
                         </div>
-                        <span className="text-xl font-bebas tracking-wider text-foreground">{getPageTitle()}</span>
+
+                        <div className="relative h-8 flex items-center">
+                            <AnimatePresence mode="popLayout" custom={direction} initial={false}>
+                                <motion.span
+                                    key={location.pathname}
+                                    custom={direction}
+                                    variants={variants}
+                                    initial="enter"
+                                    animate="center"
+                                    exit="exit"
+                                    className="text-xl font-bebas tracking-wider text-foreground whitespace-nowrap block"
+                                >
+                                    {getPageTitle()}
+                                </motion.span>
+                            </AnimatePresence>
+                        </div>
                     </div>
 
                     <div className="flex-1 flex justify-end items-center gap-2">

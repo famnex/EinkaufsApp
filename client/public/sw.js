@@ -1,5 +1,5 @@
 // Service Worker for PWA offline support
-const CACHE_NAME = 'einkaufsapp-0.22.6'; // Bumped version to force cache refresh
+const CACHE_NAME = 'einkaufsapp-0.22.7'; // Bumped version to force cache refresh
 const STATIC_ASSETS = [
     './',
     'index.html',

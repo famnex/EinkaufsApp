@@ -42,6 +42,16 @@ router.get('/settings', async (req, res) => {
     }
 });
 
+// DEBUG Endpoint to inspect DB state
+router.get('/debug-settings', async (req, res) => {
+    try {
+        const all = await Settings.findAll();
+        res.json({ count: all.length, rows: all });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Update global system settings (Admin only)
 router.post('/settings', auth, admin, async (req, res) => {
     try {
