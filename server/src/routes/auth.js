@@ -2,12 +2,18 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { User, Settings } = require('../models');
+const { User, Settings, LoginLog, Recipe } = require('../models');
 const { auth } = require('../middleware/auth');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+
+// Helper: Hash IP
+const hashIp = (ip) => {
+    const salt = 'gabelguru-log-salt';
+    return crypto.createHash('sha256').update(ip + salt).digest('hex');
+};
 
 // Configure multer for cookbook image
 const storage = multer.diskStorage({
@@ -24,6 +30,51 @@ const storage = multer.diskStorage({
     }
 });
 const upload = multer({ storage: storage });
+
+// Get Public Cookbooks
+router.get('/public-cookbooks', async (req, res) => {
+    try {
+        console.log('Fetching public cookbooks...');
+        const users = await User.findAll({
+            where: { isPublicCookbook: true },
+            attributes: ['id', 'username', 'cookbookTitle', 'cookbookImage', 'sharingKey'],
+            include: [{
+                model: Recipe,
+                attributes: ['image_url']
+            }]
+        });
+
+        console.log(`Found ${users.length} public users.`);
+
+        // Format data
+        const result = users.map(user => {
+            let displayImage = user.cookbookImage;
+
+            // If no cookbook image, try to pick random recipe image
+            if (!displayImage && user.Recipes && user.Recipes.length > 0) {
+                const recipesWithImages = user.Recipes.filter(r => r.image_url);
+                if (recipesWithImages.length > 0) {
+                    const randomIdx = Math.floor(Math.random() * recipesWithImages.length);
+                    displayImage = recipesWithImages[randomIdx].image_url;
+                    console.log(`User ${user.username}: Picked random recipe image ${displayImage}`);
+                }
+            }
+
+            return {
+                username: user.username,
+                cookbookTitle: user.cookbookTitle,
+                cookbookImage: displayImage,
+                sharingKey: user.sharingKey,
+                recipeCount: user.Recipes ? user.Recipes.length : 0
+            };
+        });
+
+        res.json(result);
+    } catch (err) {
+        console.error('Fetch public cookbooks failed:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // Get current user profile
 router.get('/me', auth, async (req, res) => {
@@ -304,17 +355,56 @@ router.post('/household/join', auth, async (req, res) => {
 // Basic Login (Local)
 router.post('/login', async (req, res) => {
     const { username, password } = req.body;
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const ipHash = hashIp(ip);
+
     try {
         const user = await User.findOne({ where: { username } });
-        if (!user) return res.status(400).json({ error: 'Invalid username or password' });
+
+        // Auto-Cleanup: Delete logs older than 14 days
+        // We do this async without awaiting to not block the login
+        const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+        LoginLog.destroy({
+            where: { createdAt: { [require('sequelize').Op.lt]: fourteenDaysAgo } }
+        }).catch(err => console.error('Log cleanup error:', err));
+
+        // Failed Login (User not found)
+        if (!user) {
+            await LoginLog.create({
+                username: username, // Log attempted username
+                event: 'login_failed',
+                ipHash: ipHash,
+                userAgent: req.headers['user-agent']
+            });
+            return res.status(400).json({ error: 'Invalid username or password' });
+        }
 
         if (user.isLdap) {
-            // LDAP Logic Placeholder
             return res.status(501).json({ error: 'LDAP login not fully implemented yet' });
         }
 
         const validPass = await bcrypt.compare(password, user.password);
-        if (!validPass) return res.status(400).json({ error: 'Invalid username or password' });
+
+        // Failed Login (Wrong password)
+        if (!validPass) {
+            await LoginLog.create({
+                username: user.username,
+                UserId: user.id,
+                event: 'login_failed',
+                ipHash: ipHash,
+                userAgent: req.headers['user-agent']
+            });
+            return res.status(400).json({ error: 'Invalid username or password' });
+        }
+
+        // Success Login
+        await LoginLog.create({
+            username: user.username,
+            UserId: user.id,
+            event: 'login_success',
+            ipHash: ipHash,
+            userAgent: req.headers['user-agent']
+        });
 
         const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
         res.json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId } });

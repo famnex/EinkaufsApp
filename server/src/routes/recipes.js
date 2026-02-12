@@ -5,7 +5,7 @@ const { auth } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const axios = require('axios');
+// const axios = require('axios'); // Removed for compliance
 
 // Configure multer for image upload
 const storage = multer.diskStorage({
@@ -163,35 +163,8 @@ router.get('/:id', auth, async (req, res) => {
     }
 });
 
-// Helper to download image
-const downloadImage = async (url, userId) => {
-    try {
-        const response = await axios({
-            url,
-            responseType: 'stream'
-        });
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const filename = uniqueSuffix + '.jpg'; // Assume jpg for simplicity or derive from content-type
-        const uploadDir = path.join(__dirname, `../../public/uploads/users/${userId}/recipes`);
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        const filepath = path.join(uploadDir, filename);
-
-        await new Promise((resolve, reject) => {
-            response.data.pipe(fs.createWriteStream(filepath))
-                .on('finish', resolve)
-                .on('error', reject);
-        });
-
-        return `/uploads/users/${userId}/recipes/${filename}`;
-    } catch (err) {
-        console.error('Image download failed:', err.message);
-        return null; // Fallback to null or original URL if strict
-    }
-};
-
-
+// Helper to download image - REMOVED for GDPR/Copyright compliance
+// const downloadImage = async (url, userId) => { ... }
 
 // Check recipe usage
 router.get('/:id/usage', auth, async (req, res) => {
@@ -240,23 +213,12 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
         if (req.file) {
             finalImageUrl = `/uploads/users/${req.user.effectiveId}/recipes/${req.file.filename}`;
         } else if (req.body.image_url) {
-            console.log('Process image URL:', req.body.image_url);
-            if (req.body.image_url.startsWith('http')) {
-                try {
-                    const downloaded = await downloadImage(req.body.image_url, req.user.effectiveId);
-                    if (downloaded) {
-                        finalImageUrl = downloaded;
-                        console.log('Downloaded image to:', finalImageUrl);
-                    } else {
-                        console.log('Download returned null, using original URL');
-                        finalImageUrl = req.body.image_url;
-                    }
-                } catch (dlErr) {
-                    console.error('Download Image Crushed:', dlErr);
-                    finalImageUrl = req.body.image_url;
-                }
-            } else {
+            // Only allow relative URLs (from our own system/AI generation)
+            if (!req.body.image_url.startsWith('http')) {
                 finalImageUrl = req.body.image_url;
+            } else {
+                console.log('External URL provided, ignoring for compliance:', req.body.image_url);
+                finalImageUrl = null;
             }
         }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy } from 'lucide-react';
+import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -32,6 +32,7 @@ export default function SettingsPage() {
     // Cookbook Customization State
     const [cookbookTitle, setCookbookTitle] = useState(user?.cookbookTitle || 'MEIN KOCHBUCH');
     const [cookbookImage, setCookbookImage] = useState(user?.cookbookImage || null);
+    const [isPublicCookbook, setIsPublicCookbook] = useState(user?.isPublicCookbook || false);
     const [savingCookbook, setSavingCookbook] = useState(false);
     const [sharingKey, setSharingKey] = useState(user?.sharingKey || '');
 
@@ -56,6 +57,18 @@ export default function SettingsPage() {
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [userSearchQuery, setUserSearchQuery] = useState('');
     const [userRoleFilter, setUserRoleFilter] = useState('all');
+
+    // Design State
+    const primaryColors = [
+        { name: 'Teal', value: '#14b8a6' },
+        { name: 'Blue', value: '#3b82f6' },
+        { name: 'Violet', value: '#8b5cf6' },
+        { name: 'Pink', value: '#ec4899' },
+        { name: 'Red', value: '#ef4444' },
+        { name: 'Orange', value: '#f97316' },
+        { name: 'Amber', value: '#f59e0b' },
+        { name: 'Green', value: '#10b981' },
+    ];
 
     // Tab State
     const [activeTab, setActiveTab] = useState('profile');
@@ -297,26 +310,15 @@ export default function SettingsPage() {
         }
     };
 
-    const handleCheckUpdate = async () => {
-        setCheckingUpdate(true);
-        try {
-            const { data } = await api.get('/system/check');
-            setUpdateInfo(data);
-        } catch (err) {
-            console.error('Update check failed', err);
-            alert('Konnte nicht nach Updates suchen. Siehe Konsole.');
-        } finally {
-            setCheckingUpdate(false);
-        }
-    };
+
 
     const handleSaveCookbook = async () => {
         setSavingCookbook(true);
         try {
-            const { data } = await api.put('/auth/profile', { cookbookTitle });
+            const { data } = await api.put('/auth/profile', { cookbookTitle, isPublicCookbook });
             setUser(data);
             localStorage.setItem('user', JSON.stringify(data));
-            alert('Kochbuch-Titel gespeichert');
+            alert('Kochbuch-Einstellungen gespeichert');
         } catch (err) {
             console.error('Failed to save cookbook settings', err);
             alert('Fehler beim Speichern');
@@ -461,39 +463,7 @@ export default function SettingsPage() {
         }
     };
 
-    const handleSaveDesign = async () => {
-        if (!confirm('Tatsächlich die systemweiten Design-Farben ändern?')) return;
-        setSavingDesign(true);
-        try {
-            for (const payload of [
-                { key: 'system_accent_color', value: accentColor },
-                { key: 'system_secondary_color', value: secondaryColor }
-            ]) {
-                await api.post('/system/settings', payload);
-            }
 
-            // Update local theme immediately
-            const root = document.documentElement;
-
-            const hslAccent = hexToHsl(accentColor);
-            root.style.setProperty('--primary', `${hslAccent.h} ${hslAccent.s}% ${hslAccent.l}%`);
-            root.style.setProperty('--accent', `${hslAccent.h} ${hslAccent.s}% ${hslAccent.l}%`);
-            root.style.setProperty('--ring', `${hslAccent.h} ${hslAccent.s}% ${hslAccent.l}%`);
-            root.style.setProperty('--ref-teal', accentColor);
-
-            const hslSecondary = hexToHsl(secondaryColor);
-            root.style.setProperty('--secondary', `${hslSecondary.h} ${hslSecondary.s}% ${hslSecondary.l}%`);
-            root.style.setProperty('--ref-red', secondaryColor);
-            root.style.setProperty('--destructive', `${hslSecondary.h} ${hslSecondary.s}% ${hslSecondary.l}%`);
-
-            alert('Design-Einstellungen gespeichert.');
-        } catch (err) {
-            console.error('Failed to save design settings:', err);
-            alert('Fehler beim Speichern der Design-Einstellungen.');
-        } finally {
-            setSavingDesign(false);
-        }
-    };
 
     // Helper for local preview (duplicated from App.jsx for simplicity or move to utils)
     const hexToHsl = (hex) => {
@@ -528,6 +498,78 @@ export default function SettingsPage() {
         };
     };
 
+    // Logs State
+    const [logs, setLogs] = useState([]);
+    const [loadingLogs, setLoadingLogs] = useState(false);
+    const [logsPage, setLogsPage] = useState(0);
+    const [logsTotal, setLogsTotal] = useState(0);
+
+    // Legal Texts State
+    const [legalTexts, setLegalTexts] = useState({
+        legal_privacy: '',
+        legal_imprint: '',
+        legal_terms: ''
+    });
+    const [loadingLegal, setLoadingLegal] = useState(false);
+    const [savingLegal, setSavingLegal] = useState(false);
+
+    // Sub-Tabs for Admin
+    const [activeAdminTab, setActiveAdminTab] = useState('users');
+
+    useEffect(() => {
+        if (activeTab === 'admin' && user?.role === 'admin') {
+            if (activeAdminTab === 'logs') fetchLogs();
+            if (activeAdminTab === 'texts') fetchLegalTexts();
+        }
+    }, [activeTab, activeAdminTab]);
+
+    const fetchLogs = async () => {
+        setLoadingLogs(true);
+        try {
+            const { data } = await api.get(`/settings/logs?limit=50&offset=${logsPage * 50}`);
+            setLogs(data.logs);
+            setLogsTotal(data.total);
+        } catch (err) {
+            console.error('Failed to fetch logs', err);
+        } finally {
+            setLoadingLogs(false);
+        }
+    };
+
+    const fetchLegalTexts = async () => {
+        setLoadingLegal(true);
+        try {
+            const [privacy, imprint, terms] = await Promise.all([
+                api.get('/settings/legal/privacy'),
+                api.get('/settings/legal/imprint'),
+                api.get('/settings/legal/terms')
+            ]);
+            setLegalTexts({
+                legal_privacy: privacy.data.value || '',
+                legal_imprint: imprint.data.value || '',
+                legal_terms: terms.data.value || ''
+            });
+        } catch (err) {
+            console.error('Failed to fetch legal texts', err);
+        } finally {
+            setLoadingLegal(false);
+        }
+    };
+
+    const handleSaveLegal = async (type, value) => {
+        setSavingLegal(true);
+        try {
+            // key is 'legal_privacy' etc.
+            await api.post('/settings/legal', { key: type, value });
+            setLegalTexts(prev => ({ ...prev, [type]: value }));
+            alert('Gespeichert');
+        } catch (err) {
+            alert('Fehler beim Speichern');
+        } finally {
+            setSavingLegal(false);
+        }
+    };
+
     // Tab Definitions
     const tabs = [
         { id: 'profile', label: 'Profil & Sicherheit', icon: User },
@@ -536,8 +578,7 @@ export default function SettingsPage() {
         { id: 'stores', label: 'Geschäfte', icon: StoreIcon },
         { id: 'integration', label: 'Integration', icon: Building2 },
         ...(user?.role === 'admin' ? [
-            { id: 'users', label: 'Benutzerverwaltung', icon: UserCog },
-            { id: 'system', label: 'System', icon: Terminal }
+            { id: 'admin', label: 'Verwaltung', icon: Shield }
         ] : [])
     ];
 
@@ -768,6 +809,25 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
+                    <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Sichtbarkeit</label>
+                        <div className="flex items-center justify-between p-4 rounded-xl bg-background/50 border border-border">
+                            <div>
+                                <h3 className="font-bold">Öffentliches Kochbuch</h3>
+                                <p className="text-xs text-muted-foreground">Dein Kochbuch erscheint in der Community-Liste.</p>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="sr-only peer"
+                                    checked={isPublicCookbook}
+                                    onChange={(e) => setIsPublicCookbook(e.target.checked)}
+                                />
+                                <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
+                        </div>
+                    </div>
+
                     <div className="p-4 bg-muted/50 rounded-xl border border-border/50 space-y-3">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Dein öffentlicher Link</label>
                         <div className="flex gap-2">
@@ -861,6 +921,141 @@ export default function SettingsPage() {
         </Card>
     );
 
+    const LogsSection = (
+        <Card className="p-0 border-border bg-card/50 shadow-lg backdrop-blur-sm overflow-hidden">
+            <div className="p-8 border-b border-border">
+                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                    <FileText size={20} className="text-primary" />
+                    System Logs
+                </h2>
+                <p className="text-muted-foreground text-sm mt-1">Überblick über Anmeldeaktivitäten. IP-Adressen sind anonymisiert.</p>
+            </div>
+            <div className="p-0 overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                    <thead className="bg-muted/50 text-muted-foreground font-medium border-b border-border">
+                        <tr>
+                            <th className="p-4">Zeitpunkt</th>
+                            <th className="p-4">Event</th>
+                            <th className="p-4">Benutzer</th>
+                            <th className="p-4">IP-Hash</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                        {loadingLogs ? (
+                            <tr><td colSpan="4" className="p-8 text-center"><Loader2 className="animate-spin mx-auto" /></td></tr>
+                        ) : logs.length === 0 ? (
+                            <tr><td colSpan="4" className="p-8 text-center text-muted-foreground">Keine Logs vorhanden.</td></tr>
+                        ) : (
+                            logs.map(log => (
+                                <tr key={log.id} className="hover:bg-muted/30">
+                                    <td className="p-4 whitespace-nowrap">{new Date(log.createdAt).toLocaleString()}</td>
+                                    <td className="p-4">
+                                        <span className={cn(
+                                            "px-2 py-1 rounded-full text-xs font-bold",
+                                            log.event === 'login_success' ? "bg-green-100 text-green-700" :
+                                                log.event === 'login_failed' ? "bg-red-100 text-red-700" :
+                                                    "bg-gray-100 text-gray-700"
+                                        )}>
+                                            {log.event}
+                                        </span>
+                                    </td>
+                                    <td className="p-4">{log.username || '-'} <span className="text-xs text-muted-foreground ml-1">({log.UserId ? 'ID: ' + log.UserId : 'Unbekannt'})</span></td>
+                                    <td className="p-4 font-mono text-xs text-muted-foreground" title={log.ipHash}>{log.ipHash?.substring(0, 16)}...</td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+            <div className="p-4 border-t border-border bg-muted/30 flex justify-between items-center text-xs text-muted-foreground">
+                <span>Gesamt: {logsTotal} (Zeige letzte 50)</span>
+                <span>Aufbewahrung: 14 Tage</span>
+            </div>
+        </Card>
+    );
+
+    const TextsSection = (
+        <div className="space-y-8">
+            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                    <Type size={20} className="text-primary" />
+                    Rechtliche Texte verwalten
+                </h2>
+                <p className="text-muted-foreground mb-6">Hier können Sie die Inhalte für Datenschutz, Impressum und Nutzungsbedingungen im HTML-Format hinterlegen.</p>
+
+                <div className="space-y-6">
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex justify-between">
+                            Datenschutzerklärung (HTML)
+                            <Button
+                                variant="ghost" size="sm" className="h-6 text-xs"
+                                onClick={() => handleSaveLegal('legal_privacy', legalTexts.legal_privacy)}
+                                disabled={savingLegal}
+                            >
+                                Speichern
+                            </Button>
+                        </label>
+                        <textarea
+                            className="w-full h-64 p-4 rounded-xl bg-muted/50 border border-border focus:ring-2 focus:ring-primary/20 focus:outline-none font-mono text-xs"
+                            value={legalTexts.legal_privacy}
+                            onChange={(e) => setLegalTexts(prev => ({ ...prev, legal_privacy: e.target.value }))}
+                            placeholder="<h1>Datenschutzerklärung</h1>..."
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex justify-between">
+                            Impressum (HTML)
+                            <Button
+                                variant="ghost" size="sm" className="h-6 text-xs"
+                                onClick={() => handleSaveLegal('legal_imprint', legalTexts.legal_imprint)}
+                                disabled={savingLegal}
+                            >
+                                Speichern
+                            </Button>
+                        </label>
+                        <textarea
+                            className="w-full h-64 p-4 rounded-xl bg-muted/50 border border-border focus:ring-2 focus:ring-primary/20 focus:outline-none font-mono text-xs"
+                            value={legalTexts.legal_imprint}
+                            onChange={(e) => setLegalTexts(prev => ({ ...prev, legal_imprint: e.target.value }))}
+                            placeholder="<h1>Impressum</h1>..."
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex justify-between">
+                            Nutzungsbedingungen (HTML)
+                            <Button
+                                variant="ghost" size="sm" className="h-6 text-xs"
+                                onClick={() => handleSaveLegal('legal_terms', legalTexts.legal_terms)}
+                                disabled={savingLegal}
+                            >
+                                Speichern
+                            </Button>
+                        </label>
+                        <textarea
+                            className="w-full h-64 p-4 rounded-xl bg-muted/50 border border-border focus:ring-2 focus:ring-primary/20 focus:outline-none font-mono text-xs"
+                            value={legalTexts.legal_terms}
+                            onChange={(e) => setLegalTexts(prev => ({ ...prev, legal_terms: e.target.value }))}
+                            placeholder="<h1>AGB</h1>..."
+                        />
+                    </div>
+                </div>
+            </Card>
+        </div>
+    );
+
+    const ComplianceSection = (
+        <Card className="p-12 border-border bg-card/50 shadow-lg backdrop-blur-sm text-center">
+            <ShieldCheck size={64} className="mx-auto text-muted-foreground/30 mb-6" />
+            <h2 className="text-2xl font-bold text-foreground mb-2">Compliance Center</h2>
+            <p className="text-muted-foreground mb-6">Dieser Bereich befindet sich noch in Entwicklung.</p>
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-800 rounded-full font-bold text-sm">
+                <Loader2 size={16} className="animate-spin" /> In Arbeit
+            </div>
+        </Card>
+    );
+
     const StoresSection = (
         <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground mb-2 px-2 flex items-center gap-2">
@@ -874,7 +1069,7 @@ export default function SettingsPage() {
                     onClick={() => setEditMode(editMode === 'edit' ? 'add' : 'edit')}
                     className="gap-2 rounded-xl"
                 >
-                    <Settings size={14} /> Bearbeiten
+                    <SettingsIcon size={14} /> Bearbeiten
                 </Button>
                 <Button
                     variant={editMode === 'delete' ? 'destructive' : 'outline'}
@@ -935,7 +1130,7 @@ export default function SettingsPage() {
 
                                 {editMode === 'edit' && (
                                     <div className="p-2 bg-muted rounded-lg text-muted-foreground">
-                                        <Settings size={18} />
+                                        <SettingsIcon size={18} />
                                     </div>
                                 )}
                                 {editMode === 'delete' && (
@@ -1095,174 +1290,256 @@ export default function SettingsPage() {
         </div>
     ) : null;
 
+    const handleCheckUpdate = async () => {
+        setCheckingUpdate(true);
+        try {
+            const { data } = await api.get('/system/check');
+            setUpdateInfo(data);
+            if (data.current_version) {
+                setAppVersion(data.current_version);
+            }
+        } catch (error) {
+            console.error('Update check failed', error);
+            alert('Fehler beim Prüfen auf Updates');
+        } finally {
+            setCheckingUpdate(false);
+        }
+    };
+
+    const handleSavePrimaryColor = async (color) => {
+        setAccentColor(color);
+        try {
+            await api.post('/system/settings', { key: 'system_accent_color', value: color });
+
+            const root = document.documentElement;
+            // Needed for Shadcn/Tailwind opacities
+            const hsl = hexToHsl(color);
+            const hslString = `${hsl.h} ${hsl.s}% ${hsl.l}%`;
+
+            root.style.setProperty('--primary', hslString);
+            root.style.setProperty('--accent', hslString);
+            root.style.setProperty('--ring', hslString);
+            root.style.setProperty('--ref-teal', color);
+
+        } catch (err) {
+            console.error('Failed to save color', err);
+        }
+    };
+
+    const handleSaveSecondaryColor = async (color) => {
+        setSecondaryColor(color);
+        try {
+            await api.post('/system/settings', { key: 'system_secondary_color', value: color });
+
+            const root = document.documentElement;
+            const hsl = hexToHsl(color);
+            const hslString = `${hsl.h} ${hsl.s}% ${hsl.l}%`;
+
+            root.style.setProperty('--secondary', hslString);
+            root.style.setProperty('--ref-red', color);
+            // Destructive often shares the red/secondary
+            root.style.setProperty('--destructive', hslString);
+
+        } catch (err) {
+            console.error('Failed to save color', err);
+        }
+    };
+
     const SystemSection = (
         <div className="space-y-6">
             <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
                 <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600">
-                        <span className="font-mono text-xs font-bold">V</span>
-                    </div>
-                    Version & Update
+                    <Terminal size={20} className="text-primary" />
+                    System & Design
                 </h2>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Installierte Version</p>
-                        <div className="flex flex-wrap items-center gap-3">
-                            <p className="font-bold text-foreground text-lg font-mono">
-                                {appVersion}
-                            </p>
-                            {updateInfo?.updates_available && (
-                                <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full font-medium whitespace-nowrap">
-                                    Update verfügbar ({updateInfo.commits_behind} Commits)
-                                </span>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                    {/* Primary Color */}
+                    <div className="space-y-4">
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground block">
+                            Primärfarbe (Akzent)
+                        </label>
+                        <div className="flex gap-4 items-center">
+                            <div className="relative">
+                                <input
+                                    type="color"
+                                    value={accentColor}
+                                    onChange={(e) => handleSavePrimaryColor(e.target.value)}
+                                    className="w-16 h-16 rounded-2xl cursor-pointer border-0 p-0 overflow-hidden shadow-lg transition-transform hover:scale-105"
+                                />
+                                <div className="absolute inset-0 pointer-events-none rounded-2xl border-2 border-border/20"></div>
+                            </div>
+                            <div className="flex-1">
+                                <span className="text-xs text-muted-foreground mb-1 block">Hex-Code</span>
+                                <div className="flex gap-2">
+                                    <Input
+                                        value={accentColor}
+                                        onChange={(e) => setAccentColor(e.target.value)}
+                                        onBlur={(e) => handleSavePrimaryColor(e.target.value)}
+                                        className="font-mono text-sm h-10 uppercase"
+                                        maxLength={7}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {primaryColors.map((color) => (
+                                <button
+                                    key={color.value}
+                                    onClick={() => handleSavePrimaryColor(color.value)}
+                                    className={cn(
+                                        "w-6 h-6 rounded-full transition-all border-2",
+                                        accentColor === color.value ? "border-foreground scale-110" : "border-transparent hover:scale-105"
+                                    )}
+                                    style={{ backgroundColor: color.value }}
+                                    title={color.name}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Secondary Color */}
+                    <div className="space-y-4">
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground block">
+                            Sekundärfarbe (Akzent 2)
+                        </label>
+                        <div className="flex gap-4 items-center">
+                            <div className="relative">
+                                <input
+                                    type="color"
+                                    value={secondaryColor}
+                                    onChange={(e) => handleSaveSecondaryColor(e.target.value)}
+                                    className="w-16 h-16 rounded-2xl cursor-pointer border-0 p-0 overflow-hidden shadow-lg transition-transform hover:scale-105"
+                                />
+                                <div className="absolute inset-0 pointer-events-none rounded-2xl border-2 border-border/20"></div>
+                            </div>
+                            <div className="flex-1">
+                                <span className="text-xs text-muted-foreground mb-1 block">Hex-Code</span>
+                                <div className="flex gap-2">
+                                    <Input
+                                        value={secondaryColor}
+                                        onChange={(e) => setSecondaryColor(e.target.value)}
+                                        onBlur={(e) => handleSaveSecondaryColor(e.target.value)}
+                                        className="font-mono text-sm h-10 uppercase"
+                                        maxLength={7}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="pt-6 border-t border-border">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="font-bold text-foreground flex items-center gap-2">
+                                System Status
+                                {updateInfo?.updates_available && (
+                                    <span className="px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold uppercase">
+                                        Update verfügbar
+                                    </span>
+                                )}
+                            </h3>
+                            <p className="text-xs text-muted-foreground"> Installierte Version: <span className="font-mono">{appVersion || '...'}</span></p>
+                            {updateInfo && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Remote: <span className="font-mono">{updateInfo.current_version || '...'}</span> ({updateInfo.commits_behind || 0} Commits behind)
+                                </p>
                             )}
                         </div>
 
-                        {updateInfo && !updateInfo.updates_available && (
-                            <p className="text-xs text-green-600 flex items-center gap-1 pt-1">
-                                <CheckCircle size={12} /> System ist aktuell
-                            </p>
-                        )}
-                    </div>
-
-                    <div className="shrink-0">
-                        {!updateInfo ? (
-                            <Button
-                                variant="outline"
-                                onClick={handleCheckUpdate}
-                                disabled={checkingUpdate}
-                                className="gap-2 whitespace-nowrap w-full sm:w-auto"
-                            >
-                                {checkingUpdate ? <Loader2 size={16} className="animate-spin" /> : <Terminal size={16} />}
-                                Update suchen
-                            </Button>
-                        ) : updateInfo.updates_available ? (
-                            <Button
-                                onClick={() => setIsUpdateModalOpen(true)}
-                                className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 whitespace-nowrap w-full sm:w-auto"
-                            >
-                                <Terminal size={16} />
-                                Update starten
-                            </Button>
-                        ) : (
-                            <Button
-                                variant="outline"
-                                onClick={handleCheckUpdate}
-                                disabled={checkingUpdate}
-                                className="gap-2 whitespace-nowrap w-full sm:w-auto hover:bg-muted"
-                            >
-                                <CheckCircle size={16} />
-                                Erneut prüfen
-                            </Button>
-                        )}
-                    </div>
-                </div>
-            </Card>
-
-            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
-                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                    <Building2 size={20} className="text-primary" />
-                    OpenAI Integration
-                </h2>
-                <div>
-                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">OpenAI API Key</label>
-                    <div className="flex gap-2">
-                        <Input
-                            type="password"
-                            placeholder="sk-..."
-                            value={openaiKey}
-                            onChange={(e) => setOpenaiKey(e.target.value)}
-                            className="bg-muted border-transparent focus:bg-background transition-colors"
-                        />
-                        <Button onClick={saveOpenaiKey} disabled={savingKey}>
-                            {savingKey ? 'Wait...' : 'Speichern'}
-                        </Button>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-2">Wird benötigt für den KI-Rezept-Import.</p>
-                </div>
-            </Card>
-
-            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
-                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                    <Palette size={20} className="text-primary" />
-                    System Design
-                </h2>
-                <div className="space-y-6">
-                    <div>
-                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">System-Akzentfarbe</label>
-                        <div className="flex items-center gap-4">
-                            <input
-                                type="color"
-                                value={accentColor}
-                                onChange={(e) => setAccentColor(e.target.value)}
-                                className="w-12 h-12 rounded-lg cursor-pointer bg-transparent border-none"
-                            />
-                            <div className="flex-1">
-                                <Input
-                                    type="text"
-                                    value={accentColor}
-                                    onChange={(e) => setAccentColor(e.target.value)}
-                                    placeholder="#14b8a6"
-                                    className="bg-muted border-transparent focus:bg-background transition-colors font-mono"
-                                />
-                            </div>
+                        <div className="flex gap-2">
+                            {!updateInfo ? (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleCheckUpdate}
+                                    disabled={checkingUpdate}
+                                >
+                                    {checkingUpdate ? <Loader2 size={14} className="animate-spin mr-2" /> : <Layers size={14} className="mr-2" />}
+                                    {checkingUpdate ? 'Prüfe...' : 'Nach Updates suchen'}
+                                </Button>
+                            ) : updateInfo.updates_available ? (
+                                <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={() => setIsUpdateModalOpen(true)}
+                                    className="bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                                >
+                                    <CloudDownload size={14} className="mr-2" />
+                                    Update jetzt starten
+                                </Button>
+                            ) : (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleCheckUpdate}
+                                    className="text-muted-foreground"
+                                >
+                                    <CheckCircle size={14} className="mr-2 text-green-500" />
+                                    System aktuell
+                                </Button>
+                            )}
                         </div>
-                        <p className="text-[10px] text-muted-foreground mt-2">Diese Farbe wird als Hauptfarbe (Buttons, Banner, Icons) für alle Nutzer verwendet.</p>
-                    </div>
-
-                    <div>
-                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">System-Sekundärfarbe</label>
-                        <div className="flex items-center gap-4">
-                            <input
-                                type="color"
-                                value={secondaryColor}
-                                onChange={(e) => setSecondaryColor(e.target.value)}
-                                className="w-12 h-12 rounded-lg cursor-pointer bg-transparent border-none"
-                            />
-                            <div className="flex-1">
-                                <Input
-                                    type="text"
-                                    value={secondaryColor}
-                                    onChange={(e) => setSecondaryColor(e.target.value)}
-                                    placeholder="#ef4444"
-                                    className="bg-muted border-transparent focus:bg-background transition-colors font-mono"
-                                />
-                            </div>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mt-2">Diese Farbe wird für noch nicht erledigte Dinge (offene Einkäufe, Listentage im Kalender) verwendet.</p>
-                    </div>
-
-                    <div className="pt-4 border-t border-border/50">
-                        <Button
-                            onClick={handleSaveDesign}
-                            disabled={savingDesign}
-                            className="w-full sm:w-auto shadow-lg shadow-primary/20"
-                        >
-                            {savingDesign ? <Loader2 size={16} className="animate-spin mr-2" /> : <Palette size={16} className="mr-2" />}
-                            {savingDesign ? 'Warten...' : 'Design-Einstellungen speichern'}
-                        </Button>
                     </div>
                 </div>
             </Card>
-            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
-                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                    <Sparkles size={20} className="text-primary" />
-                    App-Verwaltung
+            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm border-destructive/20">
+                <h2 className="text-xl font-bold text-destructive mb-4 flex items-center gap-2">
+                    <Trash2 size={20} />
+                    Cache & Daten
                 </h2>
-                <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                        Sollte die App nicht korrekt laden oder weiß bleiben, kannst du hier den lokalen Speicher der PWA leeren.
-                    </p>
-                    <Button
-                        variant="outline"
-                        onClick={handleClearCache}
-                        className="w-full sm:w-auto text-destructive hover:bg-destructive/10 border-destructive/20"
-                    >
-                        <Trash2 size={18} className="mr-2" />
-                        App-Cache leeren & neu laden
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="font-bold text-foreground">Lokalen Cache leeren</p>
+                        <p className="text-xs text-muted-foreground">Behebt oft Anzeigefehler nach Updates.</p>
+                    </div>
+                    <Button variant="destructive" size="sm" onClick={handleClearCache}>
+                        Cache leeren
                     </Button>
                 </div>
             </Card>
+        </div>
+    );
+
+    const AdminSection = (
+        <div className="space-y-6">
+            <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2">
+                {[
+                    { id: 'users', label: 'Benutzer', icon: Users },
+                    { id: 'system', label: 'System', icon: SettingsIcon },
+                    { id: 'logs', label: 'Logs', icon: FileText },
+                    { id: 'texts', label: 'Rechtstexte', icon: Type },
+                    { id: 'compliance', label: 'Compliance', icon: ShieldCheck }
+                ].map(sub => (
+                    <button
+                        key={sub.id}
+                        onClick={() => setActiveAdminTab(sub.id)}
+                        className={cn(
+                            "flex items-center gap-2 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all text-xs font-bold",
+                            activeAdminTab === sub.id
+                                ? "bg-primary/10 text-primary border border-primary/20"
+                                : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                        )}
+                    >
+                        <sub.icon size={14} />
+                        {sub.label}
+                    </button>
+                ))}
+            </div>
+
+            <motion.div
+                key={activeAdminTab}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+            >
+                {activeAdminTab === 'users' && UsersSection}
+                {activeAdminTab === 'system' && SystemSection}
+                {activeAdminTab === 'logs' && LogsSection}
+                {activeAdminTab === 'texts' && TextsSection}
+                {activeAdminTab === 'compliance' && ComplianceSection}
+            </motion.div>
         </div>
     );
 
@@ -1356,8 +1633,7 @@ export default function SettingsPage() {
                 {activeTab === 'cookbook' && CookbookSection}
                 {activeTab === 'stores' && StoresSection}
                 {activeTab === 'integration' && ApiSection}
-                {activeTab === 'users' && UsersSection}
-                {activeTab === 'system' && SystemSection}
+                {activeTab === 'admin' && AdminSection}
             </motion.div>
 
             <StoreModal

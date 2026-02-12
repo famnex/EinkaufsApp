@@ -158,6 +158,10 @@ User.hasMany(CreditTransaction);
 const Recipe = require('./Recipe')(sequelize);
 const RecipeIngredient = require('./RecipeIngredient')(sequelize);
 const Tag = require('./Tag')(sequelize);
+const LoginLog = require('./LoginLog')(sequelize);
+
+LoginLog.belongsTo(User);
+User.hasMany(LoginLog);
 
 Recipe.hasMany(Menu);
 Menu.belongsTo(Recipe);
@@ -219,5 +223,6 @@ module.exports = {
     Settings,
     HiddenCleanup,
     ProductSubstitution,
-    CreditTransaction
+    CreditTransaction,
+    LoginLog
 };

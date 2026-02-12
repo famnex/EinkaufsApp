@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Settings, List, Package, CalendarRange, UtensilsCrossed, MoreHorizontal } from 'lucide-react';
+import { Settings, List, Package, CalendarRange, UtensilsCrossed, MoreHorizontal, BookOpen } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion } from 'framer-motion';
 
@@ -11,6 +11,7 @@ export default function BottomNav() {
         { id: 'dashboard', icon: List, path: '/', label: 'Listen' },
         { id: 'menu', icon: CalendarRange, path: '/menu', label: 'Menüplan' },
         { id: 'recipes', icon: UtensilsCrossed, path: '/recipes', label: 'Rezepte' },
+        { id: 'community', icon: BookOpen, path: '/community-cookbooks', label: 'Community' },
         { id: 'products', icon: Package, path: '/products', label: 'Produkte' },
         { id: 'settings', icon: Settings, path: '/settings', label: 'Optionen' },
     ];

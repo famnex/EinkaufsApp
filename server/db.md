@@ -1,48 +1,80 @@
-# Database Schema Documentation
+# Database Structure
 
-## v0.19.0 - Multiuser Transformation
-- **All Tables** (except `Users`):
-    - **Change**: Added `UserId` column.
-    - **Type**: `INTEGER`
-    - **Reference**: `Users(id)`
-    - **Purpose**: Strict data isolation per user.
-- **Table**: `Users`
-    - **Change**: Added `alexaApiKey` column.
-    - **Type**: `STRING`
-    - **Purpose**: Individual Alexa integration mapping.
-- **Constraints**: Composite unique constraints will be introduced where applicable (e.g., `Tag` name per user).
+## Tables
 
-## v0.18.2 - Synonyms
-- **Table**: `Products`
-- **Change**: Added `synonyms` column.
-- **Type**: `TEXT` (JSON String)
-- **Default**: `'[]'`
-- **Purpose**: JSON array of string synonyms for better product lookup in search, Alexa, and AI import (e.g. `["Semmel"]` -> `Brötchen`).
-- **Verified**: Column exists in SQLite schema as of v0.18.2.
+### Users
+- id (Integer, Primary Key)
+- username (String)
+- password (String, Hashed)
+- role (Enum: 'admin', 'user')
+- kitchenId (Integer, Foreign Key -> Kitchens)
 
-## v0.18.5 - Recipe Image Source ENUM expansion
-- **Table**: `Recipes`
-- **Change**: Updated `imageSource` ENUM to include `'none'`.
-- **Purpose**: Explicit status for recipes without images to distinguish from unknown or default states.
+### Recipes
+- id (Integer, Primary Key)
+- title (String)
+- description (Text)
+- instructions (Text)
+- prepTime (Integer)
+- cookTime (Integer)
+- servings (Integer)
+- image_url (String)
+- original_url (String)
+- source_type (Enum: 'manual', 'ai', 'scraped')
+- UserId (Integer, Foreign Key -> Users)
 
-## v0.18.2 - Catch-up Migrations (from v0.17.x)
-- **Table**: `Products`
-- **Columns Ensured**:
-  - `isNew` (BOOLEAN, Default: `false`)
-  - `source` (STRING, Default: `'manual'`)
-  - `is_hidden` (BOOLEAN, Default: `false`)
-- **Table**: `Recipes`
-- **Columns Ensured**:
-  - `imageSource` (ENUM 'upload', 'scraped', 'ai', Default: `'scraped'`)
-- **Table**: `Lists`
-- **Columns Ensured**:
-  - `status` (ENUM 'active', 'completed', 'archived', Default: `'active'`)
-- **Note**: These columns might have been introduced in v0.17.x but are now explicitly checked/added in the v0.18.2 migration script to ensure consistency for all users.
+### Ingredients
+- id (Integer, Primary Key)
+- name (String)
+- unit (String)
 
-## v0.22.0 - Advanced User Management
-- **Table**: `Users`
-    - **Change**: Added `tier` and `aiCredits` columns.
-    - **Purpose**: Subscription tracking and AI resource management.
-- **Table**: `CreditTransactions` [NEW]
-    - **Purpose**: Logging all AI credit movements.
-    - **Columns**: `id`, `UserId`, `delta`, `description`, `createdAt`, `updatedAt`.
+### RecipeIngredients
+- id (Integer, Primary Key)
+- amount (Float)
+- unit (String)
+- RecipeId (Integer, Foreign Key -> Recipes)
+- IngredientId (Integer, Foreign Key -> Ingredients)
+- raw (String)
+
+### Products
+- id (Integer, Primary Key)
+- name (String)
+- category (String)
+- defaultUnit (String)
+
+### Lists
+- id (Integer, Primary Key)
+- name (String)
+- type (Enum: 'shopping', 'pantry')
+- HouseholdId (Integer, Foreign Key -> Households)
+
+### ListItems
+- id (Integer, Primary Key)
+- name (String)
+- amount (Float)
+- unit (String)
+- isChecked (Boolean)
+- ListId (Integer, Foreign Key -> Lists)
+- ProductId (Integer, Foreign Key -> Products)
+
+### Settings
+- id (Integer, Primary Key)
+- key (String, Unique per User)
+- value (Text)
+- UserId (Integer, Foreign Key -> Users)
+
+### LoginLogs
+- id (Integer, Primary Key)
+- username (String)
+- UserId (Integer, Nullable, Foreign Key -> Users)
+- event (Enum: 'login_success', 'login_failed', 'password_reset')
+- ipHash (String)
+- userAgent (String)
+- createdAt (DateTime)
+
+## Relations
+- Users have many Recipes
+- Recipes have many Ingredients (through RecipeIngredients)
+- Lists have many ListItems
+- Products can be in many ListItems
+- Users have many Settings
+- Users have many LoginLogs

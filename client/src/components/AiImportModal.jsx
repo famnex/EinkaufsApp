@@ -39,6 +39,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [imageFile, setImageFile] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
+    const [complianceChecked, setComplianceChecked] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -49,6 +50,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
             setMappings({});
             setImageFile(null);
             setImagePreview(null);
+            setComplianceChecked(false);
         }
     }, [isOpen]);
 
@@ -63,6 +65,17 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
 
     const handleAnalyze = async () => {
         if (!inputText.trim()) return;
+        if (!complianceChecked) {
+            alert('Bitte bestätigen Sie die Urheberrechts- und Nutzungsbedingungen.');
+            return;
+        }
+
+        // Strict URL Block
+        if (inputText.includes('http://') || inputText.includes('https://')) {
+            alert('Das Importieren von Web-URLs ist nicht gestattet. Bitte kopieren Sie nur den Text, für den Sie die Rechte besitzen.');
+            return;
+        }
+
         setStep('processing');
         console.log('--- AI ANALYZE START ---');
         console.log('Input:', inputText.substring(0, 100) + '...');
@@ -274,15 +287,37 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                     <div className="flex-1 overflow-y-auto p-6">
                         {step === 'input' && (
                             <div className="space-y-4">
-                                <p className="text-muted-foreground">Füge den Rezepttext oder eine URL hier ein. Die KI wird versuchen, Zutaten und Schritte zu extrahieren.</p>
+                                <p className="text-muted-foreground">Füge den Rezepttext hier ein. Die KI wird versuchen, Zutaten und Schritte zu extrahieren. <span className="font-bold text-destructive">Keine URLs erlaubt!</span></p>
                                 <textarea
                                     className="w-full h-64 p-4 rounded-xl bg-muted/50 border border-border focus:ring-2 focus:ring-primary/20 focus:outline-none resize-none font-medium"
-                                    placeholder="Hier Rezept einfügen..."
+                                    placeholder="Hier Rezeptdaten eingeben (Zutaten, Schritte)..."
                                     value={inputText}
                                     onChange={(e) => setInputText(e.target.value)}
                                 />
+
+                                <div className="bg-muted/30 p-4 rounded-xl border border-border text-sm text-muted-foreground space-y-2">
+                                    <div className="flex items-start gap-3">
+                                        <input
+                                            type="checkbox"
+                                            id="compliance-check"
+                                            className="mt-1 w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                            checked={complianceChecked}
+                                            onChange={(e) => setComplianceChecked(e.target.checked)}
+                                        />
+                                        <label htmlFor="compliance-check" className="leading-snug cursor-pointer">
+                                            Ich bestätige, dass ich nur Inhalte (z. B. Rezepte, Texte, Bilder) eingebe oder importiere, an denen ich die erforderlichen Rechte habe oder deren Nutzung ausdrücklich erlaubt ist. Ich werde keine Inhalte aus Quellen übernehmen, deren Nutzungsbedingungen dies untersagen (z. B. automatisches Auslesen/Scraping). Mir ist bewusst, dass urheberrechtlich geschützte Inhalte nicht ohne Erlaubnis verwendet werden dürfen. Bei Verstößen können Inhalte entfernt und Zugänge gesperrt werden. Rechteinhaber können Inhalte melden: gabelguru.de/compliance. Bitte keine sensiblen Daten eingeben (z. B. Gesundheitsdaten, politische/religiöse Angaben) und keine personenbezogenen Daten Dritter. Deine Eingabe wird zur Beantwortung an unseren KI-Dienstleister OpenAI übermittelt.
+
+
+                                        </label>
+                                    </div>
+                                </div>
+
                                 <div className="flex justify-end">
-                                    <Button onClick={handleAnalyze} className="h-12 px-8 text-lg gap-2 shadow-lg shadow-primary/20">
+                                    <Button
+                                        onClick={handleAnalyze}
+                                        disabled={!complianceChecked || !inputText.trim()}
+                                        className="h-12 px-8 text-lg gap-2 shadow-lg shadow-primary/20"
+                                    >
                                         <Sparkles size={18} />
                                         Analysieren
                                     </Button>

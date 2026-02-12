@@ -20,6 +20,10 @@ import Recipes from './pages/Recipes';
 import SharedRecipe from './pages/SharedRecipe';
 import SharedCookbook from './pages/SharedCookbook';
 import JoinHousehold from './pages/JoinHousehold';
+import LandingPage from './pages/LandingPage';
+import PublicCookbooks from './pages/PublicCookbooks';
+import CommunityCookbooksContent from './components/CommunityCookbooksContent';
+import LegalPage from './pages/LegalPage';
 
 import { PullToRefresh } from './components/PullToRefresh';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -206,12 +210,30 @@ function AppContent() {
               <Route path="/shared/:sharingKey/recipe/:id" element={<SharedRecipe />} />
               <Route path="/shared/:sharingKey/cookbook" element={<SharedCookbook />} />
 
+              <Route path="/community-cookbooks" element={
+                user ? (
+                  <ProtectedRoute>
+                    <Layout>
+                      <CommunityCookbooksContent />
+                    </Layout>
+                  </ProtectedRoute>
+                ) : (
+                  <PublicCookbooks />
+                )
+              } />
+              <Route path="/privacy" element={<LegalPage type="privacy" />} />
+              <Route path="/imprint" element={<LegalPage type="imprint" />} />
+
               <Route path="/" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Dashboard />
-                  </Layout>
-                </ProtectedRoute>
+                user ? (
+                  <ProtectedRoute>
+                    <Layout>
+                      <Dashboard />
+                    </Layout>
+                  </ProtectedRoute>
+                ) : (
+                  <LandingPage />
+                )
               } />
 
               <Route path="/menu" element={

@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const OpenAI = require('openai');
 const axios = require('axios');
-const cheerio = require('cheerio');
 const { Settings, Recipe, Product, Tag, HiddenCleanup } = require('../models');
 const { auth } = require('../middleware/auth');
 const path = require('path');
@@ -64,63 +63,21 @@ router.post('/parse', auth, async (req, res) => {
 
         let metaImage = null;
 
-        // Check if input is a URL and scrape if so
-        if (input.startsWith('http://') || input.startsWith('https://')) {
-            try {
-                console.log('Fetching URL content:', input);
-                const response = await axios.get(input, {
-                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
-                });
-                const $ = cheerio.load(response.data);
-
-                // Extract Meta Images
-                metaImage = $('meta[property="og:image"]').attr('content') ||
-                    $('meta[name="twitter:image"]').attr('content');
-
-                // Try to find JSON-LD
-                let jsonLd = null;
-                $('script[type="application/ld+json"]').each((i, el) => {
-                    try {
-                        const data = JSON.parse($(el).html());
-                        if (data['@type'] === 'Recipe' || (Array.isArray(data) && data.find(d => d['@type'] === 'Recipe'))) {
-                            jsonLd = data;
-                        }
-                    } catch (e) { }
-                });
-
-                if (jsonLd) {
-                    console.log('DEBUG: JSON-LD found');
-                    // Use specifically the recipe part if possible to save tokens
-                    const recipeData = Array.isArray(jsonLd) ? jsonLd.find(d => d['@type'] === 'Recipe') || jsonLd : jsonLd;
-                    input = "JSON-LD Data:\n" + JSON.stringify(recipeData);
-                } else {
-                    console.log('DEBUG: No JSON-LD, using body text');
-                    input = $('body').text();
-                }
-
-                // CRITICAL: Limit input size to prevent 429 Token Error (Limit ~30k tokens)
-                // 15,000 chars is roughly 4k-5k tokens, leaving plenty of room for prompt + response
-                if (input.length > 15000) {
-                    console.log(`DEBUG: Truncating input from ${input.length} to 15000 chars`);
-                    input = input.substring(0, 15000);
-                }
-
-            } catch (e) {
-                console.error('Scraping error:', e.message);
-                // Continue with raw URL or whatever user pasted effectively
-            }
+        // CRITICAL: Limit input size to prevent 429 Token Error (Limit ~30k tokens)
+        // 15,000 chars is roughly 4k-5k tokens, leaving plenty of room for prompt + response
+        if (input.length > 15000) {
+            console.log(`DEBUG: Truncating input from ${input.length} to 15000 chars`);
+            input = input.substring(0, 15000);
         }
 
         const openai = new OpenAI({ apiKey: setting.value });
 
         const prompt = `
-        Analyze the recipe data below. It may be raw text, scraped HTML text, or a JSON-LD object.
+        Analyze the recipe data below. It may be raw text or a JSON-LD object.
         Extract structured recipe data.
         
         Existing Categories in Database: [${categoryList}]
         Existing Tags in Database: [${tagList}]
-        
-        Potential Image URL found in Metadata: "${metaImage || 'None'}"
         
         DATA:
         "${input}" 
