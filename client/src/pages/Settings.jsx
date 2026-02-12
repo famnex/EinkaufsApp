@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown } from 'lucide-react';
+import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -57,6 +57,25 @@ export default function SettingsPage() {
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [userSearchQuery, setUserSearchQuery] = useState('');
     const [userRoleFilter, setUserRoleFilter] = useState('all');
+
+    // Email Configuration State
+    const [emailConfig, setEmailConfig] = useState({
+        smtpHost: '',
+        smtpPort: '587',
+        smtpUser: '',
+        smtpPassword: '',
+        smtpFrom: '',
+        smtpSecure: true,
+        imapHost: '',
+        imapPort: '993',
+        imapUser: '',
+        imapPassword: '',
+        imapSecure: true
+    });
+    const [savingEmail, setSavingEmail] = useState(false);
+    const [testingEmail, setTestingEmail] = useState(false);
+    const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+    const [showImapPassword, setShowImapPassword] = useState(false);
 
     // Design State
     const primaryColors = [
@@ -142,7 +161,8 @@ export default function SettingsPage() {
                 api.get('/settings/registration_enabled'),
                 api.get('/settings/system/version'),
                 api.get('/settings/alexa_key'),
-                api.get('/system/settings')
+                api.get('/system/settings'),
+                api.get('/settings/email')
             ];
 
             // Allow version fetch to fail gracefully if endpoint doesn't exist yet (though it should)
@@ -153,6 +173,7 @@ export default function SettingsPage() {
             const verRes = results[2].status === 'fulfilled' ? results[2].value : { data: { version: 'Unknown' } };
             const alexaRes = results[3]?.status === 'fulfilled' ? results[3].value : { data: {} };
             const systemSettingsRes = results[4]?.status === 'fulfilled' ? results[4].value : { data: {} };
+            const emailRes = results[5]?.status === 'fulfilled' ? results[5].value : { data: {} };
 
             setOpenaiKey(openaiRes.data.value || '');
             setRegistrationEnabled(regRes.data.value !== 'false');
@@ -164,6 +185,26 @@ export default function SettingsPage() {
             }
             if (systemSettingsRes.data.system_secondary_color) {
                 setSecondaryColor(systemSettingsRes.data.system_secondary_color);
+            }
+
+            // Load email settings
+            if (emailRes?.data && Object.keys(emailRes.data).length > 0) {
+                console.log('Loading email settings:', emailRes.data);
+                setEmailConfig({
+                    smtpHost: emailRes.data.smtpHost || '',
+                    smtpPort: emailRes.data.smtpPort || '587',
+                    smtpUser: emailRes.data.smtpUser || '',
+                    smtpPassword: '', // Never populate password from server
+                    smtpFrom: emailRes.data.smtpFrom || '',
+                    smtpSecure: emailRes.data.smtpSecure === true,
+                    imapHost: emailRes.data.imapHost || '',
+                    imapPort: emailRes.data.imapPort || '993',
+                    imapUser: emailRes.data.imapUser || '',
+                    imapPassword: '', // Never populate password from server
+                    imapSecure: emailRes.data.imapSecure === true
+                });
+            } else {
+                console.log('No email settings found or empty response');
             }
         } catch (err) {
             console.error('Failed to fetch settings', err);
@@ -470,6 +511,32 @@ export default function SettingsPage() {
         }
     };
 
+    const handleSaveEmail = async () => {
+        setSavingEmail(true);
+        try {
+            await api.post('/settings/email', emailConfig);
+            alert('E-Mail Einstellungen gespeichert');
+        } catch (err) {
+            console.error('Failed to save email settings', err);
+            alert('Fehler beim Speichern der E-Mail Einstellungen');
+        } finally {
+            setSavingEmail(false);
+        }
+    };
+
+    const handleTestEmail = async () => {
+        setTestingEmail(true);
+        try {
+            const { data } = await api.post('/settings/email/test', emailConfig);
+            alert(data.message || 'Testmail erfolgreich versendet!');
+        } catch (err) {
+            console.error('Failed to send test email', err);
+            alert(err.response?.data?.error || 'Fehler beim Versenden der Testmail');
+        } finally {
+            setTestingEmail(false);
+        }
+    };
+
 
 
     // Helper for local preview (duplicated from App.jsx for simplicity or move to utils)
@@ -523,7 +590,14 @@ export default function SettingsPage() {
     // Sub-Tabs for Admin
     const [activeAdminTab, setActiveAdminTab] = useState(''); // Modified to start empty
 
+    // Credit History State
+    const [creditHistory, setCreditHistory] = useState([]);
+    const [loadingCredits, setLoadingCredits] = useState(false);
+
     useEffect(() => {
+        if (activeTab === 'subscription') {
+            fetchCreditHistory();
+        }
         if (activeTab === 'admin' && user?.role === 'admin') {
             if (activeAdminTab === 'logs') fetchLogs();
             if (activeAdminTab === 'texts') fetchLegalTexts();
@@ -534,6 +608,18 @@ export default function SettingsPage() {
             setActiveAdminTab('users');
         }
     }, [activeTab, activeAdminTab]);
+
+    const fetchCreditHistory = async () => {
+        setLoadingCredits(true);
+        try {
+            const { data } = await api.get('/auth/credits');
+            setCreditHistory(data);
+        } catch (err) {
+            console.error('Failed to fetch credit history', err);
+        } finally {
+            setLoadingCredits(false);
+        }
+    };
 
     const fetchLogs = async () => {
         setLoadingLogs(true);
@@ -585,6 +671,7 @@ export default function SettingsPage() {
     // Tab Definitions
     const tabs = [
         { id: 'profile', label: 'Profil & Sicherheit', icon: User },
+        { id: 'subscription', label: 'Abo & Credits', icon: CreditCard },
         { id: 'household', label: 'Haushalt', icon: Users },
         { id: 'cookbook', label: 'Öffentliches Kochbuch', icon: ChefHat },
         { id: 'stores', label: 'Geschäfte', icon: StoreIcon },
@@ -1273,8 +1360,10 @@ export default function SettingsPage() {
                                     </div>
                                     <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/50">
                                         <div className="text-left sm:text-right">
-                                            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Credits</p>
-                                            <p className="text-xs font-bold text-primary">{parseFloat(u.aiCredits || 0).toFixed(2)}</p>
+                                            <div className="flex items-center justify-end gap-1.5">
+                                                <img src="/coin.png" alt="Credits" className="w-4 h-4" />
+                                                <p className="text-xs font-bold text-primary">{parseFloat(u.aiCredits || 0).toFixed(2)}</p>
+                                            </div>
                                         </div>
                                         {u.id !== user.id && (
                                             <button
@@ -1511,24 +1600,313 @@ export default function SettingsPage() {
                     </Button>
                 </div>
             </Card>
+            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                    <Mail size={20} className="text-primary" />
+                    E-Mail Konfiguration
+                </h2>
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">SMTP Host</label>
+                            <Input
+                                type="text"
+                                value={emailConfig.smtpHost}
+                                onChange={(e) => setEmailConfig({ ...emailConfig, smtpHost: e.target.value })}
+                                placeholder="smtp.example.com"
+                                className="bg-muted border-transparent focus:bg-background transition-colors"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">SMTP Port</label>
+                            <Input
+                                type="number"
+                                value={emailConfig.smtpPort}
+                                onChange={(e) => setEmailConfig({ ...emailConfig, smtpPort: e.target.value })}
+                                placeholder="587"
+                                className="bg-muted border-transparent focus:bg-background transition-colors"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">SMTP Benutzername</label>
+                        <Input
+                            type="text"
+                            value={emailConfig.smtpUser}
+                            onChange={(e) => setEmailConfig({ ...emailConfig, smtpUser: e.target.value })}
+                            placeholder="user@example.com"
+                            className="bg-muted border-transparent focus:bg-background transition-colors"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">SMTP Passwort</label>
+                        <div className="relative">
+                            <Input
+                                type={showSmtpPassword ? "text" : "password"}
+                                value={emailConfig.smtpPassword}
+                                onChange={(e) => setEmailConfig({ ...emailConfig, smtpPassword: e.target.value })}
+                                placeholder="••••••••"
+                                className="bg-muted border-transparent focus:bg-background transition-colors pr-10"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowSmtpPassword(!showSmtpPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                {showSmtpPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Absender-Adresse</label>
+                        <Input
+                            type="email"
+                            value={emailConfig.smtpFrom}
+                            onChange={(e) => setEmailConfig({ ...emailConfig, smtpFrom: e.target.value })}
+                            placeholder="noreply@example.com"
+                            className="bg-muted border-transparent focus:bg-background transition-colors"
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            id="smtpSecure"
+                            checked={emailConfig.smtpSecure}
+                            onChange={(e) => setEmailConfig({ ...emailConfig, smtpSecure: e.target.checked })}
+                            className="w-4 h-4 rounded border-border bg-muted checked:bg-primary"
+                        />
+                        <label htmlFor="smtpSecure" className="text-sm font-medium text-foreground cursor-pointer">
+                            Sichere Verbindung (TLS/SSL)
+                        </label>
+                    </div>
+
+                    {/* IMAP Section */}
+                    <div className="pt-6 border-t border-border">
+                        <h3 className="text-lg font-bold text-foreground mb-4">IMAP (E-Mails empfangen)</h3>
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">IMAP Host</label>
+                                    <Input
+                                        type="text"
+                                        value={emailConfig.imapHost}
+                                        onChange={(e) => setEmailConfig({ ...emailConfig, imapHost: e.target.value })}
+                                        placeholder="imap.example.com"
+                                        className="bg-muted border-transparent focus:bg-background transition-colors"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">IMAP Port</label>
+                                    <Input
+                                        type="number"
+                                        value={emailConfig.imapPort}
+                                        onChange={(e) => setEmailConfig({ ...emailConfig, imapPort: e.target.value })}
+                                        placeholder="993"
+                                        className="bg-muted border-transparent focus:bg-background transition-colors"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">IMAP Benutzername</label>
+                                <Input
+                                    type="text"
+                                    value={emailConfig.imapUser}
+                                    onChange={(e) => setEmailConfig({ ...emailConfig, imapUser: e.target.value })}
+                                    placeholder="user@example.com"
+                                    className="bg-muted border-transparent focus:bg-background transition-colors"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">IMAP Passwort</label>
+                                <div className="relative">
+                                    <Input
+                                        type={showImapPassword ? "text" : "password"}
+                                        value={emailConfig.imapPassword}
+                                        onChange={(e) => setEmailConfig({ ...emailConfig, imapPassword: e.target.value })}
+                                        placeholder="••••••••"
+                                        className="bg-muted border-transparent focus:bg-background transition-colors pr-10"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowImapPassword(!showImapPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                    >
+                                        {showImapPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="imapSecure"
+                                    checked={emailConfig.imapSecure}
+                                    onChange={(e) => setEmailConfig({ ...emailConfig, imapSecure: e.target.checked })}
+                                    className="w-4 h-4 rounded border-border bg-muted checked:bg-primary"
+                                />
+                                <label htmlFor="imapSecure" className="text-sm font-medium text-foreground cursor-pointer">
+                                    Sichere Verbindung (TLS/SSL)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-4 border-t border-border">
+                        <Button
+                            onClick={handleSaveEmail}
+                            disabled={savingEmail}
+                            className="flex-1"
+                        >
+                            {savingEmail ? <Loader2 size={16} className="animate-spin mr-2" /> : <Check size={16} className="mr-2" />}
+                            {savingEmail ? 'Speichere...' : 'Speichern'}
+                        </Button>
+                        <Button
+                            onClick={handleTestEmail}
+                            disabled={testingEmail || !emailConfig.smtpHost}
+                            variant="outline"
+                            className="flex-1"
+                        >
+                            {testingEmail ? <Loader2 size={16} className="animate-spin mr-2" /> : <Mail size={16} className="mr-2" />}
+                            {testingEmail ? 'Sende...' : 'Testmail senden'}
+                        </Button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground italic">
+                        Die Testmail wird an die E-Mail-Adresse des aktuell angemeldeten Administrators gesendet.
+                    </p>
+                </div>
+            </Card>
         </div>
     );
 
+    const MessagingSection = (
+        <div className="space-y-6">
+            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                    <Mail size={20} className="text-primary" />
+                    Messaging
+                </h2>
+                <div className="text-center py-12">
+                    <p className="text-muted-foreground italic">Diese Funktion wird in Kürze verfügbar sein.</p>
+                </div>
+            </Card>
+        </div>
+    );
+
+    const SubscriptionSection = (() => {
+        // Map tier names to badge filenames
+        const getTierBadge = (tier) => {
+            const tierMap = {
+                'Plastikgabel': 'badge_plastic.png',
+                'Silbergabel': 'badge_silver.png',
+                'Goldgabel': 'badge_gold.png',
+                'Regenbogengabel': 'badge_rainbow.png'
+            };
+            return tierMap[tier] || 'badge_plastic.png';
+        };
+
+        const currentTier = user?.tier || 'Plastikgabel';
+        const badgeImage = getTierBadge(currentTier);
+
+        return (
+            <div className="space-y-8">
+                {/* Tier Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-6 bg-gradient-to-br from-primary/10 to-primary/5 rounded-3xl border border-primary/20">
+                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-3 block">Aktuelles Abo</label>
+                        <div className="flex items-center gap-4 mb-3">
+                            <img src={`/${badgeImage}`} alt={currentTier} className="w-16 h-16 object-contain" />
+                            <div className="text-2xl font-bold">
+                                {currentTier}
+                            </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Ihr aktueller Status. Upgrades sind derzeit nur über den Administrator möglich.
+                        </p>
+                    </div>
+
+                    <div className="p-6 bg-muted/30 rounded-3xl border border-border flex flex-col justify-between">
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-3 block">Verfügbare Credits</label>
+                            <div className="flex items-center gap-2">
+                                <img src="/coin.png" alt="Credits" className="w-8 h-8 object-contain" />
+                                <span className="text-3xl font-black">{parseFloat(user?.aiCredits || 0).toFixed(2)}</span>
+                            </div>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-2 italic">Guthaben für AI-Analysen und Bildgenerierung.</p>
+                    </div>
+                </div>
+
+                {/* History Table */}
+                <div>
+                    <h3 className="font-bold mb-4 flex items-center gap-2 px-1">
+                        <History size={18} className="text-muted-foreground" />
+                        Kontoauszug (AI Credits)
+                    </h3>
+                    <div className="bg-muted/20 rounded-2xl border border-border overflow-hidden">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-muted/50 border-b border-border">
+                                <tr>
+                                    <th className="px-4 py-3 font-bold">Datum</th>
+                                    <th className="px-4 py-3 font-bold">Beschreibung</th>
+                                    <th className="px-4 py-3 font-bold text-right">Betrag</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/50">
+                                {loadingCredits ? (
+                                    <tr>
+                                        <td colSpan="3" className="px-4 py-8 text-center">
+                                            <Loader2 className="animate-spin mx-auto text-primary/50" />
+                                        </td>
+                                    </tr>
+                                ) : creditHistory?.length > 0 ? (
+                                    creditHistory.map(tx => (
+                                        <tr key={tx.id} className="hover:bg-muted/30 transition-colors">
+                                            <td className="px-4 py-3 text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString('de-DE')}</td>
+                                            <td className="px-4 py-3">{tx.description}</td>
+                                            <td className={cn(
+                                                "px-4 py-3 font-bold text-right",
+                                                parseFloat(tx.delta) > 0 ? "text-emerald-500" : "text-destructive"
+                                            )}>
+                                                {parseFloat(tx.delta) > 0 ? '+' : ''}{parseFloat(tx.delta).toFixed(2)}
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan="3" className="px-4 py-8 text-center text-muted-foreground italic">Noch keine Transaktionen vorhanden.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    })();
+
     const adminTabs = [
         { id: 'users', label: 'Benutzer', icon: Users },
-        { id: 'system', label: 'System', icon: SettingsIcon },
+        { id: 'messaging', label: 'Messaging', icon: Mail },
+        { id: 'compliance', label: 'Compliance', icon: ShieldCheck },
         { id: 'logs', label: 'Logs', icon: FileText },
         { id: 'texts', label: 'Rechtstexte', icon: Type },
-        { id: 'compliance', label: 'Compliance', icon: ShieldCheck }
+        { id: 'system', label: 'System', icon: SettingsIcon }
     ];
 
     const getAdminContent = (id) => {
         switch (id) {
             case 'users': return UsersSection;
-            case 'system': return SystemSection;
+            case 'messaging': return MessagingSection;
+            case 'compliance': return ComplianceSection;
             case 'logs': return LogsSection;
             case 'texts': return TextsSection;
-            case 'compliance': return ComplianceSection;
+            case 'system': return SystemSection;
             default: return null;
         }
     };
@@ -1686,6 +2064,7 @@ export default function SettingsPage() {
                                             {tab.id === 'household' && HouseholdSection}
                                             {tab.id === 'cookbook' && CookbookSection}
                                             {tab.id === 'stores' && StoresSection}
+                                            {tab.id === 'subscription' && SubscriptionSection}
                                             {tab.id === 'integration' && ApiSection}
                                             {tab.id === 'admin' && AdminSection}
                                         </div>
@@ -1732,6 +2111,7 @@ export default function SettingsPage() {
                     {activeTab === 'household' && HouseholdSection}
                     {activeTab === 'cookbook' && CookbookSection}
                     {activeTab === 'stores' && StoresSection}
+                    {activeTab === 'subscription' && SubscriptionSection}
                     {activeTab === 'integration' && ApiSection}
                     {activeTab === 'admin' && AdminSection}
                 </motion.div>

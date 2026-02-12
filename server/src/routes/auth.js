@@ -80,10 +80,25 @@ router.get('/public-cookbooks', async (req, res) => {
 router.get('/me', auth, async (req, res) => {
     try {
         const user = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook']
+            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'tier', 'aiCredits']
         });
         if (!user) return res.status(404).json({ error: 'User not found' });
         res.json(user);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get Credit History
+router.get('/credits', auth, async (req, res) => {
+    try {
+        const { CreditTransaction } = require('../models');
+        const history = await CreditTransaction.findAll({
+            where: { UserId: req.user.id },
+            order: [['createdAt', 'DESC']],
+            limit: 50
+        });
+        res.json(history);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

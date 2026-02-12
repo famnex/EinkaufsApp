@@ -401,7 +401,7 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate }) {
                                                         <div>
                                                             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-3 block">Verfügbare Credits</label>
                                                             <div className="flex items-center gap-2">
-                                                                <Sparkles className="text-amber-500" size={24} />
+                                                                <img src="/coin.png" alt="Credits" className="w-8 h-8 object-contain" />
                                                                 <span className="text-3xl font-black">{parseFloat(data.user.aiCredits || 0).toFixed(2)}</span>
                                                             </div>
                                                         </div>
