@@ -100,7 +100,7 @@ router.get('/email', auth, async (req, res) => {
     }
 
     try {
-        const fields = ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_from', 'smtp_secure', 'imap_host', 'imap_port', 'imap_user', 'imap_secure'];
+        const fields = ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_from', 'smtp_sender_name', 'smtp_secure', 'imap_host', 'imap_port', 'imap_user', 'imap_secure'];
         const settings = {};
 
         for (const field of fields) {
@@ -127,13 +127,14 @@ router.post('/email', auth, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
 
     try {
-        const { smtpHost, smtpPort, smtpUser, smtpPassword, smtpFrom, smtpSecure, imapHost, imapPort, imapUser, imapPassword, imapSecure } = req.body;
+        const { smtpHost, smtpPort, smtpUser, smtpPassword, smtpFrom, smtpSenderName, smtpSecure, imapHost, imapPort, imapUser, imapPassword, imapSecure } = req.body;
 
         const fieldMap = {
             smtp_host: smtpHost,
             smtp_port: smtpPort,
             smtp_user: smtpUser,
             smtp_from: smtpFrom,
+            smtp_sender_name: smtpSenderName,
             smtp_secure: smtpSecure ? 'true' : 'false',
             imap_host: imapHost,
             imap_port: imapPort,
@@ -201,8 +202,9 @@ router.post('/email/test', auth, async (req, res) => {
         });
 
         // Send test email
+        const fromAddress = req.body.smtpSenderName ? `"${req.body.smtpSenderName}" <${smtpFrom}>` : smtpFrom;
         await transporter.sendMail({
-            from: smtpFrom,
+            from: fromAddress,
             to: recipientEmail,
             subject: 'Testmail von GabelGuru',
             text: 'Dies ist eine Testmail zur Überprüfung Ihrer E-Mail-Konfiguration.',

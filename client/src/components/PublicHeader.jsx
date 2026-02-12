@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Printer, ArrowLeft } from 'lucide-react';
+import { Printer, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { Button } from './Button';
 import ThemeToggle from './ThemeToggle';
 
@@ -55,6 +55,7 @@ export default function PublicHeader() {
                             <ArrowLeft size={20} />
                         </button>
                     )}
+
 
                     <span className={`print:hidden ${isRecipePage ? 'hidden sm:block' : ''}`}>
                         <ThemeToggle />

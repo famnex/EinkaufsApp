@@ -7,7 +7,7 @@ const { fetchEmailsForUser } = require('../services/messagingService');
 
 // Helper: Get SMTP settings for user
 async function getSmtpSettings(userId) {
-    const keys = ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_from', 'smtp_secure'];
+    const keys = ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_from', 'smtp_sender_name', 'smtp_secure'];
     const settings = {};
     for (const key of keys) {
         const s = await Settings.findOne({ where: { key, UserId: userId } });
@@ -87,8 +87,9 @@ router.post('/send', auth, async (req, res) => {
             }
         });
 
+        const fromAddress = smtp.smtpSenderName ? `"${smtp.smtpSenderName}" <${smtp.smtpFrom || smtp.smtpUser}>` : (smtp.smtpFrom || smtp.smtpUser);
         const mailOptions = {
-            from: smtp.smtpFrom || smtp.smtpUser,
+            from: fromAddress,
             to,
             cc,
             bcc,
@@ -108,7 +109,7 @@ router.post('/send', auth, async (req, res) => {
         await Email.create({
             messageId: info.messageId,
             folder: 'sent',
-            fromAddress: smtp.smtpFrom || smtp.smtpUser,
+            fromAddress: fromAddress,
             toAddress: to,
             cc: cc || null,
             bcc: bcc || null,

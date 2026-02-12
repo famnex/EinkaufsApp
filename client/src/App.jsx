@@ -25,6 +25,7 @@ import PublicCookbooks from './pages/PublicCookbooks';
 import PublicLayout from './components/PublicLayout';
 import CommunityCookbooksContent from './components/CommunityCookbooksContent';
 import LegalPage from './pages/LegalPage';
+import CompliancePage from './pages/CompliancePage';
 
 import { PullToRefresh } from './components/PullToRefresh';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -226,6 +227,7 @@ function AppContent() {
               } />
               <Route path="/privacy" element={<LegalPage type="privacy" />} />
               <Route path="/imprint" element={<LegalPage type="imprint" />} />
+              <Route path="/compliance" element={<CompliancePage />} />
 
               <Route path="/" element={
                 user ? (

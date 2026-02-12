@@ -159,6 +159,7 @@ const Recipe = require('./Recipe')(sequelize);
 const RecipeIngredient = require('./RecipeIngredient')(sequelize);
 const Tag = require('./Tag')(sequelize);
 const LoginLog = require('./LoginLog')(sequelize);
+const ComplianceReport = require('./ComplianceReport')(sequelize);
 
 LoginLog.belongsTo(User);
 User.hasMany(LoginLog);
@@ -243,5 +244,6 @@ module.exports = {
     ProductSubstitution,
     CreditTransaction,
     LoginLog,
-    Email
+    Email,
+    ComplianceReport
 };

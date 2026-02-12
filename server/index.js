@@ -10,6 +10,8 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+app.use('/uploads/compliance', express.static(path.join(__dirname, 'uploads/compliance')));
+
 app.use(cors());
 app.use(express.json());
 
@@ -46,6 +48,7 @@ apiRouter.use('/users', require('./src/routes/users'));
 apiRouter.use('/system', require('./src/routes/system'));
 apiRouter.use('/alexa', require('./src/routes/alexa'));
 apiRouter.use('/messaging', require('./src/routes/messaging'));
+apiRouter.use('/compliance', require('./src/routes/compliance'));
 
 // Mount API
 app.use(`${BASE_PATH}/api`, apiRouter);
@@ -250,9 +253,15 @@ if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging')
     });
 }
 
+const { initEmailCron } = require('./src/services/messagingService');
+
 // { alter: true } might cause SQLITE_CONSTRAINT error if data violates new constraints, but needed for schema updates.
 sequelize.sync({ alter: false }).then(() => {
     console.log('Database synced');
+
+    // Start background jobs
+    initEmailCron();
+
     app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
     });

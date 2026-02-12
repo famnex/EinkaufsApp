@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ChefHat, Clock, Play, User, Users } from 'lucide-react';
+import { ChefHat, Clock, Play, User, Users, ShieldCheck } from 'lucide-react';
 import { Card } from '../components/Card';
 import SharedCookingMode from '../components/SharedCookingMode';
 import SharedNotFound from '../components/SharedNotFound';
@@ -139,10 +139,17 @@ export default function SharedRecipe() {
                     <div className="absolute top-4 right-4 z-20">
                         <button
                             onClick={() => setIsCooking(true)}
-                            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-2 px-4 rounded-full shadow-lg flex items-center gap-2 transition-transform active:scale-95"
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-2 px-4 rounded-full shadow-lg flex items-center gap-2 transition-transform active:scale-95 mb-2"
                         >
                             <Play size={20} fill="currentColor" />
                             <span className="hidden sm:inline">Kochmodus</span>
+                        </button>
+                        <button
+                            onClick={() => navigate(`/compliance?url=${encodeURIComponent(window.location.href)}`)}
+                            className="text-xs text-white/60 hover:text-white hover:underline flex items-center justify-end gap-1 w-full"
+                        >
+                            <ShieldCheck size={12} />
+                            Inhalt melden
                         </button>
                     </div>
                 </div>

@@ -21,7 +21,7 @@ export default function SettingsPage() {
     const navigate = useNavigate();
     const [stores, setStores] = useState([]);
     const [loading, setLoading] = useState(true);
-    const { user, setUser } = useAuth();
+    const { user, setUser, notificationCounts, fetchNotificationCounts } = useAuth();
     const { editMode, setEditMode } = useEditMode();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedStore, setSelectedStore] = useState(null);
@@ -66,6 +66,7 @@ export default function SettingsPage() {
         smtpPort: '587',
         smtpUser: '',
         smtpPassword: '',
+        smtpSenderName: '',
         smtpFrom: '',
         smtpSecure: true,
         imapHost: '',
@@ -93,6 +94,8 @@ export default function SettingsPage() {
 
     // Tab State
     const [activeTab, setActiveTab] = useState(''); // Modified to start empty (collapsed) for mobile
+    const [activeAdminTab, setActiveAdminTab] = useState('users');
+
 
     useEffect(() => {
         // Auto-open defaults only on desktop if nothing matches
@@ -110,15 +113,49 @@ export default function SettingsPage() {
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+
+    // Compliance State
+    const [complianceReports, setComplianceReports] = useState([]);
+    const [loadingCompliance, setLoadingCompliance] = useState(false);
+    const [selectedReport, setSelectedReport] = useState(null);
+
     useEffect(() => {
         fetchStores();
         fetchSettings();
         if (user?.role === 'admin') {
             fetchUsers();
             fetchEmails('inbox');
+            if (activeAdminTab === 'compliance') {
+                fetchComplianceReports();
+            }
         }
         fetchHouseholdMembers();
-    }, [user?.role]); // Only re-fetch if user role changes or component mounts
+    }, [user?.role, activeAdminTab]); // Added activeAdminTab dependency
+
+    const fetchComplianceReports = async () => {
+        setLoadingCompliance(true);
+        try {
+            const res = await api.get('/compliance');
+            setComplianceReports(res.data);
+        } catch (err) {
+            console.error('Failed to fetch compliance reports:', err);
+        } finally {
+            setLoadingCompliance(false);
+        }
+    };
+
+    const updateReportStatus = async (id, newStatus, note) => {
+        try {
+            const res = await api.put(`/compliance/${id}`, { status: newStatus, resolutionNote: note });
+            setComplianceReports(prev => prev.map(r => r.id === id ? res.data : r));
+            if (selectedReport && selectedReport.id === id) {
+                setSelectedReport(res.data);
+            }
+            if (fetchNotificationCounts) fetchNotificationCounts();
+        } catch (err) {
+            console.error('Failed to update report:', err);
+        }
+    };
 
     // Separate effect for syncing local state when user or members change
     useEffect(() => {
@@ -198,6 +235,7 @@ export default function SettingsPage() {
                     smtpPort: emailRes.data.smtpPort || '587',
                     smtpUser: emailRes.data.smtpUser || '',
                     smtpPassword: '', // Never populate password from server
+                    smtpSenderName: emailRes.data.smtpSenderName || '',
                     smtpFrom: emailRes.data.smtpFrom || '',
                     smtpSecure: emailRes.data.smtpSecure === true,
                     imapHost: emailRes.data.imapHost || '',
@@ -591,15 +629,17 @@ export default function SettingsPage() {
     const [savingLegal, setSavingLegal] = useState(false);
 
     // Sub-Tabs for Admin
-    const [activeAdminTab, setActiveAdminTab] = useState(''); // Modified to start empty
+
 
     // Credit History State
     const [creditHistory, setCreditHistory] = useState([]);
     const [loadingCredits, setLoadingCredits] = useState(false);
+    const [loadingSubscription, setLoadingSubscription] = useState(false);
 
     useEffect(() => {
         if (activeTab === 'subscription') {
             fetchCreditHistory();
+            refreshUserStatus();
         }
         if (activeTab === 'admin' && user?.role === 'admin') {
             if (activeAdminTab === 'logs') fetchLogs();
@@ -621,6 +661,19 @@ export default function SettingsPage() {
             console.error('Failed to fetch credit history', err);
         } finally {
             setLoadingCredits(false);
+        }
+    };
+
+    const refreshUserStatus = async () => {
+        setLoadingSubscription(true);
+        try {
+            const { data } = await api.get('/auth/profile');
+            setUser(data);
+            localStorage.setItem('user', JSON.stringify(data));
+        } catch (err) {
+            console.error('Failed to refresh user status', err);
+        } finally {
+            setLoadingSubscription(false);
         }
     };
 
@@ -706,8 +759,13 @@ export default function SettingsPage() {
             const res = await api.get(`/messaging/${id}`);
             setSelectedEmail(res.data);
             // Update read status in list
+            const wasUnread = emails.find(e => e.id === id)?.isRead === false;
             setEmails(prev => prev.map(e => e.id === id ? { ...e, isRead: true } : e));
-            setUnreadInbox(prev => Math.max(0, prev - (res.data.folder === 'inbox' && !res.data.isRead ? 1 : 0)));
+
+            if (wasUnread && res.data.folder === 'inbox') {
+                setUnreadInbox(prev => Math.max(0, prev - 1));
+                if (fetchNotificationCounts) fetchNotificationCounts();
+            }
         } catch (err) {
             console.error('Failed to open email:', err);
         } finally {
@@ -1278,16 +1336,7 @@ export default function SettingsPage() {
         </div>
     );
 
-    const ComplianceSection = (
-        <Card className="p-12 border-border bg-card/50 shadow-lg backdrop-blur-sm text-center">
-            <ShieldCheck size={64} className="mx-auto text-muted-foreground/30 mb-6" />
-            <h2 className="text-2xl font-bold text-foreground mb-2">Compliance Center</h2>
-            <p className="text-muted-foreground mb-6">Dieser Bereich befindet sich noch in Entwicklung.</p>
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-800 rounded-full font-bold text-sm">
-                <Loader2 size={16} className="animate-spin" /> In Arbeit
-            </div>
-        </Card>
-    );
+
 
     const StoresSection = (
         <div className="space-y-4">
@@ -1805,6 +1854,17 @@ export default function SettingsPage() {
                         />
                     </div>
 
+                    <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Absender Name (Optional)</label>
+                        <Input
+                            type="text"
+                            value={emailConfig.smtpSenderName}
+                            onChange={(e) => setEmailConfig({ ...emailConfig, smtpSenderName: e.target.value })}
+                            placeholder="GabelGuru Admin"
+                            className="bg-muted border-transparent focus:bg-background transition-colors"
+                        />
+                    </div>
+
                     <div className="flex items-center gap-2">
                         <input
                             type="checkbox"
@@ -1926,7 +1986,8 @@ export default function SettingsPage() {
                 'Plastikgabel': 'badge_plastic.png',
                 'Silbergabel': 'badge_silver.png',
                 'Goldgabel': 'badge_gold.png',
-                'Regenbogengabel': 'badge_rainbow.png'
+                'Rainbowspoon': 'badge_rainbow.png', // Match server enum
+                'Regenbogengabel': 'badge_rainbow.png' // Fallback
             };
             return tierMap[tier] || 'badge_plastic.png';
         };
@@ -1935,31 +1996,47 @@ export default function SettingsPage() {
         const badgeImage = getTierBadge(currentTier);
 
         return (
-            <div className="space-y-8">
+            <div className="space-y-8 relative">
                 {/* Tier Info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="p-6 bg-gradient-to-br from-primary/10 to-primary/5 rounded-3xl border border-primary/20">
+                    <div className="p-6 bg-gradient-to-br from-primary/10 to-primary/5 rounded-3xl border border-primary/20 relative min-h-[160px] flex flex-col justify-center">
                         <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-3 block">Aktuelles Abo</label>
-                        <div className="flex items-center gap-4 mb-3">
-                            <img src={`/${badgeImage}`} alt={currentTier} className="w-16 h-16 object-contain" />
-                            <div className="text-2xl font-bold">
-                                {currentTier}
+                        {loadingSubscription ? (
+                            <div className="flex items-center justify-center p-4">
+                                <Loader2 className="w-8 h-8 animate-spin text-primary/40" />
                             </div>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                            Ihr aktueller Status. Upgrades sind derzeit nur über den Administrator möglich.
-                        </p>
+                        ) : (
+                            <>
+                                <div className="flex items-center gap-4 mb-3">
+                                    <img src={`/${badgeImage}`} alt={currentTier} className="w-16 h-16 object-contain" />
+                                    <div className="text-2xl font-bold">
+                                        {currentTier === 'Rainbowspoon' ? 'Regenbogengabel' : currentTier}
+                                    </div>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Ihr aktueller Status. Upgrades sind derzeit nur über den Administrator möglich.
+                                </p>
+                            </>
+                        )}
                     </div>
 
-                    <div className="p-6 bg-muted/30 rounded-3xl border border-border flex flex-col justify-between">
-                        <div>
-                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-3 block">Verfügbare Credits</label>
-                            <div className="flex items-center gap-2">
-                                <img src="/coin.png" alt="Credits" className="w-8 h-8 object-contain" />
-                                <span className="text-3xl font-black">{parseFloat(user?.aiCredits || 0).toFixed(2)}</span>
+                    <div className="p-6 bg-muted/30 rounded-3xl border border-border flex flex-col justify-between relative min-h-[160px]">
+                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-3 block">Verfügbare Credits</label>
+                        {loadingSubscription ? (
+                            <div className="flex-1 flex items-center justify-center">
+                                <Loader2 className="w-8 h-8 animate-spin text-primary/40" />
                             </div>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mt-2 italic">Guthaben für AI-Analysen und Bildgenerierung.</p>
+                        ) : (
+                            <>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <img src="/coin.png" alt="Credits" className="w-8 h-8 object-contain" />
+                                        <span className="text-3xl font-black">{parseFloat(user?.aiCredits || 0).toFixed(2)}</span>
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-2 italic">Guthaben für AI-Analysen und Bildgenerierung.</p>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -1969,7 +2046,7 @@ export default function SettingsPage() {
                         <History size={18} className="text-muted-foreground" />
                         Kontoauszug (AI Credits)
                     </h3>
-                    <div className="bg-muted/20 rounded-2xl border border-border overflow-hidden">
+                    <div className="bg-muted/20 rounded-2xl border border-border overflow-hidden min-h-[200px]">
                         <table className="w-full text-left text-sm">
                             <thead className="bg-muted/50 border-b border-border">
                                 <tr>
@@ -1981,8 +2058,8 @@ export default function SettingsPage() {
                             <tbody className="divide-y divide-border/50">
                                 {loadingCredits ? (
                                     <tr>
-                                        <td colSpan="3" className="px-4 py-8 text-center">
-                                            <Loader2 className="animate-spin mx-auto text-primary/50" />
+                                        <td colSpan="3" className="px-4 py-20 text-center">
+                                            <Loader2 className="animate-spin mx-auto text-primary/50 w-8 h-8" />
                                         </td>
                                     </tr>
                                 ) : creditHistory?.length > 0 ? (
@@ -2000,7 +2077,7 @@ export default function SettingsPage() {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan="3" className="px-4 py-8 text-center text-muted-foreground italic">Noch keine Transaktionen vorhanden.</td>
+                                        <td colSpan="3" className="px-4 py-20 text-center text-muted-foreground italic">Noch keine Transaktionen vorhanden.</td>
                                     </tr>
                                 )}
                             </tbody>
@@ -2169,7 +2246,7 @@ export default function SettingsPage() {
                                                 {messagingFolder === 'sent' ? email.toAddress : email.fromAddress}
                                             </p>
                                             <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                                {new Date(email.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                                {new Date(email.date).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                             </span>
                                         </div>
                                         <p className={cn(
@@ -2298,6 +2375,189 @@ export default function SettingsPage() {
         </div>
     );
 
+    const ComplianceSection = (
+        <div className="space-y-6">
+            <Card className="p-6 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                        <ShieldCheck size={20} className="text-primary" />
+                        Compliance & Meldungen
+                    </h2>
+                    <Button variant="outline" size="sm" onClick={fetchComplianceReports} disabled={loadingCompliance}>
+                        {loadingCompliance ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                    </Button>
+                </div>
+
+                {selectedReport ? (
+                    <div className="space-y-6 animate-in slide-in-from-right duration-300">
+                        <button
+                            onClick={() => setSelectedReport(null)}
+                            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+                        >
+                            <ArrowLeft size={16} /> Zurück zur Liste
+                        </button>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="md:col-span-2 space-y-6">
+                                <div className="space-y-4">
+                                    <div className="bg-muted/30 p-4 rounded-lg border border-border">
+                                        <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground mb-3">Gemeldeter Inhalt</h3>
+                                        <div className="space-y-2">
+                                            <p><span className="font-semibold">URL:</span> <a href={selectedReport.contentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{selectedReport.contentUrl}</a></p>
+                                            <p><span className="font-semibold">Art:</span> {selectedReport.contentType}</p>
+                                            <p><span className="font-semibold">Gemeldet am:</span> {new Date(selectedReport.createdAt).toLocaleString('de-DE')}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-muted/30 p-4 rounded-lg border border-border">
+                                        <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground mb-3">Begründung</h3>
+                                        <div className="space-y-2">
+                                            <p><span className="font-semibold">Grund:</span> <span className="text-red-500 font-bold">{selectedReport.reasonCategory}</span></p>
+                                            <div className="mt-2 text-sm bg-background p-3 rounded border border-border/50">
+                                                {selectedReport.reasonDescription}
+                                            </div>
+                                            {selectedReport.originalSourceUrl && (
+                                                <p className="mt-2"><span className="font-semibold">Originalquelle:</span> <a href={selectedReport.originalSourceUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{selectedReport.originalSourceUrl}</a></p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {selectedReport.screenshotPath && (
+                                <div className="bg-muted/30 p-4 rounded-lg border border-border mt-6">
+                                    <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground mb-3">Automatische Vorschau</h3>
+                                    <a
+                                        href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${selectedReport.screenshotPath}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        <img
+                                            src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${selectedReport.screenshotPath}`}
+                                            alt="Vorschau des Inhalts"
+                                            className="w-full h-auto rounded-lg border border-border hover:opacity-90 transition-opacity"
+                                        />
+                                    </a>
+                                    <p className="text-[10px] text-muted-foreground mt-2 italic">
+                                        Automatisch generierter Screenshot zum Zeitpunkt der Meldung.
+                                    </p>
+                                </div>
+                            )}
+
+                            <div className="space-y-6">
+                                <div className="bg-muted/30 p-4 rounded-lg border border-border">
+                                    <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground mb-3">Melder</h3>
+                                    <div className="space-y-2 text-sm">
+                                        <p><span className="font-semibold">Name:</span> {selectedReport.reporterName}</p>
+                                        <p><span className="font-semibold">E-Mail:</span> <a href={`mailto:${selectedReport.reporterEmail}`} className="text-primary hover:underline">{selectedReport.reporterEmail}</a></p>
+                                        <p><span className="font-semibold">Rolle:</span> {selectedReport.reporterRole}</p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-card border border-border p-4 rounded-lg shadow-sm">
+                                    <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground mb-3">Status & Aktion</h3>
+                                    <div className="space-y-3">
+                                        <select
+                                            value={selectedReport.status}
+                                            onChange={(e) => updateReportStatus(selectedReport.id, e.target.value)}
+                                            className={cn(
+                                                "flex h-10 w-full rounded-xl border border-input px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+                                                selectedReport.status === 'open' && "text-red-600 bg-red-50 border-red-200",
+                                                selectedReport.status === 'investigating' && "text-yellow-600 bg-yellow-50 border-yellow-200",
+                                                selectedReport.status === 'resolved' && "text-green-600 bg-green-50 border-green-200",
+                                                selectedReport.status === 'dismissed' && "text-muted-foreground bg-muted"
+                                            )}
+                                        >
+                                            <option value="open">Offen</option>
+                                            <option value="investigating">In Bearbeitung</option>
+                                            <option value="resolved">Gelöst / Entfernt</option>
+                                            <option value="dismissed">Abgelehnt</option>
+                                        </select>
+
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-muted-foreground">Interne Notiz / Beschluss</label>
+                                            <textarea
+                                                value={selectedReport.resolutionNote || ''}
+                                                onChange={(e) => setSelectedReport({ ...selectedReport, resolutionNote: e.target.value })}
+                                                onBlur={(e) => updateReportStatus(selectedReport.id, selectedReport.status, e.target.value)}
+                                                placeholder="Notiz speichern..."
+                                                className="flex min-h-[100px] w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-muted/50 border-b border-border text-xs uppercase text-muted-foreground font-bold">
+                                <tr>
+                                    <th className="px-4 py-3 rounded-tl-lg">Status</th>
+                                    <th className="px-4 py-3">Grund & Inhalt</th>
+                                    <th className="px-4 py-3">Melder</th>
+                                    <th className="px-4 py-3">Datum</th>
+                                    <th className="px-4 py-3 rounded-tr-lg text-right">Aktion</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                                {loadingCompliance ? (
+                                    <tr>
+                                        <td colSpan="5" className="px-4 py-12 text-center">
+                                            <Loader2 size={24} className="animate-spin text-primary mx-auto" />
+                                        </td>
+                                    </tr>
+                                ) : complianceReports.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="5" className="px-4 py-12 text-center text-muted-foreground italic">
+                                            Keine Meldungen vorhanden.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    complianceReports.map(report => (
+                                        <tr key={report.id} className="hover:bg-muted/50 transition-colors">
+                                            <td className="px-4 py-3">
+                                                <span className={cn(
+                                                    "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border",
+                                                    report.status === 'open' && "bg-red-100 text-red-700 border-red-200",
+                                                    report.status === 'investigating' && "bg-yellow-100 text-yellow-700 border-yellow-200",
+                                                    report.status === 'resolved' && "bg-green-100 text-green-700 border-green-200",
+                                                    report.status === 'dismissed' && "bg-muted text-muted-foreground border-border"
+                                                )}>
+                                                    {report.status === 'open' && 'Offen'}
+                                                    {report.status === 'investigating' && 'In Arbeit'}
+                                                    {report.status === 'resolved' && 'Gelöst'}
+                                                    {report.status === 'dismissed' && 'Abgelehnt'}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 max-w-[250px]">
+                                                <div className="font-bold truncate" title={report.reasonCategory}>{report.reasonCategory}</div>
+                                                <div className="text-xs text-muted-foreground truncate" title={report.contentUrl}>{report.contentUrl}</div>
+                                            </td>
+                                            <td className="px-4 py-3 text-xs">
+                                                <div className="font-medium">{report.reporterName}</div>
+                                                <div className="text-muted-foreground">{report.reporterRole}</div>
+                                            </td>
+                                            <td className="px-4 py-3 text-xs whitespace-nowrap text-muted-foreground">
+                                                {new Date(report.createdAt).toLocaleDateString('de-DE')}
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <Button size="sm" variant="ghost" onClick={() => setSelectedReport(report)}>
+                                                    Details
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </Card>
+        </div>
+    );
+
     const adminTabs = [
         { id: 'users', label: 'Benutzer', icon: Users },
         { id: 'messaging', label: 'Messaging', icon: Mail },
@@ -2337,6 +2597,12 @@ export default function SettingsPage() {
                                 <div className="flex items-center gap-2">
                                     <sub.icon size={16} />
                                     <span>{sub.label}</span>
+                                    {sub.id === 'messaging' && notificationCounts?.messaging > 0 && (
+                                        <span className="bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{notificationCounts.messaging}</span>
+                                    )}
+                                    {sub.id === 'compliance' && notificationCounts?.compliance > 0 && (
+                                        <span className="bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{notificationCounts.compliance}</span>
+                                    )}
                                 </div>
                                 <ChevronDown
                                     size={16}
@@ -2378,6 +2644,12 @@ export default function SettingsPage() {
                         >
                             <sub.icon size={14} />
                             {sub.label}
+                            {sub.id === 'messaging' && notificationCounts?.messaging > 0 && (
+                                <span className="bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{notificationCounts.messaging}</span>
+                            )}
+                            {sub.id === 'compliance' && notificationCounts?.compliance > 0 && (
+                                <span className="bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{notificationCounts.compliance}</span>
+                            )}
                         </button>
                     ))}
                 </div>
@@ -2454,6 +2726,9 @@ export default function SettingsPage() {
                                 <div className="flex items-center gap-3">
                                     <Icon size={20} className={isActive ? "text-primary" : "text-muted-foreground"} />
                                     <span>{tab.label}</span>
+                                    {tab.id === 'admin' && notificationCounts?.total > 0 && (
+                                        <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5">{notificationCounts.total}</span>
+                                    )}
                                 </div>
                                 <ChevronDown
                                     size={18}
@@ -2504,6 +2779,9 @@ export default function SettingsPage() {
                             >
                                 <Icon size={18} />
                                 {tab.label}
+                                {tab.id === 'admin' && notificationCounts?.total > 0 && (
+                                    <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5">{notificationCounts.total}</span>
+                                )}
                             </button>
                         );
                     })}

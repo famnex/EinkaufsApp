@@ -1,6 +1,6 @@
 {
   "name": "server",
-  "version": "0.23.8",
+  "version": "0.24.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -26,6 +26,7 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.1",
     "openai": "^6.17.0",
+    "puppeteer": "^24.37.2",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7"
   },

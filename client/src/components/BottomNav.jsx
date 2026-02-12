@@ -3,9 +3,12 @@ import { Settings, List, Package, CalendarRange, UtensilsCrossed, MoreHorizontal
 import { cn } from '../lib/utils';
 import { motion } from 'framer-motion';
 
+import { useAuth } from '../contexts/AuthContext';
+
 export default function BottomNav() {
     const navigate = useNavigate();
     const location = useLocation();
+    const { notificationCounts } = useAuth();
 
     const tabs = [
         { id: 'dashboard', icon: List, path: '/', label: 'Listen' },
@@ -35,13 +38,20 @@ export default function BottomNav() {
                                 transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                             />
                         )}
-                        <tab.icon
-                            size={22}
-                            className={cn(
-                                "relative z-10 transition-all duration-300",
-                                active ? "text-primary-foreground scale-110" : "text-muted-foreground group-hover:text-foreground"
+                        <div className="relative">
+                            <tab.icon
+                                size={22}
+                                className={cn(
+                                    "relative z-10 transition-all duration-300",
+                                    active ? "text-primary-foreground scale-110" : "text-muted-foreground group-hover:text-foreground"
+                                )}
+                            />
+                            {tab.id === 'settings' && notificationCounts?.total > 0 && (
+                                <span className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-background z-20">
+                                    {notificationCounts.total}
+                                </span>
                             )}
-                        />
+                        </div>
                         <span className={cn(
                             "text-[10px] font-bold uppercase tracking-widest relative z-10 transition-colors duration-300 hidden sm:block",
                             active ? "text-primary-foreground" : "text-muted-foreground"

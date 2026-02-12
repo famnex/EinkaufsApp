@@ -54,8 +54,32 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
     };
 
+    const [notificationCounts, setNotificationCounts] = useState({ messaging: 0, compliance: 0, total: 0 });
+
+    const fetchNotificationCounts = async () => {
+        if (user?.role !== 'admin') return;
+        try {
+            const [msgRes, compRes] = await Promise.all([
+                api.get('/messaging?folder=inbox&limit=1'), // Limit 1 just to get the unread count metadata
+                api.get('/compliance/stats')
+            ]);
+            // Assuming messaging endpoint returns unreadInbox in the top level object
+            const messaging = msgRes.data.unreadInbox || 0;
+            const compliance = compRes.data.open || 0;
+            setNotificationCounts({ messaging, compliance, total: messaging + compliance });
+        } catch (err) {
+            console.error('Failed to update notifications', err);
+        }
+    };
+
+    useEffect(() => {
+        if (user?.role === 'admin') {
+            fetchNotificationCounts();
+        }
+    }, [user]);
+
     return (
-        <AuthContext.Provider value={{ user, setUser, login, signup, logout, loading }}>
+        <AuthContext.Provider value={{ user, setUser, login, signup, logout, loading, notificationCounts, fetchNotificationCounts }}>
             {!loading && children}
         </AuthContext.Provider>
     );

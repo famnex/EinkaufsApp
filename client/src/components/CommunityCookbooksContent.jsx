@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChefHat, Search, ArrowRight, BookOpen, User, Star, TrendingUp, Users } from 'lucide-react';
+import { ChefHat, Search, ArrowRight, BookOpen, User, Star, TrendingUp, Users, ShieldCheck } from 'lucide-react';
 import { Card } from './Card';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -58,6 +58,7 @@ export default function CommunityCookbooksContent() {
 
     return (
         <LoadingOverlay isLoading={loading}>
+
             <div className="space-y-8 pb-24 max-w-7xl mx-auto px-4 pt-8">
                 {/* Header Section */}
                 <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-background to-accent/5 border border-border/50 p-8 md:p-12">

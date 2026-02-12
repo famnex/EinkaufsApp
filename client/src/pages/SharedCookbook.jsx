@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChefHat, Clock, Users, Filter, X, UtensilsCrossed, ArrowRight, ChevronDown, ChevronUp, Moon, Sun, Dices, Eye } from 'lucide-react';
+import { Search, ChefHat, Clock, Users, Filter, X, UtensilsCrossed, ArrowRight, ChevronDown, ChevronUp, Moon, Sun, Dices, Eye, ShieldCheck } from 'lucide-react';
 import axios from 'axios';
 import { cn, getImageUrl } from '../lib/utils';
 import { useTheme } from '../contexts/ThemeContext';
@@ -206,6 +206,13 @@ export default function SharedCookbook() {
                             <Dices size={18} />
                             Zufalls-Roulette
                         </Button>
+                        <button
+                            onClick={() => navigate(`/compliance?url=${encodeURIComponent(window.location.href)}`)}
+                            className="text-xs text-white/50 hover:text-white hover:underline flex items-center gap-1 mt-2"
+                        >
+                            <ShieldCheck size={12} />
+                            Inhalt melden
+                        </button>
                     </motion.div>
                 </div>
             </div>

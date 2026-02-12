@@ -45,6 +45,34 @@ Aufzeichnung aller AI-Guthaben-Bewegungen.
 - Jede Liste und jedes Item gehört einem `UserId`.
 - `ListItems` sind über `ListId` und `ProductId` assoziiert.
 
+### `ComplianceReports` [NEW v0.23.8]
+- `id` (INT, PK)
+- `reporterName` (STRING)
+- `reporterEmail` (STRING)
+- `reporterRole` (ENUM)
+- `contentUrl` (STRING)
+- `contentType` (ENUM)
+- `reasonCategory` (ENUM)
+- `reasonDescription` (TEXT)
+- `originalSourceUrl` (STRING)
+- `status` (ENUM)
+- `resolutionNote` (TEXT)
+- `screenshotPath` (STRING) [NEW v0.24.0]
+
+### `ComplianceReports` [NEW v0.23.8]
+- `id` (INT, PK)
+- `reporterName` (STRING)
+- `reporterEmail` (STRING)
+- `reporterRole` (ENUM)
+- `contentUrl` (STRING)
+- `contentType` (ENUM)
+- `reasonCategory` (ENUM)
+- `reasonDescription` (TEXT)
+- `originalSourceUrl` (STRING)
+- `status` (ENUM)
+- `resolutionNote` (TEXT)
+- `screenshotPath` (STRING) [NEW v0.24.0]
+
 ### `Recipes` / `RecipeIngredients`
 - `sharingKey` der `Users` erlaubt Zugriff auf Rezepte des jeweiligen Users.
 - `RecipeIngredients` verknüpft `Recipe` mit `Product` für einen spezifischen `UserId`.

@@ -10,6 +10,7 @@ export default function PublicFooter() {
                     <button onClick={() => navigate('/privacy')} className="hover:text-foreground transition-colors">Datenschutz</button>
                     <button onClick={() => navigate('/imprint')} className="hover:text-foreground transition-colors">Impressum</button>
                     <button onClick={() => navigate('/community-cookbooks')} className="hover:text-foreground transition-colors">Community</button>
+                    <button onClick={() => navigate(`/compliance?url=${encodeURIComponent(window.location.href)}`)} className="hover:text-red-500 transition-colors">Inhalt melden</button>
                 </div>
                 <p>&copy; {new Date().getFullYear()} GabelGuru. Steffen Fleischer. Made with ❤️.</p>
             </div>
