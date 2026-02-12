@@ -13,3 +13,4 @@ server/scripts/fix_db_schema.js
 server/inspect_db.js
 server/logs/
 server/public/uploads/
+server/uploads/
