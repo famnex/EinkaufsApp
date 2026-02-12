@@ -91,6 +91,9 @@ router.get('/public/:sharingKey/:id', async (req, res) => {
         if (plain.imageSource === 'scraped') {
             plain.image_url = null;
         }
+        // Include user info for display
+        plain.ownerUsername = user.username;
+        plain.cookbookTitle = user.cookbookTitle;
         res.json(plain);
     } catch (err) {
         res.status(500).json({ error: err.message });

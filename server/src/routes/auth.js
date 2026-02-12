@@ -46,24 +46,24 @@ router.get('/public-cookbooks', async (req, res) => {
 
         console.log(`Found ${users.length} public users.`);
 
-        // Format data
+        // Format data — tileImage = random recipe image, cookbookImage = user avatar
         const result = users.map(user => {
-            let displayImage = user.cookbookImage;
+            let tileImage = null;
 
-            // If no cookbook image, try to pick random recipe image
-            if (!displayImage && user.Recipes && user.Recipes.length > 0) {
+            // Pick a random recipe image for the tile background
+            if (user.Recipes && user.Recipes.length > 0) {
                 const recipesWithImages = user.Recipes.filter(r => r.image_url);
                 if (recipesWithImages.length > 0) {
                     const randomIdx = Math.floor(Math.random() * recipesWithImages.length);
-                    displayImage = recipesWithImages[randomIdx].image_url;
-                    console.log(`User ${user.username}: Picked random recipe image ${displayImage}`);
+                    tileImage = recipesWithImages[randomIdx].image_url;
                 }
             }
 
             return {
                 username: user.username,
                 cookbookTitle: user.cookbookTitle,
-                cookbookImage: displayImage,
+                cookbookImage: user.cookbookImage,  // Original cookbook avatar
+                tileImage: tileImage,                // Random recipe image for background
                 sharingKey: user.sharingKey,
                 recipeCount: user.Recipes ? user.Recipes.length : 0
             };

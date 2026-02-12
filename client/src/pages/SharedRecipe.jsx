@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, ChefHat, Clock, Moon, Play, Printer, Sun, Users } from 'lucide-react';
+import { ChefHat, Clock, Play, User, Users } from 'lucide-react';
 import { Card } from '../components/Card';
 import SharedCookingMode from '../components/SharedCookingMode';
 import SharedNotFound from '../components/SharedNotFound';
-import { useTheme } from '../contexts/ThemeContext';
 import { getImageUrl } from '../lib/utils';
 
 
@@ -15,26 +14,7 @@ export default function SharedRecipe() {
     const [recipe, setRecipe] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const { theme, toggleTheme } = useTheme();
     const [isCooking, setIsCooking] = useState(false);
-    const isDarkMode = theme === 'dark';
-
-    // Force light mode for printing
-    useEffect(() => {
-        const handleBeforePrint = () => {
-            // Optional: Force light mode logic if needed, but CSS @media print handling usually suffices
-        };
-        const handleAfterPrint = () => {
-        };
-
-        window.addEventListener('beforeprint', handleBeforePrint);
-        window.addEventListener('afterprint', handleAfterPrint);
-
-        return () => {
-            window.removeEventListener('beforeprint', handleBeforePrint);
-            window.removeEventListener('afterprint', handleAfterPrint);
-        };
-    }, []);
 
     // Determine API URL based on environment and base path
     const baseURL = import.meta.env.BASE_URL === '/'
@@ -87,50 +67,7 @@ export default function SharedRecipe() {
     };
 
     return (
-        <div className="min-h-screen bg-background text-foreground font-sans flex flex-col">
-            {/* Header */}
-            <header className="bg-card border-b border-border shadow-sm sticky top-0 z-10 print:hidden pt-[max(1rem,env(safe-area-inset-top))]">
-                <div className="max-w-3xl mx-auto px-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/')}
-                            className="p-2 -ml-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                            title="Zurück"
-                        >
-                            <ArrowLeft size={20} />
-                        </button>
-                        <div className="w-10 h-10 bg-white dark:bg-card rounded-xl flex items-center justify-center p-1.5 shadow-sm border border-border/50 overflow-hidden">
-                            <img
-                                src={`${import.meta.env.BASE_URL}icon-512x512.png`}
-                                alt="GabelGuru Logo"
-                                className="w-full h-full object-contain"
-                                onError={(e) => {
-                                    // Fallback to text if image is missing
-                                    e.target.parentElement.style.display = 'none';
-                                }}
-                            />
-                        </div>
-                        <span className="font-bebas text-2xl tracking-wider text-primary">GabelGuru</span>
-                    </div>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={toggleTheme}
-                            className="p-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                            title={isDarkMode ? "Hellen Modus aktivieren" : "Dunklen Modus aktivieren"}
-                        >
-                            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-                        </button>
-                        <button
-                            onClick={() => window.print()}
-                            className="p-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                            title="Drucken"
-                        >
-                            <Printer size={20} />
-                        </button>
-                    </div>
-                </div>
-            </header>
-
+        <>
             <main className="max-w-3xl mx-auto p-4 space-y-6 flex-1 w-full print:max-w-none print:p-0">
                 {/* Print Title Header */}
                 <div className="hidden print:block mb-6 space-y-2">
@@ -147,6 +84,17 @@ export default function SharedRecipe() {
                             <Users size={16} />
                             <span>{recipe.servings} Port.</span>
                         </div>
+                        <span className="text-gray-300">|</span>
+                        <div className="flex items-center gap-1">
+                            <User size={14} />
+                            <span>{recipe.ownerUsername || 'Unbekannt'}</span>
+                        </div>
+                        {recipe.cookbookTitle && (
+                            <div className="flex items-center gap-1">
+                                <ChefHat size={14} />
+                                <span>{recipe.cookbookTitle}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -171,6 +119,22 @@ export default function SharedRecipe() {
                         <h1 className="text-3xl md:text-4xl font-bold leading-tight text-white shadow-sm">
                             {recipe.title}
                         </h1>
+                        {/* Owner info */}
+                        <div className="flex items-center gap-3 text-white/70 text-sm mt-2">
+                            <span className="flex items-center gap-1">
+                                <User size={14} />
+                                {recipe.ownerUsername || 'Unbekannt'}
+                            </span>
+                            {recipe.cookbookTitle && (
+                                <>
+                                    <span>|</span>
+                                    <span className="flex items-center gap-1">
+                                        <ChefHat size={14} />
+                                        {recipe.cookbookTitle}
+                                    </span>
+                                </>
+                            )}
+                        </div>
                     </div>
                     <div className="absolute top-4 right-4 z-20">
                         <button
@@ -274,10 +238,6 @@ export default function SharedRecipe() {
                 </div>
             </main>
 
-            <footer className="py-8 text-center text-sm text-muted-foreground print:hidden">
-                <p>GabelGuru &copy; Steffen Fleischer 2026</p>
-            </footer>
-
             <style>{`
                 @media print {
                     .dark {
@@ -302,6 +262,6 @@ export default function SharedRecipe() {
                     }
                 }
             `}</style>
-        </div>
+        </>
     );
 }

@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
+import { Printer } from 'lucide-react';
 import { Button } from './Button';
 import ThemeToggle from './ThemeToggle';
 
@@ -7,6 +8,7 @@ export default function PublicHeader() {
     const location = useLocation();
 
     const isLoginPage = location.pathname === '/login';
+    const isRecipePage = location.pathname.includes('/recipe/');
 
     return (
         <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
@@ -27,16 +29,30 @@ export default function PublicHeader() {
                     />
                 </div>
                 <div className="flex items-center gap-4">
-                    <ThemeToggle />
-                    {isLoginPage ? (
-                        <Button size="sm" onClick={() => navigate('/signup')}>
-                            Registrieren
-                        </Button>
-                    ) : (
-                        <Button size="sm" onClick={() => navigate('/login')}>
-                            Anmelden
-                        </Button>
+                    {/* Print button - only on recipe pages */}
+                    {isRecipePage && (
+                        <button
+                            onClick={() => window.print()}
+                            className="p-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors print:hidden"
+                            title="Drucken"
+                        >
+                            <Printer size={20} />
+                        </button>
                     )}
+                    <span className="print:hidden">
+                        <ThemeToggle />
+                    </span>
+                    <span className="print:hidden">
+                        {isLoginPage ? (
+                            <Button size="sm" onClick={() => navigate('/signup')}>
+                                Registrieren
+                            </Button>
+                        ) : (
+                            <Button size="sm" onClick={() => navigate('/login')}>
+                                Anmelden
+                            </Button>
+                        )}
+                    </span>
                 </div>
             </div>
         </nav>

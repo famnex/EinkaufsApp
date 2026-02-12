@@ -154,9 +154,9 @@ export default function CommunityCookbooksContent() {
                                 className="p-0 overflow-hidden hover:shadow-2xl transition-all duration-500 border-border/50 bg-card hover:bg-card group flex flex-col h-full rounded-3xl hover:-translate-y-1"
                             >
                                 <div className="h-48 bg-muted relative overflow-hidden">
-                                    {cb.cookbookImage ? (
+                                    {cb.tileImage ? (
                                         <img
-                                            src={getImageUrl(cb.cookbookImage)}
+                                            src={getImageUrl(cb.tileImage)}
                                             alt={cb.cookbookTitle || 'Kochbuch'}
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                                             onError={(e) => {
@@ -167,30 +167,39 @@ export default function CommunityCookbooksContent() {
                                     ) : null}
                                     <div className={cn(
                                         "w-full h-full items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10 text-primary/20",
-                                        cb.cookbookImage ? "hidden" : "flex"
+                                        cb.tileImage ? "hidden" : "flex"
                                     )}>
-                                        <BookOpen size={64} />
+                                        <ChefHat size={64} />
                                     </div>
+                                    {/* Recipe count badge */}
                                     <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
                                         <ChefHat size={12} />
                                         {cb.recipeCount || 0}
                                     </div>
+                                    {/* Cookbook avatar — shown below recipe count */}
+                                    {cb.cookbookImage ? (
+                                        <div className="absolute top-12 right-2">
+                                            <img
+                                                src={getImageUrl(cb.cookbookImage)}
+                                                alt="Kochbuch"
+                                                className="w-20 h-20 rounded-full object-cover border-2 border-white/80 shadow-lg"
+                                            />
+                                        </div>
+                                    ) : null}
                                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-6 pt-12">
                                         <h3 className="font-bold text-xl text-white leading-tight mb-1 line-clamp-2">
                                             {cb.cookbookTitle || 'Unbenanntes Kochbuch'}
                                         </h3>
                                         <div className="flex items-center gap-2 text-white/80 text-sm">
-                                            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">
-                                                {(cb.username || '?').substring(0, 1).toUpperCase()}
-                                            </div>
+                                            <User size={16} />
                                             <span>{cb.username || 'Unbekannt'}</span>
                                         </div>
                                     </div>
                                 </div>
                                 <div className="p-5 flex flex-col flex-1 bg-card">
+                                    {/* Follower section — temporarily disabled
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex -space-x-2">
-                                            {/* Fake Avatars for social proof feel */}
                                             {[1, 2, 3].map(i => (
                                                 <div key={i} className={`w-8 h-8 rounded-full border-2 border-card flex items-center justify-center text-xs text-white font-bold ${['bg-red-400', 'bg-blue-400', 'bg-green-400'][i - 1]}`}>
                                                     {String.fromCharCode(64 + i)}
@@ -202,6 +211,7 @@ export default function CommunityCookbooksContent() {
                                         </div>
                                         <span className="text-xs text-muted-foreground font-medium">Follower</span>
                                     </div>
+                                    */}
 
                                     <div className="mt-auto">
                                         <Button

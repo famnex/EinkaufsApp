@@ -22,6 +22,7 @@ import SharedCookbook from './pages/SharedCookbook';
 import JoinHousehold from './pages/JoinHousehold';
 import LandingPage from './pages/LandingPage';
 import PublicCookbooks from './pages/PublicCookbooks';
+import PublicLayout from './components/PublicLayout';
 import CommunityCookbooksContent from './components/CommunityCookbooksContent';
 import LegalPage from './pages/LegalPage';
 
@@ -207,8 +208,8 @@ function AppContent() {
               <Route path="/signup" element={<Signup />} />
 
               {/* Public Shared Routes */}
-              <Route path="/shared/:sharingKey/recipe/:id" element={<SharedRecipe />} />
-              <Route path="/shared/:sharingKey/cookbook" element={<SharedCookbook />} />
+              <Route path="/shared/:sharingKey/recipe/:id" element={<PublicLayout><SharedRecipe /></PublicLayout>} />
+              <Route path="/shared/:sharingKey/cookbook" element={<PublicLayout><SharedCookbook /></PublicLayout>} />
 
               <Route path="/community-cookbooks" element={
                 user ? (

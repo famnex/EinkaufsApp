@@ -1,24 +1,21 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../lib/axios';
 import { useNavigate } from 'react-router-dom';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
-import { Settings, X, List, Plus, Euro, Search, ShoppingCart, Trash2, ChevronRight, Edit2, Check } from 'lucide-react';
+import { ShoppingCart, ChefHat, Play, Check, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ViewSwitcher from '../components/ViewSwitcher';
 import { useEditMode } from '../contexts/EditModeContext';
 import { cn } from '../lib/utils';
 
 export default function Dashboard() {
     const { editMode } = useEditMode();
-    const [view, setView] = useState(() => localStorage.getItem('dashboard_view') || 'calendar');
     const [lists, setLists] = useState([]);
+    const [menus, setMenus] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [activeStartDate, setActiveStartDate] = useState(new Date());
-    const [direction, setDirection] = useState(0); // -1: prev, 1: next
-    const [editingListId, setEditingListId] = useState(null);
-    const [editingName, setEditingName] = useState('');
+    const [direction, setDirection] = useState(0);
     const navigate = useNavigate();
 
     // Swipe Logic for Calendar
@@ -50,14 +47,12 @@ export default function Dashboard() {
         const isRightSwipe = xDistance < -minSwipeDistance;
 
         if (isLeftSwipe) {
-            // Next month
             setDirection(1);
             const nextMonth = new Date(activeStartDate);
             nextMonth.setMonth(nextMonth.getMonth() + 1);
             setActiveStartDate(nextMonth);
         }
         if (isRightSwipe) {
-            // Previous month
             setDirection(-1);
             const prevMonth = new Date(activeStartDate);
             prevMonth.setMonth(prevMonth.getMonth() - 1);
@@ -92,13 +87,24 @@ export default function Dashboard() {
         }
     }, []);
 
-    useEffect(() => {
-        fetchLists();
-    }, [fetchLists]);
+    const fetchMenus = useCallback(async () => {
+        try {
+            const today = new Date();
+            const start = getLocalDateStr(today);
+            const end = new Date(today);
+            end.setDate(end.getDate() + 14);
+            const endStr = getLocalDateStr(end);
+            const { data } = await api.get(`/menus?start=${start}&end=${endStr}`);
+            setMenus(data);
+        } catch (err) {
+            console.error('Failed to fetch menus', err);
+        }
+    }, []);
 
     useEffect(() => {
-        localStorage.setItem('dashboard_view', view);
-    }, [view]);
+        fetchLists();
+        fetchMenus();
+    }, [fetchLists, fetchMenus]);
 
     // Helper for local date string
     const getLocalDateStr = (date) => {
@@ -145,54 +151,6 @@ export default function Dashboard() {
         }
     };
 
-    const handleCreateList = async (date = new Date()) => {
-        const dateStr = getLocalDateStr(date);
-        try {
-            const { data } = await api.post('/lists', { date: dateStr });
-            fetchLists();
-            if (data?.id) {
-                navigate(`/lists/${data.id}`);
-            }
-        } catch (err) {
-            console.error('Failed to create list', err);
-        }
-    };
-
-    const handleDeleteList = async (id, e) => {
-        if (e && typeof e.stopPropagation === 'function') {
-            e.stopPropagation();
-        }
-        if (!confirm('Sitzung wirklich löschen?')) return;
-        try {
-            await api.delete(`/lists/${id}`);
-            fetchLists();
-        } catch (err) {
-            console.error('Failed to delete list', err);
-        }
-    };
-
-    const handleRename = async (id, e) => {
-        e.stopPropagation();
-        try {
-            await api.put(`/lists/${id}`, { name: editingName });
-            setEditingListId(null);
-            fetchLists();
-        } catch (err) {
-            console.error('Failed to rename list', err);
-        }
-    };
-
-    const handleToggleStatus = async (list, e) => {
-        e.stopPropagation();
-        const newStatus = list.status === 'active' ? 'archived' : 'active';
-        try {
-            await api.put(`/lists/${list.id}`, { status: newStatus });
-            fetchLists();
-        } catch (err) {
-            console.error('Failed to toggle status', err);
-        }
-    };
-
     const tileClassName = ({ date, view }) => {
         if (view === 'month') {
             const dateStr = getLocalDateStr(date);
@@ -205,178 +163,180 @@ export default function Dashboard() {
         return '';
     };
 
+    // --- Compute "Nächster Einkauf" ---
+    const nextShopping = useMemo(() => {
+        const todayStr = getLocalDateStr(new Date());
+        const futureLists = lists
+            .filter(l => l.status === 'active' && l.date >= todayStr)
+            .sort((a, b) => a.date.localeCompare(b.date));
+        return futureLists.length > 0 ? futureLists[0] : null;
+    }, [lists]);
+
+    // --- Compute "Nächstes Rezept" based on time of day ---
+    const nextRecipe = useMemo(() => {
+        const now = new Date();
+        const hour = now.getHours();
+        const todayStr = getLocalDateStr(now);
+
+        // Determine current meal type based on time
+        // 0-10 = Frühstück (breakfast), 10-14 = Mittag (lunch), 14-24 = Abendessen (dinner)
+        let currentMealType;
+        let mealLabel;
+        if (hour < 10) {
+            currentMealType = 'breakfast';
+            mealLabel = 'Frühstück';
+        } else if (hour < 14) {
+            currentMealType = 'lunch';
+            mealLabel = 'Mittagessen';
+        } else {
+            currentMealType = 'dinner';
+            mealLabel = 'Abendessen';
+        }
+
+        // Find today's menu entries with recipes
+        const todayMenus = menus.filter(m => m.date === todayStr);
+        const mealOrder = ['breakfast', 'lunch', 'dinner'];
+        const mealLabels = { breakfast: 'Frühstück', lunch: 'Mittagessen', dinner: 'Abendessen' };
+
+        // First try the current meal type
+        const currentMeal = todayMenus.find(m => m.meal_type === currentMealType && m.Recipe);
+        if (currentMeal) {
+            return { recipe: currentMeal.Recipe, mealLabel, menuId: currentMeal.id };
+        }
+
+        // Fallback: find any later meal today with a recipe
+        const currentIndex = mealOrder.indexOf(currentMealType);
+        for (let i = currentIndex + 1; i < mealOrder.length; i++) {
+            const meal = todayMenus.find(m => m.meal_type === mealOrder[i] && m.Recipe);
+            if (meal) {
+                return { recipe: meal.Recipe, mealLabel: mealLabels[mealOrder[i]], menuId: meal.id };
+            }
+        }
+
+        // Nothing found today
+        return null;
+    }, [menus]);
+
     return (
-        <div className="space-y-6">
-
-
-            <div className="w-full pt-6 relative">
-                {/* Pull to Refresh Indicator */}
-
-
-                <ViewSwitcher activeView={view} onViewChange={setView} />
-
-                <AnimatePresence mode="wait">
-                    {view === 'calendar' ? (
-                        <motion.div
-                            key="calendar-view"
-                            initial={{ opacity: 0, scale: 0.98 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.98 }}
-                            transition={{ duration: 0.2 }}
-                            className="bg-card border border-border rounded-3xl p-6 backdrop-blur-2xl shadow-xl transition-colors duration-300"
-                        >
-
-                            {/* Swipeable Calendar Wrapper */}
-                            <div
-                                onTouchStart={onTouchStart}
-                                onTouchMove={onTouchMove}
-                                onTouchEnd={onTouchEnd}
-                                className="touch-pan-y overflow-hidden relative"
-                            >
-                                <AnimatePresence initial={false} custom={direction} mode="popLayout">
-                                    <motion.div
-                                        key={activeStartDate.toISOString()}
-                                        custom={direction}
-                                        variants={variants}
-                                        initial="enter"
-                                        animate="center"
-                                        exit="exit"
-                                        transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
-                                    >
-                                        <Calendar
-                                            onChange={setSelectedDate}
-                                            onClickDay={handleDateClick}
-                                            value={selectedDate}
-                                            activeStartDate={activeStartDate}
-                                            onActiveStartDateChange={({ activeStartDate, action }) => {
-                                                // Handle click navigation (Next/Prev buttons)
-                                                if (action === 'next') setDirection(1);
-                                                if (action === 'prev') setDirection(-1);
-                                                setActiveStartDate(activeStartDate);
-                                            }}
-                                            tileClassName={tileClassName}
-                                            tileContent={({ date, view }) => {
-                                                if (view === 'month') {
-                                                    const dateStr = getLocalDateStr(date);
-                                                    const list = lists.find(l => l.date === dateStr);
-                                                    if (list && list.status === 'archived') {
-                                                        return (
-                                                            <div className="absolute bottom-0 right-0 p-1">
-                                                                <div className="bg-white rounded-full p-0.5 shadow-sm">
-                                                                    <Check size={8} className="text-green-600" strokeWidth={4} />
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    }
-                                                }
-                                                return null;
-                                            }}
-                                            locale="de-DE"
-                                            prev2Label={null}
-                                            next2Label={null}
-                                            formatShortWeekday={(locale, date) => ['M', 'D', 'M', 'D', 'F', 'S', 'S'][date.getDay() === 0 ? 6 : date.getDay() - 1]}
-                                        />
-                                    </motion.div>
-                                </AnimatePresence>
+        <div className="space-y-4">
+            {/* Info Box */}
+            <div className="mt-4">
+                <div className="bg-primary rounded-2xl p-2 grid grid-cols-2 gap-2">
+                    {/* Nächster Einkauf */}
+                    <button
+                        onClick={() => nextShopping && navigate(`/lists/${nextShopping.id}`)}
+                        className={cn(
+                            "flex items-center gap-2 p-2 rounded-xl transition-all text-left",
+                            nextShopping
+                                ? "bg-white/15 hover:bg-white/25 cursor-pointer active:scale-[0.97]"
+                                : "bg-white/5 opacity-50 cursor-default"
+                        )}
+                    >
+                        <ShoppingCart size={18} className="text-white shrink-0" />
+                        <div className="min-w-0">
+                            <div className="text-[9px] uppercase tracking-widest font-bold text-white/80">
+                                Nächster Einkauf
                             </div>
-                        </motion.div>
-                    ) : (
-                        <motion.div
-                            key="sessions-view"
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 10 }}
-                            transition={{ duration: 0.2 }}
-                            className="space-y-4"
-                        >
-                            {loading ? (
-                                <div className="py-20 text-center text-muted-foreground italic animate-pulse">Lade Sitzungen...</div>
-                            ) : lists.filter(l => l.status === 'active').length > 0 ? (
-                                lists.filter(l => l.status === 'active').map((list, index) => (
-                                    <motion.div
-                                        key={list.id}
-                                        layout
-                                        initial={{ opacity: 0, x: -20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: 20 }}
-                                        onClick={() => {
-                                            if (editMode === 'delete') {
-                                                handleDeleteList(list.id, { stopPropagation: () => { } });
-                                            } else {
-                                                navigate(`/lists/${list.id}`);
+                            <div className="text-xs font-bold text-white truncate">
+                                {nextShopping
+                                    ? (() => {
+                                        const d = new Date(nextShopping.date + 'T12:00:00');
+                                        return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+                                    })()
+                                    : 'Nicht geplant'
+                                }
+                            </div>
+                        </div>
+                    </button>
+
+                    {/* Nächstes Rezept */}
+                    <button
+                        onClick={() => {
+                            if (nextRecipe) {
+                                navigate('/recipes', { state: { openRecipeId: nextRecipe.recipe.id, startCooking: true } });
+                            }
+                        }}
+                        className={cn(
+                            "flex items-center gap-2 p-2 rounded-xl transition-all text-left",
+                            nextRecipe
+                                ? "bg-white/15 hover:bg-white/25 cursor-pointer active:scale-[0.97]"
+                                : "bg-white/5 opacity-50 cursor-default"
+                        )}
+                    >
+                        <ChefHat size={18} className="text-white shrink-0" />
+                        <div className="flex-1 min-w-0">
+                            <div className="text-[9px] uppercase tracking-widest font-bold text-white/80">
+                                {nextRecipe ? nextRecipe.mealLabel : 'Nächstes Rezept'}
+                            </div>
+                            <div className="text-xs font-bold text-white truncate">
+                                {nextRecipe ? nextRecipe.recipe.title : 'Heute keine Rezepte'}
+                            </div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            {/* Calendar */}
+            <div className="w-full relative">
+                <motion.div
+                    key="calendar-view"
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.2 }}
+                    className="bg-card border border-border rounded-3xl p-6 backdrop-blur-2xl shadow-xl transition-colors duration-300"
+                >
+                    <div
+                        onTouchStart={onTouchStart}
+                        onTouchMove={onTouchMove}
+                        onTouchEnd={onTouchEnd}
+                        className="touch-pan-y overflow-hidden relative"
+                    >
+                        <AnimatePresence initial={false} custom={direction} mode="popLayout">
+                            <motion.div
+                                key={activeStartDate.toISOString()}
+                                custom={direction}
+                                variants={variants}
+                                initial="enter"
+                                animate="center"
+                                exit="exit"
+                                transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
+                            >
+                                <Calendar
+                                    onChange={setSelectedDate}
+                                    onClickDay={handleDateClick}
+                                    value={selectedDate}
+                                    activeStartDate={activeStartDate}
+                                    onActiveStartDateChange={({ activeStartDate, action }) => {
+                                        if (action === 'next') setDirection(1);
+                                        if (action === 'prev') setDirection(-1);
+                                        setActiveStartDate(activeStartDate);
+                                    }}
+                                    tileClassName={tileClassName}
+                                    tileContent={({ date, view }) => {
+                                        if (view === 'month') {
+                                            const dateStr = getLocalDateStr(date);
+                                            const list = lists.find(l => l.date === dateStr);
+                                            if (list && list.status === 'archived') {
+                                                return (
+                                                    <div className="absolute bottom-0 right-0 p-1">
+                                                        <div className="bg-white rounded-full p-0.5 shadow-sm">
+                                                            <Check size={8} className="text-green-600" strokeWidth={4} />
+                                                        </div>
+                                                    </div>
+                                                );
                                             }
-                                        }}
-                                        className={cn(
-                                            "group relative flex items-center justify-between p-5 rounded-3xl transition-all border border-border/50",
-                                            "hover:bg-secondary/5 hover:border-secondary/20",
-                                            editMode === 'delete' ? "border-destructive/30 hover:bg-destructive/5 hover:border-destructive/50 cursor-pointer" : "cursor-pointer"
-                                        )}
-                                    >
-                                        <div className="flex items-center sm:gap-5 relative z-10 text-left flex-1 min-w-0">
-                                            <div
-                                                className={cn(
-                                                    "w-12 h-12 rounded-xl flex items-center justify-center shadow-md shrink-0 transition-all",
-                                                    // Mobile: Absolute, Transparent, Behind text
-                                                    "absolute left-0 top-1/2 -translate-y-1/2 opacity-20 scale-150 sm:scale-100 sm:opacity-100 sm:relative sm:translate-y-0",
-                                                    "bg-secondary text-secondary-foreground"
-                                                )}
-                                            >
-                                                <ShoppingCart size={24} />
-                                            </div>
-                                            <div className="flex-1 min-w-0 pl-4 sm:pl-0">
-                                                <div className="flex items-center gap-2">
-                                                    <h3 className="text-xl font-bold text-foreground leading-tight truncate">
-                                                        {list.name || new Date(list.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                                    </h3>
-                                                </div>
-                                                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1 block">
-                                                    {list.status === 'active' ? 'AKTIV' : 'ARCHIVIERT'}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div className="text-right relative z-10 flex flex-col items-end">
-                                            {/* Stats Display */}
-                                            <div className="flex flex-col items-end gap-1">
-                                                {list.category_stats && Object.keys(list.category_stats).length > 0 ? (
-                                                    <>
-                                                        {Object.entries(list.category_stats).slice(0, 3).map(([cat, count]) => (
-                                                            <span key={cat} className="text-xs bg-muted/50 px-2 py-0.5 rounded-full text-foreground/80 font-medium whitespace-nowrap">
-                                                                {count}x <span className="hidden sm:inline">{cat}</span>
-                                                            </span>
-                                                        ))}
-                                                        {Object.keys(list.category_stats).length > 3 && (
-                                                            <span className="text-[10px] text-muted-foreground">+ {Object.keys(list.category_stats).length - 3} <span className="hidden sm:inline">weitere</span></span>
-                                                        )}
-                                                    </>
-                                                ) : (
-                                                    <span className="text-sm text-muted-foreground italic">Leer</span>
-                                                )}
-                                            </div>
-
-                                            {editMode === 'delete' && (
-                                                <div className="mt-2 text-destructive">
-                                                    <Trash2 size={18} />
-                                                </div>
-                                            )}
-                                        </div>
-                                    </motion.div>
-                                ))
-                            ) : (
-                                <div className="py-20 text-center border-2 border-dashed border-border rounded-3xl">
-                                    <Plus size={48} className="mx-auto text-muted-foreground mb-4" />
-                                    <p className="text-muted-foreground font-medium">Keine aktiven Sitzungen.</p>
-                                    <button
-                                        onClick={() => handleCreateList()}
-                                        className="mt-6 px-8 py-3 bg-primary text-primary-foreground font-bold rounded-xl active:scale-95 transition-transform shadow-lg shadow-primary/20"
-                                    >
-                                        Erste Sitzung starten
-                                    </button>
-                                </div>
-                            )}
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                                        }
+                                        return null;
+                                    }}
+                                    locale="de-DE"
+                                    prev2Label={null}
+                                    next2Label={null}
+                                    formatShortWeekday={(locale, date) => ['M', 'D', 'M', 'D', 'F', 'S', 'S'][date.getDay() === 0 ? 6 : date.getDay() - 1]}
+                                />
+                            </motion.div>
+                        </AnimatePresence>
+                    </div>
+                </motion.div>
             </div>
 
             <style dangerouslySetInnerHTML={{
@@ -400,7 +360,7 @@ export default function Dashboard() {
                     color: hsl(var(--foreground)) !important;
                     background: transparent !important;
                     border: 4px solid transparent !important;
-                    transition: none !important; /* Remove transition to avoid flickering on state change */
+                    transition: none !important;
                     position: relative;
                     overflow: visible !important;
                 }
