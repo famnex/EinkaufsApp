@@ -361,7 +361,8 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                                                 setIsGenerating(true);
                                                                 try {
                                                                     const { data } = await api.post('/ai/generate-image', { title: parsedData.title });
-                                                                    const url = data.url.startsWith('/EinkaufsApp') ? data.url : '/EinkaufsApp' + data.url;
+                                                                    const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+                                                                    const url = data.url.startsWith(base) ? data.url : base + data.url;
                                                                     setParsedData(prev => ({ ...prev, image_url: url, imageSource: 'ai' }));
                                                                     setImageFile(null);
                                                                 } catch (err) {

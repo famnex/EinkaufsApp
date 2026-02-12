@@ -11,7 +11,7 @@ export default function PublicFooter() {
                     <button onClick={() => navigate('/imprint')} className="hover:text-foreground transition-colors">Impressum</button>
                     <button onClick={() => navigate('/community-cookbooks')} className="hover:text-foreground transition-colors">Community</button>
                 </div>
-                <p>&copy; {new Date().getFullYear()} GabelGuru. Made with ❤️ and AI.</p>
+                <p>&copy; {new Date().getFullYear()} GabelGuru. Steffen Fleischer. Made with ❤️.</p>
             </div>
         </footer>
     );
