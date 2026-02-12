@@ -18,9 +18,12 @@ const BASE_PATH = process.env.BASE_PATH || ''; // e.g. '/EinkaufsApp'
 // Serve static files
 app.use(`${BASE_PATH}/uploads`, express.static(path.join(__dirname, 'public/uploads')));
 
-app.get('/', (req, res) => {
-    res.json({ message: 'GabelGuru API is running' });
-});
+// Health check (only in dev, production serves SPA at /)
+if (process.env.NODE_ENV !== 'production') {
+    app.get('/', (req, res) => {
+        res.json({ message: 'GabelGuru API is running' });
+    });
+}
 
 const authRoutes = require('./src/routes/auth');
 const listRoutes = require('./src/routes/lists');
