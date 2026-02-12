@@ -28,6 +28,7 @@ import LegalPage from './pages/LegalPage';
 
 import { PullToRefresh } from './components/PullToRefresh';
 import { LoadingScreen } from './components/LoadingScreen';
+import ScrollToTop from './components/ScrollToTop';
 
 // Helper to convert hex to HSL for Tailwind variables
 const hexToHsl = (hex) => {
@@ -203,6 +204,7 @@ function AppContent() {
       {!loading && (
         <PullToRefresh>
           <Router basename={import.meta.env.BASE_URL}>
+            <ScrollToTop />
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />

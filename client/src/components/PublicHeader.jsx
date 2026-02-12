@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Printer } from 'lucide-react';
+import { Printer, ArrowLeft } from 'lucide-react';
 import { Button } from './Button';
 import ThemeToggle from './ThemeToggle';
 
@@ -11,7 +11,10 @@ export default function PublicHeader() {
     const isRecipePage = location.pathname.includes('/recipe/');
 
     return (
-        <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
+        <nav
+            className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-border/50 transition-all"
+            style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        >
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
                 <div
                     className="flex items-center gap-2 cursor-pointer"
@@ -25,7 +28,7 @@ export default function PublicHeader() {
                     <img
                         src={`${import.meta.env.BASE_URL}logo_text.svg`}
                         alt="GabelGuru"
-                        className="h-6 object-contain hidden sm:block filter dark:invert"
+                        className="h-6 object-contain filter dark:invert"
                     />
                 </div>
                 <div className="flex items-center gap-4">
@@ -39,10 +42,22 @@ export default function PublicHeader() {
                             <Printer size={20} />
                         </button>
                     )}
-                    <span className="print:hidden">
+
+                    {/* Mobile Back Button (only on recipe pages) */}
+                    {isRecipePage && (
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="sm:hidden p-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            title="Zurück"
+                        >
+                            <ArrowLeft size={20} />
+                        </button>
+                    )}
+
+                    <span className={`print:hidden ${isRecipePage ? 'hidden sm:block' : ''}`}>
                         <ThemeToggle />
                     </span>
-                    <span className="print:hidden">
+                    <span className={`print:hidden ${isRecipePage ? 'hidden sm:block' : ''}`}>
                         {isLoginPage ? (
                             <Button size="sm" onClick={() => navigate('/signup')}>
                                 Registrieren

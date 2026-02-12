@@ -25,7 +25,22 @@ export default function SharedCookbook() {
     const [selectedTags, setSelectedTags] = useState([]);
     const [categories, setCategories] = useState(['Alle']);
     const [allTags, setAllTags] = useState([]);
-    const [filtersOpen, setFiltersOpen] = useState(false); // Mobile filter toggle
+    const [filtersOpen, setFiltersOpen] = useState(() => {
+        // Default to open for new users
+        try {
+            const hasSeenFilters = localStorage.getItem('hasSeenFilters');
+            return !hasSeenFilters;
+        } catch {
+            return true;
+        }
+    });
+
+    useEffect(() => {
+        // Mark as seen once filters are closed or after first visit
+        // Actually, if we want it open ONLY for new users, we should mark it as seen immediately
+        // so next time it defaults to closed (unless they keep it open? No, standard behavior is usually closed)
+        localStorage.setItem('hasSeenFilters', 'true');
+    }, []);
     const [isSlotMachineOpen, setIsSlotMachineOpen] = useState(false);
 
     // Determine API URL

@@ -1,6 +1,6 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.23.4
+## Aktuelle Version: v0.23.5
 
 ### Changelog v0.22.0
 - **Feature (Admin):** Erweiterte Benutzerverwaltung in den Einstellungen. 👥⚙️
@@ -9,6 +9,12 @@
 - **Feature (Admin):** Manuelles Buchungssystem für AI-Credits inkl. Transaktions-Historie. 💰📈
 - **Fix (PWA):** Beseitigung von Bildschirm-Flackern auf iOS durch optimierte Zoom-Prävention (Debouncing & Scale-aware Reset). 📱🚫✨
 - **DB:** Migration v0.22.0 ausgeführt (Tiers, Credits, Transactions). 🗄️✅
+
+### Changelog v0.23.5
+- **Fix (Layout):** Safe-Area-Inset für Top-Navigation angepasst (Notch/Dynamic Island). 📱📐
+- **Optimization (Mobile):** Header-Optimierung für kleine Bildschirme (Logo-Text sichtbar, Buttons ausgeblendet, Zurück-Button). 📱✨
+- **UX (Shared):** Filter/Tags im Shared Cookbook sind für neue Besucher standardmäßig ausgeklappt. 🏷️👀
+- **UX (Global):** Automatisches Scrollen nach oben bei Seitenwechsel (`ScrollToTop`). ⬆️📄
 
 ### Changelog v0.23.4
 - **Feature (AI Import):** Modernisierter AI-Import-Modal. KI-gestützte Produkterkennung und -zuordnung beim Import von Rezepten. 🤖✨
