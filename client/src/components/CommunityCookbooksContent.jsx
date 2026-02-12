@@ -137,6 +137,7 @@ export default function CommunityCookbooksContent() {
 
             {/* Grid */}
             <motion.div
+                key={loading ? 'loading' : 'loaded'}
                 variants={container}
                 initial="hidden"
                 animate="show"
