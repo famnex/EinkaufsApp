@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { ShoppingCart, ChefHat, Users, Calendar, ArrowRight, CheckCircle2, Star, Sparkles, BrainCircuit, BookOpen } from 'lucide-react';
 import { Button } from '../components/Button';
 import ThemeToggle from '../components/ThemeToggle';
@@ -8,6 +9,20 @@ import PublicLayout from '../components/PublicLayout';
 
 export default function LandingPage() {
     const navigate = useNavigate();
+    const { user } = useAuth();
+
+    useEffect(() => {
+        // PWA Detection
+        const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+        if (isPWA) {
+            if (user) {
+                navigate('/', { replace: true });
+            } else {
+                navigate('/login', { replace: true });
+            }
+        }
+    }, [user, navigate]);
 
     const features = [
         {
@@ -51,7 +66,12 @@ export default function LandingPage() {
                 <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-secondary/10 rounded-full blur-[120px] -z-10" />
 
                 <div className="max-w-4xl mx-auto text-center space-y-8">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50 border border-border text-sm text-muted-foreground animate-fade-in-up">
+                    <img
+                        src={`${import.meta.env.BASE_URL}icon-512x512.png`}
+                        alt="GabelGuru Logo"
+                        className="w-32 h-32 mx-auto object-contain animate-fade-in-up"
+                    />
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50 border border-border text-sm text-muted-foreground animate-fade-in-up delay-75">
                         <Star size={14} className="text-yellow-500 fill-yellow-500" />
                         <span>Der smarte Begleiter für deine Küche</span>
                     </div>

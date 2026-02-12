@@ -1,6 +1,6 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.23.5
+## Aktuelle Version: v0.23.6
 
 ### Changelog v0.22.0
 - **Feature (Admin):** Erweiterte Benutzerverwaltung in den Einstellungen. 👥⚙️
@@ -9,6 +9,12 @@
 - **Feature (Admin):** Manuelles Buchungssystem für AI-Credits inkl. Transaktions-Historie. 💰📈
 - **Fix (PWA):** Beseitigung von Bildschirm-Flackern auf iOS durch optimierte Zoom-Prävention (Debouncing & Scale-aware Reset). 📱🚫✨
 - **DB:** Migration v0.22.0 ausgeführt (Tiers, Credits, Transactions). 🗄️✅
+
+### Changelog v0.23.6
+- **Fix (SVG):** Korrektur der Logo-Farben in der Navigation (PWA/Dark Mode). 🎨📱
+- **UX (Redirect):** Angemeldete Benutzer werden von `/login` direkt zum Dashboard weitergeleitet. ↪️🏠
+- **UX (PWA):** PWA-Nutzer überspringen die Landing Page und landen direkt beim Login oder Dashboard. 📱⏩
+- **UX (Header):** Zeigt "Dashboard" statt "Anmelden" für bereits eingeloggte Nutzer. 👤➡️🏠
 
 ### Changelog v0.23.5
 - **Fix (Layout):** Safe-Area-Inset für Top-Navigation angepasst (Notch/Dynamic Island). 📱📐

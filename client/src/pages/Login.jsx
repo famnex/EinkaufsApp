@@ -17,10 +17,16 @@ export default function LoginPage() {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [regEnabled, setRegEnabled] = useState(true);
-    const { login } = useAuth();
+    const { login, user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const from = location.state?.from ? `${location.state.from.pathname}${location.state.from.search}` : '/';
+
+    useEffect(() => {
+        if (user) {
+            navigate('/', { replace: true });
+        }
+    }, [user, navigate]);
 
     useEffect(() => {
         const checkReg = async () => {

@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { Printer, ArrowLeft } from 'lucide-react';
 import { Button } from './Button';
 import ThemeToggle from './ThemeToggle';
@@ -6,6 +7,7 @@ import ThemeToggle from './ThemeToggle';
 export default function PublicHeader() {
     const navigate = useNavigate();
     const location = useLocation();
+    const { user } = useAuth();
 
     const isLoginPage = location.pathname === '/login';
     const isRecipePage = location.pathname.includes('/recipe/');
@@ -28,7 +30,7 @@ export default function PublicHeader() {
                     <img
                         src={`${import.meta.env.BASE_URL}logo_text.svg`}
                         alt="GabelGuru"
-                        className="h-6 object-contain filter dark:invert"
+                        className="h-6 object-contain filter dark:brightness-0 dark:invert"
                     />
                 </div>
                 <div className="flex items-center gap-4">
@@ -58,7 +60,11 @@ export default function PublicHeader() {
                         <ThemeToggle />
                     </span>
                     <span className={`print:hidden ${isRecipePage ? 'hidden sm:block' : ''}`}>
-                        {isLoginPage ? (
+                        {user ? (
+                            <Button size="sm" onClick={() => navigate('/')}>
+                                Dashboard
+                            </Button>
+                        ) : isLoginPage ? (
                             <Button size="sm" onClick={() => navigate('/signup')}>
                                 Registrieren
                             </Button>
