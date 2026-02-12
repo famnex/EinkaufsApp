@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History } from 'lucide-react';
+import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -14,6 +14,8 @@ import AlexaLogsModal from '../components/AlexaLogsModal';
 import UserDetailModal from '../components/UserDetailModal';
 import api from '../lib/axios';
 import { Search } from 'lucide-react';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 
 export default function SettingsPage() {
     const navigate = useNavigate();
@@ -113,6 +115,7 @@ export default function SettingsPage() {
         fetchSettings();
         if (user?.role === 'admin') {
             fetchUsers();
+            fetchEmails('inbox');
         }
         fetchHouseholdMembers();
     }, [user?.role]); // Only re-fetch if user role changes or component mounts
@@ -666,6 +669,137 @@ export default function SettingsPage() {
         } finally {
             setSavingLegal(false);
         }
+    };
+
+    // --- Messaging State ---
+    const [messagingFolder, setMessagingFolder] = useState('inbox');
+    const [emails, setEmails] = useState([]);
+    const [emailsTotal, setEmailsTotal] = useState(0);
+    const [unreadInbox, setUnreadInbox] = useState(0);
+    const [loadingEmails, setLoadingEmails] = useState(false);
+    const [fetchingEmails, setFetchingEmails] = useState(false);
+    const [selectedEmail, setSelectedEmail] = useState(null);
+    const [loadingEmail, setLoadingEmail] = useState(false);
+    const [composeOpen, setComposeOpen] = useState(false);
+    const [composeData, setComposeData] = useState({ to: '', cc: '', bcc: '', subject: '', body: '' });
+    const [showCcBcc, setShowCcBcc] = useState(false);
+    const [sendingEmail, setSendingEmail] = useState(false);
+    const [replyTo, setReplyTo] = useState(null);
+
+    const fetchEmails = async (folder) => {
+        setLoadingEmails(true);
+        try {
+            const res = await api.get(`/messaging?folder=${folder || messagingFolder}`);
+            setEmails(res.data.emails || []);
+            setEmailsTotal(res.data.total || 0);
+            setUnreadInbox(res.data.unreadInbox || 0);
+        } catch (err) {
+            console.error('Failed to fetch emails:', err);
+        } finally {
+            setLoadingEmails(false);
+        }
+    };
+
+    const openEmail = async (id) => {
+        setLoadingEmail(true);
+        try {
+            const res = await api.get(`/messaging/${id}`);
+            setSelectedEmail(res.data);
+            // Update read status in list
+            setEmails(prev => prev.map(e => e.id === id ? { ...e, isRead: true } : e));
+            setUnreadInbox(prev => Math.max(0, prev - (res.data.folder === 'inbox' && !res.data.isRead ? 1 : 0)));
+        } catch (err) {
+            console.error('Failed to open email:', err);
+        } finally {
+            setLoadingEmail(false);
+        }
+    };
+
+    const handleImapFetch = async () => {
+        setFetchingEmails(true);
+        try {
+            const res = await api.post('/messaging/fetch');
+            alert(res.data.message || 'E-Mails abgerufen');
+            fetchEmails('inbox');
+        } catch (err) {
+            alert(err.response?.data?.error || 'Fehler beim Abrufen');
+        } finally {
+            setFetchingEmails(false);
+        }
+    };
+
+    const handleSendEmail = async () => {
+        if (!composeData.to) return alert('Empfänger fehlt');
+        setSendingEmail(true);
+        try {
+            await api.post('/messaging/send', {
+                to: composeData.to,
+                cc: composeData.cc,
+                bcc: composeData.bcc,
+                subject: composeData.subject,
+                body: composeData.body,
+                inReplyTo: replyTo?.messageId || null
+            });
+            setComposeOpen(false);
+            setComposeData({ to: '', cc: '', bcc: '', subject: '', body: '' });
+            setShowCcBcc(false);
+            setReplyTo(null);
+            fetchEmails(messagingFolder);
+            alert('E-Mail gesendet!');
+        } catch (err) {
+            alert(err.response?.data?.error || 'Fehler beim Senden');
+        } finally {
+            setSendingEmail(false);
+        }
+    };
+
+    const handleTrashEmail = async (id) => {
+        try {
+            await api.put(`/messaging/${id}/trash`);
+            setSelectedEmail(null);
+            fetchEmails(messagingFolder);
+        } catch (err) {
+            alert('Fehler: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleRestoreEmail = async (id) => {
+        try {
+            await api.put(`/messaging/${id}/restore`);
+            setSelectedEmail(null);
+            fetchEmails(messagingFolder);
+        } catch (err) {
+            alert('Fehler: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleDeleteEmail = async (id) => {
+        if (!confirm('E-Mail endgültig löschen?')) return;
+        try {
+            await api.delete(`/messaging/${id}`);
+            setSelectedEmail(null);
+            fetchEmails(messagingFolder);
+        } catch (err) {
+            alert('Fehler: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const openReply = (email) => {
+        setReplyTo(email);
+        setComposeData({
+            to: email.fromAddress,
+            cc: '',
+            bcc: '',
+            subject: email.subject?.startsWith('RE:') ? email.subject : `RE: ${email.subject || ''}`,
+            body: `<br/><br/>--- Ursprüngliche Nachricht ---<br/>Von: ${email.fromAddress}<br/>Datum: ${new Date(email.date).toLocaleString('de-DE')}<br/>Betreff: ${email.subject}<br/><br/>${email.body || email.bodyText || ''}`
+        });
+        setComposeOpen(true);
+    };
+
+    const switchFolder = (folder) => {
+        setMessagingFolder(folder);
+        setSelectedEmail(null);
+        fetchEmails(folder);
     };
 
     // Tab Definitions
@@ -1784,19 +1918,6 @@ export default function SettingsPage() {
         </div>
     );
 
-    const MessagingSection = (
-        <div className="space-y-6">
-            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
-                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                    <Mail size={20} className="text-primary" />
-                    Messaging
-                </h2>
-                <div className="text-center py-12">
-                    <p className="text-muted-foreground italic">Diese Funktion wird in Kürze verfügbar sein.</p>
-                </div>
-            </Card>
-        </div>
-    );
 
     const SubscriptionSection = (() => {
         // Map tier names to badge filenames
@@ -1889,6 +2010,293 @@ export default function SettingsPage() {
             </div>
         );
     })();
+
+    const messagingFolders = [
+        { id: 'inbox', label: 'Posteingang', icon: Inbox },
+        { id: 'sent', label: 'Gesendet', icon: Send },
+        { id: 'trash', label: 'Papierkorb', icon: Trash2 }
+    ];
+
+    const MessagingSection = (
+        <div className="space-y-4">
+            {/* Toolbar */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                    {messagingFolders.map(f => {
+                        const FIcon = f.icon;
+                        return (
+                            <button
+                                key={f.id}
+                                onClick={() => switchFolder(f.id)}
+                                className={cn(
+                                    "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                                    messagingFolder === f.id
+                                        ? "bg-primary text-primary-foreground shadow-md"
+                                        : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                                )}
+                            >
+                                <FIcon size={16} />
+                                {f.label}
+                                {f.id === 'inbox' && unreadInbox > 0 && (
+                                    <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center">{unreadInbox}</span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+                <div className="flex items-center gap-2">
+                    <Button
+                        onClick={handleImapFetch}
+                        disabled={fetchingEmails}
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                    >
+                        {fetchingEmails ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                        Abrufen
+                    </Button>
+                    <Button
+                        onClick={() => {
+                            setReplyTo(null);
+                            setComposeData({ to: '', cc: '', bcc: '', subject: '', body: '' });
+                            setShowCcBcc(false);
+                            setComposeOpen(true);
+                        }}
+                        size="sm"
+                        className="gap-1.5"
+                    >
+                        <Pen size={16} />
+                        Neue E-Mail
+                    </Button>
+                </div>
+            </div>
+
+            {/* Email Detail View */}
+            {selectedEmail ? (
+                <Card className="p-6 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                    <div className="flex items-center justify-between mb-4">
+                        <button
+                            onClick={() => setSelectedEmail(null)}
+                            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                            <ArrowLeft size={16} />
+                            Zurück
+                        </button>
+                        <div className="flex items-center gap-2">
+                            {selectedEmail.folder === 'inbox' && (
+                                <Button variant="outline" size="sm" onClick={() => openReply(selectedEmail)} className="gap-1">
+                                    <Reply size={14} />
+                                    Antworten
+                                </Button>
+                            )}
+                            {selectedEmail.folder !== 'trash' ? (
+                                <Button variant="outline" size="sm" onClick={() => handleTrashEmail(selectedEmail.id)} className="gap-1 text-red-500 hover:text-red-600">
+                                    <Trash2 size={14} />
+                                    Löschen
+                                </Button>
+                            ) : (
+                                <>
+                                    <Button variant="outline" size="sm" onClick={() => handleRestoreEmail(selectedEmail.id)} className="gap-1">
+                                        <ArrowLeft size={14} />
+                                        Wiederherstellen
+                                    </Button>
+                                    <Button variant="outline" size="sm" onClick={() => handleDeleteEmail(selectedEmail.id)} className="gap-1 text-red-500 hover:text-red-600">
+                                        <Trash2 size={14} />
+                                        Endgültig löschen
+                                    </Button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                    <h2 className="text-xl font-bold text-foreground mb-3">{selectedEmail.subject || '(Kein Betreff)'}</h2>
+                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-4">
+                        <span><strong>Von:</strong> {selectedEmail.fromAddress}</span>
+                        <span><strong>An:</strong> {selectedEmail.toAddress}</span>
+                        {selectedEmail.cc && <span><strong>CC:</strong> {selectedEmail.cc}</span>}
+                        {selectedEmail.bcc && <span><strong>BCC:</strong> {selectedEmail.bcc}</span>}
+                        <span><strong>Datum:</strong> {new Date(selectedEmail.date).toLocaleString('de-DE')}</span>
+                    </div>
+                    <div className="border-t border-border pt-4">
+                        {selectedEmail.body ? (
+                            <div
+                                className="prose prose-sm max-w-none text-foreground [&_a]:text-primary"
+                                dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
+                            />
+                        ) : (
+                            <pre className="whitespace-pre-wrap text-sm text-foreground font-sans">{selectedEmail.bodyText || 'Kein Inhalt'}</pre>
+                        )}
+                    </div>
+                </Card>
+            ) : (
+                /* Email List */
+                <Card className="border-border bg-card/50 shadow-lg backdrop-blur-sm overflow-hidden">
+                    {loadingEmails ? (
+                        <div className="flex items-center justify-center p-12">
+                            <Loader2 size={24} className="animate-spin text-primary" />
+                        </div>
+                    ) : emails.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center p-12 text-muted-foreground">
+                            <MailOpen size={40} className="mb-3 opacity-50" />
+                            <p className="font-medium">Keine E-Mails in {messagingFolders.find(f => f.id === messagingFolder)?.label}</p>
+                            {messagingFolder === 'inbox' && (
+                                <p className="text-sm mt-1">Klicke "Abrufen" um neue E-Mails zu laden</p>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-border">
+                            {emails.map(email => (
+                                <button
+                                    key={email.id}
+                                    onClick={() => openEmail(email.id)}
+                                    className={cn(
+                                        "w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors flex items-start gap-3",
+                                        !email.isRead && "bg-primary/5"
+                                    )}
+                                >
+                                    <div className="mt-1 shrink-0">
+                                        {email.isRead ? (
+                                            <MailOpen size={16} className="text-muted-foreground" />
+                                        ) : (
+                                            <Mail size={16} className="text-primary" />
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <p className={cn(
+                                                "text-sm truncate",
+                                                email.isRead ? "text-muted-foreground" : "text-foreground font-bold"
+                                            )}>
+                                                {messagingFolder === 'sent' ? email.toAddress : email.fromAddress}
+                                            </p>
+                                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                                {new Date(email.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                            </span>
+                                        </div>
+                                        <p className={cn(
+                                            "text-sm truncate",
+                                            email.isRead ? "text-muted-foreground" : "text-foreground font-medium"
+                                        )}>
+                                            {email.subject || '(Kein Betreff)'}
+                                        </p>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </Card>
+            )}
+
+            {/* Compose Modal */}
+            <AnimatePresence>
+                {composeOpen && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+                        onClick={() => setComposeOpen(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-bold text-foreground">
+                                        {replyTo ? 'Antworten' : 'Neue E-Mail'}
+                                    </h3>
+                                    <button onClick={() => setComposeOpen(false)} className="text-muted-foreground hover:text-foreground">
+                                        <X size={20} />
+                                    </button>
+                                </div>
+                                <div className="space-y-3">
+                                    <div className="relative">
+                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block flex justify-between items-center">
+                                            An
+                                            <button
+                                                onClick={() => setShowCcBcc(!showCcBcc)}
+                                                className="text-[10px] text-primary hover:underline font-bold"
+                                            >
+                                                {showCcBcc ? '- CC/BCC ausblenden' : '+ CC/BCC hinzufügen'}
+                                            </button>
+                                        </label>
+                                        <Input
+                                            value={composeData.to}
+                                            onChange={e => setComposeData({ ...composeData, to: e.target.value })}
+                                            placeholder="empfaenger@example.com"
+                                            className="bg-muted border-transparent"
+                                        />
+                                    </div>
+
+                                    <AnimatePresence>
+                                        {showCcBcc && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="space-y-3 overflow-hidden"
+                                            >
+                                                <div>
+                                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block">CC</label>
+                                                    <Input
+                                                        value={composeData.cc}
+                                                        onChange={e => setComposeData({ ...composeData, cc: e.target.value })}
+                                                        placeholder="cc@example.com"
+                                                        className="bg-muted border-transparent"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block">BCC</label>
+                                                    <Input
+                                                        value={composeData.bcc}
+                                                        onChange={e => setComposeData({ ...composeData, bcc: e.target.value })}
+                                                        placeholder="bcc@example.com"
+                                                        className="bg-muted border-transparent"
+                                                    />
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+
+                                    <div>
+                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Betreff</label>
+                                        <Input
+                                            value={composeData.subject}
+                                            onChange={e => setComposeData({ ...composeData, subject: e.target.value })}
+                                            placeholder="Betreff"
+                                            className="bg-muted border-transparent"
+                                        />
+                                    </div>
+                                    <div className="min-h-[300px] flex flex-col">
+                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Nachricht</label>
+                                        <div className="flex-1 bg-muted rounded-lg overflow-hidden border-transparent focus-within:ring-2 focus-within:ring-primary/20">
+                                            <ReactQuill
+                                                theme="snow"
+                                                value={composeData.body}
+                                                onChange={val => setComposeData({ ...composeData, body: val })}
+                                                placeholder="Nachricht eingeben..."
+                                                className="h-full border-none [&_.ql-toolbar]:bg-muted/50 [&_.ql-toolbar]:border-none [&_.ql-container]:border-none [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-foreground [&_.ql-editor]:text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end gap-2 pt-2">
+                                        <Button variant="outline" onClick={() => setComposeOpen(false)}>Abbrechen</Button>
+                                        <Button onClick={handleSendEmail} disabled={sendingEmail} className="gap-1.5">
+                                            {sendingEmail ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                                            Senden
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
 
     const adminTabs = [
         { id: 'users', label: 'Benutzer', icon: Users },
@@ -2025,6 +2433,7 @@ export default function SettingsPage() {
             </div>
         </Card>
     );
+
 
     return (
         <div className="space-y-8 pb-20">

@@ -1,6 +1,6 @@
 {
   "name": "server",
-  "version": "0.23.7",
+  "version": "0.23.8",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -18,9 +18,12 @@
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "imapflow": "^1.2.9",
     "jimp": "^0.22.10",
     "jsonwebtoken": "^9.0.3",
+    "mailparser": "^3.9.3",
     "multer": "^2.0.2",
+    "node-cron": "^4.2.1",
     "nodemailer": "^8.0.1",
     "openai": "^6.17.0",
     "sequelize": "^6.37.7",

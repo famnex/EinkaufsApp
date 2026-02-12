@@ -45,6 +45,7 @@ apiRouter.use('/ai', require('./src/routes/ai'));
 apiRouter.use('/users', require('./src/routes/users'));
 apiRouter.use('/system', require('./src/routes/system'));
 apiRouter.use('/alexa', require('./src/routes/alexa'));
+apiRouter.use('/messaging', require('./src/routes/messaging'));
 
 // Mount API
 app.use(`${BASE_PATH}/api`, apiRouter);

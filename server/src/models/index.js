@@ -205,6 +205,24 @@ ProductSubstitution.belongsTo(Product, { as: 'OriginalProduct', foreignKey: 'ori
 ProductSubstitution.belongsTo(Product, { as: 'SubstituteProduct', foreignKey: 'substituteProductId' });
 List.hasMany(ProductSubstitution, { foreignKey: 'ListId' });
 
+const Email = sequelize.define('Email', {
+    messageId: { type: DataTypes.STRING, allowNull: true, unique: true },
+    folder: { type: DataTypes.ENUM('inbox', 'sent', 'trash'), defaultValue: 'inbox' },
+    fromAddress: { type: DataTypes.STRING, allowNull: false },
+    toAddress: { type: DataTypes.STRING, allowNull: false },
+    cc: { type: DataTypes.TEXT, allowNull: true },
+    bcc: { type: DataTypes.TEXT, allowNull: true },
+    subject: { type: DataTypes.STRING, allowNull: true, defaultValue: '' },
+    body: { type: DataTypes.TEXT, allowNull: true },
+    bodyText: { type: DataTypes.TEXT, allowNull: true },
+    isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
+    date: { type: DataTypes.DATE, allowNull: true },
+    inReplyTo: { type: DataTypes.STRING, allowNull: true }
+});
+
+Email.belongsTo(User);
+User.hasMany(Email);
+
 module.exports = {
     sequelize,
     User,
@@ -224,5 +242,6 @@ module.exports = {
     HiddenCleanup,
     ProductSubstitution,
     CreditTransaction,
-    LoginLog
+    LoginLog,
+    Email
 };

@@ -71,6 +71,22 @@
 - userAgent (String)
 - createdAt (DateTime)
 
+### Emails
+- id (Integer, Primary Key)
+- messageId (String, Nullable, Unique email Message-ID, Unique Index)
+- folder (Enum: 'inbox', 'sent', 'trash')
+- fromAddress (String)
+- toAddress (String)
+- cc (Text, Nullable)
+- bcc (Text, Nullable)
+- subject (String, Nullable)
+- body (Text, HTML body)
+- bodyText (Text, Plain text body)
+- isRead (Boolean, default false)
+- date (DateTime)
+- inReplyTo (String, Nullable, for threading)
+- UserId (Integer, Foreign Key -> Users)
+
 ## Relations
 - Users have many Recipes
 - Recipes have many Ingredients (through RecipeIngredients)
@@ -78,3 +94,4 @@
 - Products can be in many ListItems
 - Users have many Settings
 - Users have many LoginLogs
+- Users have many Emails
