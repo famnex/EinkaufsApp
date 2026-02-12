@@ -140,7 +140,7 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate }) {
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="relative w-full max-w-4xl bg-background rounded-3xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[90vh]"
+                        className="relative w-full max-w-4xl bg-background rounded-3xl shadow-2xl overflow-hidden border border-border flex flex-col min-h-[500px] max-h-[90vh]"
                     >
                         {/* Header */}
                         <div className="p-6 border-b border-border flex items-center justify-between bg-muted/30">

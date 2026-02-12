@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Sun, Soup, Utensils, Apple, Info, Plus, Trash2, ShoppingCart, ListChecks, CarFront } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sun, Soup, Utensils, Apple, Info, Plus, Trash2, ShoppingCart, ListChecks, CarFront, ChevronDown } from 'lucide-react';
 import { Card } from '../components/Card';
 import { useAuth } from '../contexts/AuthContext';
 import { useEditMode } from '../contexts/EditModeContext';
@@ -10,6 +10,7 @@ import MealSelectorModal from '../components/MealSelectorModal';
 import BulkPlanningModal from '../components/BulkPlanningModal';
 import CookingMode from '../components/CookingMode';
 import { useNavigate } from 'react-router-dom';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 
 function getMonday(d) {
@@ -46,6 +47,7 @@ export default function MenuPlan() {
     const [bulkModal, setBulkModal] = useState({ open: false, listId: null });
 
     const fetchData = async () => {
+        setLoading(true);
         try {
             const startStr = currentWeekStart.toISOString().split('T')[0];
             const end = new Date(currentWeekStart);
@@ -57,6 +59,8 @@ export default function MenuPlan() {
             setLists(listsRes.data);
         } catch (err) {
             console.error(err);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -256,13 +260,16 @@ export default function MenuPlan() {
 
     return (
         <div
-            className="pb-24 space-y-4"
+            className="space-y-4"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
             style={{ touchAction: 'pan-y' }}
         >
-            <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm pt-4 pb-2 border-b border-border transition-all">
+            <div
+                className="sticky z-30 bg-background/95 backdrop-blur-sm pt-4 pb-2 border-b border-border transition-all"
+                style={{ top: 'calc(4rem + env(safe-area-inset-top))' }}
+            >
                 <div className="flex items-center justify-between mb-4">
                     <button onClick={() => changeWeek(-1)} className="p-2 hover:bg-muted rounded-full transition-colors">
                         <ChevronLeft />
@@ -278,263 +285,265 @@ export default function MenuPlan() {
                     </button>
                 </div>
 
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none px-4">
-                    <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold whitespace-nowrap">
-                        {filledCount}/{totalSlots} Slots belegt
-                    </div>
-                </div>
+
             </div>
 
-            <div className="overflow-hidden">
-                <AnimatePresence initial={false} mode='wait' custom={direction}>
-                    <motion.div
-                        key={currentWeekStart.toISOString()}
-                        custom={direction}
-                        variants={variants}
-                        initial="enter"
-                        animate="center"
-                        exit="exit"
-                        transition={{ type: "tween", ease: "easeInOut", duration: 0.3 }}
-                        className="space-y-3"
-                    >
-                        {weekDays.map(day => {
-                            const meals = getMealsForDay(day.dateStr);
-                            const shoppingList = getListForDay(day.dateStr);
-                            const isToday = new Date().toDateString() === day.date.toDateString();
-                            const isExpanded = expandedDay === day.dateStr;
+            <LoadingOverlay isLoading={loading}>
+                <div className="overflow-hidden">
+                    <AnimatePresence initial={false} mode='wait' custom={direction}>
+                        <motion.div
+                            key={currentWeekStart.toISOString()}
+                            custom={direction}
+                            variants={variants}
+                            initial="enter"
+                            animate="center"
+                            exit="exit"
+                            transition={{ type: "tween", ease: "easeInOut", duration: 0.3 }}
+                            className="space-y-3"
+                        >
+                            {weekDays.map(day => {
+                                const meals = getMealsForDay(day.dateStr);
+                                const shoppingList = getListForDay(day.dateStr);
+                                const isToday = new Date().toDateString() === day.date.toDateString();
+                                const isExpanded = expandedDay === day.dateStr;
 
-                            return (
-                                <Card
-                                    key={day.dateStr}
-                                    className={cn(
-                                        "border-border transition-all duration-300 overflow-hidden relative",
-                                        isToday ? "border-primary/50 shadow-sm" : "shadow-sm",
-                                        isExpanded ? "ring-1 ring-primary/20" : ""
-                                    )}
-                                >
-                                    <div
-                                        onClick={() => setExpandedDay(isExpanded ? null : day.dateStr)}
-                                        className="p-3 flex items-center gap-3 cursor-pointer"
+                                return (
+                                    <Card
+                                        key={day.dateStr}
+                                        className={cn(
+                                            "border-border transition-all duration-300 overflow-hidden relative",
+                                            isToday ? "border-primary/50 shadow-sm" : "shadow-sm",
+                                            isExpanded ? "ring-1 ring-primary/20" : ""
+                                        )}
                                     >
-                                        <div className={cn(
-                                            "flex flex-col items-center justify-center w-12 h-12 rounded-xl shrink-0 transition-colors relative",
-                                            isToday ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-                                            shoppingList && !isToday && "bg-secondary/10 text-secondary"
-                                        )}>
-                                            <span className="text-[10px] uppercase font-bold tracking-wider">{day.dayName}</span>
-                                            <span className="text-lg font-bold leading-none">{day.dayNum}</span>
-                                            {shoppingList && (
-                                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-secondary rounded-full border border-card" />
-                                            )}
-                                        </div>
+                                        <div
+                                            onClick={() => setExpandedDay(isExpanded ? null : day.dateStr)}
+                                            className="p-3 flex items-center gap-3 cursor-pointer"
+                                        >
+                                            <div className={cn(
+                                                "flex flex-col items-center justify-center w-12 h-12 rounded-xl shrink-0 transition-colors relative",
+                                                isToday ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                                                shoppingList && !isToday && "bg-secondary/10 text-secondary"
+                                            )}>
+                                                <span className="text-[10px] uppercase font-bold tracking-wider">{day.dayName}</span>
+                                                <span className="text-lg font-bold leading-none">{day.dayNum}</span>
+                                                {shoppingList && (
+                                                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-secondary rounded-full border border-card" />
+                                                )}
+                                            </div>
 
-                                        <div className="flex-1 min-w-0 flex gap-2 overflow-hidden items-center">
-                                            {!isExpanded && meals.length === 0 && !shoppingList && (
-                                                <span className="hidden md:flex text-xs text-muted-foreground italic pl-1 items-center h-full">Leer</span>
-                                            )}
+                                            <div className="flex-1 min-w-0 flex gap-2 overflow-hidden items-center">
+                                                {!isExpanded && meals.length === 0 && !shoppingList && (
+                                                    <span className="hidden md:flex text-xs text-muted-foreground italic pl-1 items-center h-full">Leer</span>
+                                                )}
 
-                                            {shoppingList && (
-                                                <>
-                                                    <div className="hidden md:flex gap-2 items-center">
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                navigate(`/lists/${shoppingList.id}`);
-                                                            }}
-                                                            className="inline-flex items-center gap-1.5 bg-secondary/10 text-secondary px-2 py-1 rounded-lg text-xs font-bold hover:bg-secondary/20 transition-colors shrink-0"
-                                                        >
-                                                            <ShoppingCart size={12} />
-                                                            <span>Einkauf</span>
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setBulkModal({ open: true, listId: shoppingList.id });
-                                                            }}
-                                                            className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-2 py-1 rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors shrink-0"
-                                                        >
-                                                            <ListChecks size={12} />
-                                                            <span>Zutaten planen</span>
-                                                        </button>
-                                                    </div>
-                                                    <ShoppingCart size={16} className="text-secondary md:hidden shrink-0" />
-                                                </>
-                                            )}
-
-                                            {!isExpanded && meals.slice(0, 2).map(m => {
-                                                const slotIcon = slots.find(s => s.type === m.meal_type);
-                                                let Icon = slotIcon ? slotIcon.icon : Info;
-                                                let styleClass = "bg-muted/50 text-foreground";
-
-                                                if (m.is_eating_out) {
-                                                    Icon = CarFront;
-                                                    styleClass = "bg-orange-500/10 text-orange-600";
-                                                }
-
-                                                return (
-                                                    <div key={m.id} className={cn("hidden md:inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium min-w-0 transition-colors", styleClass)}>
-                                                        <Icon size={12} className={cn("shrink-0", m.is_eating_out ? "text-orange-600" : "text-primary")} />
-                                                        <span className="truncate">{m.Recipe ? m.Recipe.title : m.description}</span>
-                                                    </div>
-                                                );
-                                            })}
-                                            {!isExpanded && meals.length > 2 && (
-                                                <div className="hidden md:block bg-muted px-2 py-1 rounded-lg text-xs font-bold shrink-0">+{meals.length - 2}</div>
-                                            )}
-                                        </div>
-
-                                        <div className="flex gap-1 md:gap-2 shrink-0 ml-auto pl-2" onClick={e => e.stopPropagation()}>
-                                            {slots.map(s => {
-                                                const meal = meals.find(m => m.meal_type === s.type);
-                                                const isFilled = !!meal;
-                                                const handleClick = (e) => handleSlotClick(day.dateStr, s.type, meal, e);
-
-                                                return (
-                                                    <button
-                                                        key={s.type}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation(); // prevent card expand
-                                                            handleClick(e);
-                                                        }}
-                                                        disabled={false}
-                                                        className={cn(
-                                                            "w-8 h-8 rounded-full flex items-center justify-center transition-all relative group",
-                                                            isFilled
-                                                                ? (meal.is_eating_out ? "bg-orange-500/10 text-orange-600" : "bg-primary/10 text-primary")
-                                                                : "bg-muted text-muted-foreground",
-                                                            editMode === 'delete' && isFilled && "animate-pulse bg-destructive/10 text-destructive hover:bg-destructive hover:text-white cursor-pointer",
-                                                            editMode !== 'delete' && isFilled && (meal.is_eating_out ? "hover:bg-orange-500/20" : "hover:bg-primary/20 cursor-pointer"),
-                                                            editMode !== 'delete' && !isFilled && "hover:bg-muted-foreground/10",
-                                                            editMode === 'view' && !isFilled && "opacity-50 cursor-default"
-                                                        )}
-                                                        title={s.label}
-                                                    >
-                                                        {isFilled && meal.is_eating_out ? <CarFront size={16} /> : <s.icon size={16} />}
-                                                        {isFilled && editMode !== 'delete' && <span className={cn("absolute top-0 right-0 w-2 h-2 rounded-full border border-card", meal.is_eating_out ? "bg-orange-500" : "bg-primary")} />}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-
-                                    <AnimatePresence>
-                                        {isExpanded && (
-                                            <motion.div
-                                                initial={{ height: 0, opacity: 0 }}
-                                                animate={{ height: 'auto', opacity: 1 }}
-                                                exit={{ height: 0, opacity: 0 }}
-                                                className="overflow-hidden"
-                                            >
-                                                <div className="p-3 pt-0 grid grid-cols-1 gap-2">
-                                                    <div className="h-px bg-border/50 my-1 mx-2" />
-
-                                                    {shoppingList && (
-                                                        <div className="flex gap-2">
-                                                            <div
-                                                                onClick={() => navigate(`/lists/${shoppingList.id}`)}
-                                                                className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-secondary/10 text-secondary hover:bg-secondary/20 cursor-pointer transition-colors"
+                                                {shoppingList && (
+                                                    <>
+                                                        <div className="hidden md:flex gap-2 items-center">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    navigate(`/lists/${shoppingList.id}`);
+                                                                }}
+                                                                className="inline-flex items-center gap-1.5 bg-secondary/10 text-secondary px-2 py-1 rounded-lg text-xs font-bold hover:bg-secondary/20 transition-colors shrink-0"
                                                             >
-                                                                <div className="w-8 h-8 rounded-lg bg-secondary text-white flex items-center justify-center shrink-0">
-                                                                    <ShoppingCart size={16} />
-                                                                </div>
-                                                                <div className="flex-1 text-sm font-bold">
-                                                                    Einkaufsliste anzeigen
-                                                                </div>
-                                                                <ChevronRight size={16} />
-                                                            </div>
-                                                            <div
-                                                                onClick={() => setBulkModal({ open: true, listId: shoppingList.id })}
-                                                                className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer transition-colors"
+                                                                <ShoppingCart size={12} />
+                                                                <span>Einkauf</span>
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setBulkModal({ open: true, listId: shoppingList.id });
+                                                                }}
+                                                                className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-2 py-1 rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors shrink-0"
                                                             >
-                                                                <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center shrink-0">
-                                                                    <ListChecks size={16} />
-                                                                </div>
-                                                                <div className="flex-1 text-sm font-bold">
-                                                                    Zutaten Planer
-                                                                </div>
-                                                                <ChevronRight size={16} />
-                                                            </div>
+                                                                <ListChecks size={12} />
+                                                                <span>Zutaten planen</span>
+                                                            </button>
                                                         </div>
-                                                    )}
+                                                        <ShoppingCart size={16} className="text-secondary md:hidden shrink-0" />
+                                                    </>
+                                                )}
 
-                                                    {slots.map(s => {
-                                                        const meal = meals.find(m => m.meal_type === s.type);
+                                                {!isExpanded && meals.slice(0, 2).map(m => {
+                                                    const slotIcon = slots.find(s => s.type === m.meal_type);
+                                                    let Icon = slotIcon ? slotIcon.icon : Info;
+                                                    let styleClass = "bg-muted/50 text-foreground";
 
-                                                        return (
-                                                            <div
-                                                                key={s.type}
-                                                                onClick={() => handleSlotClick(day.dateStr, s.type, meal)}
-                                                                className={cn(
-                                                                    "flex flex-col gap-2 p-2 rounded-xl transition-colors",
-                                                                    meal ? "bg-muted/30" : "",
-                                                                    editMode === 'delete' && meal ? "hover:bg-destructive/10 cursor-pointer border border-transparent hover:border-destructive/30" : "",
-                                                                    (editMode === 'edit' || editMode === 'create' || (editMode === 'view' && meal?.Recipe)) && meal ? "hover:bg-primary/5 cursor-pointer" : "hover:bg-muted/20"
-                                                                )}
-                                                            >
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className={cn(
-                                                                        "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors",
-                                                                        meal
-                                                                            ? (meal.is_eating_out ? "bg-orange-500/10 text-orange-600" : "bg-primary/10 text-primary")
-                                                                            : "bg-muted/50 text-muted-foreground",
-                                                                        editMode === 'delete' && meal && "bg-destructive/10 text-destructive"
-                                                                    )}>
-                                                                        {meal && meal.is_eating_out ? <CarFront size={16} /> : <s.icon size={16} />}
+                                                    if (m.is_eating_out) {
+                                                        Icon = CarFront;
+                                                        styleClass = "bg-orange-500/10 text-orange-600";
+                                                    }
+
+                                                    return (
+                                                        <div key={m.id} className={cn("hidden md:inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium min-w-0 transition-colors", styleClass)}>
+                                                            <Icon size={12} className={cn("shrink-0", m.is_eating_out ? "text-orange-600" : "text-primary")} />
+                                                            <span className="truncate">{m.Recipe ? m.Recipe.title : m.description}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                                {!isExpanded && meals.length > 2 && (
+                                                    <div className="hidden md:block bg-muted px-2 py-1 rounded-lg text-xs font-bold shrink-0">+{meals.length - 2}</div>
+                                                )}
+                                            </div>
+
+                                            <div className="flex gap-1 md:gap-2 shrink-0 ml-auto pl-2" onClick={e => e.stopPropagation()}>
+                                                {slots.map(s => {
+                                                    const meal = meals.find(m => m.meal_type === s.type);
+                                                    const isFilled = !!meal;
+                                                    const handleClick = (e) => handleSlotClick(day.dateStr, s.type, meal, e);
+
+                                                    return (
+                                                        <button
+                                                            key={s.type}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation(); // prevent card expand
+                                                                handleClick(e);
+                                                            }}
+                                                            disabled={false}
+                                                            className={cn(
+                                                                "w-8 h-8 rounded-full flex items-center justify-center transition-all relative group",
+                                                                isFilled
+                                                                    ? (meal.is_eating_out ? "bg-orange-500/10 text-orange-600" : "bg-primary/10 text-primary")
+                                                                    : "bg-muted text-muted-foreground",
+                                                                editMode === 'delete' && isFilled && "animate-pulse bg-destructive/10 text-destructive hover:bg-destructive hover:text-white cursor-pointer",
+                                                                editMode !== 'delete' && isFilled && (meal.is_eating_out ? "hover:bg-orange-500/20" : "hover:bg-primary/20 cursor-pointer"),
+                                                                editMode !== 'delete' && !isFilled && "hover:bg-muted-foreground/10",
+                                                                editMode === 'view' && !isFilled && "opacity-50 cursor-default"
+                                                            )}
+                                                            title={s.label}
+                                                        >
+                                                            {isFilled && meal.is_eating_out ? <CarFront size={16} /> : <s.icon size={16} />}
+                                                            {isFilled && editMode !== 'delete' && <span className={cn("absolute top-0 right-0 w-2 h-2 rounded-full border border-card", meal.is_eating_out ? "bg-orange-500" : "bg-primary")} />}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            <ChevronDown
+                                                size={20}
+                                                className={cn("text-muted-foreground transition-transform duration-300 ml-1 shrink-0", isExpanded && "rotate-180 text-primary")}
+                                            />
+                                        </div>
+
+                                        <AnimatePresence>
+                                            {isExpanded && (
+                                                <motion.div
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: 'auto', opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    className="overflow-hidden"
+                                                >
+                                                    <div className="p-3 pt-0 grid grid-cols-1 gap-2">
+                                                        <div className="h-px bg-border/50 my-1 mx-2" />
+
+                                                        {shoppingList && (
+                                                            <div className="flex gap-2">
+                                                                <div
+                                                                    onClick={() => navigate(`/lists/${shoppingList.id}`)}
+                                                                    className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-secondary/10 text-secondary hover:bg-secondary/20 cursor-pointer transition-colors"
+                                                                >
+                                                                    <div className="w-8 h-8 rounded-lg bg-secondary text-white flex items-center justify-center shrink-0">
+                                                                        <ShoppingCart size={16} />
                                                                     </div>
-                                                                    <div className="flex-1 text-sm">
-                                                                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">{s.label}</span>
-                                                                        {meal ? (
-                                                                            <span className={cn("font-medium", meal.is_eating_out ? "text-orange-600" : "text-foreground")}>
-                                                                                {meal.Recipe ? meal.Recipe.title : (meal.description || 'Auswärts essen')}
-                                                                            </span>
-                                                                        ) : (
-                                                                            (editMode === 'create' || editMode === 'edit') ? (
+                                                                    <div className="flex-1 text-sm font-bold">
+                                                                        Einkaufsliste anzeigen
+                                                                    </div>
+                                                                    <ChevronRight size={16} />
+                                                                </div>
+                                                                <div
+                                                                    onClick={() => setBulkModal({ open: true, listId: shoppingList.id })}
+                                                                    className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer transition-colors"
+                                                                >
+                                                                    <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center shrink-0">
+                                                                        <ListChecks size={16} />
+                                                                    </div>
+                                                                    <div className="flex-1 text-sm font-bold">
+                                                                        Zutaten Planer
+                                                                    </div>
+                                                                    <ChevronRight size={16} />
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {slots.map(s => {
+                                                            const meal = meals.find(m => m.meal_type === s.type);
+
+                                                            return (
+                                                                <div
+                                                                    key={s.type}
+                                                                    onClick={() => handleSlotClick(day.dateStr, s.type, meal)}
+                                                                    className={cn(
+                                                                        "flex flex-col gap-2 p-2 rounded-xl transition-colors",
+                                                                        meal ? "bg-muted/30" : "",
+                                                                        editMode === 'delete' && meal ? "hover:bg-destructive/10 cursor-pointer border border-transparent hover:border-destructive/30" : "",
+                                                                        (editMode === 'edit' || editMode === 'create' || (editMode === 'view' && meal?.Recipe)) && meal ? "hover:bg-primary/5 cursor-pointer" : "hover:bg-muted/20"
+                                                                    )}
+                                                                >
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className={cn(
+                                                                            "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors",
+                                                                            meal
+                                                                                ? (meal.is_eating_out ? "bg-orange-500/10 text-orange-600" : "bg-primary/10 text-primary")
+                                                                                : "bg-muted/50 text-muted-foreground",
+                                                                            editMode === 'delete' && meal && "bg-destructive/10 text-destructive"
+                                                                        )}>
+                                                                            {meal && meal.is_eating_out ? <CarFront size={16} /> : <s.icon size={16} />}
+                                                                        </div>
+                                                                        <div className="flex-1 text-sm">
+                                                                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">{s.label}</span>
+                                                                            {meal ? (
+                                                                                <span className={cn("font-medium", meal.is_eating_out ? "text-orange-600" : "text-foreground")}>
+                                                                                    {meal.Recipe ? meal.Recipe.title : (meal.description || 'Auswärts essen')}
+                                                                                </span>
+                                                                            ) : (
+                                                                                (editMode === 'create' || editMode === 'edit') ? (
+                                                                                    <button
+                                                                                        onClick={() => handleSlotClick(day.dateStr, s.type)}
+                                                                                        className="text-muted-foreground/60 text-xs italic hover:text-primary transition-colors flex items-center gap-1"
+                                                                                    >
+                                                                                        <Plus size={12} /> Planen...
+                                                                                    </button>
+                                                                                ) : <span className="text-muted-foreground/30 text-xs italic">-</span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="flex gap-2">
+                                                                            {meal && editMode === 'delete' && (
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        handleDelete(meal.id);
+                                                                                    }}
+                                                                                    className="p-1.5 bg-destructive/10 text-destructive rounded-lg transition-colors"
+                                                                                >
+                                                                                    <Trash2 size={16} />
+                                                                                </button>
+                                                                            )}
+
+                                                                            {meal && (editMode === 'edit' || editMode === 'create') && (
                                                                                 <button
                                                                                     onClick={() => handleSlotClick(day.dateStr, s.type)}
-                                                                                    className="text-muted-foreground/60 text-xs italic hover:text-primary transition-colors flex items-center gap-1"
+                                                                                    className="p-1.5 hover:bg-background rounded-lg text-muted-foreground transition-colors"
                                                                                 >
-                                                                                    <Plus size={12} /> Planen...
+                                                                                    <Info size={14} />
                                                                                 </button>
-                                                                            ) : <span className="text-muted-foreground/30 text-xs italic">-</span>
-                                                                        )}
-                                                                    </div>
-
-                                                                    <div className="flex gap-2">
-                                                                        {meal && editMode === 'delete' && (
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    handleDelete(meal.id);
-                                                                                }}
-                                                                                className="p-1.5 bg-destructive/10 text-destructive rounded-lg transition-colors"
-                                                                            >
-                                                                                <Trash2 size={16} />
-                                                                            </button>
-                                                                        )}
-
-                                                                        {meal && (editMode === 'edit' || editMode === 'create') && (
-                                                                            <button
-                                                                                onClick={() => handleSlotClick(day.dateStr, s.type)}
-                                                                                className="p-1.5 hover:bg-background rounded-lg text-muted-foreground transition-colors"
-                                                                            >
-                                                                                <Info size={14} />
-                                                                            </button>
-                                                                        )}
+                                                                            )}
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </Card>
-                            );
-                        })}
-                    </motion.div>
-                </AnimatePresence>
-            </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </Card>
+                                );
+                            })}
+                        </motion.div>
+                    </AnimatePresence>
+                </div>
+            </LoadingOverlay>
 
             <MealSelectorModal
                 isOpen={selectorOpen}

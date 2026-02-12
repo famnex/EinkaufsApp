@@ -84,11 +84,15 @@ export default function Layout({ children }) {
         <div className="min-h-screen bg-background pb-24">
             <header
                 className="sticky top-0 z-40 w-full bg-background/80 backdrop-blur-xl border-b border-border transition-all"
-                style={{ paddingTop: 'env(safe-area-inset-top)' }}
+                style={{
+                    paddingTop: 'env(safe-area-inset-top)',
+                    paddingLeft: 'env(safe-area-inset-left)',
+                    paddingRight: 'env(safe-area-inset-right)'
+                }}
             >
-                <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+                <div className="max-w-7xl mx-auto pr-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-2 h-full overflow-hidden">
-                        <div className="w-20 h-20 -mt-2 -ml-4 self-start flex items-center justify-center overflow-visible z-50 flex-shrink-0">
+                        <div className="w-20 h-20 -mt-2 self-start flex items-center justify-center overflow-visible z-50 flex-shrink-0">
                             <img
                                 src={`${import.meta.env.BASE_URL}logo_wide.png`}
                                 alt="GabelGuru Logo"
@@ -121,9 +125,7 @@ export default function Layout({ children }) {
                     </div>
 
                     <div className="flex-1 flex justify-end items-center gap-2">
-                        <EditModeSelector editMode={editMode} setEditMode={setEditMode} />
-
-                        {/* Sync Indicator - Reserved Space */}
+                        {/* Sync Indicator */}
                         <div className="w-10 h-10 flex items-center justify-center relative">
                             <AnimatePresence>
                                 {(pendingChanges.length > 0 || isOffline) && (
@@ -149,6 +151,8 @@ export default function Layout({ children }) {
                             </AnimatePresence>
                         </div>
 
+                        <EditModeSelector editMode={editMode} setEditMode={setEditMode} />
+
                         <button
                             onClick={toggleTheme}
                             className="p-2 rounded-xl bg-muted text-muted-foreground hover:bg-muted/80 transition-all flex-shrink-0"
@@ -159,7 +163,7 @@ export default function Layout({ children }) {
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto px-4 py-6">
+            <main className="max-w-7xl mx-auto px-4 py-2">
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={window.location.pathname}

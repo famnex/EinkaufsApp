@@ -1,6 +1,6 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.23.6
+## Aktuelle Version: v0.23.7
 
 ### Changelog v0.22.0
 - **Feature (Admin):** Erweiterte Benutzerverwaltung in den Einstellungen. 👥⚙️
@@ -9,6 +9,19 @@
 - **Feature (Admin):** Manuelles Buchungssystem für AI-Credits inkl. Transaktions-Historie. 💰📈
 - **Fix (PWA):** Beseitigung von Bildschirm-Flackern auf iOS durch optimierte Zoom-Prävention (Debouncing & Scale-aware Reset). 📱🚫✨
 - **DB:** Migration v0.22.0 ausgeführt (Tiers, Credits, Transactions). 🗄️✅
+
+### Changelog v0.23.7
+- **Fix (Layout):** Logo im eingeloggten Bereich korrigiert (Safe Area Padding & Position). 📐✅
+- **UX (Header):** Position von Sync-Status und Modus-Menü getauscht für bessere Erreichbarkeit. 🔄🛠️
+- **UX (Mobile):** Modus-Menü expandiert nun flüssig nach links (Morph-Effekt) ohne zu verschwinden. 📱✨
+- **UI (Layout):** Reduziertes Padding (oben/unten) für bessere Platzausnutzung auf Dashboard & Menüplan. 📏✂️
+- **UI (Shared):** Redundanten Dark-Mode-Toggle auf der Kochbuch-Seite entfernt (ist bereits im Header). 🎨🧹
+- **UX (Menu):** Tage im Menüplan zeigen nun ein Pfeil-Symbol (Chevron), um die Aufklapp-Funktion zu verdeutlichen. 📅🔽
+- **UI (Menu):** Anzeige "X/Y Slots belegt" entfernt, um die Ansicht zu vereinfachen. 🧹
+- **UX (Menu):** Die Wochen-Navigation ("KW") bleibt nun beim Scrollen am oberen Bildrand fixiert (Sticky Header). 📌
+- **UX (Menu):** Neuer Lade-Indikator bei Wochenwechsel: Zeigt bei langsamer Verbindung (>100ms) einen Spinner und weichgezeichneten Inhalt. ⏳✨
+- **UX (Settings):** Optimierte Darstellung auf Mobilgeräten. Navigation (Haupt- & Admin-Bereich) als Akkordeon-Liste gestaltet. Standardmäßig eingeklappt für bessere Übersicht. 📱⚙️
+- **UI (Logo):** Nutzung des Original-Logos (PNG) im öffentlichen Bereich für korrekte Farbdarstellung. 🎨🖼️
 
 ### Changelog v0.23.6
 - **Fix (SVG):** Korrektur der Logo-Farben in der Navigation (PWA/Dark Mode). 🎨📱

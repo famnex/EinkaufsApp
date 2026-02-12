@@ -15,6 +15,7 @@ import ScheduleModal from '../components/ScheduleModal';
 import SlotMachineModal from '../components/SlotMachineModal';
 import ShareConfirmationModal from '../components/ShareConfirmationModal';
 import { cn, getImageUrl } from '../lib/utils';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -260,378 +261,380 @@ export default function Recipes() {
     };
 
     return (
-        <div className="space-y-6">
-            {/* ... (Search/Filter UI unchanged) ... */}
-            <div className="flex gap-2 w-full">
-                {/* Search Field */}
-                <div
-                    className={cn(
-                        "relative transition-all duration-300 ease-in-out overflow-hidden md:flex-1",
-                        mobileCategoryOpen ? "w-12 bg-muted rounded-xl cursor-pointer" : "flex-1"
-                    )}
-                    onClick={() => setMobileCategoryOpen(false)}
-                >
-                    <Search
+        <LoadingOverlay isLoading={loading}>
+            <div className="space-y-6">
+                {/* ... (Search/Filter UI unchanged) ... */}
+                <div className="flex gap-2 w-full">
+                    {/* Search Field */}
+                    <div
                         className={cn(
-                            "absolute top-1/2 -translate-y-1/2 text-muted-foreground transition-all duration-300",
-                            mobileCategoryOpen ? "left-1/2 -translate-x-1/2" : "left-4"
+                            "relative transition-all duration-300 ease-in-out overflow-hidden md:flex-1",
+                            mobileCategoryOpen ? "w-12 bg-muted rounded-xl cursor-pointer" : "flex-1"
                         )}
-                        size={20}
-                    />
-                    <Input
-                        placeholder="Rezept suchen..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onFocus={() => setMobileCategoryOpen(false)}
-                        className={cn(
-                            "pl-12 h-12 bg-card border-border shadow-sm transition-opacity duration-300",
-                            mobileCategoryOpen ? "opacity-0 pointer-events-none" : "opacity-100"
-                        )}
-                    />
-                </div>
+                        onClick={() => setMobileCategoryOpen(false)}
+                    >
+                        <Search
+                            className={cn(
+                                "absolute top-1/2 -translate-y-1/2 text-muted-foreground transition-all duration-300",
+                                mobileCategoryOpen ? "left-1/2 -translate-x-1/2" : "left-4"
+                            )}
+                            size={20}
+                        />
+                        <Input
+                            placeholder="Rezept suchen..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onFocus={() => setMobileCategoryOpen(false)}
+                            className={cn(
+                                "pl-12 h-12 bg-card border-border shadow-sm transition-opacity duration-300",
+                                mobileCategoryOpen ? "opacity-0 pointer-events-none" : "opacity-100"
+                            )}
+                        />
+                    </div>
 
-                {/* Category Dropdown */}
-                <div className={cn(
-                    "relative transition-all duration-300 ease-in-out md:w-auto md:flex-none",
-                    mobileCategoryOpen ? "flex-1" : "w-12"
-                )}>
-                    {/* Collapsed Icon (Mobile) */}
+                    {/* Category Dropdown */}
                     <div className={cn(
-                        "absolute inset-0 flex items-center justify-center bg-card border border-border rounded-xl shadow-sm pointer-events-none transition-opacity duration-300 md:hidden",
-                        mobileCategoryOpen ? "opacity-0" : "opacity-100"
+                        "relative transition-all duration-300 ease-in-out md:w-auto md:flex-none",
+                        mobileCategoryOpen ? "flex-1" : "w-12"
                     )}>
-                        <ChefHat size={20} className="text-muted-foreground" />
+                        {/* Collapsed Icon (Mobile) */}
+                        <div className={cn(
+                            "absolute inset-0 flex items-center justify-center bg-card border border-border rounded-xl shadow-sm pointer-events-none transition-opacity duration-300 md:hidden",
+                            mobileCategoryOpen ? "opacity-0" : "opacity-100"
+                        )}>
+                            <ChefHat size={20} className="text-muted-foreground" />
+                        </div>
+
+                        {/* Desktop Icon (Left Side) */}
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 hidden md:block pointer-events-none text-muted-foreground">
+                            <ChefHat size={20} />
+                        </div>
+
+                        <select
+                            value={selectedCategory}
+                            onFocus={() => setMobileCategoryOpen(true)}
+                            onChange={(e) => {
+                                setSelectedCategory(e.target.value);
+                                e.target.blur();
+                                setMobileCategoryOpen(false);
+                            }}
+                            className={cn(
+                                "h-12 w-full bg-card border border-border rounded-xl shadow-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none px-4 transition-all duration-300 md:pl-12",
+                                !mobileCategoryOpen ? "opacity-0 md:opacity-100 pl-4 text-transparent md:text-foreground" : "opacity-100"
+                            )}
+                        >
+                            {categories.map(cat => <option key={cat} value={cat}>{cat === 'All' ? 'Alle Kategorien' : cat}</option>)}
+                        </select>
+
+                        {/* Chevron for expanded state */}
+                        <div className={cn(
+                            "absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none md:block",
+                            mobileCategoryOpen ? "block" : "hidden"
+                        )}>
+                            <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] border-t-muted-foreground" />
+                        </div>
                     </div>
 
-                    {/* Desktop Icon (Left Side) */}
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 hidden md:block pointer-events-none text-muted-foreground">
-                        <ChefHat size={20} />
-                    </div>
+                    <div className="h-12 w-px bg-border mx-2 hidden md:block" />
 
-                    <select
-                        value={selectedCategory}
-                        onFocus={() => setMobileCategoryOpen(true)}
-                        onChange={(e) => {
-                            setSelectedCategory(e.target.value);
-                            e.target.blur();
-                            setMobileCategoryOpen(false);
-                        }}
-                        className={cn(
-                            "h-12 w-full bg-card border border-border rounded-xl shadow-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none px-4 transition-all duration-300 md:pl-12",
-                            !mobileCategoryOpen ? "opacity-0 md:opacity-100 pl-4 text-transparent md:text-foreground" : "opacity-100"
-                        )}
-                    >
-                        {categories.map(cat => <option key={cat} value={cat}>{cat === 'All' ? 'Alle Kategorien' : cat}</option>)}
-                    </select>
+                    <div className="flex gap-2">
+                        <Button
+                            onClick={() => {
+                                handleShareRequest(
+                                    'Mein Kochbuch',
+                                    'Schau dir mein Kochbuch an!',
+                                    `${window.location.origin}${import.meta.env.BASE_URL}shared/${user?.sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1")
+                                );
+                            }}
+                            variant="ghost"
+                            size="icon"
+                            className="h-12 w-12 bg-card border border-border text-muted-foreground hover:text-foreground shrink-0"
+                        >
+                            <Share2 size={20} />
+                        </Button>
 
-                    {/* Chevron for expanded state */}
-                    <div className={cn(
-                        "absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none md:block",
-                        mobileCategoryOpen ? "block" : "hidden"
-                    )}>
-                        <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] border-t-muted-foreground" />
+                        <Button
+                            onClick={() => setIsSlotMachineOpen(true)}
+                            className="h-12 w-14 md:w-auto md:px-6 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:via-orange-600 hover:to-rose-600 text-white border-none shadow-xl shadow-orange-500/20 active:scale-95 transition-all group overflow-hidden relative shrink-0"
+                        >
+                            <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-12" />
+                            <Dices size={24} className="md:w-[18px] md:h-[18px] md:mr-2 group-hover:rotate-180 transition-transform duration-500" />
+                            <span className="hidden md:inline font-bold">Zufalls-Roulette</span>
+                        </Button>
+
+                        <Button
+                            onClick={() => setIsAiModalOpen(true)}
+                            className="h-12 px-3 md:px-6 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 shrink-0 select-none pb-safe-0"
+                        >
+                            <Sparkles size={18} className="md:mr-2" />
+                            <span className="hidden md:inline">AI Assistant</span>
+                        </Button>
                     </div>
                 </div>
 
-                <div className="h-12 w-px bg-border mx-2 hidden md:block" />
+                <SlotMachineModal
+                    isOpen={isSlotMachineOpen}
+                    onClose={() => setIsSlotMachineOpen(false)}
+                    recipes={recipes}
+                    onSelect={(recipe) => {
+                        setSchedulingRecipe(recipe);
+                        setIsSlotMachineOpen(false);
+                    }}
+                />
 
-                <div className="flex gap-2">
-                    <Button
-                        onClick={() => {
-                            handleShareRequest(
-                                'Mein Kochbuch',
-                                'Schau dir mein Kochbuch an!',
-                                `${window.location.origin}${import.meta.env.BASE_URL}shared/${user?.sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1")
-                            );
-                        }}
-                        variant="ghost"
-                        size="icon"
-                        className="h-12 w-12 bg-card border border-border text-muted-foreground hover:text-foreground shrink-0"
-                    >
-                        <Share2 size={20} />
-                    </Button>
-
-                    <Button
-                        onClick={() => setIsSlotMachineOpen(true)}
-                        className="h-12 w-14 md:w-auto md:px-6 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:via-orange-600 hover:to-rose-600 text-white border-none shadow-xl shadow-orange-500/20 active:scale-95 transition-all group overflow-hidden relative shrink-0"
-                    >
-                        <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-12" />
-                        <Dices size={24} className="md:w-[18px] md:h-[18px] md:mr-2 group-hover:rotate-180 transition-transform duration-500" />
-                        <span className="hidden md:inline font-bold">Zufalls-Roulette</span>
-                    </Button>
-
-                    <Button
-                        onClick={() => setIsAiModalOpen(true)}
-                        className="h-12 px-3 md:px-6 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 shrink-0 select-none pb-safe-0"
-                    >
-                        <Sparkles size={18} className="md:mr-2" />
-                        <span className="hidden md:inline">AI Assistant</span>
-                    </Button>
-                </div>
-            </div>
-
-            <SlotMachineModal
-                isOpen={isSlotMachineOpen}
-                onClose={() => setIsSlotMachineOpen(false)}
-                recipes={recipes}
-                onSelect={(recipe) => {
-                    setSchedulingRecipe(recipe);
-                    setIsSlotMachineOpen(false);
-                }}
-            />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <AnimatePresence mode="popLayout">
-                    {renderedRecipes.map((recipe, index) => {
-                        const status = getRecipeStatus(recipe.id);
-                        return (
-                            <motion.div
-                                key={recipe.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, scale: 0.9 }}
-                                transition={{ duration: 0.3, delay: index * 0.05, ease: "easeOut" }}
-                                onClick={() => {
-                                    if (editMode === 'delete') {
-                                        handleDelete(recipe.id, recipe.title);
-                                    } else if (editMode === 'edit') {
-                                        setSelectedRecipe(recipe);
-                                        setIsModalOpen(true);
-                                    } else {
-                                        handleOpenCookingMode(recipe);
-                                    }
-                                }}
-                                className={`cursor-pointer group relative ${editMode === 'delete' ? 'ring-2 ring-destructive ring-offset-2 rounded-3xl' : ''}`}
-                            >
-                                <Card className="h-full overflow-hidden hover:shadow-xl transition-all duration-300 border-border bg-card flex flex-col">
-                                    <div className="aspect-video relative bg-muted shrink-0">
-                                        {recipe.image_url ? (
-                                            <img
-                                                src={getImageUrl(recipe.image_url)}
-                                                alt={recipe.title}
-                                                loading="lazy"
-                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 max-h-[230px]"
-                                            />
-                                        ) : (
-                                            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/30">
-                                                <ChefHat size={48} />
-                                            </div>
-                                        )}
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60" />
-
-                                        {recipe.imageSource === 'scraped' && (
-                                            <div className="absolute bottom-2 right-2 z-20 group/tooltip">
-                                                <div className="bg-red-500/90 backdrop-blur-md p-1.5 rounded-lg shadow-lg border border-red-400/30 text-white cursor-help">
-                                                    <ShieldAlert size={16} />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <AnimatePresence mode="popLayout">
+                        {renderedRecipes.map((recipe, index) => {
+                            const status = getRecipeStatus(recipe.id);
+                            return (
+                                <motion.div
+                                    key={recipe.id}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.9 }}
+                                    transition={{ duration: 0.3, delay: index * 0.05, ease: "easeOut" }}
+                                    onClick={() => {
+                                        if (editMode === 'delete') {
+                                            handleDelete(recipe.id, recipe.title);
+                                        } else if (editMode === 'edit') {
+                                            setSelectedRecipe(recipe);
+                                            setIsModalOpen(true);
+                                        } else {
+                                            handleOpenCookingMode(recipe);
+                                        }
+                                    }}
+                                    className={`cursor-pointer group relative ${editMode === 'delete' ? 'ring-2 ring-destructive ring-offset-2 rounded-3xl' : ''}`}
+                                >
+                                    <Card className="h-full overflow-hidden hover:shadow-xl transition-all duration-300 border-border bg-card flex flex-col">
+                                        <div className="aspect-video relative bg-muted shrink-0">
+                                            {recipe.image_url ? (
+                                                <img
+                                                    src={getImageUrl(recipe.image_url)}
+                                                    alt={recipe.title}
+                                                    loading="lazy"
+                                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 max-h-[230px]"
+                                                />
+                                            ) : (
+                                                <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/30">
+                                                    <ChefHat size={48} />
                                                 </div>
-                                                <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded-xl shadow-xl border border-border opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-50">
-                                                    Achtung: Dieses Bild wird im Shared Modus nicht angezeigt (Urheberrecht unklar).
+                                            )}
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60" />
+
+                                            {recipe.imageSource === 'scraped' && (
+                                                <div className="absolute bottom-2 right-2 z-20 group/tooltip">
+                                                    <div className="bg-red-500/90 backdrop-blur-md p-1.5 rounded-lg shadow-lg border border-red-400/30 text-white cursor-help">
+                                                        <ShieldAlert size={16} />
+                                                    </div>
+                                                    <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded-xl shadow-xl border border-border opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-50">
+                                                        Achtung: Dieses Bild wird im Shared Modus nicht angezeigt (Urheberrecht unklar).
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            )}
 
-                                        {/* Action Menu Trigger - Prevent card click propagation */}
-                                        <div
-                                            className="absolute top-2 right-2 z-20"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                // Toggle this menu
-                                                setOpenMenuId(openMenuId === recipe.id ? null : recipe.id);
-                                            }}
-                                        >
-                                            <div className="relative">
-                                                <button
-                                                    className={cn(
-                                                        "p-2 rounded-full backdrop-blur-sm text-white transition-all duration-200",
-                                                        openMenuId === recipe.id ? "bg-black/60" : "bg-black/20 hover:bg-black/40"
-                                                    )}
-                                                >
-                                                    <MoreHorizontal size={20} />
-                                                </button>
-
-                                                {/* Menu Dropdown */}
-                                                <AnimatePresence>
-                                                    {openMenuId === recipe.id && (
-                                                        <motion.div
-                                                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                                                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                                                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                                                            transition={{ duration: 0.1 }}
-                                                            className="absolute right-0 top-full mt-2 w-48 py-1 rounded-xl bg-popover/95 backdrop-blur-xl border border-white/10 shadow-xl z-30 overflow-hidden"
-                                                        >
-                                                            <button
-                                                                className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    const baseUrl = import.meta.env.BASE_URL;
-                                                                    const link = `${window.location.origin}${baseUrl}shared/${user?.sharingKey}/recipe/${recipe.id}`.replace(/([^:]\/)\//g, "$1");
-
-                                                                    handleShareRequest(
-                                                                        recipe.title,
-                                                                        `Schau mal, ich habe ein Rezept für dich: ${recipe.title}`,
-                                                                        link
-                                                                    );
-                                                                    setOpenMenuId(null);
-                                                                }}
-                                                            >
-                                                                <Share2 size={16} />
-                                                                Teilen
-                                                            </button>
-                                                            <button
-                                                                className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setSelectedRecipe(recipe);
-                                                                    setIsModalOpen(true);
-                                                                    setOpenMenuId(null);
-                                                                }}
-                                                            >
-                                                                <Edit size={16} />
-                                                                Bearbeiten
-                                                            </button>
-                                                            <button
-                                                                className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setSchedulingRecipe(recipe);
-                                                                    setOpenMenuId(null);
-                                                                }}
-                                                            >
-                                                                <Calendar size={16} />
-                                                                Einplanen
-                                                            </button>
-                                                            <button
-                                                                className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    const baseUrl = import.meta.env.BASE_URL;
-                                                                    const link = `${window.location.origin}${baseUrl}shared/${user?.sharingKey}/recipe/${recipe.id}`.replace(/([^:]\/)\/+/g, "$1");
-                                                                    window.open(link, '_blank');
-                                                                    setOpenMenuId(null);
-                                                                }}
-                                                            >
-                                                                <Printer size={16} />
-                                                                Drucken
-                                                            </button>
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
-                                            </div>
-                                        </div>
-
-                                        {/* Recipe Status Badge (Future or Past) */}
-                                        {status.nextPlanned ? (
-                                            <div className="absolute top-2 left-2 px-2 py-1 bg-emerald-500/90 backdrop-blur-md text-white text-xs font-bold rounded-lg shadow-sm border border-emerald-400/20 z-10 flex items-center gap-1.5">
-                                                <ArrowRight size={12} className="text-white" />
-                                                <span>{status.nextPlanned.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>
-                                            </div>
-                                        ) : status.lastCooked ? (
-                                            <div className="absolute top-2 left-2 px-2 py-1 bg-orange-500/90 backdrop-blur-md text-white text-xs font-bold rounded-lg shadow-sm border border-orange-400/20 z-10 flex items-center gap-1.5">
-                                                <ArrowLeft size={12} className="text-white" />
-                                                <span>{status.lastCooked.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
-                                            </div>
-                                        ) : null}
-
-                                        <div className="absolute bottom-4 left-4 right-4">
-                                            <h3 className="text-xl font-bold text-white line-clamp-1">{recipe.title}</h3>
-                                            <p className="text-white/80 text-sm">{recipe.category || 'Allgemein'}</p>
-                                        </div>
-                                    </div>
-                                    <div className="p-4 flex flex-col justify-between flex-1 gap-4">
-                                        <div className="flex items-center justify-between text-muted-foreground text-sm">
-                                            <div className="flex items-center gap-1">
-                                                <Clock size={16} />
-                                                <span>{(recipe.duration || 0)} min</span>
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <Users size={16} />
-                                                <span>{recipe.servings} Port.</span>
-                                            </div>
-                                        </div>
-
-                                        {recipe.Tags && recipe.Tags.length > 0 && (
-                                            <div className="flex flex-wrap gap-1.5 mt-auto pt-2">
-                                                {recipe.Tags.map(tag => (
-                                                    <span
-                                                        key={tag.id}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setSearchTerm(tag.name);
-                                                        }}
-                                                        className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] uppercase font-bold rounded-full hover:bg-primary/20 transition-colors z-10"
+                                            {/* Action Menu Trigger - Prevent card click propagation */}
+                                            <div
+                                                className="absolute top-2 right-2 z-20"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    // Toggle this menu
+                                                    setOpenMenuId(openMenuId === recipe.id ? null : recipe.id);
+                                                }}
+                                            >
+                                                <div className="relative">
+                                                    <button
+                                                        className={cn(
+                                                            "p-2 rounded-full backdrop-blur-sm text-white transition-all duration-200",
+                                                            openMenuId === recipe.id ? "bg-black/60" : "bg-black/20 hover:bg-black/40"
+                                                        )}
                                                     >
-                                                        {tag.name}
-                                                    </span>
-                                                ))}
+                                                        <MoreHorizontal size={20} />
+                                                    </button>
+
+                                                    {/* Menu Dropdown */}
+                                                    <AnimatePresence>
+                                                        {openMenuId === recipe.id && (
+                                                            <motion.div
+                                                                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                                                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                                                                transition={{ duration: 0.1 }}
+                                                                className="absolute right-0 top-full mt-2 w-48 py-1 rounded-xl bg-popover/95 backdrop-blur-xl border border-white/10 shadow-xl z-30 overflow-hidden"
+                                                            >
+                                                                <button
+                                                                    className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        const baseUrl = import.meta.env.BASE_URL;
+                                                                        const link = `${window.location.origin}${baseUrl}shared/${user?.sharingKey}/recipe/${recipe.id}`.replace(/([^:]\/)\//g, "$1");
+
+                                                                        handleShareRequest(
+                                                                            recipe.title,
+                                                                            `Schau mal, ich habe ein Rezept für dich: ${recipe.title}`,
+                                                                            link
+                                                                        );
+                                                                        setOpenMenuId(null);
+                                                                    }}
+                                                                >
+                                                                    <Share2 size={16} />
+                                                                    Teilen
+                                                                </button>
+                                                                <button
+                                                                    className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedRecipe(recipe);
+                                                                        setIsModalOpen(true);
+                                                                        setOpenMenuId(null);
+                                                                    }}
+                                                                >
+                                                                    <Edit size={16} />
+                                                                    Bearbeiten
+                                                                </button>
+                                                                <button
+                                                                    className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSchedulingRecipe(recipe);
+                                                                        setOpenMenuId(null);
+                                                                    }}
+                                                                >
+                                                                    <Calendar size={16} />
+                                                                    Einplanen
+                                                                </button>
+                                                                <button
+                                                                    className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        const baseUrl = import.meta.env.BASE_URL;
+                                                                        const link = `${window.location.origin}${baseUrl}shared/${user?.sharingKey}/recipe/${recipe.id}`.replace(/([^:]\/)\/+/g, "$1");
+                                                                        window.open(link, '_blank');
+                                                                        setOpenMenuId(null);
+                                                                    }}
+                                                                >
+                                                                    <Printer size={16} />
+                                                                    Drucken
+                                                                </button>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+                                                </div>
                                             </div>
-                                        )}
-                                    </div>
-                                </Card>
-                            </motion.div>
-                        )
-                    })}
-                </AnimatePresence>
+
+                                            {/* Recipe Status Badge (Future or Past) */}
+                                            {status.nextPlanned ? (
+                                                <div className="absolute top-2 left-2 px-2 py-1 bg-emerald-500/90 backdrop-blur-md text-white text-xs font-bold rounded-lg shadow-sm border border-emerald-400/20 z-10 flex items-center gap-1.5">
+                                                    <ArrowRight size={12} className="text-white" />
+                                                    <span>{status.nextPlanned.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>
+                                                </div>
+                                            ) : status.lastCooked ? (
+                                                <div className="absolute top-2 left-2 px-2 py-1 bg-orange-500/90 backdrop-blur-md text-white text-xs font-bold rounded-lg shadow-sm border border-orange-400/20 z-10 flex items-center gap-1.5">
+                                                    <ArrowLeft size={12} className="text-white" />
+                                                    <span>{status.lastCooked.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
+                                                </div>
+                                            ) : null}
+
+                                            <div className="absolute bottom-4 left-4 right-4">
+                                                <h3 className="text-xl font-bold text-white line-clamp-1">{recipe.title}</h3>
+                                                <p className="text-white/80 text-sm">{recipe.category || 'Allgemein'}</p>
+                                            </div>
+                                        </div>
+                                        <div className="p-4 flex flex-col justify-between flex-1 gap-4">
+                                            <div className="flex items-center justify-between text-muted-foreground text-sm">
+                                                <div className="flex items-center gap-1">
+                                                    <Clock size={16} />
+                                                    <span>{(recipe.duration || 0)} min</span>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    <Users size={16} />
+                                                    <span>{recipe.servings} Port.</span>
+                                                </div>
+                                            </div>
+
+                                            {recipe.Tags && recipe.Tags.length > 0 && (
+                                                <div className="flex flex-wrap gap-1.5 mt-auto pt-2">
+                                                    {recipe.Tags.map(tag => (
+                                                        <span
+                                                            key={tag.id}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSearchTerm(tag.name);
+                                                            }}
+                                                            className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] uppercase font-bold rounded-full hover:bg-primary/20 transition-colors z-10"
+                                                        >
+                                                            {tag.name}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </Card>
+                                </motion.div>
+                            )
+                        })}
+                    </AnimatePresence>
+                </div>
+
+                {/* Observer Target for Infinite Scroll */}
+                <div ref={observerTarget} className="h-4 w-full" />
+
+                {
+                    loading && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {[1, 2, 3].map(i => <div key={i} className="aspect-video bg-muted rounded-3xl animate-pulse" />)}
+                        </div>
+                    )
+                }
+
+                {
+                    !loading && filteredRecipes.length === 0 && (
+                        <div className="text-center py-20 text-muted-foreground italic">
+                            Keine Rezepte gefunden.
+                        </div>
+                    )
+                }
+
+                <RecipeModal
+                    isOpen={isModalOpen}
+                    onClose={handleCloseModal}
+                    recipe={selectedRecipe}
+                    onSave={fetchRecipes}
+                />
+                <AiImportModal
+                    isOpen={isAiModalOpen}
+                    onClose={() => setIsAiModalOpen(false)}
+                    onSave={fetchRecipes}
+                />
+                {
+                    cookingRecipe && (
+                        <CookingMode
+                            recipe={cookingRecipe}
+                            onClose={() => setCookingRecipe(null)}
+                        />
+                    )
+                }
+
+                <ScheduleModal
+                    isOpen={!!schedulingRecipe}
+                    onClose={() => setSchedulingRecipe(null)}
+                    recipe={schedulingRecipe}
+                />
+
+                <DeleteConfirmModal
+                    isOpen={deleteModalOpen}
+                    onClose={() => setDeleteModalOpen(false)}
+                    onConfirm={confirmDelete}
+                    recipe={recipeToDelete}
+                    usage={deleteUsage}
+                />
+
+                {/* Share Confirmation Modal */}
+                <ShareConfirmationModal
+                    isOpen={!!shareModalConfig}
+                    onClose={() => setShareModalConfig(null)}
+                    onConfirm={handleConfirmShare}
+                />
             </div>
-
-            {/* Observer Target for Infinite Scroll */}
-            <div ref={observerTarget} className="h-4 w-full" />
-
-            {
-                loading && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {[1, 2, 3].map(i => <div key={i} className="aspect-video bg-muted rounded-3xl animate-pulse" />)}
-                    </div>
-                )
-            }
-
-            {
-                !loading && filteredRecipes.length === 0 && (
-                    <div className="text-center py-20 text-muted-foreground italic">
-                        Keine Rezepte gefunden.
-                    </div>
-                )
-            }
-
-            <RecipeModal
-                isOpen={isModalOpen}
-                onClose={handleCloseModal}
-                recipe={selectedRecipe}
-                onSave={fetchRecipes}
-            />
-            <AiImportModal
-                isOpen={isAiModalOpen}
-                onClose={() => setIsAiModalOpen(false)}
-                onSave={fetchRecipes}
-            />
-            {
-                cookingRecipe && (
-                    <CookingMode
-                        recipe={cookingRecipe}
-                        onClose={() => setCookingRecipe(null)}
-                    />
-                )
-            }
-
-            <ScheduleModal
-                isOpen={!!schedulingRecipe}
-                onClose={() => setSchedulingRecipe(null)}
-                recipe={schedulingRecipe}
-            />
-
-            <DeleteConfirmModal
-                isOpen={deleteModalOpen}
-                onClose={() => setDeleteModalOpen(false)}
-                onConfirm={confirmDelete}
-                recipe={recipeToDelete}
-                usage={deleteUsage}
-            />
-
-            {/* Share Confirmation Modal */}
-            <ShareConfirmationModal
-                isOpen={!!shareModalConfig}
-                onClose={() => setShareModalConfig(null)}
-                onConfirm={handleConfirmShare}
-            />
-        </div>
+        </LoadingOverlay>
     );
 }

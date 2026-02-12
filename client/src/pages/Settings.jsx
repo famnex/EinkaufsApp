@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload } from 'lucide-react';
+import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -71,7 +71,14 @@ export default function SettingsPage() {
     ];
 
     // Tab State
-    const [activeTab, setActiveTab] = useState('profile');
+    const [activeTab, setActiveTab] = useState(''); // Modified to start empty (collapsed) for mobile
+
+    useEffect(() => {
+        // Auto-open defaults only on desktop if nothing matches
+        if (window.innerWidth >= 640) {
+            if (!activeTab) setActiveTab('profile');
+        }
+    }, []);
 
     // Email/Password Change State
     const [emailChangeData, setEmailChangeData] = useState({ currentPassword: '', newEmail: '' });
@@ -514,12 +521,17 @@ export default function SettingsPage() {
     const [savingLegal, setSavingLegal] = useState(false);
 
     // Sub-Tabs for Admin
-    const [activeAdminTab, setActiveAdminTab] = useState('users');
+    const [activeAdminTab, setActiveAdminTab] = useState(''); // Modified to start empty
 
     useEffect(() => {
         if (activeTab === 'admin' && user?.role === 'admin') {
             if (activeAdminTab === 'logs') fetchLogs();
             if (activeAdminTab === 'texts') fetchLegalTexts();
+        }
+
+        // Desktop default for admin sub-tabs
+        if (activeTab === 'admin' && window.innerWidth >= 640 && !activeAdminTab) {
+            setActiveAdminTab('users');
         }
     }, [activeTab, activeAdminTab]);
 
@@ -1223,44 +1235,44 @@ export default function SettingsPage() {
                                 }}
                                 className="p-4 bg-white/30 dark:bg-black/10 rounded-2xl border border-border/50 group hover:border-primary/50 cursor-pointer transition-all shadow-sm hover:shadow-md hover:scale-[1.01] active:scale-100"
                             >
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-muted rounded-xl group-hover:bg-primary/10 transition-colors">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="flex items-center gap-4 min-w-0">
+                                        <div className="p-3 bg-muted rounded-xl group-hover:bg-primary/10 transition-colors shrink-0">
                                             {u.role === 'admin' ? <Shield size={18} className="text-amber-500" /> : <User size={18} className="text-primary" />}
                                         </div>
-                                        <div>
-                                            <p className="font-bold text-foreground flex items-center gap-2">
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-bold text-foreground flex items-center gap-2 truncate">
                                                 {u.username}
-                                                {u.id === user.id && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-md font-medium">Du</span>}
+                                                {u.id === user.id && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-md font-medium shrink-0">Du</span>}
                                             </p>
-                                            <p className="text-xs text-muted-foreground">{u.email}</p>
-                                            <div className="flex gap-2 mt-2">
+                                            <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                                            <div className="flex flex-wrap gap-2 mt-2">
                                                 <span className={cn(
-                                                    "text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-tight",
+                                                    "text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-tight whitespace-nowrap",
                                                     u.role === 'admin' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                                                 )}>
                                                     {u.role}
                                                 </span>
                                                 <span className={cn(
-                                                    "text-[10px] px-1.5 py-0.5 rounded-md border font-bold uppercase tracking-tight",
+                                                    "text-[10px] px-1.5 py-0.5 rounded-md border font-bold uppercase tracking-tight whitespace-nowrap",
                                                     u.tier === 'Rainbowspoon' ? "bg-gradient-to-r from-red-400 via-yellow-400 to-blue-400 text-white border-transparent" : "bg-muted/50 text-muted-foreground border-border/50"
                                                 )}>
                                                     {u.tier || 'Plastikgabel'}
                                                 </span>
                                                 {u.householdId ? (
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 font-bold uppercase tracking-tight">
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 font-bold uppercase tracking-tight whitespace-nowrap">
                                                         Mit {u.householdOwnerName || '...'}
                                                     </span>
                                                 ) : (
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-bold uppercase tracking-tight">
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-bold uppercase tracking-tight whitespace-nowrap">
                                                         Besitzer
                                                     </span>
                                                 )}
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                        <div className="text-right mr-4 hidden sm:block">
+                                    <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/50">
+                                        <div className="text-left sm:text-right">
                                             <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Credits</p>
                                             <p className="text-xs font-bold text-primary">{parseFloat(u.aiCredits || 0).toFixed(2)}</p>
                                         </div>
@@ -1502,44 +1514,97 @@ export default function SettingsPage() {
         </div>
     );
 
+    const adminTabs = [
+        { id: 'users', label: 'Benutzer', icon: Users },
+        { id: 'system', label: 'System', icon: SettingsIcon },
+        { id: 'logs', label: 'Logs', icon: FileText },
+        { id: 'texts', label: 'Rechtstexte', icon: Type },
+        { id: 'compliance', label: 'Compliance', icon: ShieldCheck }
+    ];
+
+    const getAdminContent = (id) => {
+        switch (id) {
+            case 'users': return UsersSection;
+            case 'system': return SystemSection;
+            case 'logs': return LogsSection;
+            case 'texts': return TextsSection;
+            case 'compliance': return ComplianceSection;
+            default: return null;
+        }
+    };
+
     const AdminSection = (
         <div className="space-y-6">
-            <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2">
-                {[
-                    { id: 'users', label: 'Benutzer', icon: Users },
-                    { id: 'system', label: 'System', icon: SettingsIcon },
-                    { id: 'logs', label: 'Logs', icon: FileText },
-                    { id: 'texts', label: 'Rechtstexte', icon: Type },
-                    { id: 'compliance', label: 'Compliance', icon: ShieldCheck }
-                ].map(sub => (
-                    <button
-                        key={sub.id}
-                        onClick={() => setActiveAdminTab(sub.id)}
-                        className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all text-xs font-bold",
-                            activeAdminTab === sub.id
-                                ? "bg-primary/10 text-primary border border-primary/20"
-                                : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
-                        )}
-                    >
-                        <sub.icon size={14} />
-                        {sub.label}
-                    </button>
-                ))}
+            {/* Mobile Accordion for Admin Submenu */}
+            <div className="sm:hidden space-y-2">
+                {adminTabs.map((sub) => {
+                    const isActive = activeAdminTab === sub.id;
+                    return (
+                        <div key={sub.id} className="border border-border/50 rounded-lg overflow-hidden bg-card/30">
+                            <button
+                                onClick={() => setActiveAdminTab(isActive ? '' : sub.id)}
+                                className={cn(
+                                    "w-full flex items-center justify-between p-3 text-sm font-bold text-left transition-colors",
+                                    isActive ? "bg-primary/5 text-primary" : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <sub.icon size={16} />
+                                    <span>{sub.label}</span>
+                                </div>
+                                <ChevronDown
+                                    size={16}
+                                    className={cn("text-muted-foreground transition-transform duration-300", isActive && "rotate-180 text-primary")}
+                                />
+                            </button>
+                            <AnimatePresence initial={false}>
+                                {isActive && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                    >
+                                        <div className="p-3 border-t border-border/50">
+                                            {getAdminContent(sub.id)}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    );
+                })}
             </div>
 
-            <motion.div
-                key={activeAdminTab}
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2 }}
-            >
-                {activeAdminTab === 'users' && UsersSection}
-                {activeAdminTab === 'system' && SystemSection}
-                {activeAdminTab === 'logs' && LogsSection}
-                {activeAdminTab === 'texts' && TextsSection}
-                {activeAdminTab === 'compliance' && ComplianceSection}
-            </motion.div>
+            {/* Desktop Tabs for Admin Submenu */}
+            <div className="hidden sm:block">
+                <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2">
+                    {adminTabs.map(sub => (
+                        <button
+                            key={sub.id}
+                            onClick={() => setActiveAdminTab(sub.id)}
+                            className={cn(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all text-xs font-bold",
+                                activeAdminTab === sub.id
+                                    ? "bg-primary/10 text-primary border border-primary/20"
+                                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                            )}
+                        >
+                            <sub.icon size={14} />
+                            {sub.label}
+                        </button>
+                    ))}
+                </div>
+
+                <motion.div
+                    key={activeAdminTab}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                >
+                    {getAdminContent(activeAdminTab)}
+                </motion.div>
+            </div>
         </div>
     );
 
@@ -1585,56 +1650,92 @@ export default function SettingsPage() {
 
     return (
         <div className="space-y-8 pb-20">
-            <div className="mb-4">
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="p-3 bg-muted rounded-2xl text-muted-foreground hover:text-foreground transition-all active:scale-95"
-                    >
-                        <ArrowLeft size={24} />
-                    </button>
-                    <h1 className="text-2xl font-bold">Einstellungen</h1>
-                </div>
-            </div>
-
-            {/* Tab Navigation */}
-            <div className="flex overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 gap-2 mb-8 sticky top-0 bg-background/80 backdrop-blur-md py-2 z-10 border-b border-border sm:border-none sm:static sm:bg-transparent sm:backdrop-blur-none transition-all">
+            {/* Mobile View: Accordion (Vertical Stack) */}
+            <div className="sm:hidden space-y-3">
                 {tabs.map((tab) => {
                     const Icon = tab.icon;
                     const isActive = activeTab === tab.id;
                     return (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={cn(
-                                "flex items-center gap-2 px-4 py-2.5 rounded-2xl whitespace-nowrap transition-all active:scale-95 text-sm font-bold",
-                                isActive
-                                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                            )}
-                        >
-                            <Icon size={18} />
-                            {tab.label}
-                        </button>
+                        <div key={tab.id} className="border border-border rounded-xl bg-card/50 overflow-hidden shadow-sm transition-all duration-200">
+                            <button
+                                onClick={() => setActiveTab(isActive ? '' : tab.id)}
+                                className={cn(
+                                    "w-full flex items-center justify-between p-4 font-bold text-left transition-colors",
+                                    isActive ? "bg-primary/5 text-primary" : "hover:bg-muted/50 text-foreground"
+                                )}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <Icon size={20} className={isActive ? "text-primary" : "text-muted-foreground"} />
+                                    <span>{tab.label}</span>
+                                </div>
+                                <ChevronDown
+                                    size={18}
+                                    className={cn("text-muted-foreground transition-transform duration-300", isActive && "rotate-180 text-primary")}
+                                />
+                            </button>
+                            <AnimatePresence initial={false}>
+                                {isActive && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                                    >
+                                        <div className="p-4 border-t border-border/50">
+                                            {tab.id === 'profile' && ProfileSection}
+                                            {tab.id === 'household' && HouseholdSection}
+                                            {tab.id === 'cookbook' && CookbookSection}
+                                            {tab.id === 'stores' && StoresSection}
+                                            {tab.id === 'integration' && ApiSection}
+                                            {tab.id === 'admin' && AdminSection}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
                     );
                 })}
             </div>
 
-            {/* Tab Content */}
-            <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2 }}
-                className="max-w-4xl mx-auto"
-            >
-                {activeTab === 'profile' && ProfileSection}
-                {activeTab === 'household' && HouseholdSection}
-                {activeTab === 'cookbook' && CookbookSection}
-                {activeTab === 'stores' && StoresSection}
-                {activeTab === 'integration' && ApiSection}
-                {activeTab === 'admin' && AdminSection}
-            </motion.div>
+            {/* Desktop View: Tabs + Content */}
+            <div className="hidden sm:block">
+                <div className="flex flex-wrap gap-2 mb-8 border-b border-border pb-2">
+                    {tabs.map((tab) => {
+                        const Icon = tab.icon;
+                        const isActive = activeTab === tab.id;
+                        return (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={cn(
+                                    "flex items-center gap-2 px-4 py-2.5 rounded-2xl whitespace-nowrap transition-all active:scale-95 text-sm font-bold",
+                                    isActive
+                                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                                        : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                                )}
+                            >
+                                <Icon size={18} />
+                                {tab.label}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <motion.div
+                    key={activeTab}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="max-w-4xl mx-auto"
+                >
+                    {activeTab === 'profile' && ProfileSection}
+                    {activeTab === 'household' && HouseholdSection}
+                    {activeTab === 'cookbook' && CookbookSection}
+                    {activeTab === 'stores' && StoresSection}
+                    {activeTab === 'integration' && ApiSection}
+                    {activeTab === 'admin' && AdminSection}
+                </motion.div>
+            </div>
 
             <StoreModal
                 isOpen={isModalOpen}

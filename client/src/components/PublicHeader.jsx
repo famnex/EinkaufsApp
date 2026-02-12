@@ -28,9 +28,9 @@ export default function PublicHeader() {
                         className="w-10 h-10 object-contain"
                     />
                     <img
-                        src={`${import.meta.env.BASE_URL}logo_text.svg`}
+                        src={`${import.meta.env.BASE_URL}logo_text.png`}
                         alt="GabelGuru"
-                        className="h-6 object-contain filter dark:brightness-0 dark:invert"
+                        className="h-6 object-contain"
                     />
                 </div>
                 <div className="flex items-center gap-4">

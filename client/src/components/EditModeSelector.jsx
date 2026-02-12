@@ -63,52 +63,52 @@ export default function EditModeSelector({ editMode, setEditMode }) {
             </div>
 
             {/* Mobile View: Dynamic Expansion */}
-            <div className="md:hidden h-10 flex items-center justify-center">
-                <AnimatePresence mode="wait">
-                    {!isOpen ? (
-                        <motion.button
-                            layoutId="selector-container"
-                            key="collapsed"
-                            onClick={() => setIsOpen(true)}
-                            initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.8, opacity: 0 }}
-                            className={cn(
-                                "flex items-center justify-center p-2 rounded-xl bg-primary text-primary-foreground shadow-md"
-                            )}
-                        >
-                            <motion.div layoutId={`icon-${currentMode.id}`}>
-                                <currentMode.icon size={20} />
-                            </motion.div>
-                        </motion.button>
-                    ) : (
-                        <motion.div
-                            layoutId="selector-container"
-                            key="expanded"
-                            className="absolute z-50 flex items-center gap-1 bg-background/80 backdrop-blur-xl border border-border p-1 rounded-2xl shadow-2xl"
-                            transition={{ type: "spring", stiffness: 500, damping: 30, mass: 0.8 }}
-                        >
-                            {modes.map((mode) => (
-                                <button
+            <div className="md:hidden h-10 w-10 relative z-50">
+                <motion.div
+                    layout
+                    onClick={() => !isOpen && setIsOpen(true)}
+                    className={cn(
+                        "absolute right-0 top-0 flex items-center gap-1 p-1 rounded-2xl transition-colors",
+                        isOpen ? "bg-background/80 backdrop-blur-xl border border-border shadow-2xl" : "bg-primary shadow-md"
+                    )}
+                    initial={false}
+                    animate={{ width: isOpen ? 'auto' : '40px' }}
+                    transition={{ type: "spring", stiffness: 500, damping: 30, mass: 1 }}
+                >
+                    <AnimatePresence initial={false} mode="popLayout">
+                        {modes.map((mode) => {
+                            const isSelected = editMode === mode.id;
+                            const shouldShow = isOpen || isSelected;
+
+                            if (!shouldShow) return null;
+
+                            return (
+                                <motion.button
+                                    layout
                                     key={mode.id}
-                                    onClick={() => handleSelect(mode.id)}
+                                    initial={{ width: 0, opacity: 0, scale: 0.8 }}
+                                    animate={{ width: 'auto', opacity: 1, scale: 1 }}
+                                    exit={{ width: 0, opacity: 0, scale: 0.8 }}
+                                    transition={{ type: "spring", stiffness: 500, damping: 30, mass: 1 }}
+                                    onClick={(e) => {
+                                        if (isOpen) {
+                                            e.stopPropagation();
+                                            handleSelect(mode.id);
+                                        }
+                                    }}
                                     className={cn(
-                                        "p-2 rounded-xl transition-all flex items-center justify-center relative",
-                                        editMode === mode.id
-                                            ? "bg-primary text-primary-foreground shadow-sm"
-                                            : "text-muted-foreground hover:bg-muted"
+                                        "p-2 rounded-xl flex items-center justify-center flex-shrink-0",
+                                        isOpen && isSelected ? "bg-primary text-primary-foreground shadow-sm" : "",
+                                        isOpen && !isSelected ? "text-muted-foreground hover:bg-muted" : "",
+                                        !isOpen ? "text-primary-foreground" : ""
                                     )}
                                 >
-                                    <motion.div layoutId={editMode === mode.id ? `icon-${mode.id}` : undefined}>
-                                        <mode.icon size={20} />
-                                    </motion.div>
-
-                                    {/* Label removed for mobile as requested */}
-                                </button>
-                            ))}
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                                    <mode.icon size={20} />
+                                </motion.button>
+                            );
+                        })}
+                    </AnimatePresence>
+                </motion.div>
             </div>
         </div>
     );

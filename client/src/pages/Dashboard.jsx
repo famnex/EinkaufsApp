@@ -7,6 +7,7 @@ import { ShoppingCart, ChefHat, Play, Check, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEditMode } from '../contexts/EditModeContext';
 import { cn } from '../lib/utils';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 export default function Dashboard() {
     const { editMode } = useEditMode();
@@ -218,129 +219,130 @@ export default function Dashboard() {
     }, [menus]);
 
     return (
-        <div className="space-y-4">
-            {/* Info Box */}
-            <div className="mt-4">
-                <div className="bg-primary rounded-2xl p-2 grid grid-cols-2 gap-2">
-                    {/* Nächster Einkauf */}
-                    <button
-                        onClick={() => nextShopping && navigate(`/lists/${nextShopping.id}`)}
-                        className={cn(
-                            "flex items-center gap-2 p-2 rounded-xl transition-all text-left",
-                            nextShopping
-                                ? "bg-white/15 hover:bg-white/25 cursor-pointer active:scale-[0.97]"
-                                : "bg-white/5 opacity-50 cursor-default"
-                        )}
-                    >
-                        <ShoppingCart size={18} className="text-white shrink-0" />
-                        <div className="min-w-0">
-                            <div className="text-[9px] uppercase tracking-widest font-bold text-white/80">
-                                Nächster Einkauf
+        <LoadingOverlay isLoading={loading}>
+            <div className="space-y-4">
+                {/* Info Box */}
+                <div className="mt-4">
+                    <div className="bg-primary rounded-2xl p-2 grid grid-cols-2 gap-2">
+                        {/* Nächster Einkauf */}
+                        <button
+                            onClick={() => nextShopping && navigate(`/lists/${nextShopping.id}`)}
+                            className={cn(
+                                "flex items-center gap-2 p-2 rounded-xl transition-all text-left",
+                                nextShopping
+                                    ? "bg-white/15 hover:bg-white/25 cursor-pointer active:scale-[0.97]"
+                                    : "bg-white/5 opacity-50 cursor-default"
+                            )}
+                        >
+                            <ShoppingCart size={18} className="text-white shrink-0" />
+                            <div className="min-w-0">
+                                <div className="text-[9px] uppercase tracking-widest font-bold text-white/80">
+                                    Nächster Einkauf
+                                </div>
+                                <div className="text-xs font-bold text-white truncate">
+                                    {nextShopping
+                                        ? (() => {
+                                            const d = new Date(nextShopping.date + 'T12:00:00');
+                                            return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+                                        })()
+                                        : 'Nicht geplant'
+                                    }
+                                </div>
                             </div>
-                            <div className="text-xs font-bold text-white truncate">
-                                {nextShopping
-                                    ? (() => {
-                                        const d = new Date(nextShopping.date + 'T12:00:00');
-                                        return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
-                                    })()
-                                    : 'Nicht geplant'
+                        </button>
+
+                        {/* Nächstes Rezept */}
+                        <button
+                            onClick={() => {
+                                if (nextRecipe) {
+                                    navigate('/recipes', { state: { openRecipeId: nextRecipe.recipe.id, startCooking: true } });
                                 }
+                            }}
+                            className={cn(
+                                "flex items-center gap-2 p-2 rounded-xl transition-all text-left",
+                                nextRecipe
+                                    ? "bg-white/15 hover:bg-white/25 cursor-pointer active:scale-[0.97]"
+                                    : "bg-white/5 opacity-50 cursor-default"
+                            )}
+                        >
+                            <ChefHat size={18} className="text-white shrink-0" />
+                            <div className="flex-1 min-w-0">
+                                <div className="text-[9px] uppercase tracking-widest font-bold text-white/80">
+                                    {nextRecipe ? nextRecipe.mealLabel : 'Nächstes Rezept'}
+                                </div>
+                                <div className="text-xs font-bold text-white truncate">
+                                    {nextRecipe ? nextRecipe.recipe.title : 'Heute keine Rezepte'}
+                                </div>
                             </div>
-                        </div>
-                    </button>
-
-                    {/* Nächstes Rezept */}
-                    <button
-                        onClick={() => {
-                            if (nextRecipe) {
-                                navigate('/recipes', { state: { openRecipeId: nextRecipe.recipe.id, startCooking: true } });
-                            }
-                        }}
-                        className={cn(
-                            "flex items-center gap-2 p-2 rounded-xl transition-all text-left",
-                            nextRecipe
-                                ? "bg-white/15 hover:bg-white/25 cursor-pointer active:scale-[0.97]"
-                                : "bg-white/5 opacity-50 cursor-default"
-                        )}
-                    >
-                        <ChefHat size={18} className="text-white shrink-0" />
-                        <div className="flex-1 min-w-0">
-                            <div className="text-[9px] uppercase tracking-widest font-bold text-white/80">
-                                {nextRecipe ? nextRecipe.mealLabel : 'Nächstes Rezept'}
-                            </div>
-                            <div className="text-xs font-bold text-white truncate">
-                                {nextRecipe ? nextRecipe.recipe.title : 'Heute keine Rezepte'}
-                            </div>
-                        </div>
-                    </button>
-                </div>
-            </div>
-
-            {/* Calendar */}
-            <div className="w-full relative">
-                <motion.div
-                    key="calendar-view"
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.2 }}
-                    className="bg-card border border-border rounded-3xl p-6 backdrop-blur-2xl shadow-xl transition-colors duration-300"
-                >
-                    <div
-                        onTouchStart={onTouchStart}
-                        onTouchMove={onTouchMove}
-                        onTouchEnd={onTouchEnd}
-                        className="touch-pan-y overflow-hidden relative"
-                    >
-                        <AnimatePresence initial={false} custom={direction} mode="popLayout">
-                            <motion.div
-                                key={activeStartDate.toISOString()}
-                                custom={direction}
-                                variants={variants}
-                                initial="enter"
-                                animate="center"
-                                exit="exit"
-                                transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
-                            >
-                                <Calendar
-                                    onChange={setSelectedDate}
-                                    onClickDay={handleDateClick}
-                                    value={selectedDate}
-                                    activeStartDate={activeStartDate}
-                                    onActiveStartDateChange={({ activeStartDate, action }) => {
-                                        if (action === 'next') setDirection(1);
-                                        if (action === 'prev') setDirection(-1);
-                                        setActiveStartDate(activeStartDate);
-                                    }}
-                                    tileClassName={tileClassName}
-                                    tileContent={({ date, view }) => {
-                                        if (view === 'month') {
-                                            const dateStr = getLocalDateStr(date);
-                                            const list = lists.find(l => l.date === dateStr);
-                                            if (list && list.status === 'archived') {
-                                                return (
-                                                    <div className="absolute bottom-0 right-0 p-1">
-                                                        <div className="bg-white rounded-full p-0.5 shadow-sm">
-                                                            <Check size={8} className="text-green-600" strokeWidth={4} />
-                                                        </div>
-                                                    </div>
-                                                );
-                                            }
-                                        }
-                                        return null;
-                                    }}
-                                    locale="de-DE"
-                                    prev2Label={null}
-                                    next2Label={null}
-                                    formatShortWeekday={(locale, date) => ['M', 'D', 'M', 'D', 'F', 'S', 'S'][date.getDay() === 0 ? 6 : date.getDay() - 1]}
-                                />
-                            </motion.div>
-                        </AnimatePresence>
+                        </button>
                     </div>
-                </motion.div>
-            </div>
+                </div>
 
-            <style dangerouslySetInnerHTML={{
-                __html: `
+                {/* Calendar */}
+                <div className="w-full relative">
+                    <motion.div
+                        key="calendar-view"
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.2 }}
+                        className="bg-card border border-border rounded-3xl p-6 backdrop-blur-2xl shadow-xl transition-colors duration-300"
+                    >
+                        <div
+                            onTouchStart={onTouchStart}
+                            onTouchMove={onTouchMove}
+                            onTouchEnd={onTouchEnd}
+                            className="touch-pan-y overflow-hidden relative"
+                        >
+                            <AnimatePresence initial={false} custom={direction} mode="popLayout">
+                                <motion.div
+                                    key={activeStartDate.toISOString()}
+                                    custom={direction}
+                                    variants={variants}
+                                    initial="enter"
+                                    animate="center"
+                                    exit="exit"
+                                    transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
+                                >
+                                    <Calendar
+                                        onChange={setSelectedDate}
+                                        onClickDay={handleDateClick}
+                                        value={selectedDate}
+                                        activeStartDate={activeStartDate}
+                                        onActiveStartDateChange={({ activeStartDate, action }) => {
+                                            if (action === 'next') setDirection(1);
+                                            if (action === 'prev') setDirection(-1);
+                                            setActiveStartDate(activeStartDate);
+                                        }}
+                                        tileClassName={tileClassName}
+                                        tileContent={({ date, view }) => {
+                                            if (view === 'month') {
+                                                const dateStr = getLocalDateStr(date);
+                                                const list = lists.find(l => l.date === dateStr);
+                                                if (list && list.status === 'archived') {
+                                                    return (
+                                                        <div className="absolute bottom-0 right-0 p-1">
+                                                            <div className="bg-white rounded-full p-0.5 shadow-sm">
+                                                                <Check size={8} className="text-green-600" strokeWidth={4} />
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                            }
+                                            return null;
+                                        }}
+                                        locale="de-DE"
+                                        prev2Label={null}
+                                        next2Label={null}
+                                        formatShortWeekday={(locale, date) => ['M', 'D', 'M', 'D', 'F', 'S', 'S'][date.getDay() === 0 ? 6 : date.getDay() - 1]}
+                                    />
+                                </motion.div>
+                            </AnimatePresence>
+                        </div>
+                    </motion.div>
+                </div>
+
+                <style dangerouslySetInnerHTML={{
+                    __html: `
                 /* 1. Global Reset: Remove default hover/active backgrounds */
                 .react-calendar__tile:enabled:hover,
                 .react-calendar__tile:enabled:focus,
@@ -418,6 +420,7 @@ export default function Dashboard() {
                     border: 2px solid var(--ref-teal) !important;
                 }
             `}} />
-        </div >
+            </div >
+        </LoadingOverlay>
     );
 }

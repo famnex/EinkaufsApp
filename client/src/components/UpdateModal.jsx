@@ -118,7 +118,7 @@ export default function UpdateModal({ isOpen, onClose, currentVersion, updateInf
             evtSource.close();
             // If we are deep in the process (e.g. step 4 or 5), assume it's a restart
             // If it fails immediately (step -1 or 0), it's an error
-            if (currentStepIndex >= 3) {
+            if (currentStepIndex >= 4) {
                 setCurrentStepIndex(UPDATE_STEPS.length - 1); // Last step
                 setLogs(prev => [...prev, '>>> Connection lost. Server is likely restarting...']);
                 startRestartCheck();

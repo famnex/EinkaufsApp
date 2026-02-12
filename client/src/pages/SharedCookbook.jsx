@@ -138,16 +138,7 @@ export default function SharedCookbook() {
                     style={{ backgroundImage: `url(${import.meta.env.BASE_URL}pattern.svg)` }}
                 />
 
-                {/* Theme Toggle */}
-                <div className="absolute top-4 right-4 z-20">
-                    <button
-                        onClick={toggleTheme}
-                        className="p-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all text-white"
-                        title={isDark ? "Hell-Modus" : "Dunkel-Modus"}
-                    >
-                        {isDark ? <Sun size={20} /> : <Moon size={20} />}
-                    </button>
-                </div>
+
 
                 <div className="max-w-7xl mx-auto px-4 py-8 md:py-20 relative z-10 flex flex-col items-center text-center">
                     <motion.div
