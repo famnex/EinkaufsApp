@@ -217,6 +217,7 @@ router.get('/stream-update', auth, admin, (req, res) => {
         echo "Dir: $(pwd)" &&
         echo "Path: $PATH" &&
         echo ">>> Starting Update Process..." &&
+        git checkout client/package-lock.json server/package-lock.json || true &&
         git pull &&
         echo ">>> Installing Server Dependencies..." &&
         cd server && npm install &&
