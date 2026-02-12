@@ -73,6 +73,10 @@ Aufzeichnung aller AI-Guthaben-Bewegungen.
     - Dynamische HSL-Berechnung für Kontrastfarben und Akzente.
     - Integration der Sekundärfarbe für unbesorgte Artikel und Kalender-Highlights.
 
+### v0.22.13 - Public Cookbook Toggle (Februar 2026)
+1.  **User Privacy**: Neue Spalte `isPublicCookbook` in der `Users` Tabelle.
+2.  **Toggle-Feature**: Ermöglicht Benutzern, ihr Kochbuch öffentlich oder privat zu schalten.
+
 ## 3. Migrations-Schritte (für neue Instanzen)
 
 Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert werden soll:
@@ -87,6 +91,9 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 4.  **Admin Update (v0.22.0)**: `node server/migrations/migrate_v0.22.0_user_management.js`
     - Fügt `tier` und `aiCredits` Spalten zu `Users` hinzu.
     - Erstellt die Tabelle `CreditTransactions`.
+
+5.  **Public Cookbook (v0.22.13)**: `node server/migrations/migrate_v0.22.13_public_cookbook.js`
+    - Fügt `isPublicCookbook` Spalte zu `Users` hinzu.
 
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*

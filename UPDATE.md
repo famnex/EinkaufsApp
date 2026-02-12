@@ -1,6 +1,6 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.22.0
+## Aktuelle Version: v0.23.4
 
 ### Changelog v0.22.0
 - **Feature (Admin):** Erweiterte Benutzerverwaltung in den Einstellungen. 👥⚙️
@@ -9,6 +9,27 @@
 - **Feature (Admin):** Manuelles Buchungssystem für AI-Credits inkl. Transaktions-Historie. 💰📈
 - **Fix (PWA):** Beseitigung von Bildschirm-Flackern auf iOS durch optimierte Zoom-Prävention (Debouncing & Scale-aware Reset). 📱🚫✨
 - **DB:** Migration v0.22.0 ausgeführt (Tiers, Credits, Transactions). 🗄️✅
+
+### Changelog v0.23.4
+- **Feature (AI Import):** Modernisierter AI-Import-Modal. KI-gestützte Produkterkennung und -zuordnung beim Import von Rezepten. 🤖✨
+- **Refactor (Project):** Neue Client-Server-Projektstruktur etabliert. 🏗️
+- **DB:** Migration v0.22.13 (Public Cookbook) ist enthalten.
+
+### Changelog v0.23.2
+- **Fix (Routing):** Root-Route blockiert SPA in Production behoben. 🛠️
+
+### Changelog v0.23.1
+- **Feature (Vite):** Vite base URL ist nun konfigurierbar. ⚙️
+
+### Changelog v0.23.0
+- **Feature (Dashboard):** Neue Info-Box auf dem Dashboard. ℹ️
+- **Feature (Shared Recipe):** Anzeige von Besitzer-Informationen bei geteilten Rezepten. 👤
+- **Opt (Print):** Weitere Optimierungen für den Druck von Rezepten. 🖨️
+- **Maintenance:** Uploads aus Git entfernt und .gitignore bereinigt. 🧹
+
+### Changelog v0.22.13
+- **Feature (Privacy):** Public Cookbook Toggle. Benutzer können nun entscheiden, ob ihr Kochbuch öffentlich sichtbar ist. 🔒🌐
+- **DB:** Neue Spalte `isPublicCookbook` in der `Users` Tabelle.
 
 ### Changelog v0.21.5
 - **Fix (Alexa):** Fehler in der Authentifizierung behoben (Missing User Import). Alexa-Anfragen funktionieren nun wieder korrekt. 🗣️🔐
