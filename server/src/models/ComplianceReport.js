@@ -31,8 +31,14 @@ module.exports = (sequelize) => {
             defaultValue: 'open'
         },
         resolutionNote: { type: DataTypes.TEXT, allowNull: true },
-        screenshotPath: { type: DataTypes.STRING, allowNull: true }
+        internalNote: { type: DataTypes.TEXT, allowNull: true },
+        screenshotPath: { type: DataTypes.STRING, allowNull: true },
+        accusedUserId: { type: DataTypes.INTEGER, allowNull: true }
     });
+
+    ComplianceReport.associate = (models) => {
+        ComplianceReport.belongsTo(models.User, { as: 'AccusedUser', foreignKey: 'accusedUserId' });
+    };
 
     return ComplianceReport;
 };

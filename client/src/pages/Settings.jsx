@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen } from 'lucide-react';
+import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen, AlertTriangle } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -51,6 +51,7 @@ export default function SettingsPage() {
     const [householdMembers, setHouseholdMembers] = useState([]);
     const [fetchingMembers, setFetchingMembers] = useState(false);
     const [isUserDetailModalOpen, setIsUserDetailModalOpen] = useState(false);
+    const [initialDetailTab, setInitialDetailTab] = useState('general');
 
     // System Design State
     const [accentColor, setAccentColor] = useState('#14b8a6');
@@ -122,6 +123,10 @@ export default function SettingsPage() {
     useEffect(() => {
         fetchStores();
         fetchSettings();
+        if (user) {
+            fetchHouseholdMembers();
+            fetchUserStrikes(); // New: Fetch strikes for personal profile
+        }
         if (user?.role === 'admin') {
             fetchUsers();
             fetchEmails('inbox');
@@ -129,8 +134,24 @@ export default function SettingsPage() {
                 fetchComplianceReports();
             }
         }
-        fetchHouseholdMembers();
-    }, [user?.role, activeAdminTab]); // Added activeAdminTab dependency
+    }, [user?.role, activeAdminTab, user?.id]); // Added user.id dependency
+
+    // User Strikes State
+    const [userStrikes, setUserStrikes] = useState([]);
+    const [loadingStrikes, setLoadingStrikes] = useState(false);
+
+    const fetchUserStrikes = async () => {
+        if (!user) return;
+        setLoadingStrikes(true);
+        try {
+            const res = await api.get(`/users/${user.id}/strikes`);
+            setUserStrikes(res.data);
+        } catch (err) {
+            console.error('Failed to fetch user strikes:', err);
+        } finally {
+            setLoadingStrikes(false);
+        }
+    };
 
     const fetchComplianceReports = async () => {
         setLoadingCompliance(true);
@@ -144,16 +165,21 @@ export default function SettingsPage() {
         }
     };
 
-    const updateReportStatus = async (id, newStatus, note) => {
+    const updateReportStatus = async (id, newStatus, note, internalNote) => {
         try {
-            const res = await api.put(`/compliance/${id}`, { status: newStatus, resolutionNote: note });
+            const res = await api.put(`/compliance/${id}`, { status: newStatus, resolutionNote: note, internalNote });
             setComplianceReports(prev => prev.map(r => r.id === id ? res.data : r));
             if (selectedReport && selectedReport.id === id) {
+                // Preserve originalStatus to keep UI lock if it was already resolved (though API returns updated object)
+                // Actually, API returns the new state. If we just saved 'resolved', the new state is 'resolved', so UI should lock.
+                // We might need to ensure 'originalStatus' logic in the selection handler knows this.
+                // But for now, just updating the selectedReport state with the response is correct.
                 setSelectedReport(res.data);
             }
             if (fetchNotificationCounts) fetchNotificationCounts();
         } catch (err) {
             console.error('Failed to update report:', err);
+            alert('Fehler beim Speichern: ' + (err.response?.data?.error || err.message));
         }
     };
 
@@ -900,6 +926,75 @@ export default function SettingsPage() {
                         Abmelden
                     </Button>
                 </div>
+            </Card>
+
+            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm relative overflow-hidden">
+                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                    <ShieldCheck size={20} className={userStrikes.length > 0 ? "text-destructive" : "text-emerald-500"} />
+                    Sicherheitsstatus & Verstöße
+                </h2>
+
+                {loadingStrikes ? (
+                    <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary/50" /></div>
+                ) : userStrikes.length > 0 ? (
+                    <div className="space-y-6">
+                        <div className="p-4 bg-destructive/10 text-destructive rounded-2xl border border-destructive/20 flex gap-3">
+                            <AlertTriangle size={20} className="shrink-0 mt-0.5" />
+                            <div>
+                                <p className="text-sm font-bold">
+                                    Achtung: Es liegen Verstöße gegen unsere Richtlinien vor.
+                                </p>
+                                <p className="text-xs mt-1 opacity-90 leading-relaxed">
+                                    Bitte beachten Sie, dass wiederholte Verstöße zur dauerhaften Sperrung Ihres Accounts führen können.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="bg-background/50 rounded-2xl border border-border overflow-hidden">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-muted/50 border-b border-border">
+                                    <tr>
+                                        <th className="px-4 py-3 font-bold">Datum</th>
+                                        <th className="px-4 py-3 font-bold">Grund</th>
+                                        <th className="px-4 py-3 font-bold">Inhalt</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border/50">
+                                    {userStrikes.map(strike => (
+                                        <tr key={strike.id} className="hover:bg-muted/30 transition-colors">
+                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap align-top">
+                                                {new Date(strike.updatedAt).toLocaleDateString('de-DE')}
+                                            </td>
+                                            <td className="px-4 py-3 font-medium align-top">
+                                                <span className="bg-destructive/10 text-destructive px-2 py-0.5 rounded-full text-xs font-bold border border-destructive/20 inline-block">
+                                                    {strike.reasonCategory}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-xs text-muted-foreground align-top">
+                                                <div className="font-mono bg-muted/50 px-1.5 py-0.5 rounded inline-block mb-1 max-w-[200px] truncate" title={strike.contentUrl}>
+                                                    {strike.contentType}: {strike.contentUrl}
+                                                </div>
+                                                {strike.resolutionNote && (
+                                                    <div className="italic text-destructive/80 font-medium">
+                                                        "{strike.resolutionNote}"
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-6 text-center text-muted-foreground">
+                        <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-4">
+                            <CheckCircle size={32} />
+                        </div>
+                        <p className="font-bold text-foreground text-lg">Alles in Ordnung!</p>
+                        <p className="text-sm">Keine Verstöße oder Verwarnungen verzeichnet.</p>
+                    </div>
+                )}
             </Card>
 
             <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
@@ -2375,6 +2470,48 @@ export default function SettingsPage() {
         </div>
     );
 
+    // Compliance UI State
+    const [showUserLinkSearch, setShowUserLinkSearch] = useState(false);
+    const [userLinkSearchQuery, setUserLinkSearchQuery] = useState('');
+
+    const userLinkFilteredUsers = users.filter(u =>
+        u.username.toLowerCase().includes(userLinkSearchQuery.toLowerCase()) ||
+        u.email?.toLowerCase().includes(userLinkSearchQuery.toLowerCase())
+    );
+
+    const handleLinkUser = async (userToLink) => {
+        if (!selectedReport) return;
+
+        // Optimistic UI update
+        const updatedUser = { ...userToLink, strikeCount: '...' }; // Placeholder until refresh
+
+        setSelectedReport(prev => ({
+            ...prev,
+            accusedUserId: userToLink.id,
+            accusedUser: updatedUser
+        }));
+        setShowUserLinkSearch(false);
+
+        try {
+            await api.put(`/compliance/${selectedReport.id}`, {
+                accusedUserId: userToLink.id
+            });
+
+            // Update list state to reflect change
+            setComplianceReports(prev => prev.map(r =>
+                r.id === selectedReport.id ? {
+                    ...r,
+                    accusedUserId: userToLink.id,
+                    accusedUser: userToLink
+                } : r
+            ));
+
+        } catch (err) {
+            console.error('Failed to link user:', err);
+            alert('Fehler beim Verknüpfen des Benutzers.');
+        }
+    };
+
     const ComplianceSection = (
         <div className="space-y-6">
             <Card className="p-6 border-border bg-card/50 shadow-lg backdrop-blur-sm">
@@ -2464,6 +2601,117 @@ export default function SettingsPage() {
 
                             {/* Right Column: Administration */}
                             <div className="space-y-6">
+                                {/* Accused User Card */}
+                                <Card className="p-0 overflow-hidden border-border bg-muted/20">
+                                    <div className="p-4 border-b border-border bg-muted/40 font-bold text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                        <User size={16} />
+                                        Verursacher
+                                    </div>
+                                    <div className="p-4 space-y-4">
+                                        {selectedReport.accusedUser ? (
+                                            <div className="bg-background/50 p-3 rounded-xl border border-border/50">
+                                                <div
+                                                    className="flex items-center gap-3 cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors group"
+                                                    onClick={() => {
+                                                        setSelectedUserId(selectedReport.accusedUserId);
+                                                        setInitialDetailTab('strikes'); // Open directly to strikes
+                                                        setIsUserDetailModalOpen(true);
+                                                    }}
+                                                    title="Benutzerdetails öffnen"
+                                                >
+                                                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                                                        {selectedReport.accusedUser.username.substring(0, 2).toUpperCase()}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-bold text-foreground truncate group-hover:text-primary transition-colors">
+                                                            {selectedReport.accusedUser.username}
+                                                        </p>
+                                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                            {selectedReport.accusedUser.strikeCount > 0 ? (
+                                                                <span className="flex items-center gap-1 text-destructive font-bold">
+                                                                    <AlertTriangle size={12} />
+                                                                    {selectedReport.accusedUser.strikeCount} Verstöße
+                                                                </span>
+                                                            ) : (
+                                                                <span className="flex items-center gap-1 text-emerald-500 font-bold">
+                                                                    <CheckCircle size={12} />
+                                                                    Keine Verstöße
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                                                        <ChevronDown size={14} className="-rotate-90" />
+                                                    </Button>
+                                                </div>
+
+                                                <div className="mt-2 pt-2 border-t border-border/50 flex justify-end">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setShowUserLinkSearch(!showUserLinkSearch);
+                                                        }}
+                                                        disabled={selectedReport.originalStatus === 'resolved' || selectedReport.originalStatus === 'dismissed'}
+                                                        className="text-[10px] text-muted-foreground hover:text-primary transition-colors font-medium flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        <UserCog size={12} />
+                                                        Benutzer ändern
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-4 text-muted-foreground text-sm">
+                                                <p className="mb-2 italic">Kein Benutzer zugeordnet.</p>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setShowUserLinkSearch(!showUserLinkSearch)}
+                                                    disabled={selectedReport.originalStatus === 'resolved' || selectedReport.originalStatus === 'dismissed'}
+                                                    className="w-full text-xs"
+                                                >
+                                                    <Plus size={14} className="mr-1" />
+                                                    Benutzer verknüpfen
+                                                </Button>
+                                            </div>
+                                        )}
+
+                                        {/* User Search/Selection */}
+                                        <AnimatePresence>
+                                            {showUserLinkSearch && (
+                                                <motion.div
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: "auto", opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    className="overflow-hidden space-y-2 pt-2 border-t border-border"
+                                                >
+                                                    <Input
+                                                        placeholder="Benutzer suchen..."
+                                                        value={userLinkSearchQuery}
+                                                        onChange={(e) => setUserLinkSearchQuery(e.target.value)}
+                                                        className="h-8 text-xs"
+                                                        autoFocus
+                                                    />
+                                                    <div className="max-h-[150px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                                                        {userLinkFilteredUsers.map(u => (
+                                                            <button
+                                                                key={u.id}
+                                                                onClick={() => handleLinkUser(u)}
+                                                                className={cn(
+                                                                    "w-full text-left px-2 py-1.5 rounded text-xs flex items-center justify-between hover:bg-muted transition-colors",
+                                                                    selectedReport.accusedUserId === u.id && "bg-primary/10 text-primary font-bold"
+                                                                )}
+                                                            >
+                                                                <span className="truncate">{u.username}</span>
+                                                                {selectedReport.accusedUserId === u.id && <Check size={12} />}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
+                                </Card>
+
                                 <Card className="p-0 overflow-hidden border-border bg-muted/20 h-full">
                                     <div className="p-4 border-b border-border bg-muted/40 font-bold text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                                         <ShieldCheck size={16} />
@@ -2471,13 +2719,16 @@ export default function SettingsPage() {
                                     </div>
                                     <div className="p-6 space-y-8">
                                         {/* Status */}
+                                        {/* Status */}
+                                        {/* Status */}
                                         <div>
                                             <h4 className="font-semibold text-foreground mb-3 text-sm">Status bearbeiten</h4>
                                             <select
                                                 value={selectedReport.status}
-                                                onChange={(e) => updateReportStatus(selectedReport.id, e.target.value)}
+                                                onChange={(e) => setSelectedReport({ ...selectedReport, status: e.target.value })}
+                                                disabled={selectedReport.originalStatus === 'resolved' || selectedReport.originalStatus === 'dismissed'}
                                                 className={cn(
-                                                    "flex h-10 w-full rounded-xl border border-input px-3 py-2 text-sm font-bold shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-primary",
+                                                    "flex h-10 w-full rounded-xl border border-input px-3 py-2 text-sm font-bold shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed",
                                                     selectedReport.status === 'open' && "text-red-600 bg-red-50 border-red-200",
                                                     selectedReport.status === 'investigating' && "text-yellow-600 bg-yellow-50 border-yellow-200",
                                                     selectedReport.status === 'resolved' && "text-green-600 bg-green-50 border-green-200",
@@ -2486,22 +2737,85 @@ export default function SettingsPage() {
                                             >
                                                 <option value="open">Offen</option>
                                                 <option value="investigating">In Bearbeitung</option>
-                                                <option value="resolved">Gelöst / Entfernt</option>
-                                                <option value="dismissed">Abgelehnt</option>
+                                                <option value="resolved">Entfernen</option>
+                                                <option value="dismissed">Ablehnen</option>
                                             </select>
+                                            {(selectedReport.originalStatus === 'resolved' || selectedReport.originalStatus === 'dismissed') && (
+                                                <p className="text-[10px] text-muted-foreground mt-1 italic">
+                                                    Dieser Fall ist abgeschlossen und kann nicht mehr bearbeitet werden.
+                                                </p>
+                                            )}
                                         </div>
 
-                                        {/* Notes */}
+                                        {/* Public Reasoning */}
                                         <div className="space-y-2">
-                                            <h4 className="font-semibold text-foreground mb-1 text-sm">Interne Notizen</h4>
+                                            <h4 className="font-semibold text-foreground mb-1 text-sm flex items-center gap-2">
+                                                Begründung (Öffentlich / E-Mail)
+                                                {(selectedReport.status === 'resolved' || selectedReport.status === 'dismissed') && (
+                                                    <span className="text-red-500 ml-1">*</span>
+                                                )}
+                                                <Mail size={12} className="text-muted-foreground" />
+                                            </h4>
                                             <textarea
                                                 value={selectedReport.resolutionNote || ''}
                                                 onChange={(e) => setSelectedReport({ ...selectedReport, resolutionNote: e.target.value })}
-                                                onBlur={(e) => updateReportStatus(selectedReport.id, selectedReport.status, e.target.value)}
-                                                placeholder="Notizen zur Lösung..."
-                                                className="flex min-h-[120px] w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 resize-y"
+                                                disabled={selectedReport.originalStatus === 'resolved' || selectedReport.originalStatus === 'dismissed'}
+                                                placeholder={
+                                                    selectedReport.status === 'resolved' ? "Begründung für Entfernung (geht per Mail an Nutzer)..." :
+                                                        selectedReport.status === 'dismissed' ? "Begründung für Ablehnung (geht per Mail an Nutzer)..." :
+                                                            "Begründung für die Entscheidung..."
+                                                }
+                                                className="flex min-h-[100px] w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 resize-y disabled:opacity-50 disabled:cursor-not-allowed"
+                                            />
+                                            <p className="text-[10px] text-muted-foreground">
+                                                Dieser Text wird dem Melder per E-Mail zugesendet.
+                                            </p>
+                                        </div>
+
+                                        {/* Internal Notes */}
+                                        <div className="space-y-2">
+                                            <h4 className="font-semibold text-foreground mb-1 text-sm flex items-center gap-2">
+                                                Interne Notizen
+                                                <Lock size={12} className="text-muted-foreground" />
+                                            </h4>
+                                            <textarea
+                                                value={selectedReport.internalNote || ''}
+                                                onChange={(e) => setSelectedReport({ ...selectedReport, internalNote: e.target.value })}
+                                                disabled={selectedReport.originalStatus === 'resolved' || selectedReport.originalStatus === 'dismissed'}
+                                                placeholder="Nur für Administratoren sichtbar..."
+                                                className="flex min-h-[80px] w-full rounded-xl border border-input bg-yellow-50/50 px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 resize-y disabled:opacity-50 disabled:cursor-not-allowed"
                                             />
                                         </div>
+
+                                        <Button
+                                            onClick={() => {
+                                                if ((selectedReport.status === 'resolved' || selectedReport.status === 'dismissed') && !selectedReport.resolutionNote?.trim()) {
+                                                    alert('Für "Entfernen" oder "Ablehnen" ist eine Begründung erforderlich!');
+                                                    return;
+                                                }
+
+                                                // Confirm destructive/final action
+                                                if (selectedReport.status === 'resolved' || selectedReport.status === 'dismissed') {
+                                                    const action = selectedReport.status === 'resolved' ? 'ENTFERNEN' : 'ABLEHNEN';
+                                                    const msg = `ACHTUNG: Sie sind dabei, diesen Fall mit dem Status "${action}" abzuschließen.\n\n` +
+                                                        `1. Die Begründung wird per E-Mail an den Melder gesendet.\n` +
+                                                        `2. Der Status kann danach NICHT mehr geändert werden.\n` +
+                                                        `3. ${selectedReport.status === 'resolved' ? 'Der Inhalt wird, falls vorhanden, unwiderruflich gelöscht/gebannt.' : 'Eventuelle Banns werden aufgehoben.'}\n\n` +
+                                                        `Fortfahren?`;
+
+                                                    if (!confirm(msg)) return;
+                                                }
+
+                                                updateReportStatus(selectedReport.id, selectedReport.status, selectedReport.resolutionNote, selectedReport.internalNote);
+                                                alert('Status gespeichert.');
+                                            }}
+                                            disabled={selectedReport.originalStatus === 'resolved' || selectedReport.originalStatus === 'dismissed'}
+                                            className="w-full"
+                                            size="sm"
+                                        >
+                                            <CheckCircle size={16} className="mr-2" />
+                                            Speichern
+                                        </Button>
 
                                         <div className="border-t border-border/50 pt-6">
                                             <h4 className="font-semibold text-foreground mb-3 text-sm flex items-center gap-2">
@@ -2581,7 +2895,7 @@ export default function SettingsPage() {
                                                 {new Date(report.createdAt).toLocaleDateString('de-DE')}
                                             </td>
                                             <td className="px-4 py-3 text-right">
-                                                <Button size="sm" variant="ghost" onClick={() => setSelectedReport(report)}>
+                                                <Button size="sm" variant="ghost" onClick={() => setSelectedReport({ ...report, originalStatus: report.status })}>
                                                     Details
                                                 </Button>
                                             </td>

@@ -8,6 +8,11 @@
 - password (String, Hashed)
 - role (Enum: 'admin', 'user')
 - kitchenId (Integer, Foreign Key -> Kitchens)
+- tier (Enum: 'Plastikgabel', ...)
+- aiCredits (Decimal)
+- newsletterSignedUp (Boolean)
+- newsletterSignupDate (DateTime)
+- bannedAt (DateTime)
 
 ### Recipes
 - id (Integer, Primary Key)
@@ -95,3 +100,21 @@
 - Users have many Settings
 - Users have many LoginLogs
 - Users have many Emails
+
+### ComplianceReports
+- id (Integer, Primary Key)
+- reporterName (String)
+- reporterEmail (String)
+- reporterRole (Enum)
+- contentUrl (String)
+- contentType (Enum)
+- reasonCategory (Enum)
+- reasonDescription (Text)
+- originalSourceUrl (String)
+- status (Enum: 'open', 'investigating', 'resolved', 'dismissed')
+- resolutionNote (Text)
+- internalNote (Text)
+- screenshotPath (String)
+- accusedUserId (Integer, Foreign Key -> Users)
+- createdAt (DateTime)
+- updatedAt (DateTime)

@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Users, ChefHat, Building2, CreditCard, Sparkles, Loader2, Save, History, Plus, Minus, AlertTriangle, Key } from 'lucide-react';
+import { X, User, Users, ChefHat, Building2, CreditCard, Sparkles, Loader2, Save, History, Plus, Minus, AlertTriangle, Key, CheckCircle } from 'lucide-react';
 import { Card } from './Card';
 import { Button } from './Button';
 import { Input } from './Input';
 import api from '../lib/axios';
 import { cn, getImageUrl } from '../lib/utils';
 
-export default function UserDetailModal({ isOpen, onClose, userId, onUpdate }) {
-    const [activeTab, setActiveTab] = useState('general');
+export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, initialTab = 'general' }) {
+    const [activeTab, setActiveTab] = useState(initialTab);
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState(null);
     const [saving, setSaving] = useState(false);
@@ -21,10 +21,11 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate }) {
     const [uploading, setUploading] = useState(false);
 
     useEffect(() => {
-        if (isOpen && userId) {
-            fetchDetail();
+        if (isOpen) {
+            setActiveTab(initialTab); // Reset tab when opening
+            if (userId) fetchDetail();
         }
-    }, [isOpen, userId]);
+    }, [isOpen, userId, initialTab]);
 
     const fetchDetail = async () => {
         setLoading(true);
@@ -121,7 +122,8 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate }) {
         { id: 'household', label: 'Haushalt', icon: Users },
         { id: 'cookbook', label: 'Kochbuch', icon: ChefHat },
         { id: 'integration', label: 'Integration', icon: Building2 },
-        { id: 'subscription', label: 'Abo & Credits', icon: CreditCard }
+        { id: 'subscription', label: 'Abo & Credits', icon: CreditCard },
+        { id: 'strikes', label: 'Verstöße', icon: AlertTriangle }
     ];
 
     return (
@@ -491,6 +493,65 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate }) {
                                                             </tbody>
                                                         </table>
                                                     </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Strikes Tab */}
+                                        {activeTab === 'strikes' && (
+                                            <div className="space-y-6">
+                                                <div className="p-4 bg-red-50 text-red-900 rounded-2xl border border-red-200">
+                                                    <h3 className="font-bold mb-2 flex items-center gap-2">
+                                                        <AlertTriangle size={18} className="text-red-600" />
+                                                        Verstöße & Verwarnungen
+                                                    </h3>
+                                                    <p className="text-xs">
+                                                        Hier werden alle Inhalte aufgelistet, die aufgrund von Richtlinienverstößen entfernt wurden ("Strikes").
+                                                    </p>
+                                                </div>
+
+                                                <div className="bg-background rounded-2xl border border-border overflow-hidden">
+                                                    <table className="w-full text-left text-sm">
+                                                        <thead className="bg-muted/50 border-b border-border">
+                                                            <tr>
+                                                                <th className="px-4 py-3 font-bold">Datum</th>
+                                                                <th className="px-4 py-3 font-bold">Grund</th>
+                                                                <th className="px-4 py-3 font-bold">URL</th>
+                                                                <th className="px-4 py-3 font-bold">Admin-Notiz</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-border/50">
+                                                            {data.strikes?.length > 0 ? (
+                                                                data.strikes.map(strike => (
+                                                                    <tr key={strike.id} className="hover:bg-muted/30 transition-colors">
+                                                                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                                                                            {new Date(strike.updatedAt).toLocaleDateString('de-DE')}
+                                                                        </td>
+                                                                        <td className="px-4 py-3 font-medium">
+                                                                            <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded-full text-xs border border-red-200">
+                                                                                {strike.reasonCategory}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="px-4 py-3 max-w-[200px] truncate text-xs text-muted-foreground" title={strike.contentUrl}>
+                                                                            {strike.contentUrl}
+                                                                        </td>
+                                                                        <td className="px-4 py-3 text-xs italic text-muted-foreground">
+                                                                            {strike.resolutionNote || '-'}
+                                                                        </td>
+                                                                    </tr>
+                                                                ))
+                                                            ) : (
+                                                                <tr>
+                                                                    <td colSpan="4" className="px-4 py-8 text-center text-muted-foreground italic">
+                                                                        <span className="flex flex-col items-center gap-2">
+                                                                            <CheckCircle size={24} className="text-green-500" />
+                                                                            Keine Verstöße verzeichnet. Vorbildlich!
+                                                                        </span>
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                        </tbody>
+                                                    </table>
                                                 </div>
                                             </div>
                                         )}

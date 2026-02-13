@@ -60,6 +60,7 @@ router.get('/:id/detail', async (req, res) => {
         });
         if (!user) return res.status(404).json({ error: 'User not found' });
         const { Op } = require('sequelize');
+        const { ComplianceReport } = require('../models');
 
         // Household members: If user has a householdId, they are a member. If not, they are the owner (householdId is their own ID for members).
         const hId = user.householdId || user.id;
@@ -80,6 +81,15 @@ router.get('/:id/detail', async (req, res) => {
             limit: 50
         });
 
+        // Strikes / Compliance Reports (where user is accused and report is resolved)
+        const strikes = await ComplianceReport.findAll({
+            where: {
+                accusedUserId: user.id,
+                status: 'resolved' // Strikes are only counted if resolved (punished)
+            },
+            order: [['updatedAt', 'DESC']]
+        });
+
         // Alexa Key from Settings
         const alexaSetting = await Settings.findOne({
             where: { key: 'alexa_key', UserId: user.id }
@@ -89,8 +99,33 @@ router.get('/:id/detail', async (req, res) => {
             user,
             householdMembers,
             creditHistory,
+            strikes,
             alexaKey: alexaSetting ? alexaSetting.value : null
         });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /:id/strikes - Get strikes for a specific user (User or Admin)
+router.get('/:id/strikes', async (req, res) => {
+    try {
+        // Access Check: Admin or Self
+        if (req.user.role !== 'admin' && req.user.id !== parseInt(req.params.id)) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        const { ComplianceReport } = require('../models');
+        const strikes = await ComplianceReport.findAll({
+            where: {
+                accusedUserId: req.params.id,
+                status: 'resolved'
+            },
+            attributes: ['id', 'reasonCategory', 'resolutionNote', 'updatedAt', 'contentUrl', 'contentType'],
+            order: [['updatedAt', 'DESC']]
+        });
+
+        res.json(strikes);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

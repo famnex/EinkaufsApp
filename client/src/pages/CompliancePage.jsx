@@ -97,7 +97,7 @@ export default function CompliancePage() {
                         Ihre Meldung wurde erfolgreich eingereicht. Wir nehmen das Thema Sicherheit sehr ernst und werden den Fall umgehend prüfen.
                     </p>
                     <p className="text-sm text-muted-foreground">
-                        Sie erhalten eine Bestätigung an <strong>{formData.reporterEmail}</strong>, sobald wir Ihre Meldung bearbeitet haben.
+                        Sie erhalten eine Bestätigung an <strong>{formData.reporterEmail}</strong>.
                     </p>
                     <Link to="/">
                         <Button className="w-full mt-4 gap-2">

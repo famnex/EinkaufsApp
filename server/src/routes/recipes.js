@@ -72,6 +72,11 @@ router.get('/public/:sharingKey/:id', async (req, res) => {
         if (!user) return res.status(403).json({ error: 'Ungültiger Freigabe-Link.' });
         if (!user.isPublicCookbook) return res.status(403).json({ error: 'Dieses Kochbuch ist privat.' });
 
+        // Check for ban
+        if (user.bannedAt) {
+            return res.status(403).json({ error: 'Dieses Kochbuch wurde aufgrund eines Verstoßes gesperrt.' });
+        }
+
         const recipe = await Recipe.findOne({
             where: { id: id, UserId: user.id },
             include: [
@@ -84,7 +89,12 @@ router.get('/public/:sharingKey/:id', async (req, res) => {
                 { model: Tag, where: { UserId: user.id }, required: false }
             ]
         });
+
         if (!recipe) return res.status(404).json({ error: 'Recipe not found or unauthorized' });
+
+        if (recipe.bannedAt) {
+            return res.status(403).json({ error: 'Dieses Rezept wurde aufgrund eines Verstoßes gesperrt.' });
+        }
 
         // Hide image if scraped
         const plain = recipe.get({ plain: true });
@@ -110,8 +120,16 @@ router.get('/public/:sharingKey', async (req, res) => {
         if (!user) return res.status(403).json({ error: 'Ungültiger Freigabe-Link.' });
         if (!user.isPublicCookbook) return res.status(403).json({ error: 'Dieses Kochbuch ist privat.' });
 
+        // Check for ban
+        if (user.bannedAt) {
+            return res.status(403).json({ error: 'Dieses Kochbuch wurde aufgrund eines Verstoßes gesperrt.' });
+        }
+
         const recipes = await Recipe.findAll({
-            where: { UserId: user.id },
+            where: {
+                UserId: user.id,
+                bannedAt: null // Exclude banned recipes from list
+            },
             attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource'],
             include: [
                 {

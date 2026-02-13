@@ -12,7 +12,8 @@ module.exports = (sequelize) => {
         imageSource: {
             type: DataTypes.ENUM('upload', 'scraped', 'ai', 'none'),
             defaultValue: 'scraped'
-        }
+        },
+        bannedAt: { type: DataTypes.DATE, allowNull: true }
     });
 };
 

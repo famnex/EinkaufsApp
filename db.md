@@ -22,6 +22,7 @@ Zentrales Benutzermodell.
 - `aiCredits` (DECIMAL): Aktuelles AI-Guthaben.
 - `newsletterSignedUp` (BOOLEAN): Newsletter-Status [NEW v0.24.1].
 - `newsletterSignupDate` (DATE): Datum der Newsletter-Anmeldung [NEW v0.24.1].
+- `bannedAt` (DATETIME, NULLABLE): Wenn gesetzt, ist das öffentliche Kochbuch gesperrt.
 
 ### `CreditTransactions` [NEW]
 Aufzeichnung aller AI-Guthaben-Bewegungen.

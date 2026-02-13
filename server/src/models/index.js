@@ -29,7 +29,8 @@ const User = sequelize.define('User', {
     },
     aiCredits: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0.00 },
     newsletterSignedUp: { type: DataTypes.BOOLEAN, defaultValue: false },
-    newsletterSignupDate: { type: DataTypes.DATE, allowNull: true }
+    newsletterSignupDate: { type: DataTypes.DATE, allowNull: true },
+    bannedAt: { type: DataTypes.DATE, allowNull: true }
 });
 
 const Manufacturer = sequelize.define('Manufacturer', {
@@ -165,6 +166,9 @@ const ComplianceReport = require('./ComplianceReport')(sequelize);
 
 LoginLog.belongsTo(User);
 User.hasMany(LoginLog);
+
+ComplianceReport.belongsTo(User, { as: 'accusedUser', foreignKey: 'accusedUserId' });
+User.hasMany(ComplianceReport, { as: 'strikes', foreignKey: 'accusedUserId' });
 
 Recipe.hasMany(Menu);
 Menu.belongsTo(Recipe);
