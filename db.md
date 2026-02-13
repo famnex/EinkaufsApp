@@ -131,7 +131,7 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 5.  **Public Cookbook (v0.22.13)**: `node server/migrations/migrate_v0.22.13_public_cookbook.js`
     - Fügt `isPublicCookbook` Spalte zu `Users` hinzu.
 
-6.  **Newsletter (v0.24.1)**: `node server/scripts/add_newsletter_subscription.js`
+6.  **Newsletter (v0.24.1)**: `node server/migrations/migrate_v0.24.1.js`
     - Fügt `newsletterSignedUp` und `newsletterSignupDate` Spalten zu `Users` hinzu.
 
 ---
