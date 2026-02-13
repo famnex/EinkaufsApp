@@ -93,18 +93,16 @@ router.get('/legal/:type', async (req, res) => {
 
 // GET /email - Get email configuration (admin only)
 router.get('/email', auth, async (req, res) => {
-    console.log('[GET /email] Request received, user:', req.user?.id, 'role:', req.user?.role);
-    if (req.user.role !== 'admin') {
-        console.log('[GET /email] Access denied - not admin');
-        return res.status(403).json({ error: 'Access denied' });
-    }
+    // ... admin check remains ...
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
 
     try {
         const fields = ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_from', 'smtp_sender_name', 'smtp_secure', 'imap_host', 'imap_port', 'imap_user', 'imap_secure'];
         const settings = {};
 
         for (const field of fields) {
-            const setting = await Settings.findOne({ where: { key: field, UserId: req.user.id } });
+            // Fetch GLOBAL settings (UserId: null)
+            const setting = await Settings.findOne({ where: { key: field, UserId: null } });
             const camelKey = field.replace(/_([a-z])/g, (_, char) => char.toUpperCase());
             settings[camelKey] = setting ? setting.value : '';
         }
@@ -113,11 +111,8 @@ router.get('/email', auth, async (req, res) => {
         settings.smtpSecure = settings.smtpSecure === 'true';
         settings.imapSecure = settings.imapSecure === 'true';
 
-        console.log('[GET /email] Returning settings:', settings);
-        // Never send password back
         res.json(settings);
     } catch (err) {
-        console.error('[GET /email] Error:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -152,10 +147,10 @@ router.post('/email', auth, async (req, res) => {
 
         for (const [key, value] of Object.entries(fieldMap)) {
             const [setting] = await Settings.findOrCreate({
-                where: { key, UserId: req.user.id },
-                defaults: { value, UserId: req.user.id }
+                where: { key, UserId: null }, // Global settings
+                defaults: { value, UserId: null }
             });
-            await setting.update({ value });
+            await setting.update({ value, UserId: null });
         }
 
         res.json({ success: true });
@@ -182,7 +177,7 @@ router.post('/email/test', auth, async (req, res) => {
         // Get stored password if not provided
         let password = smtpPassword;
         if (!password || password.trim() === '') {
-            const storedPwd = await Settings.findOne({ where: { key: 'smtp_password', UserId: req.user.id } });
+            const storedPwd = await Settings.findOne({ where: { key: 'smtp_password', UserId: null } });
             password = storedPwd ? storedPwd.value : '';
         }
 

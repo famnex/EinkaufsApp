@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { ComplianceReport } = require('../models');
 const { auth } = require('../middleware/auth');
+const { sendSystemEmail } = require('../services/emailService');
 const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
@@ -79,8 +80,39 @@ router.post('/', async (req, res) => {
             screenshotPath
         });
 
-        // Optional: Send email to Admin
-        // ... (can be added later)
+        // Send Confirmation Email
+        const emailSubject = `Eingangsbestätigung: Ihre Meldung [${report.id}]`;
+        const emailText = `Guten Tag ${reporterName},\n\nIhre Meldung wurde erfolgreich eingereicht.\n\nDetails:\nID: ${report.id}\nKategorie: ${reasonCategory}\nAnmerkung: ${reasonDescription}\n\nWir werden Ihre Meldung prüfen.\n\nMit freundlichen Grüßen,\nIhr GabelGuru Compliance Team`;
+
+        const emailHtml = `
+            <div style="font-family: Arial, sans-serif;">
+                <h2>Eingangsbestätigung</h2>
+                <p>Guten Tag ${reporterName},</p>
+                <p>Ihre Meldung wurde erfolgreich bei uns eingereicht.</p>
+                <hr>
+                <h3>Details Ihrer Meldung:</h3>
+                <ul>
+                    <li><strong>ID:</strong> ${report.id}</li>
+                    <li><strong>Kategorie:</strong> ${reasonCategory}</li>
+                    <li><strong>Anmerkung:</strong> ${reasonDescription}</li>
+                    <li><strong>URL:</strong> <a href="${contentUrl}">${contentUrl}</a></li>
+                </ul>
+                <hr>
+                <p>Wir werden den Sachverhalt schnellstmöglich prüfen.</p>
+                <p>Mit freundlichen Grüßen,<br>Ihr GabelGuru Compliance Team</p>
+            </div>
+        `;
+
+        // Send email asynchronously (fire and forget for response speed, but log result)
+        sendSystemEmail({
+            to: reporterEmail,
+            subject: emailSubject,
+            text: emailText,
+            html: emailHtml
+        }).then(success => {
+            if (success) console.log(`[Compliance] Confirmation email sent to ${reporterEmail}`);
+            else console.warn(`[Compliance] Failed to send confirmation email to ${reporterEmail}`);
+        });
 
         res.status(201).json({ success: true, message: 'Meldung erfolgreich eingereicht.', reportId: report.id });
     } catch (err) {
