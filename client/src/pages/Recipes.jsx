@@ -362,13 +362,15 @@ export default function Recipes() {
                             <span className="hidden md:inline font-bold">Zufalls-Roulette</span>
                         </Button>
 
-                        <Button
-                            onClick={() => setIsAiModalOpen(true)}
-                            className="h-12 px-3 md:px-6 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 shrink-0 select-none pb-safe-0"
-                        >
-                            <Sparkles size={18} className="md:mr-2" />
-                            <span className="hidden md:inline">AI Assistant</span>
-                        </Button>
+                        {user?.tier !== 'Plastikgabel' && (
+                            <Button
+                                onClick={() => setIsAiModalOpen(true)}
+                                className="h-12 px-3 md:px-6 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 shrink-0 select-none pb-safe-0"
+                            >
+                                <Sparkles size={18} className="md:mr-2" />
+                                <span className="hidden md:inline">AI Assistant</span>
+                            </Button>
+                        )}
                     </div>
                 </div>
 

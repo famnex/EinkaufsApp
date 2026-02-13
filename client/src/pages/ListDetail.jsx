@@ -14,6 +14,7 @@ import { SessionSkeleton } from '../components/Skeleton';
 import { Store as StoreIcon, Check } from 'lucide-react';
 import { useEditMode } from '../contexts/EditModeContext';
 import { useSync } from '../contexts/SyncContext';
+import { useAuth } from '../contexts/AuthContext';
 import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
 import { arrayMove, SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
 import { SortableItem } from '../components/SortableItem';
@@ -21,6 +22,7 @@ import { SortableItem } from '../components/SortableItem';
 export default function ListDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { user } = useAuth();
     const { editMode } = useEditMode();
     const { addChange } = useSync();
     const [list, setList] = useState(null);
@@ -567,7 +569,9 @@ export default function ListDetail() {
                                                                     singleTapTimeoutRef.current = null;
                                                                 }
 
-                                                                handleOpenSubstituteModal(item);
+                                                                if (user?.tier !== 'Plastikgabel') {
+                                                                    handleOpenSubstituteModal(item);
+                                                                }
                                                                 lastTapTimeRef.current = null;
                                                                 lastTapItemRef.current = null;
                                                                 return;

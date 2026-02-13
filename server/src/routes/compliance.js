@@ -39,6 +39,7 @@ router.post('/', async (req, res) => {
 
         // Capture Screenshot
         let screenshotPath = null;
+        let accusedUserId = null;
         if (contentUrl) {
             // 1. Capture Screenshot (BEFORE banning)
             try {
@@ -68,7 +69,6 @@ router.post('/', async (req, res) => {
             }
 
             // 2. Auto-Banning Logic & User Linking
-            let accusedUserId = null;
             try {
                 const { User, Recipe } = require('../models');
                 const urlObj = new URL(contentUrl);

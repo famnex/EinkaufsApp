@@ -196,14 +196,16 @@ export default function Products() {
                     </button>
 
                     {/* AI Cleanup Button */}
-                    <button
-                        onClick={() => setIsAiCleanupOpen(true)}
-                        className="px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20"
-                        title="AI Cleanup"
-                    >
-                        <Sparkles size={18} />
-                        AI Cleanup
-                    </button>
+                    {user?.tier !== 'Plastikgabel' && (
+                        <button
+                            onClick={() => setIsAiCleanupOpen(true)}
+                            className="px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20"
+                            title="AI Cleanup"
+                        >
+                            <Sparkles size={18} />
+                            AI Cleanup
+                        </button>
+                    )}
                 </div>
 
                 <motion.div

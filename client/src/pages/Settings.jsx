@@ -168,13 +168,27 @@ export default function SettingsPage() {
     const updateReportStatus = async (id, newStatus, note, internalNote) => {
         try {
             const res = await api.put(`/compliance/${id}`, { status: newStatus, resolutionNote: note, internalNote });
-            setComplianceReports(prev => prev.map(r => r.id === id ? res.data : r));
+
+            // The API returns the updated report, but might miss associations like 'accusedUser' unless we fetch again.
+            // We can merge the existing accusedUser from our local state to prevent it from disappearing.
+            const updatedReport = res.data;
+            const currentReport = complianceReports.find(r => r.id === id);
+
+            // Preserve associations
+            if (currentReport?.accusedUser) updatedReport.accusedUser = currentReport.accusedUser;
+            if (selectedReport?.accusedUser) updatedReport.accusedUser = selectedReport.accusedUser;
+
+            // Update list
+            setComplianceReports(prev => prev.map(r => r.id === id ? { ...r, ...updatedReport } : r));
+
             if (selectedReport && selectedReport.id === id) {
-                // Preserve originalStatus to keep UI lock if it was already resolved (though API returns updated object)
-                // Actually, API returns the new state. If we just saved 'resolved', the new state is 'resolved', so UI should lock.
-                // We might need to ensure 'originalStatus' logic in the selection handler knows this.
-                // But for now, just updating the selectedReport state with the response is correct.
-                setSelectedReport(res.data);
+                // Force UI lock if entering final state by updating 'originalStatus' to match new status immediately
+                // AND ensuring we have the full object structure
+                setSelectedReport({
+                    ...selectedReport,
+                    ...updatedReport,
+                    originalStatus: updatedReport.status // Update this to lock fields immediately
+                });
             }
             if (fetchNotificationCounts) fetchNotificationCounts();
         } catch (err) {
