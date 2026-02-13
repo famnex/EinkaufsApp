@@ -430,7 +430,7 @@ router.post('/login', async (req, res) => {
 
 // Signup
 router.post('/signup', async (req, res) => {
-    const { username, password, email } = req.body;
+    const { username, password, email, newsletter } = req.body;
     try {
         const userCount = await User.count();
         const isFirstUser = userCount === 0;
@@ -451,7 +451,9 @@ router.post('/signup', async (req, res) => {
             username,
             password: hashedPassword,
             email,
-            role: isFirstUser ? 'admin' : 'user' // First user is always admin
+            role: isFirstUser ? 'admin' : 'user', // First user is always admin
+            newsletterSignedUp: !!newsletter,
+            newsletterSignupDate: newsletter ? new Date() : null
         });
 
         const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });

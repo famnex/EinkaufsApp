@@ -27,7 +27,9 @@ const User = sequelize.define('User', {
         type: DataTypes.ENUM('Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon'),
         defaultValue: 'Plastikgabel'
     },
-    aiCredits: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0.00 }
+    aiCredits: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0.00 },
+    newsletterSignedUp: { type: DataTypes.BOOLEAN, defaultValue: false },
+    newsletterSignupDate: { type: DataTypes.DATE, allowNull: true }
 });
 
 const Manufacturer = sequelize.define('Manufacturer', {

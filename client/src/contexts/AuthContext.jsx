@@ -38,8 +38,8 @@ export const AuthProvider = ({ children }) => {
         return data.user;
     };
 
-    const signup = async (username, password, email) => {
-        const { data } = await api.post('/auth/signup', { username, password, email });
+    const signup = async (username, password, email, newsletter = false) => {
+        const { data } = await api.post('/auth/signup', { username, password, email, newsletter });
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;

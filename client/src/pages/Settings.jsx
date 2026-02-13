@@ -2397,95 +2397,133 @@ export default function SettingsPage() {
                             <ArrowLeft size={16} /> Zurück zur Liste
                         </button>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+                            {/* Left Column: Report Details & Evidence */}
                             <div className="md:col-span-2 space-y-6">
-                                <div className="space-y-4">
-                                    <div className="bg-muted/30 p-4 rounded-lg border border-border">
-                                        <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground mb-3">Gemeldeter Inhalt</h3>
-                                        <div className="space-y-2">
-                                            <p><span className="font-semibold">URL:</span> <a href={selectedReport.contentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{selectedReport.contentUrl}</a></p>
-                                            <p><span className="font-semibold">Art:</span> {selectedReport.contentType}</p>
-                                            <p><span className="font-semibold">Gemeldet am:</span> {new Date(selectedReport.createdAt).toLocaleString('de-DE')}</p>
-                                        </div>
+                                <Card className="p-0 overflow-hidden border-border bg-muted/20">
+                                    <div className="p-4 border-b border-border bg-muted/40 font-bold text-sm uppercase tracking-widest text-muted-foreground">
+                                        Meldungs-Details
                                     </div>
-
-                                    <div className="bg-muted/30 p-4 rounded-lg border border-border">
-                                        <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground mb-3">Begründung</h3>
-                                        <div className="space-y-2">
-                                            <p><span className="font-semibold">Grund:</span> <span className="text-red-500 font-bold">{selectedReport.reasonCategory}</span></p>
-                                            <div className="mt-2 text-sm bg-background p-3 rounded border border-border/50">
-                                                {selectedReport.reasonDescription}
+                                    <div className="p-6 space-y-6">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                            <div>
+                                                <h4 className="font-semibold text-foreground mb-2">Gemeldeter Inhalt</h4>
+                                                <div className="space-y-1 text-sm text-muted-foreground">
+                                                    <p><span className="font-medium text-foreground">URL:</span> <a href={selectedReport.contentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{selectedReport.contentUrl}</a></p>
+                                                    <p><span className="font-medium text-foreground">Art:</span> {selectedReport.contentType}</p>
+                                                    <p><span className="font-medium text-foreground">Zeitpunkt:</span> {new Date(selectedReport.createdAt).toLocaleString('de-DE')}</p>
+                                                </div>
                                             </div>
-                                            {selectedReport.originalSourceUrl && (
-                                                <p className="mt-2"><span className="font-semibold">Originalquelle:</span> <a href={selectedReport.originalSourceUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{selectedReport.originalSourceUrl}</a></p>
-                                            )}
+                                            <div>
+                                                <h4 className="font-semibold text-foreground mb-2">Begründung</h4>
+                                                <div className="space-y-1 text-sm text-muted-foreground">
+                                                    <p><span className="font-medium text-foreground">Kategorie:</span> <span className="text-red-500 font-bold">{selectedReport.reasonCategory}</span></p>
+                                                    {selectedReport.originalSourceUrl && (
+                                                        <p><span className="font-medium text-foreground">Original:</span> <a href={selectedReport.originalSourceUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{selectedReport.originalSourceUrl}</a></p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-semibold text-foreground mb-2">Beschreibung</h4>
+                                            <div className="p-3 bg-background rounded-lg border border-border/50 text-sm italic">
+                                                "{selectedReport.reasonDescription}"
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                </Card>
+
+                                {selectedReport.screenshotPath && (
+                                    <Card className="p-0 overflow-hidden border-border bg-muted/20">
+                                        <div className="p-4 border-b border-border bg-muted/40 font-bold text-sm uppercase tracking-widest text-muted-foreground flex justify-between items-center">
+                                            <span>Beweissicherung</span>
+                                            <span className="text-[10px] font-normal normal-case opacity-70">Automatisch erstellt</span>
+                                        </div>
+                                        <div className="p-6">
+                                            <a
+                                                href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${selectedReport.screenshotPath}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="block group relative overflow-hidden rounded-lg border border-border"
+                                            >
+                                                <img
+                                                    src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${selectedReport.screenshotPath}`}
+                                                    alt="Vorschau"
+                                                    className="w-full h-auto transition-transform duration-500 group-hover:scale-105"
+                                                />
+                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                                    <div className="bg-black/75 text-white px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-sm">
+                                                        Vergrößern
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        </div>
+                                    </Card>
+                                )}
                             </div>
 
-                            {selectedReport.screenshotPath && (
-                                <div className="bg-muted/30 p-4 rounded-lg border border-border mt-6">
-                                    <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground mb-3">Automatische Vorschau</h3>
-                                    <a
-                                        href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${selectedReport.screenshotPath}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        <img
-                                            src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${selectedReport.screenshotPath}`}
-                                            alt="Vorschau des Inhalts"
-                                            className="w-full h-auto rounded-lg border border-border hover:opacity-90 transition-opacity"
-                                        />
-                                    </a>
-                                    <p className="text-[10px] text-muted-foreground mt-2 italic">
-                                        Automatisch generierter Screenshot zum Zeitpunkt der Meldung.
-                                    </p>
-                                </div>
-                            )}
-
+                            {/* Right Column: Administration */}
                             <div className="space-y-6">
-                                <div className="bg-muted/30 p-4 rounded-lg border border-border">
-                                    <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground mb-3">Melder</h3>
-                                    <div className="space-y-2 text-sm">
-                                        <p><span className="font-semibold">Name:</span> {selectedReport.reporterName}</p>
-                                        <p><span className="font-semibold">E-Mail:</span> <a href={`mailto:${selectedReport.reporterEmail}`} className="text-primary hover:underline">{selectedReport.reporterEmail}</a></p>
-                                        <p><span className="font-semibold">Rolle:</span> {selectedReport.reporterRole}</p>
+                                <Card className="p-0 overflow-hidden border-border bg-muted/20 h-full">
+                                    <div className="p-4 border-b border-border bg-muted/40 font-bold text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                        <ShieldCheck size={16} />
+                                        Verwaltung
                                     </div>
-                                </div>
+                                    <div className="p-6 space-y-8">
+                                        {/* Status */}
+                                        <div>
+                                            <h4 className="font-semibold text-foreground mb-3 text-sm">Status bearbeiten</h4>
+                                            <select
+                                                value={selectedReport.status}
+                                                onChange={(e) => updateReportStatus(selectedReport.id, e.target.value)}
+                                                className={cn(
+                                                    "flex h-10 w-full rounded-xl border border-input px-3 py-2 text-sm font-bold shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-primary",
+                                                    selectedReport.status === 'open' && "text-red-600 bg-red-50 border-red-200",
+                                                    selectedReport.status === 'investigating' && "text-yellow-600 bg-yellow-50 border-yellow-200",
+                                                    selectedReport.status === 'resolved' && "text-green-600 bg-green-50 border-green-200",
+                                                    selectedReport.status === 'dismissed' && "text-muted-foreground bg-muted"
+                                                )}
+                                            >
+                                                <option value="open">Offen</option>
+                                                <option value="investigating">In Bearbeitung</option>
+                                                <option value="resolved">Gelöst / Entfernt</option>
+                                                <option value="dismissed">Abgelehnt</option>
+                                            </select>
+                                        </div>
 
-                                <div className="bg-card border border-border p-4 rounded-lg shadow-sm">
-                                    <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground mb-3">Status & Aktion</h3>
-                                    <div className="space-y-3">
-                                        <select
-                                            value={selectedReport.status}
-                                            onChange={(e) => updateReportStatus(selectedReport.id, e.target.value)}
-                                            className={cn(
-                                                "flex h-10 w-full rounded-xl border border-input px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-                                                selectedReport.status === 'open' && "text-red-600 bg-red-50 border-red-200",
-                                                selectedReport.status === 'investigating' && "text-yellow-600 bg-yellow-50 border-yellow-200",
-                                                selectedReport.status === 'resolved' && "text-green-600 bg-green-50 border-green-200",
-                                                selectedReport.status === 'dismissed' && "text-muted-foreground bg-muted"
-                                            )}
-                                        >
-                                            <option value="open">Offen</option>
-                                            <option value="investigating">In Bearbeitung</option>
-                                            <option value="resolved">Gelöst / Entfernt</option>
-                                            <option value="dismissed">Abgelehnt</option>
-                                        </select>
-
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-muted-foreground">Interne Notiz / Beschluss</label>
+                                        {/* Notes */}
+                                        <div className="space-y-2">
+                                            <h4 className="font-semibold text-foreground mb-1 text-sm">Interne Notizen</h4>
                                             <textarea
                                                 value={selectedReport.resolutionNote || ''}
                                                 onChange={(e) => setSelectedReport({ ...selectedReport, resolutionNote: e.target.value })}
                                                 onBlur={(e) => updateReportStatus(selectedReport.id, selectedReport.status, e.target.value)}
-                                                placeholder="Notiz speichern..."
-                                                className="flex min-h-[100px] w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                                placeholder="Notizen zur Lösung..."
+                                                className="flex min-h-[120px] w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 resize-y"
                                             />
                                         </div>
+
+                                        <div className="border-t border-border/50 pt-6">
+                                            <h4 className="font-semibold text-foreground mb-3 text-sm flex items-center gap-2">
+                                                <User size={14} /> Melder-Informationen
+                                            </h4>
+                                            <div className="text-sm space-y-2 bg-background/50 p-3 rounded-lg border border-border/50">
+                                                <div className="grid grid-cols-[60px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">Name:</span>
+                                                    <span className="font-medium truncate">{selectedReport.reporterName}</span>
+
+                                                    <span className="text-muted-foreground">Rolle:</span>
+                                                    <span className="font-medium truncate">{selectedReport.reporterRole}</span>
+
+                                                    <span className="text-muted-foreground">Kontakt:</span>
+                                                    <a href={`mailto:${selectedReport.reporterEmail}`} className="text-primary hover:underline truncate block">
+                                                        {selectedReport.reporterEmail}
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                </Card>
                             </div>
                         </div>
                     </div>

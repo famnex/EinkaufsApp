@@ -18,7 +18,10 @@ Zentrales Benutzermodell.
 - `cookbookImage` (STRING): Pfad zum Hero-Bild des Kochbuchs.
 - `householdId` (INT): ID des gemeinsamen Haushalts (Isolationsebene).
 - `tier` (ENUM: 'Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon'): Abonnement-Status.
+- `tier` (ENUM: 'Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon'): Abonnement-Status.
 - `aiCredits` (DECIMAL): Aktuelles AI-Guthaben.
+- `newsletterSignedUp` (BOOLEAN): Newsletter-Status [NEW v0.24.1].
+- `newsletterSignupDate` (DATE): Datum der Newsletter-Anmeldung [NEW v0.24.1].
 
 ### `CreditTransactions` [NEW]
 Aufzeichnung aller AI-Guthaben-Bewegungen.
@@ -103,7 +106,12 @@ Aufzeichnung aller AI-Guthaben-Bewegungen.
 
 ### v0.22.13 - Public Cookbook Toggle (Februar 2026)
 1.  **User Privacy**: Neue Spalte `isPublicCookbook` in der `Users` Tabelle.
+### v0.22.13 - Public Cookbook Toggle (Februar 2026)
+1.  **User Privacy**: Neue Spalte `isPublicCookbook` in der `Users` Tabelle.
 2.  **Toggle-Feature**: Ermöglicht Benutzern, ihr Kochbuch öffentlich oder privat zu schalten.
+
+### v0.24.1 - Newsletter & Terms (Februar 2026)
+1.  **Newsletter**: Neue Spalten `newsletterSignedUp` und `newsletterSignupDate` in der `Users` Tabelle.
 
 ## 3. Migrations-Schritte (für neue Instanzen)
 
@@ -122,6 +130,9 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 
 5.  **Public Cookbook (v0.22.13)**: `node server/migrations/migrate_v0.22.13_public_cookbook.js`
     - Fügt `isPublicCookbook` Spalte zu `Users` hinzu.
+
+6.  **Newsletter (v0.24.1)**: `node server/scripts/add_newsletter_subscription.js`
+    - Fügt `newsletterSignedUp` und `newsletterSignupDate` Spalten zu `Users` hinzu.
 
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*
