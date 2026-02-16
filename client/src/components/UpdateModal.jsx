@@ -92,12 +92,26 @@ export default function UpdateModal({ isOpen, onClose, currentVersion, updateInf
                     const stepIdx = UPDATE_STEPS.findIndex(s => cleanMessage.includes(s.marker));
                     if (stepIdx !== -1) {
                         setCurrentStepIndex(stepIdx);
+                        // If this is the restart step, close stream immediately and wait
+                        if (UPDATE_STEPS[stepIdx].key === 'restart') {
+                            setLogs(prev => [...prev, '>>> upgrade process initiated restart...']);
+                            evtSource.close();
+                            // Wait a bit for the server to actually go down before starting checks
+                            setTimeout(startRestartCheck, 5000);
+                            return;
+                        }
                     }
                 } else if (data.type === 'done') {
                     setLogs(prev => [...prev, `Process finished with code ${data.code}`]);
                     if (data.code === 0) {
                         evtSource.close();
-                        startRestartCheck();
+                        // If we reached here without 'restart' triggering, maybe it was a partial update?
+                        // But usually restart is last.
+                        if (currentStepIndex >= 4) {
+                            startRestartCheck();
+                        } else {
+                            setStatus('success');
+                        }
                     } else {
                         setStatus('error');
                         setFinalMessage('Update process failed.');
@@ -114,13 +128,15 @@ export default function UpdateModal({ isOpen, onClose, currentVersion, updateInf
         };
 
         evtSource.onerror = (err) => {
-            console.log('Stream disconnected (likely server restart)', err);
+            console.log('Stream disconnected', err);
             evtSource.close();
+
+            // If we've already detected restart step, this is expected (redundant check)
+            if (status === 'restarting') return;
+
             // If we are deep in the process (e.g. step 4 or 5), assume it's a restart
-            // If it fails immediately (step -1 or 0), it's an error
             if (currentStepIndex >= 4) {
-                setCurrentStepIndex(UPDATE_STEPS.length - 1); // Last step
-                setLogs(prev => [...prev, '>>> Connection lost. Server is likely restarting...']);
+                setLogs(prev => [...prev, '>>> Connection lost (expected during restart).']);
                 startRestartCheck();
             } else {
                 setStatus('error');
@@ -132,50 +148,53 @@ export default function UpdateModal({ isOpen, onClose, currentVersion, updateInf
     const startRestartCheck = () => {
         setStatus('restarting');
         let attempts = 0;
-        const maxAttempts = 120; // 4 minutes (increased to be safe)
+        const maxAttempts = 120; // 4 minutes
 
         const checkInterval = setInterval(async () => {
             attempts++;
             try {
-                // Use fetch to bypass axios interceptors (like 401 redirect)
-                // Construct URL manually to be safe, or use api.getUri if available
+                // Construct URL manually
                 const baseUrl = api.defaults.baseURL || '/api';
                 const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+                // Use a no-cache param
                 const checkUrl = `${cleanBase}/system/settings?check=1&t=${Date.now()}`;
 
-                const response = await fetch(checkUrl);
+                // Add AbortController for timeouts
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+                const response = await fetch(checkUrl, {
+                    signal: controller.signal,
+                    cache: 'no-store',
+                    headers: { 'Cache-Control': 'no-cache' }
+                });
+                clearTimeout(timeoutId);
 
                 if (response.ok) {
                     clearInterval(checkInterval);
                     setStatus('success');
-                    setCurrentStepIndex(UPDATE_STEPS.length); // All done
+                    setCurrentStepIndex(UPDATE_STEPS.length);
                     setFinalMessage('System successfully updated and restarted!');
-                    setLogs(prev => [...prev, `>>> Server responding (Status: ${response.status}). Validating... OK!`]);
+                    setLogs(prev => [...prev, `>>> Server back online (Status: ${response.status}). Reloading...`]);
 
-                    // Optional: Auto-reload after short delay
                     setTimeout(() => window.location.reload(), 1500);
                 } else {
-                    // 404, 500, 502 etc.
-                    if (attempts % 2 === 0) {
-                        setLogs(prev => {
-                            const newLogs = [...prev, `... ping (Status: ${response.status})`];
-                            if (newLogs.length > 200) return newLogs.slice(newLogs.length - 200);
-                            return newLogs;
-                        });
-                    }
+                    // Server might be up but returning 502/503 or 401
+                    // logging sparingly
                 }
 
             } catch (e) {
-                // Network error (fetch failed completely)
-                // console.log(`Waiting for server... (${attempts}/${maxAttempts}) - Error: ${e.message}`);
+                // Connection refused / Network error - Expected during restart
+            }
 
-                if (attempts % 2 === 0) {
-                    setLogs(prev => {
-                        const newLogs = [...prev, `... ping (Network: ${e.message || 'Connection Refused'})`];
-                        if (newLogs.length > 200) return newLogs.slice(newLogs.length - 200);
-                        return newLogs;
-                    });
-                }
+            // Progress log every 5 seconds (approx every 2.5 attempts)
+            if (attempts % 5 === 0) {
+                // Keep visible activity
+                setLogs(prev => {
+                    const last = prev[prev.length - 1];
+                    if (last && last.startsWith('... waiting')) return prev; // dedupe
+                    return [...prev, '... waiting for server ...'];
+                });
             }
 
             if (attempts >= maxAttempts) {

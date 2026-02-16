@@ -369,9 +369,10 @@ router.post('/household/join', auth, async (req, res) => {
 });
 
 router.post('/login', async (req, res) => {
+    // We accept 'email' field from frontend as the identifier (can be email or username)
     const { email, password } = req.body;
     if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required' });
+        return res.status(400).json({ error: 'Email/Username and password are required' });
     }
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const ipHash = hashIp(ip);

@@ -228,6 +228,7 @@ router.get('/stream-update', auth, admin, (req, res) => {
         echo ">>> Running Database Migrations..." &&
         cd .. && node update.js &&
         echo ">>> Restarting Service using: ${restartCmd}" &&
+        sleep 3 &&
         ${restartCmd}
     `;
 
