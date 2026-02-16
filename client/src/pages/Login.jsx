@@ -12,7 +12,7 @@ import api from '../lib/axios';
 import PublicLayout from '../components/PublicLayout';
 
 export default function LoginPage() {
-    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -49,7 +49,7 @@ export default function LoginPage() {
         setError('');
         setIsLoading(true);
         try {
-            await login(username, password);
+            await login(email, password);
             navigate(from, { replace: true });
         } catch (err) {
             setError(err.response?.data?.error || 'Authentication failed. Please check your credentials.');
@@ -118,12 +118,12 @@ export default function LoginPage() {
                                 transition={{ delay: 0.5 }}
                                 className="space-y-2"
                             >
-                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Benutzername</label>
+                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Email</label>
                                 <Input
-                                    type="text"
-                                    value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
-                                    placeholder="Dein Benutzername"
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="deine@email.de"
                                     required
                                     className="bg-background/50 border-border h-12"
                                 />
@@ -143,6 +143,11 @@ export default function LoginPage() {
                                     required
                                     className="bg-background/50 border-border h-12"
                                 />
+                                <div className="flex justify-end mt-1">
+                                    <Link to="/forgot-password" className="text-xs text-primary hover:underline">
+                                        Passwort vergessen?
+                                    </Link>
+                                </div>
                             </motion.div>
 
                             {error && (

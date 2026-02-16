@@ -10,6 +10,8 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Lists from './pages/Lists';
 import ListDetail from './pages/ListDetail';
@@ -26,10 +28,12 @@ import PublicLayout from './components/PublicLayout';
 import CommunityCookbooksContent from './components/CommunityCookbooksContent';
 import LegalPage from './pages/LegalPage';
 import CompliancePage from './pages/CompliancePage';
+import ShareTargetHandler from './pages/ShareTargetHandler';
 
 import { PullToRefresh } from './components/PullToRefresh';
 import { LoadingScreen } from './components/LoadingScreen';
 import ScrollToTop from './components/ScrollToTop';
+import ReloadPrompt from './components/ReloadPrompt';
 
 // Helper to convert hex to HSL for Tailwind variables
 const hexToHsl = (hex) => {
@@ -200,6 +204,7 @@ function AppContent() {
 
   return (
     <>
+      <ReloadPrompt />
       <LoadingScreen isVisible={loading} message="GabelGuru wird geladen" />
 
       {!loading && (
@@ -209,6 +214,8 @@ function AppContent() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
 
               {/* Public Shared Routes */}
               <Route path="/shared/:sharingKey/recipe/:id" element={<PublicLayout><SharedRecipe /></PublicLayout>} />
@@ -228,6 +235,7 @@ function AppContent() {
               <Route path="/privacy" element={<LegalPage type="privacy" />} />
               <Route path="/imprint" element={<LegalPage type="imprint" />} />
               <Route path="/compliance" element={<CompliancePage />} />
+              <Route path="/share-target" element={<ShareTargetHandler />} />
 
               <Route path="/" element={
                 user ? (

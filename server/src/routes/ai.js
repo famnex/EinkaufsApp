@@ -755,6 +755,102 @@ router.post('/chat', auth, async (req, res) => {
     }
 });
 
+// Extract Ingredients from Text/URL for Shopping List
+router.post('/extract-list-ingredients', auth, async (req, res) => {
+    try {
+        let { text } = req.body;
+        if (!text) return res.status(400).json({ error: 'Text is required' });
+
+        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
+        if (!setting || !setting.value) {
+            return res.status(400).json({ error: 'OpenAI API Key not configured' });
+        }
+
+        // 1. Check for URL
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const urls = text.match(urlRegex);
+
+        let contentToAnalyze = text;
+
+        if (urls && urls.length > 0) {
+            const url = urls[0];
+            console.log('Fetching content from URL:', url);
+
+            try {
+                const browser = await require('puppeteer').launch({
+                    headless: 'new',
+                    args: ['--no-sandbox', '--disable-setuid-sandbox']
+                });
+                const page = await browser.newPage();
+
+                // Block images/css for speed
+                await page.setRequestInterception(true);
+                page.on('request', (req) => {
+                    if (['image', 'stylesheet', 'font'].includes(req.resourceType())) {
+                        req.abort();
+                    } else {
+                        req.continue();
+                    }
+                });
+
+                await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+
+                // Extract text from body
+                const bodyText = await page.evaluate(() => document.body.innerText);
+                contentToAnalyze = `URL: ${url}\n\nCONTENT:\n${bodyText.substring(0, 20000)}`; // Limit content
+
+                await browser.close();
+            } catch (puppeteerErr) {
+                console.error('Puppeteer Error:', puppeteerErr);
+                // Fallback: Just analyze the URL itself and any surrounding text
+                contentToAnalyze = `URL: ${url} (Fetch failed: ${puppeteerErr.message})\n\nOriginal Text:\n${text}`;
+            }
+        }
+
+        const openai = new OpenAI({ apiKey: setting.value });
+
+        const prompt = `
+        Analyze the following text (which might be a recipe URL content or just plain text).
+        Extract ALL ingredients that should be bought.
+        
+        TEXT/DATA:
+        "${contentToAnalyze.substring(0, 15000)}"
+
+        Return a JSON object with an array "items".
+        Each item must have:
+        - "name": German product name (standardized).
+        - "amount": Number (approximate needed quantity). Default 1 if unclear.
+        - "unit": Best fitting German unit (e.g. Stück, Packung, kg, g, Liter, Glas, Dose).
+        
+        Example:
+        {
+          "items": [
+            { "name": "Tomaten", "amount": 500, "unit": "g" },
+            { "name": "Milch", "amount": 1, "unit": "Liter" }
+          ]
+        }
+        
+        Ignore conversational text, just get the ingredients/products.
+        `;
+
+        const completion = await openai.chat.completions.create({
+            messages: [
+                { role: "system", content: "You are a shopping list assistant. Return strictly valid JSON." },
+                { role: "user", content: prompt }
+            ],
+            model: "gpt-4o",
+            response_format: { type: "json_object" },
+        });
+
+        const result = JSON.parse(completion.choices[0].message.content);
+        res.json(result);
+
+    } catch (err) {
+        console.error('AI List Extraction Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Helper to expand abbreviations for TTS
 function expandAbbreviations(text) {
     if (!text) return "";

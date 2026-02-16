@@ -2,6 +2,70 @@ const { Email, Settings, User } = require('../models');
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 const cron = require('node-cron');
+const nodemailer = require('nodemailer');
+
+/**
+ * Helper: Get SMTP settings
+ */
+async function getSmtpSettings(userId) {
+    const keys = ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_secure', 'smtp_from', 'smtp_sender_name'];
+    const settings = {};
+    for (const key of keys) {
+        const s = await Settings.findOne({ where: { key, UserId: userId } });
+        const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+        settings[camelKey] = s ? s.value : '';
+    }
+    return settings;
+}
+
+/**
+ * Send Email
+ */
+async function sendEmail(to, subject, html) {
+    try {
+        // Try Global First
+        let settingsUser = null;
+
+        // Check if global settings exist
+        const globalHost = await Settings.findOne({ where: { key: 'smtp_host', UserId: null } });
+        if (globalHost) {
+            settingsUser = null;
+        } else {
+            // Fallback to first admin
+            const admin = await User.findOne({ where: { role: 'admin' } });
+            if (admin) settingsUser = admin.id;
+        }
+
+        const { smtpHost, smtpPort, smtpUser, smtpPassword, smtpSecure, smtpFrom, smtpSenderName } = await getSmtpSettings(settingsUser);
+
+        if (!smtpHost || !smtpUser || !smtpPassword) {
+            console.log('SMTP Config missing. Would send:', { to, subject });
+            return { success: false, error: 'SMTP Configuration missing' };
+        }
+
+        const transporter = nodemailer.createTransport({
+            host: smtpHost,
+            port: parseInt(smtpPort) || 587,
+            secure: smtpSecure === 'true',
+            auth: { user: smtpUser, pass: smtpPassword },
+        });
+
+        const from = smtpSenderName ? `"${smtpSenderName}" <${smtpFrom}>` : smtpFrom || process.env.SMTP_FROM || 'noreply@gabelguru.local';
+
+        const info = await transporter.sendMail({
+            from: from,
+            to: to,
+            subject: subject,
+            html: html,
+        });
+
+        console.log('Message sent: %s', info.messageId);
+        return { success: true, messageId: info.messageId };
+    } catch (error) {
+        console.error('Error sending email:', error);
+        return { success: false, error: error.message };
+    }
+}
 
 /**
  * Helper: Get IMAP settings for a user
@@ -117,5 +181,7 @@ function initEmailCron() {
 
 module.exports = {
     fetchEmailsForUser,
-    initEmailCron
+    fetchEmailsForUser,
+    initEmailCron,
+    sendEmail
 };

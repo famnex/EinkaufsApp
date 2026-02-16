@@ -495,7 +495,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                             onChange={e => handleIngredientSearch(e.target.value)}
                                             className="pl-12"
                                         />
-                                        {ingredientSuggestions.length > 0 && (
+                                        {(ingredientSuggestions.length > 0 || (ingredientSearch && !ingredients.some(i => i.name.toLowerCase() === ingredientSearch.toLowerCase()))) && (
                                             <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
                                                 {ingredientSuggestions.map(p => (
                                                     <button key={p.id} onClick={() => addIngredient(p)} className="w-full text-left p-3 hover:bg-muted flex justify-between items-center transition-colors">
@@ -503,6 +503,30 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                                         <span className="text-xs text-muted-foreground">{p.category}</span>
                                                     </button>
                                                 ))}
+                                                {ingredientSearch && !ingredientSuggestions.find(p => p.name.toLowerCase() === ingredientSearch.toLowerCase()) && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (!confirm(`"${ingredientSearch}" als neues Produkt anlegen?`)) return;
+                                                            try {
+                                                                const { data: newProd } = await api.post('/products', {
+                                                                    name: ingredientSearch,
+                                                                    unit: 'Stück', // Default
+                                                                    category: 'Sonstiges'
+                                                                });
+                                                                // Add to local list and select it
+                                                                setProducts(prev => [...prev, newProd]);
+                                                                addIngredient(newProd);
+                                                            } catch (err) {
+                                                                console.error(err);
+                                                                alert('Fehler beim Anlegen: ' + err.message);
+                                                            }
+                                                        }}
+                                                        className="w-full text-left p-3 bg-primary/5 hover:bg-primary/10 text-primary flex items-center gap-2 transition-colors border-t border-border"
+                                                    >
+                                                        <Plus size={16} />
+                                                        <span className="font-medium">"{ingredientSearch}" neu anlegen</span>
+                                                    </button>
+                                                )}
                                             </div>
                                         )}
                                     </div>

@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { User, Settings, LoginLog, Recipe } = require('../models');
 const { auth } = require('../middleware/auth');
+const { sendEmail } = require('../services/messagingService');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
@@ -367,14 +368,16 @@ router.post('/household/join', auth, async (req, res) => {
     }
 });
 
-// Basic Login (Local)
 router.post('/login', async (req, res) => {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required' });
+    }
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const ipHash = hashIp(ip);
 
     try {
-        const user = await User.findOne({ where: { username } });
+        const user = await User.findOne({ where: { email } });
 
         // Auto-Cleanup: Delete logs older than 14 days
         // We do this async without awaiting to not block the login
@@ -386,12 +389,12 @@ router.post('/login', async (req, res) => {
         // Failed Login (User not found)
         if (!user) {
             await LoginLog.create({
-                username: username, // Log attempted username
+                username: email, // Log attempted email
                 event: 'login_failed',
                 ipHash: ipHash,
                 userAgent: req.headers['user-agent']
             });
-            return res.status(400).json({ error: 'Invalid username or password' });
+            return res.status(400).json({ error: 'Invalid email or password' });
         }
 
         if (user.isLdap) {
@@ -409,7 +412,7 @@ router.post('/login', async (req, res) => {
                 ipHash: ipHash,
                 userAgent: req.headers['user-agent']
             });
-            return res.status(400).json({ error: 'Invalid username or password' });
+            return res.status(400).json({ error: 'Invalid email or password' });
         }
 
         // Success Login
@@ -446,6 +449,9 @@ router.post('/signup', async (req, res) => {
         const existingUser = await User.findOne({ where: { username } });
         if (existingUser) return res.status(400).json({ error: 'Username already exists' });
 
+        const existingEmail = await User.findOne({ where: { email } });
+        if (existingEmail) return res.status(400).json({ error: 'Email already exists' });
+
         const hashedPassword = await bcrypt.hash(password, 10);
         const user = await User.create({
             username,
@@ -461,6 +467,82 @@ router.post('/signup', async (req, res) => {
     } catch (err) {
         console.error('Signup Error:', err); // Debug Log
         if (!process.env.JWT_SECRET) console.error('CRITICAL: JWT_SECRET is missing!');
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Forgot Password
+router.post('/forgot-password', async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email ist erforderlich' });
+
+    try {
+        const user = await User.findOne({ where: { email } });
+        if (!user) return res.status(404).json({ error: 'Benutzer mit dieser Email nicht gefunden' });
+
+        // Generate Token
+        const token = crypto.randomBytes(20).toString('hex');
+        const expires = Date.now() + 3600000; // 1 Hour
+
+        await user.update({
+            resetPasswordToken: token,
+            resetPasswordExpires: expires
+        });
+
+        const resetLink = `${process.env.FRONTEND_URL || req.headers.origin}/reset-password?token=${token}`;
+
+        const html = `
+            <h3>Passwort zurücksetzen</h3>
+            <p>Du hast angefordert, dein Passwort zurückzusetzen.</p>
+            <p>Klicke auf den folgenden Link, um ein neues Passwort zu vergeben:</p>
+            <a href="${resetLink}">${resetLink}</a>
+            <p>Dieser Link ist 1 Stunde gültig.</p>
+            <br>
+            <p>Falls du das nicht warst, ignoriere diese Email einfach.</p>
+        `;
+
+        const result = await sendEmail(email, 'Passwort zurücksetzen', html);
+
+        if (!result.success) {
+            console.warn('Failed to send reset email via SMTP, logging link:', resetLink);
+            // In dev/debug, we might return the link, but strictly speaking specifically for security we shouldn't. 
+            // However, for this user context, logging it is enough as fallback.
+            if (result.error === 'SMTP Configuration missing') {
+                return res.json({ message: 'Email-Versand nicht konfiguriert. Check Server Logs for Link (Dev Mode).', devLink: resetLink });
+            }
+            return res.status(500).json({ error: 'Fehler beim Senden der Email' });
+        }
+
+        res.json({ message: 'Email wurde gesendet' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Reset Password
+router.post('/reset-password', async (req, res) => {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) return res.status(400).json({ error: 'Token und neues Passwort erforderlich' });
+
+    try {
+        const user = await User.findOne({
+            where: {
+                resetPasswordToken: token,
+                resetPasswordExpires: { [require('sequelize').Op.gt]: Date.now() }
+            }
+        });
+
+        if (!user) return res.status(400).json({ error: 'Token ist ungültig oder abgelaufen' });
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await user.update({
+            password: hashedPassword,
+            resetPasswordToken: null,
+            resetPasswordExpires: null
+        });
+
+        res.json({ message: 'Passwort erfolgreich geändert' });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });

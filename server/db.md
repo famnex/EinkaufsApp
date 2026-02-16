@@ -13,6 +13,8 @@
 - newsletterSignedUp (Boolean)
 - newsletterSignupDate (DateTime)
 - bannedAt (DateTime)
+- resetPasswordToken (String, Nullable, for password reset)
+- resetPasswordExpires (DateTime, Nullable, for password reset)
 
 ### Recipes
 - id (Integer, Primary Key)

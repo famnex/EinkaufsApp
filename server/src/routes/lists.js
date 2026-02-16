@@ -4,6 +4,84 @@ const { List, ListItem, Product, Store, Manufacturer, ProductRelation, ProductSu
 const { Op } = require('sequelize');
 const { auth } = require('../middleware/auth');
 
+// Bulk Add Items (for AI Import)
+router.post('/:id/items/bulk', auth, async (req, res) => {
+    try {
+        const listId = parseInt(req.params.id);
+        const { items } = req.body; // [{ name, amount, unit }]
+
+        if (!items || !Array.isArray(items)) return res.status(400).json({ error: 'Items array required' });
+
+        const list = await List.findOne({ where: { id: listId, UserId: req.user.effectiveId } });
+        if (!list) return res.status(404).json({ error: 'List not found' });
+
+        const results = [];
+
+        for (const item of items) {
+            // 1. Find or Create Product
+            // Simple fuzzy match by name? Or just Exact match for now to be safe?
+            // Let's do exact match (case insensitive)
+            let product = await Product.findOne({
+                where: {
+                    name: sequelize.where(sequelize.fn('LOWER', sequelize.col('name')), item.name.toLowerCase()),
+                    UserId: req.user.effectiveId
+                }
+            });
+
+            if (!product) {
+                // Create new
+                product = await Product.create({
+                    name: item.name,
+                    unit: item.unit || 'Stück',
+                    category: 'Unkategorisiert', // Default
+                    UserId: req.user.effectiveId
+                });
+            }
+
+            // 2. Add to List or Update Existing
+            const existingItem = await ListItem.findOne({
+                where: {
+                    ListId: listId,
+                    ProductId: product.id,
+                    UserId: req.user.effectiveId,
+                    // Check if unit matches? 
+                    // Requirement: "Wenn das Produkt schon auf der liste ist und die gleiche einheit verwendet wurde, dann bitte aufaddieren."
+                    unit: item.unit || product.unit // Check for same unit
+                }
+            });
+
+            if (existingItem) {
+                // Update quantity
+                const newQuantity = parseFloat(existingItem.quantity) + (parseFloat(item.amount) || 1);
+                await existingItem.update({ quantity: newQuantity });
+                results.push(existingItem);
+            } else {
+                // Create new
+                const listItem = await ListItem.create({
+                    ListId: listId,
+                    UserId: req.user.effectiveId,
+                    ProductId: product.id,
+                    quantity: item.amount || 1,
+                    unit: item.unit || product.unit,
+                    is_bought: false
+                });
+                results.push(listItem);
+            }
+        }
+
+        // Auto-Unarchive
+        if (list.status === 'archived') {
+            await list.update({ status: 'active' });
+        }
+
+        res.json({ message: 'Items processed', count: results.length });
+
+    } catch (err) {
+        console.error('Bulk Add Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Get all lists with category stats
 router.get('/', auth, async (req, res) => {
     try {

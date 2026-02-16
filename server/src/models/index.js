@@ -14,7 +14,7 @@ const sequelize = new Sequelize({
 const User = sequelize.define('User', {
     username: { type: DataTypes.STRING, allowNull: false, unique: true },
     password: { type: DataTypes.STRING, allowNull: true },
-    email: { type: DataTypes.STRING, allowNull: true },
+    email: { type: DataTypes.STRING, allowNull: false, unique: true },
     role: { type: DataTypes.ENUM('admin', 'user'), defaultValue: 'user' },
     isLdap: { type: DataTypes.BOOLEAN, defaultValue: false },
     alexaApiKey: { type: DataTypes.STRING, allowNull: true },
@@ -30,7 +30,9 @@ const User = sequelize.define('User', {
     aiCredits: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0.00 },
     newsletterSignedUp: { type: DataTypes.BOOLEAN, defaultValue: false },
     newsletterSignupDate: { type: DataTypes.DATE, allowNull: true },
-    bannedAt: { type: DataTypes.DATE, allowNull: true }
+    bannedAt: { type: DataTypes.DATE, allowNull: true },
+    resetPasswordToken: { type: DataTypes.STRING, allowNull: true },
+    resetPasswordExpires: { type: DataTypes.DATE, allowNull: true }
 });
 
 const Manufacturer = sequelize.define('Manufacturer', {

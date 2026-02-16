@@ -10,8 +10,9 @@ import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import ItemSettingsModal from '../components/ItemSettingsModal';
 import QuantityModal from '../components/QuantityModal';
 import ProductSubstituteModal from '../components/ProductSubstituteModal';
+import AiListUrlModal from '../components/AiListUrlModal';
 import { SessionSkeleton } from '../components/Skeleton';
-import { Store as StoreIcon, Check } from 'lucide-react';
+import { Store as StoreIcon, Check, Wand2, Import } from 'lucide-react';
 import { useEditMode } from '../contexts/EditModeContext';
 import { useSync } from '../contexts/SyncContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -49,6 +50,9 @@ export default function ListDetail() {
     const [substituteTarget, setSubstituteTarget] = useState(null);
     const [substituteSuggestions, setSubstituteSuggestions] = useState([]);
     const [substituteLoading, setSubstituteLoading] = useState(false);
+
+    // AI List Import State
+    const [aiImportModalOpen, setAiImportModalOpen] = useState(false);
 
     // Double-Tap Detection (use ref to avoid closure issues)
     const lastTapTimeRef = useRef(null);
@@ -323,23 +327,27 @@ export default function ListDetail() {
         setSearchTerm(val);
         if (val.trim().length > 0) {
             const lowerVal = val.toLowerCase();
-            const filtered = allProducts.filter(p => {
+            const filtered = allProducts.map(p => {
+                // Return object with match details or null
                 // 1. Name Match
-                if (p.name.toLowerCase().includes(lowerVal)) return true;
-                // 2. Category Match
-                if (p.category?.toLowerCase().includes(lowerVal)) return true;
+                if (p.name.toLowerCase().includes(lowerVal)) return { ...p, matchedSynonym: null };
 
-                // 3. Synonym Match
+                // 2. Synonym Match
                 let syns = [];
                 try {
-                    // Handle potential string vs array mismatch from backend
                     syns = Array.isArray(p.synonyms) ? p.synonyms : JSON.parse(p.synonyms || '[]');
                 } catch (e) { syns = []; }
 
-                if (Array.isArray(syns) && syns.some(s => s.toLowerCase().includes(lowerVal))) return true;
+                if (Array.isArray(syns)) {
+                    const match = syns.find(s => s.toLowerCase().includes(lowerVal));
+                    if (match) return { ...p, matchedSynonym: match };
+                }
 
-                return false;
-            }).slice(0, 5);
+                // 3. Category Match (lowest priority)
+                if (p.category?.toLowerCase().includes(lowerVal)) return { ...p, matchedSynonym: null };
+
+                return null;
+            }).filter(p => p !== null).slice(0, 5);
             setSuggestions(filtered);
         } else {
             setSuggestions([]);
@@ -416,8 +424,16 @@ export default function ListDetail() {
                         </p>
                     </div>
 
-                    {/* Store Selector */}
+                    {/* Store Selector & AI Import */}
                     <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setAiImportModalOpen(true)}
+                            className="w-12 h-12 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 rounded-xl flex items-center justify-center transition-colors border border-indigo-500/20"
+                            title="Smart Import"
+                        >
+                            <Import size={24} />
+                        </button>
+
                         {(() => {
                             const activeStore = stores.find(s => s.id == activeStoreId);
                             if (activeStore?.logo_url) {
@@ -484,7 +500,13 @@ export default function ListDetail() {
                                         </div>
                                         <div className="text-left">
                                             <div className="text-foreground font-bold">{p.name}</div>
-                                            <div className="text-xs text-muted-foreground">{p.category || 'Produkt'}</div>
+                                            <div className="text-xs text-muted-foreground">
+                                                {p.matchedSynonym ? (
+                                                    <span className="text-primary italic">Synonym: "{p.matchedSynonym}"</span>
+                                                ) : (
+                                                    p.category || 'Produkt'
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                     <span className="text-sm font-bold text-primary"></span>
@@ -816,6 +838,13 @@ export default function ListDetail() {
                 )}
             </div>
 
+
+            <AiListUrlModal
+                isOpen={aiImportModalOpen}
+                onClose={() => setAiImportModalOpen(false)}
+                listId={id}
+                onItemsAdded={fetchListDetails}
+            />
 
             <ItemSettingsModal
                 isOpen={isSettingsOpen}
