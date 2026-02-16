@@ -1,0 +1,302 @@
+/**
+ * Calculates Levenshtein distance between two strings
+ * @param {string} a 
+ * @param {string} b 
+ * @returns {number}
+ */
+export function getLevenshteinDistance(a, b) {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+
+    const matrix = [];
+
+    // increment along the first column of each row
+    for (let i = 0; i <= b.length; i++) {
+        matrix[i] = [i];
+    }
+
+    // increment each column in the first row
+    for (let j = 0; j <= a.length; j++) {
+        matrix[0][j] = j;
+    }
+
+    // Fill in the rest of the matrix
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1, // substitution
+                    Math.min(
+                        matrix[i][j - 1] + 1, // insertion
+                        matrix[i - 1][j] + 1 // deletion
+                    )
+                );
+            }
+        }
+    }
+
+    return matrix[b.length][a.length];
+}
+
+/**
+ * Normalizes text for comparison (lower case, trim, remove punctuation)
+ */
+function normalize(str) {
+    return str.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").trim();
+}
+
+/**
+ * Stop words list (German) - these are excluded from ingredient matching
+ */
+const STOP_WORDS = new Set([
+    // Konjunktionen / Satzwörter
+    'und', 'oder', 'aber', 'denn', 'doch', 'jedoch', 'sondern', 'weil', 'da', 'wenn', 'falls', 'ob', 'wie', 'als',
+    'dass', 'damit', 'sobald', 'solange', 'während', 'bevor', 'nachdem', 'obwohl', 'wennauch', 'sowie',
+
+    // Präpositionen
+    'mit', 'ohne', 'für', 'von', 'bis', 'aus', 'bei', 'nach', 'zu', 'vor', 'an', 'auf', 'über', 'unter', 'zwischen',
+    'gegen', 'durch', 'entlang', 'innerhalb', 'außerhalb', 'trotz', 'während', 'seit', 'ab', 'um', 'pro',
+
+    // Artikel / Pronomen / Determinanten
+    'der', 'die', 'das', 'dem', 'den', 'des',
+    'ein', 'eine', 'einer', 'eines', 'einem', 'einen',
+    'dies', 'diese', 'dieser', 'dieses', 'jenes', 'jene', 'jener',
+    'mein', 'meine', 'meiner', 'meines', 'meinem', 'meinen',
+    'dein', 'deine', 'deiner', 'deines', 'deinem', 'deinen',
+    'sein', 'seine', 'seiner', 'seines', 'seinem', 'seinen',
+    'ihr', 'ihre', 'ihrer', 'ihres', 'ihrem', 'ihren',
+    'unser', 'unsere', 'unserer', 'unseres', 'unserem', 'unseren',
+    'euer', 'eure', 'eurer', 'eures', 'eurem', 'euren',
+    'man', 'jemand', 'niemand', 'alle', 'alles', 'jeder', 'jede', 'jedes',
+
+    // Verschmelzungen
+    'am', 'im', 'vom', 'zum', 'zur', 'ins', 'ans', 'ums', 'aufs', 'übers', 'unters', 'beim', 'beim', 'beiden',
+
+    // Häufige Rezept-Adverbien / Füllwörter
+    'so', 'dann', 'nur', 'auch', 'noch', 'schon', 'mal', 'sehr', 'etwa', 'vielleicht', 'gar', 'gerade', 'eben', 'halt',
+    'bitte', 'einfach', 'kurz', 'lange', 'sofort', 'zuerst', 'danach', 'anschließend', 'zumindest', 'gegebenenfalls',
+    'optional', 'alternativ', 'nachbelieben', 'nachgeschmack', 'eventuell', 'idealerweise', 'am besten',
+
+    // Zeit / Reihenfolge
+    'min', 'mins', 'minute', 'minuten', 'sek', 'sekunde', 'sekunden', 'stunde', 'stunden',
+    'zeit', 'dauer', 'währenddessen', 'zwischendurch', 'gleichzeitig',
+
+    // Temperatur / Garstufen / Gerät
+    'grad', '°c', 'c', 'heiß', 'warm', 'kalt', 'lauwarm', 'handwarm',
+    'vorheizen', 'aufheizen', 'abkühlen', 'kühlen', 'einfrieren', 'auftauen',
+    'ofen', 'backofen', 'herd', 'pfanne', 'topf', 'kochtopf', 'dampfgarer', 'mikrowelle', 'airfryer', 'heißluftfritteuse',
+    'grill', 'wasserbad',
+
+    // Mengen- & Maßwörter (typisch: keine Zutaten)
+    'g', 'gramm', 'kg', 'kilo', 'kilogramm',
+    'ml', 'milliliter', 'l', 'liter', 'cl',
+    'el', 'esslöffel', 'tl', 'teelöffel',
+    'prise', 'prisen', 'messerspitze',
+    'tasse', 'tassen', 'becher', 'schuss', 'spritzer',
+    'stück', 'stücke', 'scheibe', 'scheiben', 'würfel', 'würfeln',
+    'handvoll', 'bund', 'päckchen', 'packung', 'dose', 'glas', 'flasche',
+    'portion', 'portionen',
+
+    // Mengen-/Qualitätsangaben (eher keine Zutaten)
+    'etwas', 'wenig', 'weniger', 'mehr', 'viel', 'viele', 'genug', 'reichlich', 'ca', 'circa', 'ungefähr', 'knapp',
+    'groß', 'große', 'großer', 'großes', 'klein', 'kleine', 'kleiner', 'kleines', 'mittel', 'mittlere', 'mittlerer', 'mittleres',
+    'dünn', 'dick', 'fein', 'grob',
+    'frisch', 'tiefgekühlt', 'gefroren', 'aufgetaut',
+    'trocken', 'nass',
+
+    // Küchenverben / Zubereitung (Grundformen)
+    'schneiden', 'hacken', 'würfeln', 'reiben', 'raspeln', 'zupfen', 'zerdrücken', 'stampfen', 'pürieren',
+    'mischen', 'vermengen', 'verrühren', 'rühren', 'schlagen', 'unterheben', 'kneten', 'formen',
+    'braten', 'anbraten', 'dünsten', 'schmoren', 'kochen', 'aufkochen', 'köcheln', 'sieden', 'backen', 'grillen', 'frittieren',
+    'erhitzen', 'schmelzen', 'ablöschen', 'reduzieren', 'einkochen',
+    'abschmecken', 'würzen', 'salzen', 'pfeffern',
+    'servieren', 'anrichten', 'garnieren',
+
+    // Typische Anweisungswörter
+    'geben', 'hinzugeben', 'dazugeben', 'hinzufügen', 'zugeben', 'einrühren', 'unterrühren',
+    'verteilen', 'bestreichen', 'belegen', 'füllen', 'aufstreichen',
+    'abgießen', 'abseihen', 'waschen', 'schälen', 'entkernen', 'putzen',
+    'dekorieren', 'optional', 'nach', 'belieben',
+
+    // Konsistenz / Zustand
+    'bis', 'dass', 'damit', 'sobald', 'solange',
+    'glatt', 'cremig', 'sämig', 'dicklich', 'flüssig', 'fest', 'weich', 'knusprig', 'goldbraun', 'durch',
+    'al', 'dente'
+]);
+
+/**
+ * Finds all occurrences of ingredients in a text step.
+ * Returns an array of matches with metadata.
+ * 
+ * @param {string} stepText 
+ * @param {Array} ingredients - Array of ingredient objects { id, name, ... }
+ * @returns {Array} - [{ ingredientId, name, matchedText, index, length }]
+ */
+export function findIngredientsInText(stepText, ingredients) {
+    const matches = [];
+    if (!stepText) return matches;
+
+    const lowerStep = stepText.toLowerCase();
+
+    // Strategy 1: Exact / Substing Match
+    // We sort ingredients by length (desc) to match "Olivenöl" before "Öl"
+    const sortedIngredients = [...ingredients].sort((a, b) => b.name.length - a.name.length);
+
+    // Keep track of matched ranges to avoid overlapping matches
+    const matchedRanges = []; // [start, end]
+
+    const isOverlapping = (start, end) => {
+        return matchedRanges.some(r => (start < r[1] && end > r[0]));
+    };
+
+    sortedIngredients.forEach(ing => {
+        const lowerName = ing.name.toLowerCase();
+
+        // Skip if ingredient name itself is a stop word
+        if (STOP_WORDS.has(lowerName)) return;
+
+        // --- RULE 1: Strict "Ei"/"Eier" Check ---
+        if (lowerName === 'ei' || lowerName === 'eier') {
+            const regex = new RegExp(`\\b${ing.name}\\b`, 'gi');
+            const iter = stepText.matchAll(regex);
+            for (const m of iter) {
+                const start = m.index;
+                const end = start + m[0].length;
+                const matchedText = m[0].toLowerCase();
+
+                if (!isOverlapping(start, end) && !STOP_WORDS.has(matchedText)) {
+                    matches.push({
+                        ingredientId: ing.id,
+                        ingredient: ing,
+                        matchedText: m[0],
+                        index: start,
+                        length: m[0].length,
+                        type: 'exact-strict'
+                    });
+                    matchedRanges.push([start, end]);
+                }
+            }
+            return;
+        }
+
+        // Standard Substring Match for others
+        let idx = lowerStep.indexOf(lowerName);
+        while (idx !== -1) {
+            const end = idx + lowerName.length;
+            const matchedText = stepText.substring(idx, end).toLowerCase();
+
+            if (!isOverlapping(idx, end) && !STOP_WORDS.has(matchedText)) {
+                matches.push({
+                    ingredientId: ing.id,
+                    ingredient: ing,
+                    matchedText: stepText.substring(idx, end),
+                    index: idx,
+                    length: lowerName.length,
+                    type: 'exact'
+                });
+                matchedRanges.push([idx, end]);
+            }
+            idx = lowerStep.indexOf(lowerName, end);
+        }
+    });
+
+    // Strategy 2: Reverse Search (Compound / Suffix Match)
+    const wordIter = stepText.matchAll(/[\wäöüÄÖÜß]+/g);
+    for (const m of wordIter) {
+        const word = m[0];
+        const start = m.index;
+        const end = start + word.length;
+        const lowerWord = word.toLowerCase();
+
+        if (isOverlapping(start, end) || STOP_WORDS.has(lowerWord)) continue;
+
+        if (word.length < 3) continue;
+
+        const foundIng = sortedIngredients.find(ing => {
+            const lowerIngName = ing.name.toLowerCase();
+            return lowerIngName.endsWith(lowerWord) && !STOP_WORDS.has(lowerIngName);
+        });
+
+        if (foundIng) {
+            matches.push({
+                ingredientId: foundIng.id,
+                ingredient: foundIng,
+                matchedText: word,
+                index: start,
+                length: word.length,
+                type: 'reverse-suffix'
+            });
+            matchedRanges.push([start, end]);
+        }
+    }
+
+    // Strategy 3: Fuzzy / Fallback
+    const remainingWordIter = stepText.matchAll(/[\wäöüÄÖÜß]+/g);
+    for (const m of remainingWordIter) {
+        const word = m[0];
+        const start = m.index;
+        const end = start + word.length;
+        const lowerWord = word.toLowerCase();
+
+        if (isOverlapping(start, end) || STOP_WORDS.has(lowerWord)) continue;
+
+        sortedIngredients.forEach(ing => {
+            const lowerIngName = ing.name.toLowerCase();
+            if (STOP_WORDS.has(lowerIngName)) return;
+
+            if (Math.abs(ing.name.length - word.length) > 3) return;
+
+            const dist = getLevenshteinDistance(normalize(ing.name), normalize(word));
+
+            let threshold = 0;
+            if (ing.name.length > 6) threshold = 2;
+            else if (ing.name.length > 3) threshold = 1;
+
+            if (dist <= threshold && dist > 0) {
+                if (!isOverlapping(start, end)) {
+                    matches.push({
+                        ingredientId: ing.id,
+                        ingredient: ing,
+                        matchedText: word,
+                        index: start,
+                        length: word.length,
+                        type: 'fuzzy'
+                    });
+                    matchedRanges.push([start, end]);
+                }
+            }
+        });
+    }
+
+    return matches.sort((a, b) => a.index - b.index);
+}
+
+/**
+ * Sorts ingredients based on the step index where they FIRST appear.
+ * Ingredients not in any step appear at the end.
+ * @param {Array} ingredients 
+ * @param {Array} steps 
+ * @returns {Array} Sorted ingredients
+ */
+export function sortIngredientsBySteps(ingredients, steps) {
+    if (!steps || steps.length === 0) return ingredients;
+
+    const firstAppearance = {}; // ingId -> stepIndex
+
+    steps.forEach((step, stepIdx) => {
+        const matches = findIngredientsInText(step, ingredients);
+        matches.forEach(m => {
+            if (firstAppearance[m.ingredientId] === undefined) {
+                firstAppearance[m.ingredientId] = stepIdx;
+            }
+        });
+    });
+
+    return [...ingredients].sort((a, b) => {
+        const stepA = firstAppearance[a.id] !== undefined ? firstAppearance[a.id] : 9999;
+        const stepB = firstAppearance[b.id] !== undefined ? firstAppearance[b.id] : 9999;
+        return stepA - stepB;
+    });
+}

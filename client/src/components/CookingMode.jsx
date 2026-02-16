@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, Maximize2, Minimize2, AlertTriangle, Sparkles, Share2 } from 'lucide-react';
 import { Button } from './Button';
@@ -7,6 +7,7 @@ import api from '../lib/axios';
 import CookingAssistant from './CookingAssistant';
 import { useAuth } from '../contexts/AuthContext';
 import ShareConfirmationModal from './ShareConfirmationModal';
+import { sortIngredientsBySteps, findIngredientsInText } from '../lib/recipe-parser';
 
 export default function CookingMode({ recipe, onClose }) {
     const [step, setStep] = useState(0);
@@ -65,7 +66,7 @@ export default function CookingMode({ recipe, onClose }) {
     const [tooltipData, setTooltipData] = useState(null); // { x, y, items: [] }
 
     // Parse ingredients to ensure we handle the async fetched data structure
-    const ingredients = recipe.RecipeIngredients?.map(ri => {
+    const rawIngredients = useMemo(() => recipe.RecipeIngredients?.map(ri => {
         const originalName = ri.Product?.name || 'Unknown';
         const subName = substitutions[originalName];
 
@@ -73,14 +74,64 @@ export default function CookingMode({ recipe, onClose }) {
             id: ri.id,
             productId: ri.ProductId,
             name: subName || originalName,
-            originalName: originalName,
+            originalName: originalName, // Keep original for reference
             isSubstituted: !!subName,
             amount: ri.quantity * scaleFactor,
             unit: ri.unit || ri.Product?.unit
         };
-    }) || [];
+    }) || [], [recipe, substitutions, scaleFactor]);
 
     const steps = recipe.instructions || [];
+
+    // --- NEW: Sort Ingredients by Appearance ---
+    const ingredients = useMemo(() => {
+        return sortIngredientsBySteps(rawIngredients, steps);
+    }, [rawIngredients, steps]);
+
+    // --- NEW: Parse Steps for Highlighting ---
+    const stepFragments = useMemo(() => {
+        const currentText = steps[step];
+        if (!currentText) return [];
+
+        const matches = findIngredientsInText(currentText, ingredients);
+
+        // No matches -> return single text fragment
+        if (matches.length === 0) return [{ text: currentText, type: 'text' }];
+
+        const fragments = [];
+        let lastIndex = 0;
+
+        matches.sort((a, b) => a.index - b.index).forEach(match => {
+            // Text before match
+            if (match.index > lastIndex) {
+                fragments.push({
+                    text: currentText.substring(lastIndex, match.index),
+                    type: 'text'
+                });
+            }
+
+            // The match itself
+            fragments.push({
+                text: match.matchedText, // Use exact text from step (e.g. "Tomaten")
+                type: 'ingredient',
+                ingredient: match.ingredient,
+                id: match.ingredientId
+            });
+
+            lastIndex = match.index + match.matchedText.length; // Use matchedText length
+        });
+
+        // Remaining text
+        if (lastIndex < currentText.length) {
+            fragments.push({
+                text: currentText.substring(lastIndex),
+                type: 'text'
+            });
+        }
+
+        return fragments;
+    }, [step, steps, ingredients]);
+
 
     // Fetch future usage
     useEffect(() => {
@@ -166,7 +217,7 @@ export default function CookingMode({ recipe, onClose }) {
         if (recipe) {
             checkFutureUsage();
         }
-    }, [recipe]);
+    }, [recipe]); // Note: removed ingredients dep to avoid loop if object ref changes, handled by memo
 
 
     const toggleIngredient = (id) => {
@@ -245,6 +296,22 @@ export default function CookingMode({ recipe, onClose }) {
             items: items,
             targetRect: rect // Store to adjust if off-screen
         });
+    };
+
+    // NEW: Tooltip for Ingredient details in Steps
+    const [ingredientTooltip, setIngredientTooltip] = useState(null); // { x, y, ingredient }
+
+    const handleIngredientHover = (e, ing) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setIngredientTooltip({
+            x: rect.left + (rect.width / 2),
+            y: rect.top - 10, // Above
+            ingredient: ing
+        });
+    };
+
+    const handleIngredientLeave = () => {
+        setIngredientTooltip(null);
     };
 
     const handleTooltipHide = () => {
@@ -435,22 +502,22 @@ export default function CookingMode({ recipe, onClose }) {
                         >
                             <h3 className="font-bold text-lg uppercase tracking-wider text-muted-foreground">Zutaten</h3>
                             <div className="space-y-2">
-                                {ingredients.map((ing, i) => (
+                                {ingredients.map((ing) => ( // Note: we use ing.id for key ideally
                                     <div
-                                        key={i}
-                                        onClick={() => toggleIngredient(i)}
+                                        key={ing.id} // Changed to ID from index for safety with sorting
+                                        onClick={() => toggleIngredient(ing.id)} // Use ID
                                         className={cn(
                                             "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 border relative group",
-                                            checkedIngredients.has(i)
+                                            checkedIngredients.has(ing.id) // Use ID
                                                 ? "bg-muted text-muted-foreground border-transparent line-through opacity-60"
                                                 : "bg-card border-border hover:border-primary/50 shadow-sm"
                                         )}
                                     >
                                         <div className={cn(
                                             "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
-                                            checkedIngredients.has(i) ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"
+                                            checkedIngredients.has(ing.id) ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"
                                         )}>
-                                            {checkedIngredients.has(i) && <Check size={14} strokeWidth={3} />}
+                                            {checkedIngredients.has(ing.id) && <Check size={14} strokeWidth={3} />}
                                         </div>
                                         <span className="font-medium text-lg flex-1">
                                             {ing.amount > 0 && <span className={cn("font-bold mr-1", scaleFactor !== 1 && "text-primary")}>
@@ -515,9 +582,37 @@ export default function CookingMode({ recipe, onClose }) {
                                         Schritt {step + 1} von {steps.length}
                                     </div>
 
-                                    <p className={cn("font-medium transition-all duration-300 text-foreground Select-text", getTextSizeClass())}>
-                                        {steps[step]}
-                                    </p>
+                                    {/* Highlighted Step Text */}
+                                    <div className={cn("font-medium transition-all duration-300 text-foreground Select-text leading-loose", getTextSizeClass())}>
+                                        {stepFragments.map((frag, idx) => (
+                                            frag.type === 'text' ? (
+                                                <span key={idx}>{frag.text}</span>
+                                            ) : (
+                                                <span
+                                                    key={idx}
+                                                    onClick={(e) => {
+                                                        const isCurrentlyOpen = ingredientTooltip?.ingredient?.id === frag.id;
+                                                        if (isCurrentlyOpen) {
+                                                            toggleIngredient(frag.id);
+                                                            handleIngredientLeave(); // Optional: close tooltip on toggle
+                                                        } else {
+                                                            handleIngredientHover(e, frag.ingredient);
+                                                        }
+                                                    }}
+                                                    onMouseEnter={(e) => handleIngredientHover(e, frag.ingredient)}
+                                                    onMouseLeave={handleIngredientLeave}
+                                                    className={cn(
+                                                        "px-1.5 py-0.5 rounded-md cursor-pointer transition-colors mx-0.5 border-b-2 border-primary/30 hover:border-primary",
+                                                        checkedIngredients.has(frag.id)
+                                                            ? "bg-green-100 text-green-800 line-through decoration-green-800/50 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700"
+                                                            : "bg-primary/10 text-primary font-bold hover:bg-primary/20 dark:bg-primary/20 dark:text-primary-foreground"
+                                                    )}
+                                                >
+                                                    {frag.text}
+                                                </span>
+                                            )
+                                        ))}
+                                    </div>
                                 </motion.div>
                             </AnimatePresence>
                         </div>
@@ -588,6 +683,7 @@ export default function CookingMode({ recipe, onClose }) {
 
                 {/* --- FIXED TOOLTIP LAYER --- */}
                 <AnimatePresence>
+                    {/* Future Usage Tooltip */}
                     {tooltipData && (
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9 }}
@@ -596,11 +692,7 @@ export default function CookingMode({ recipe, onClose }) {
                             className="fixed z-[300] w-64 p-4 bg-popover text-popover-foreground text-sm rounded-2xl shadow-2xl border border-border pointer-events-none"
                             style={{
                                 top: tooltipData.y,
-                                // Smart positioning: Flip to left if too close to right edge
-                                left: (tooltipData.x + 256 > window.innerWidth)
-                                    ? (window.innerWidth - 270) // 16px padding + width
-                                    : tooltipData.x,
-                                // Vertically: Flip up if close to bottom (simplified check)
+                                left: (tooltipData.x + 256 > window.innerWidth) ? (window.innerWidth - 270) : tooltipData.x,
                                 ...(tooltipData.y + 200 > window.innerHeight ? { top: 'auto', bottom: 20 } : {})
                             }}
                         >
@@ -616,6 +708,27 @@ export default function CookingMode({ recipe, onClose }) {
                                     </li>
                                 ))}
                             </ul>
+                        </motion.div>
+                    )}
+
+                    {/* Ingredient Detail Tooltip */}
+                    {ingredientTooltip && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="fixed z-[300] p-3 bg-card/90 backdrop-blur-md text-card-foreground text-sm rounded-xl shadow-xl border border-border pointer-events-none transform -translate-x-1/2 -translate-y-full"
+                            style={{
+                                top: ingredientTooltip.y,
+                                left: ingredientTooltip.x,
+                            }}
+                        >
+                            <div className="font-bold text-lg whitespace-nowrap">
+                                {Number(ingredientTooltip.ingredient.amount.toFixed(2)).toLocaleString('de-DE')} {ingredientTooltip.ingredient.unit}
+                            </div>
+                            <div className="text-xs text-muted-foreground whitespace-nowrap opacity-80">
+                                {ingredientTooltip.ingredient.name}
+                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
