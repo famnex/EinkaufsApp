@@ -13,6 +13,9 @@
 - newsletterSignedUp (Boolean)
 - newsletterSignupDate (DateTime)
 - bannedAt (DateTime)
+- banReason (Text)
+- banExpiresAt (DateTime)
+- isPermanentlyBanned (Boolean)
 - resetPasswordToken (String, Nullable, for password reset)
 - resetPasswordExpires (DateTime, Nullable, for password reset)
 

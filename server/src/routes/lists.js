@@ -1011,4 +1011,78 @@ router.delete('/:listId/substitutions/:originalProductId', auth, async (req, res
     }
 });
 
+// Rename list
+router.put('/:id/rename', auth, async (req, res) => {
+    try {
+        const list = await List.findOne({ where: { id: req.params.id, UserId: req.user.effectiveId } });
+        if (!list) return res.status(404).json({ error: 'List not found' });
+        await list.update({ name: req.body.name });
+        res.json(list);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Merge source list into target list
+router.post('/:targetId/merge', auth, async (req, res) => {
+    const transaction = await sequelize.transaction();
+    try {
+        const targetId = parseInt(req.params.targetId);
+        const { sourceId } = req.body;
+
+        if (!sourceId) {
+            await transaction.rollback();
+            return res.status(400).json({ error: 'Source ID required' });
+        }
+
+        const [targetList, sourceList] = await Promise.all([
+            List.findOne({ where: { id: targetId, UserId: req.user.effectiveId } }),
+            List.findOne({ where: { id: sourceId, UserId: req.user.effectiveId } })
+        ]);
+
+        if (!targetList || !sourceList) {
+            await transaction.rollback();
+            return res.status(404).json({ error: 'List(s) not found' });
+        }
+
+        // Get all items from source list
+        const sourceItems = await ListItem.findAll({
+            where: { ListId: sourceId, UserId: req.user.effectiveId }
+        });
+
+        for (const sourceItem of sourceItems) {
+            // Check if product with same unit exists in target list
+            const existingItem = await ListItem.findOne({
+                where: {
+                    ListId: targetId,
+                    ProductId: sourceItem.ProductId,
+                    unit: sourceItem.unit,
+                    UserId: req.user.effectiveId
+                },
+                transaction
+            });
+
+            if (existingItem) {
+                // Merge quantity
+                const newQuantity = (parseFloat(existingItem.quantity) || 0) + (parseFloat(sourceItem.quantity) || 0);
+                await existingItem.update({ quantity: newQuantity }, { transaction });
+                await sourceItem.destroy({ transaction });
+            } else {
+                // Move item to target list
+                await sourceItem.update({ ListId: targetId }, { transaction });
+            }
+        }
+
+        // Delete source list
+        await sourceList.destroy({ transaction });
+
+        await transaction.commit();
+        res.json({ message: 'Lists merged successfully' });
+    } catch (err) {
+        await transaction.rollback();
+        console.error('Merge Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

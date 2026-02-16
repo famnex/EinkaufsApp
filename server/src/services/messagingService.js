@@ -3,6 +3,7 @@ const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 const cron = require('node-cron');
 const nodemailer = require('nodemailer');
+const { notifyAdmins } = require('./emailService');
 
 /**
  * Helper: Get SMTP settings
@@ -150,6 +151,22 @@ async function fetchEmailsForUser(userId) {
             lock.release();
         }
         await client.logout();
+
+        if (fetched > 0) {
+            notifyAdmins({
+                subject: `📧 Neue Emails empfangen (${fetched})`,
+                text: `Hallo Admin,\n\nes wurden ${fetched} neue E-Mails für dein Konto (${imap.imapUser}) abgerufen.`,
+                html: `
+                    <div style="font-family: Arial, sans-serif; border: 1px solid #4f46e5; padding: 20px; border-radius: 10px;">
+                        <h2 style="color: #4f46e5;">📧 Neue E-Mails abgerufen</h2>
+                        <p>Hallo Admin,</p>
+                        <p>der Hintergrund-Dienst hat soeben <b>${fetched} neue E-Mails</b> für dein Konto (${imap.imapUser}) erfolgreich in die Datenbank importiert.</p>
+                        <p>Du kannst diese nun in der Verwaltung unter "Messaging" einsehen.</p>
+                    </div>
+                `
+            });
+        }
+
         return { success: true, fetched };
     } catch (err) {
         console.error(`[MessagingService] Fetch error for user ${userId}:`, err.message);

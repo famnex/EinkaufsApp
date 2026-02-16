@@ -283,20 +283,27 @@ export function findIngredientsInText(stepText, ingredients) {
 export function sortIngredientsBySteps(ingredients, steps) {
     if (!steps || steps.length === 0) return ingredients;
 
-    const firstAppearance = {}; // ingId -> stepIndex
+    const firstAppearance = {}; // ingId -> { stepIdx, matchIdx }
 
     steps.forEach((step, stepIdx) => {
         const matches = findIngredientsInText(step, ingredients);
         matches.forEach(m => {
             if (firstAppearance[m.ingredientId] === undefined) {
-                firstAppearance[m.ingredientId] = stepIdx;
+                firstAppearance[m.ingredientId] = {
+                    stepIdx,
+                    matchIdx: m.index
+                };
             }
         });
     });
 
     return [...ingredients].sort((a, b) => {
-        const stepA = firstAppearance[a.id] !== undefined ? firstAppearance[a.id] : 9999;
-        const stepB = firstAppearance[b.id] !== undefined ? firstAppearance[b.id] : 9999;
-        return stepA - stepB;
+        const appearanceA = firstAppearance[a.id] || { stepIdx: 9999, matchIdx: 9999 };
+        const appearanceB = firstAppearance[b.id] || { stepIdx: 9999, matchIdx: 9999 };
+
+        if (appearanceA.stepIdx !== appearanceB.stepIdx) {
+            return appearanceA.stepIdx - appearanceB.stepIdx;
+        }
+        return appearanceA.matchIdx - appearanceB.matchIdx;
     });
 }

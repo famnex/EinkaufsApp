@@ -37,7 +37,7 @@ router.get('/public-cookbooks', async (req, res) => {
     try {
         console.log('Fetching public cookbooks...');
         const users = await User.findAll({
-            where: { isPublicCookbook: true },
+            where: { isPublicCookbook: true, bannedAt: null },
             attributes: ['id', 'username', 'cookbookTitle', 'cookbookImage', 'sharingKey'],
             include: [{
                 model: Recipe,
@@ -414,6 +414,30 @@ router.post('/login', async (req, res) => {
                 userAgent: req.headers['user-agent']
             });
             return res.status(400).json({ error: 'Invalid email or password' });
+        }
+
+        // Check Ban Status
+        if (user.bannedAt) {
+            const now = new Date();
+            let banMessage = `Dein Konto ist gesperrt. Grund: ${user.banReason || 'Unbekannt'}.`;
+
+            if (user.isPermanentlyBanned) {
+                banMessage += ' Diese Sperre ist permanent.';
+            } else if (user.banExpiresAt) {
+                if (user.banExpiresAt > now) {
+                    banMessage += ` Die Sperre läuft bis zum ${new Date(user.banExpiresAt).toLocaleDateString('de-DE')} ab.`;
+                } else {
+                    // This case should be handled by cron, but for safety:
+                    // If login happens and ban is expired, we could auto-unban here too.
+                    await user.update({ bannedAt: null, banReason: null, banExpiresAt: null, isPermanentlyBanned: false });
+                }
+            } else {
+                banMessage += ' Diese Sperre ist vorerst unbefristet.';
+            }
+
+            if (user.bannedAt) { // Re-check if we didn't just auto-unban above
+                return res.status(403).json({ error: banMessage });
+            }
         }
 
         // Success Login

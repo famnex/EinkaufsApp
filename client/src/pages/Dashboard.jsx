@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import api from '../lib/axios';
 import { useNavigate } from 'react-router-dom';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
-import { ShoppingCart, ChefHat, Play, Check, ArrowRight } from 'lucide-react';
+import { ShoppingCart, ChefHat, Play, Check, ArrowRight, MousePointer2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEditMode } from '../contexts/EditModeContext';
 import { cn } from '../lib/utils';
@@ -19,6 +19,13 @@ export default function Dashboard() {
     const [direction, setDirection] = useState(0);
     const navigate = useNavigate();
 
+    // DnD / Longpress State
+    const [draggingList, setDraggingList] = useState(null);
+    const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const longPressTimer = useRef(null);
+    const calendarRef = useRef(null);
+
     // Swipe Logic for Calendar
     const [touchStart, setTouchStart] = useState(null);
     const [touchEnd, setTouchEnd] = useState(null);
@@ -30,14 +37,57 @@ export default function Dashboard() {
         setTouchEnd(null);
         setTouchStartY(e.targetTouches[0].clientY);
         setTouchStart(e.targetTouches[0].clientX);
+
+        // Longpress detection start
+        if (editMode === 'view' || editMode === 'edit') {
+            const tile = e.target.closest('.react-calendar__tile');
+            if (tile) {
+                const dateStr = tile.querySelector('[data-date]')?.getAttribute('data-date');
+                const list = lists.find(l => l.date === dateStr);
+                if (list) {
+                    longPressTimer.current = setTimeout(() => {
+                        setDraggingList(list);
+                        setIsDragging(true);
+                        setDragPos({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY });
+                        // Provide haptic feedback if available
+                        if (window.navigator.vibrate) window.navigator.vibrate(50);
+                    }, 500); // 500ms for longpress
+                }
+            }
+        }
     };
 
     const onTouchMove = (e) => {
         setTouchEndY(e.targetTouches[0].clientY);
         setTouchEnd(e.targetTouches[0].clientX);
+
+        if (isDragging) {
+            setDragPos({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY });
+            e.preventDefault(); // Prevent scrolling while dragging
+        } else if (longPressTimer.current) {
+            // If moved significantly before longpress, cancel it
+            const dx = Math.abs(e.targetTouches[0].clientX - touchStart);
+            const dy = Math.abs(e.targetTouches[0].clientY - touchStartY);
+            if (dx > 10 || dy > 10) {
+                clearTimeout(longPressTimer.current);
+                longPressTimer.current = null;
+            }
+        }
     };
 
-    const onTouchEnd = () => {
+    const onTouchEnd = (e) => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
+
+        if (isDragging) {
+            handleDrop(dragPos.x, dragPos.y);
+            setIsDragging(false);
+            setDraggingList(null);
+            return;
+        }
+
         if (!touchStart || !touchEnd) return;
         const xDistance = touchStart - touchEnd;
         const yDistance = (touchStartY || 0) - (touchEndY || 0);
@@ -58,6 +108,88 @@ export default function Dashboard() {
             const prevMonth = new Date(activeStartDate);
             prevMonth.setMonth(prevMonth.getMonth() - 1);
             setActiveStartDate(prevMonth);
+        }
+    };
+
+    // Generic Pointer events for Mouse support
+    const onPointerDown = (e) => {
+        if (e.pointerType === 'touch') return; // Handled by onTouchStart
+        const tile = e.target.closest('.react-calendar__tile');
+        if (tile) {
+            const dateStr = tile.querySelector('[data-date]')?.getAttribute('data-date');
+            const list = lists.find(l => l.date === dateStr);
+            if (list) {
+                longPressTimer.current = setTimeout(() => {
+                    setDraggingList(list);
+                    setIsDragging(true);
+                    setDragPos({ x: e.clientX, y: e.clientY });
+                }, 500);
+            }
+        }
+    };
+
+    const onPointerMove = (e) => {
+        if (e.pointerType === 'touch') return;
+        if (isDragging) {
+            setDragPos({ x: e.clientX, y: e.clientY });
+        } else if (longPressTimer.current) {
+            // Cancel timer on move
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
+    };
+
+    const onPointerUp = (e) => {
+        if (e.pointerType === 'touch') return;
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
+        if (isDragging) {
+            handleDrop(e.clientX, e.clientY);
+            setIsDragging(false);
+            setDraggingList(null);
+        }
+    };
+
+    const handleDrop = async (x, y) => {
+        // Find target tile
+        const elementsAtPos = document.elementsFromPoint(x, y);
+        const tile = elementsAtPos.find(el => el.closest('.react-calendar__tile'))?.closest('.react-calendar__tile');
+
+        if (!tile || !draggingList) return;
+
+        const targetDateStr = tile.querySelector('[data-date]')?.getAttribute('data-date');
+        if (!targetDateStr || targetDateStr === draggingList.date) return;
+
+        const targetList = lists.find(l => l.date === targetDateStr);
+
+        if (targetList) {
+            // MERGE
+            if (confirm(`Möchtest du die Liste vom ${new Date(draggingList.date).toLocaleDateString()} wirklich in die Liste vom ${new Date(targetDateStr).toLocaleDateString()} verschmelzen?`)) {
+                try {
+                    setLoading(true);
+                    await api.post(`/lists/${targetList.id}/merge`, { sourceId: draggingList.id });
+                    await fetchLists();
+                } catch (err) {
+                    console.error('Merge failed', err);
+                    alert('Fehler beim Verschmelzen der Listen.');
+                } finally {
+                    setLoading(false);
+                }
+            }
+        } else {
+            // MOVE
+            try {
+                setLoading(true);
+                await api.put(`/lists/${draggingList.id}`, { date: targetDateStr });
+                await fetchLists();
+            } catch (err) {
+                console.error('Move failed', err);
+                alert('Fehler beim Verschieben der Liste.');
+            } finally {
+                setLoading(false);
+            }
         }
     };
 
@@ -291,7 +423,12 @@ export default function Dashboard() {
                             onTouchStart={onTouchStart}
                             onTouchMove={onTouchMove}
                             onTouchEnd={onTouchEnd}
+                            onPointerDown={onPointerDown}
+                            onPointerMove={onPointerMove}
+                            onPointerUp={onPointerUp}
+                            onPointerCancel={onPointerUp}
                             className="touch-pan-y overflow-hidden relative"
+                            ref={calendarRef}
                         >
                             <AnimatePresence initial={false} custom={direction} mode="popLayout">
                                 <motion.div
@@ -315,20 +452,22 @@ export default function Dashboard() {
                                         }}
                                         tileClassName={tileClassName}
                                         tileContent={({ date, view }) => {
+                                            const dateStr = getLocalDateStr(date);
                                             if (view === 'month') {
-                                                const dateStr = getLocalDateStr(date);
                                                 const list = lists.find(l => l.date === dateStr);
-                                                if (list && list.status === 'archived') {
-                                                    return (
-                                                        <div className="absolute bottom-0 right-0 p-1">
-                                                            <div className="bg-white rounded-full p-0.5 shadow-sm">
-                                                                <Check size={8} className="text-green-600" strokeWidth={4} />
+                                                return (
+                                                    <div className="absolute inset-0 pointer-events-none" data-date={dateStr}>
+                                                        {list && list.status === 'archived' && (
+                                                            <div className="absolute bottom-0 right-0 p-1">
+                                                                <div className="bg-white rounded-full p-0.5 shadow-sm">
+                                                                    <Check size={8} className="text-green-600" strokeWidth={4} />
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    );
-                                                }
+                                                        )}
+                                                    </div>
+                                                );
                                             }
-                                            return null;
+                                            return <div data-date={dateStr} className="pointer-events-none"></div>;
                                         }}
                                         locale="de-DE"
                                         prev2Label={null}
@@ -340,6 +479,31 @@ export default function Dashboard() {
                         </div>
                     </motion.div>
                 </div>
+
+                <AnimatePresence>
+                    {isDragging && draggingList && (
+                        <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1.1, opacity: 1 }}
+                            exit={{ scale: 0.8, opacity: 0 }}
+                            style={{
+                                position: 'fixed',
+                                left: dragPos.x,
+                                top: dragPos.y,
+                                x: '-50%',
+                                y: '-100%',
+                                pointerEvents: 'none',
+                                zIndex: 1000,
+                            }}
+                            className="bg-primary text-white p-3 rounded-2xl shadow-2xl flex items-center gap-2 border-2 border-white/50"
+                        >
+                            <ShoppingCart size={20} />
+                            <div className="font-bold text-sm">
+                                {new Date(draggingList.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 <style dangerouslySetInnerHTML={{
                     __html: `

@@ -19,6 +19,8 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
     const [bookingDesc, setBookingDesc] = useState('');
     const [bookingLoading, setBookingLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [banData, setBanData] = useState({ reason: '', days: '7', permanent: false });
+    const [banLoading, setBanLoading] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -114,6 +116,36 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
             alert('Upload fehlgeschlagen');
         } finally {
             setUploading(false);
+        }
+    };
+
+    const handleBan = async () => {
+        if (!confirm(`Möchtest du ${data.user.username} wirklich bannen?`)) return;
+        setBanLoading(true);
+        try {
+            await api.post(`/users/${userId}/ban`, banData);
+            await fetchDetail();
+            if (onUpdate) onUpdate();
+            alert('Benutzer wurde gebannt');
+        } catch (err) {
+            alert('Bannen fehlgeschlagen: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setBanLoading(false);
+        }
+    };
+
+    const handleUnban = async () => {
+        if (!confirm(`Möchtest du die Sperre für ${data.user.username} wirklich aufheben?`)) return;
+        setBanLoading(true);
+        try {
+            await api.post(`/users/${userId}/unban`);
+            await fetchDetail();
+            if (onUpdate) onUpdate();
+            alert('Sperre aufgehoben');
+        } catch (err) {
+            alert('Entbannen fehlgeschlagen: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setBanLoading(false);
         }
     };
 
@@ -509,6 +541,77 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
                                                         Hier werden alle Inhalte aufgelistet, die aufgrund von Richtlinienverstößen entfernt wurden ("Strikes").
                                                     </p>
                                                 </div>
+
+                                                {/* Ban Action Section */}
+                                                <Card className="p-6 border-red-200 bg-red-50/30">
+                                                    <h3 className="font-bold mb-4 flex items-center gap-2">
+                                                        <AlertTriangle size={18} className="text-red-600" />
+                                                        Konto-Status: {data.user.bannedAt ? (
+                                                            <span className="text-red-600">GEBANNT</span>
+                                                        ) : (
+                                                            <span className="text-emerald-600">AKTIV</span>
+                                                        )}
+                                                    </h3>
+
+                                                    {data.user.bannedAt ? (
+                                                        <div className="space-y-4">
+                                                            <div className="p-4 bg-background rounded-2xl border border-red-200 text-sm">
+                                                                <p className="font-bold text-red-600">Bann-Details:</p>
+                                                                <p className="mt-1"><b>Grund:</b> {data.user.banReason}</p>
+                                                                <p><b>Dauer:</b> {data.user.isPermanentlyBanned ? 'Permanent' : (data.user.banExpiresAt ? `Bis ${new Date(data.user.banExpiresAt).toLocaleDateString('de-DE')}` : 'Unbefristet')}</p>
+                                                            </div>
+                                                            <Button onClick={handleUnban} disabled={banLoading} variant="outline" className="w-full border-red-200 text-red-600 hover:bg-red-50">
+                                                                {banLoading ? <Loader2 size={18} className="animate-spin" /> : 'Sperre aufheben'}
+                                                            </Button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-4">
+                                                            <div className="space-y-4">
+                                                                <div>
+                                                                    <label className="text-xs font-bold uppercase mb-2 block">Grund für den Bann</label>
+                                                                    <textarea
+                                                                        value={banData.reason}
+                                                                        onChange={(e) => setBanData({ ...banData, reason: e.target.value })}
+                                                                        placeholder="Z.B. Wiederholte Verstöße gegen die Community-Richtlinien..."
+                                                                        className="w-full h-24 bg-background border border-border rounded-2xl p-4 text-sm focus:ring-2 focus:ring-primary outline-none"
+                                                                    />
+                                                                </div>
+                                                                <div className="flex flex-col sm:flex-row gap-4">
+                                                                    <div className="flex-1">
+                                                                        <label className="text-xs font-bold uppercase mb-2 block">Dauer</label>
+                                                                        <select
+                                                                            value={banData.permanent ? 'perm' : banData.days}
+                                                                            onChange={(e) => {
+                                                                                if (e.target.value === 'perm') {
+                                                                                    setBanData({ ...banData, permanent: true });
+                                                                                } else {
+                                                                                    setBanData({ ...banData, permanent: false, days: e.target.value });
+                                                                                }
+                                                                            }}
+                                                                            className="w-full h-12 bg-background border border-border rounded-2xl px-4 text-sm focus:ring-2 focus:ring-primary outline-none"
+                                                                        >
+                                                                            <option value="1">1 Tag</option>
+                                                                            <option value="3">3 Tage</option>
+                                                                            <option value="7">7 Tage</option>
+                                                                            <option value="30">30 Tage</option>
+                                                                            <option value="perm">Permanent</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div className="flex-1 flex items-end">
+                                                                        <Button
+                                                                            onClick={handleBan}
+                                                                            disabled={banLoading || !banData.reason}
+                                                                            className="w-full bg-red-600 hover:bg-red-700 h-12 gap-2"
+                                                                        >
+                                                                            {banLoading ? <Loader2 size={18} className="animate-spin" /> : <AlertTriangle size={18} />}
+                                                                            Benutzer bannen
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </Card>
 
                                                 <div className="bg-background rounded-2xl border border-border overflow-hidden">
                                                     <table className="w-full text-left text-sm">

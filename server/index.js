@@ -254,6 +254,7 @@ if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging')
 }
 
 const { initEmailCron } = require('./src/services/messagingService');
+const { initBanCron } = require('./src/services/banService');
 
 // { alter: true } might cause SQLITE_CONSTRAINT error if data violates new constraints, but needed for schema updates.
 sequelize.sync({ alter: false }).then(() => {
@@ -261,6 +262,7 @@ sequelize.sync({ alter: false }).then(() => {
 
     // Start background jobs
     initEmailCron();
+    initBanCron();
 
     app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);

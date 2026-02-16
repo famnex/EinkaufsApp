@@ -93,17 +93,19 @@ export default function SettingsPage() {
         { name: 'Green', value: '#10b981' },
     ];
 
-    // Tab State
-    const [activeTab, setActiveTab] = useState(''); // Modified to start empty (collapsed) for mobile
-    const [activeAdminTab, setActiveAdminTab] = useState('users');
+    const [activeTab, setActiveTab] = useState('');
+    const [activeAdminTab, setActiveAdminTab] = useState('');
+    const [activeProfileTab, setActiveProfileTab] = useState('');
 
 
     useEffect(() => {
         // Auto-open defaults only on desktop if nothing matches
         if (window.innerWidth >= 640) {
             if (!activeTab) setActiveTab('profile');
+            if (!activeAdminTab) setActiveAdminTab('users');
+            if (!activeProfileTab) setActiveProfileTab('general');
         }
-    }, []);
+    }, [activeTab]);
 
     // Email/Password Change State
     const [emailChangeData, setEmailChangeData] = useState({ currentPassword: '', newEmail: '' });
@@ -686,11 +688,12 @@ export default function SettingsPage() {
             if (activeAdminTab === 'texts') fetchLegalTexts();
         }
 
-        // Desktop default for admin sub-tabs
-        if (activeTab === 'admin' && window.innerWidth >= 640 && !activeAdminTab) {
-            setActiveAdminTab('users');
+        // Desktop default for profile/admin sub-tabs
+        if (window.innerWidth >= 640) {
+            if (activeTab === 'admin' && !activeAdminTab) setActiveAdminTab('users');
+            if (activeTab === 'profile' && !activeProfileTab) setActiveProfileTab('general');
         }
-    }, [activeTab, activeAdminTab]);
+    }, [activeTab, activeAdminTab, activeProfileTab]);
 
     const fetchCreditHistory = async () => {
         setLoadingCredits(true);
@@ -901,6 +904,13 @@ export default function SettingsPage() {
     };
 
     // Tab Definitions
+    const profileTabs = [
+        { id: 'general', label: 'Benutzerprofil', icon: User },
+        { id: 'email', label: 'E-Mail-Adresse ändern', icon: Mail },
+        { id: 'password', label: 'Passwort ändern', icon: Lock },
+        { id: 'strikes', label: 'Sicherheitsstatus & Verstöße', icon: ShieldCheck }
+    ];
+
     const tabs = [
         { id: 'profile', label: 'Profil & Sicherheit', icon: User },
         { id: 'subscription', label: 'Abo & Credits', icon: CreditCard },
@@ -915,216 +925,280 @@ export default function SettingsPage() {
 
     // --- Component Sections ---
 
+    const getProfileContent = (id) => {
+        switch (id) {
+            case 'general':
+                return (
+                    <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                        <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                            <User size={20} className="text-primary" />
+                            Benutzerprofil
+                        </h2>
+                        <div className="p-4 bg-muted rounded-2xl flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Angemeldet als</p>
+                                <p className="font-bold text-foreground text-lg">{user?.username || 'Gast'}</p>
+                                <p className="text-sm text-primary font-medium">{user?.role === 'admin' ? 'Administrator' : 'Standard-Benutzer'}</p>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                className="text-destructive hover:bg-destructive/10"
+                                onClick={() => {
+                                    localStorage.removeItem('token');
+                                    const baseUrl = import.meta.env.BASE_URL || '/';
+                                    window.location.href = `${baseUrl}login`.replace('//', '/');
+                                }}
+                            >
+                                Abmelden
+                            </Button>
+                        </div>
+                    </Card>
+                );
+            case 'email':
+                return (
+                    <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                        <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                            <Mail size={20} className="text-primary" />
+                            Email-Adresse ändern
+                        </h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Neue Email-Adresse</label>
+                                <Input
+                                    type="email"
+                                    placeholder="neue@email.de"
+                                    value={emailChangeData.newEmail}
+                                    onChange={(e) => setEmailChangeData({ ...emailChangeData, newEmail: e.target.value })}
+                                    className="bg-muted border-transparent focus:bg-background"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Aktuelles Passwort zur Bestätigung</label>
+                                <div className="relative">
+                                    <Input
+                                        type={showCurrentPassword ? "text" : "password"}
+                                        placeholder="Dein Passwort"
+                                        value={emailChangeData.currentPassword}
+                                        onChange={(e) => setEmailChangeData({ ...emailChangeData, currentPassword: e.target.value })}
+                                        className="bg-muted border-transparent focus:bg-background"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                    >
+                                        {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
+                            </div>
+                            <Button
+                                onClick={handleChangeEmail}
+                                disabled={changingEmail}
+                                className="w-full"
+                            >
+                                {changingEmail ? <Loader2 size={18} className="animate-spin" /> : "Email speichern"}
+                            </Button>
+                        </div>
+                    </Card>
+                );
+            case 'password':
+                return (
+                    <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                        <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                            <Lock size={20} className="text-primary" />
+                            Passwort ändern
+                        </h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Aktuelles Passwort</label>
+                                <div className="relative">
+                                    <Input
+                                        type={showCurrentPassword ? "text" : "password"}
+                                        value={passwordChangeData.currentPassword}
+                                        onChange={(e) => setPasswordChangeData({ ...passwordChangeData, currentPassword: e.target.value })}
+                                        className="bg-muted border-transparent focus:bg-background"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                    >
+                                        {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Neues Passwort</label>
+                                <div className="relative">
+                                    <Input
+                                        type={showNewPassword ? "text" : "password"}
+                                        value={passwordChangeData.newPassword}
+                                        onChange={(e) => setPasswordChangeData({ ...passwordChangeData, newPassword: e.target.value })}
+                                        className="bg-muted border-transparent focus:bg-background"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowNewPassword(!showNewPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                    >
+                                        {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Neues Passwort bestätigen</label>
+                                <div className="relative">
+                                    <Input
+                                        type={showConfirmPassword ? "text" : "password"}
+                                        value={passwordChangeData.confirmPassword}
+                                        onChange={(e) => setPasswordChangeData({ ...passwordChangeData, confirmPassword: e.target.value })}
+                                        className="bg-muted border-transparent focus:bg-background"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                    >
+                                        {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
+                            </div>
+                            <Button
+                                onClick={handleChangePassword}
+                                disabled={changingPassword}
+                                className="w-full"
+                            >
+                                {changingPassword ? <Loader2 size={18} className="animate-spin" /> : "Passwort aktualisieren"}
+                            </Button>
+                        </div>
+                    </Card>
+                );
+            case 'strikes':
+                return (
+                    <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm relative overflow-hidden">
+                        <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                            <ShieldCheck size={20} className={userStrikes.length > 0 ? "text-destructive" : "text-emerald-500"} />
+                            Sicherheitsstatus & Verstöße
+                        </h2>
+
+                        {loadingStrikes ? (
+                            <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary/50" /></div>
+                        ) : userStrikes.length > 0 ? (
+                            <div className="space-y-6">
+                                <div className="p-4 bg-destructive/10 text-destructive rounded-2xl border border-destructive/20 flex gap-3">
+                                    <AlertTriangle size={20} className="shrink-0 mt-0.5" />
+                                    <div>
+                                        <p className="text-sm font-bold">
+                                            Achtung: Es liegen Verstöße gegen unsere Richtlinien vor.
+                                        </p>
+                                        <p className="text-xs mt-1 opacity-90 leading-relaxed">
+                                            Bitte beachten Sie, dass wiederholte Verstöße zur dauerhaften Sperrung Ihres Accounts führen können.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-background/50 rounded-2xl border border-border overflow-hidden">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="bg-muted/50 border-b border-border">
+                                            <tr>
+                                                <th className="px-4 py-3 font-bold">Datum</th>
+                                                <th className="px-4 py-3 font-bold">Grund</th>
+                                                <th className="px-4 py-3 font-bold">Inhalt</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-border/50">
+                                            {userStrikes.map(strike => (
+                                                <tr key={strike.id} className="hover:bg-muted/30 transition-colors">
+                                                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap align-top">
+                                                        {new Date(strike.updatedAt).toLocaleDateString('de-DE')}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-medium align-top">
+                                                        <span className="bg-destructive/10 text-destructive px-2 py-0.5 rounded-full text-xs font-bold border border-destructive/20 inline-block">
+                                                            {strike.reasonCategory}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-xs text-muted-foreground align-top">
+                                                        <div className="font-mono bg-muted/50 px-1.5 py-0.5 rounded inline-block mb-1 max-w-[200px] truncate" title={strike.contentUrl}>
+                                                            {strike.contentType}: {strike.contentUrl}
+                                                        </div>
+                                                        {strike.resolutionNote && (
+                                                            <div className="italic text-destructive/80 font-medium">
+                                                                "{strike.resolutionNote}"
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-6 text-center text-muted-foreground">
+                                <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-4">
+                                    <CheckCircle size={32} />
+                                </div>
+                                <p className="font-bold text-foreground text-lg">Alles in Ordnung!</p>
+                                <p className="text-sm">Keine Verstöße oder Verwarnungen verzeichnet.</p>
+                            </div>
+                        )}
+                    </Card>
+                );
+            default: return null;
+        }
+    };
+
     const ProfileSection = (
         <div className="space-y-6">
-            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
-                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                    <User size={20} className="text-primary" />
-                    Benutzerprofil
-                </h2>
-                <div className="p-4 bg-muted rounded-2xl flex items-center justify-between">
-                    <div>
-                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Angemeldet als</p>
-                        <p className="font-bold text-foreground text-lg">{user?.username || 'Gast'}</p>
-                        <p className="text-sm text-primary font-medium">{user?.role === 'admin' ? 'Administrator' : 'Standard-Benutzer'}</p>
-                    </div>
-                    <Button
-                        variant="ghost"
-                        className="text-destructive hover:bg-destructive/10"
-                        onClick={() => {
-                            localStorage.removeItem('token');
-                            const baseUrl = import.meta.env.BASE_URL || '/';
-                            window.location.href = `${baseUrl}login`.replace('//', '/');
-                        }}
-                    >
-                        Abmelden
-                    </Button>
-                </div>
-            </Card>
-
-            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm relative overflow-hidden">
-                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                    <ShieldCheck size={20} className={userStrikes.length > 0 ? "text-destructive" : "text-emerald-500"} />
-                    Sicherheitsstatus & Verstöße
-                </h2>
-
-                {loadingStrikes ? (
-                    <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary/50" /></div>
-                ) : userStrikes.length > 0 ? (
-                    <div className="space-y-6">
-                        <div className="p-4 bg-destructive/10 text-destructive rounded-2xl border border-destructive/20 flex gap-3">
-                            <AlertTriangle size={20} className="shrink-0 mt-0.5" />
-                            <div>
-                                <p className="text-sm font-bold">
-                                    Achtung: Es liegen Verstöße gegen unsere Richtlinien vor.
-                                </p>
-                                <p className="text-xs mt-1 opacity-90 leading-relaxed">
-                                    Bitte beachten Sie, dass wiederholte Verstöße zur dauerhaften Sperrung Ihres Accounts führen können.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="bg-background/50 rounded-2xl border border-border overflow-hidden">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-muted/50 border-b border-border">
-                                    <tr>
-                                        <th className="px-4 py-3 font-bold">Datum</th>
-                                        <th className="px-4 py-3 font-bold">Grund</th>
-                                        <th className="px-4 py-3 font-bold">Inhalt</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border/50">
-                                    {userStrikes.map(strike => (
-                                        <tr key={strike.id} className="hover:bg-muted/30 transition-colors">
-                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap align-top">
-                                                {new Date(strike.updatedAt).toLocaleDateString('de-DE')}
-                                            </td>
-                                            <td className="px-4 py-3 font-medium align-top">
-                                                <span className="bg-destructive/10 text-destructive px-2 py-0.5 rounded-full text-xs font-bold border border-destructive/20 inline-block">
-                                                    {strike.reasonCategory}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 text-xs text-muted-foreground align-top">
-                                                <div className="font-mono bg-muted/50 px-1.5 py-0.5 rounded inline-block mb-1 max-w-[200px] truncate" title={strike.contentUrl}>
-                                                    {strike.contentType}: {strike.contentUrl}
-                                                </div>
-                                                {strike.resolutionNote && (
-                                                    <div className="italic text-destructive/80 font-medium">
-                                                        "{strike.resolutionNote}"
-                                                    </div>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="flex flex-col items-center justify-center py-6 text-center text-muted-foreground">
-                        <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-4">
-                            <CheckCircle size={32} />
-                        </div>
-                        <p className="font-bold text-foreground text-lg">Alles in Ordnung!</p>
-                        <p className="text-sm">Keine Verstöße oder Verwarnungen verzeichnet.</p>
-                    </div>
-                )}
-            </Card>
-
-            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
-                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                    <Mail size={20} className="text-primary" />
-                    Email-Adresse ändern
-                </h2>
-                <div className="space-y-4">
-                    <div>
-                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Neue Email-Adresse</label>
-                        <Input
-                            type="email"
-                            placeholder="neue@email.de"
-                            value={emailChangeData.newEmail}
-                            onChange={(e) => setEmailChangeData({ ...emailChangeData, newEmail: e.target.value })}
-                            className="bg-muted border-transparent focus:bg-background"
-                        />
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Aktuelles Passwort zur Bestätigung</label>
-                        <div className="relative">
-                            <Input
-                                type={showCurrentPassword ? "text" : "password"}
-                                placeholder="Dein Passwort"
-                                value={emailChangeData.currentPassword}
-                                onChange={(e) => setEmailChangeData({ ...emailChangeData, currentPassword: e.target.value })}
-                                className="bg-muted border-transparent focus:bg-background"
-                            />
+            {/* Mobile Accordion for Profile Submenu */}
+            <div className="sm:hidden space-y-2">
+                {profileTabs.map((sub) => {
+                    const isActive = activeProfileTab === sub.id;
+                    return (
+                        <div key={sub.id} className="border border-border/50 rounded-lg overflow-hidden bg-card/30">
                             <button
-                                type="button"
-                                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                onClick={() => setActiveProfileTab(isActive ? '' : sub.id)}
+                                className={cn(
+                                    "w-full flex items-center justify-between p-3 text-sm font-bold text-left transition-colors",
+                                    isActive ? "bg-primary/5 text-primary" : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                                )}
                             >
-                                {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                <div className="flex items-center gap-2">
+                                    <sub.icon size={16} />
+                                    <span>{sub.label}</span>
+                                </div>
+                                <ChevronDown
+                                    size={16}
+                                    className={cn("text-muted-foreground transition-transform duration-300", isActive && "rotate-180 text-primary")}
+                                />
                             </button>
+                            <AnimatePresence initial={false}>
+                                {isActive && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                    >
+                                        <div className="p-3 border-t border-border/50">
+                                            {getProfileContent(sub.id)}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
-                    </div>
-                    <Button
-                        onClick={handleChangeEmail}
-                        disabled={changingEmail}
-                        className="w-full"
-                    >
-                        {changingEmail ? <Loader2 size={18} className="animate-spin" /> : "Email speichern"}
-                    </Button>
-                </div>
-            </Card>
+                    );
+                })}
+            </div>
 
-            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
-                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                    <Lock size={20} className="text-primary" />
-                    Passwort ändern
-                </h2>
-                <div className="space-y-4">
-                    <div>
-                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Aktuelles Passwort</label>
-                        <div className="relative">
-                            <Input
-                                type={showCurrentPassword ? "text" : "password"}
-                                value={passwordChangeData.currentPassword}
-                                onChange={(e) => setPasswordChangeData({ ...passwordChangeData, currentPassword: e.target.value })}
-                                className="bg-muted border-transparent focus:bg-background"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            >
-                                {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                            </button>
-                        </div>
+            {/* Desktop Sections for Profile */}
+            <div className="hidden sm:block space-y-6">
+                {profileTabs.map(tab => (
+                    <div key={tab.id}>
+                        {getProfileContent(tab.id)}
                     </div>
-                    <div>
-                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Neues Passwort</label>
-                        <div className="relative">
-                            <Input
-                                type={showNewPassword ? "text" : "password"}
-                                value={passwordChangeData.newPassword}
-                                onChange={(e) => setPasswordChangeData({ ...passwordChangeData, newPassword: e.target.value })}
-                                className="bg-muted border-transparent focus:bg-background"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowNewPassword(!showNewPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            >
-                                {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                            </button>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Neues Passwort bestätigen</label>
-                        <div className="relative">
-                            <Input
-                                type={showConfirmPassword ? "text" : "password"}
-                                value={passwordChangeData.confirmPassword}
-                                onChange={(e) => setPasswordChangeData({ ...passwordChangeData, confirmPassword: e.target.value })}
-                                className="bg-muted border-transparent focus:bg-background"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            >
-                                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                            </button>
-                        </div>
-                    </div>
-                    <Button
-                        onClick={handleChangePassword}
-                        disabled={changingPassword}
-                        className="w-full"
-                    >
-                        {changingPassword ? <Loader2 size={18} className="animate-spin" /> : "Passwort aktualisieren"}
-                    </Button>
-                </div>
-            </Card>
+                ))}
+            </div>
         </div>
     );
 

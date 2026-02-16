@@ -31,6 +31,9 @@ const User = sequelize.define('User', {
     newsletterSignedUp: { type: DataTypes.BOOLEAN, defaultValue: false },
     newsletterSignupDate: { type: DataTypes.DATE, allowNull: true },
     bannedAt: { type: DataTypes.DATE, allowNull: true },
+    banReason: { type: DataTypes.TEXT, allowNull: true },
+    banExpiresAt: { type: DataTypes.DATE, allowNull: true },
+    isPermanentlyBanned: { type: DataTypes.BOOLEAN, defaultValue: false },
     resetPasswordToken: { type: DataTypes.STRING, allowNull: true },
     resetPasswordExpires: { type: DataTypes.DATE, allowNull: true }
 });

@@ -89,7 +89,40 @@ async function sendSystemEmail({ to, subject, text, html }) {
     }
 }
 
+/**
+ * Notifies all admins via system email.
+ * @param {Object} options - Email options
+ * @param {string} options.subject - Email subject
+ * @param {string} options.text - Plain text body
+ * @param {string} options.html - HTML body
+ */
+async function notifyAdmins({ subject, text, html }) {
+    try {
+        const admins = await User.findAll({ where: { role: 'admin' } });
+        if (admins.length === 0) {
+            console.warn('[EmailService] No admin users found to notify.');
+            return;
+        }
+
+        console.log(`[EmailService] Notifying ${admins.length} admins: ${subject}`);
+
+        const promises = admins.map(admin =>
+            sendSystemEmail({
+                to: admin.email,
+                subject,
+                text,
+                html
+            })
+        );
+
+        await Promise.all(promises);
+    } catch (error) {
+        console.error('[EmailService] Error notifying admins:', error);
+    }
+}
+
 module.exports = {
     sendSystemEmail,
+    notifyAdmins,
     loadSystemEmailConfig // Exported for testing/debugging if needed
 };

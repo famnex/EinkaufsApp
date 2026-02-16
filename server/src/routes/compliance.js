@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { ComplianceReport } = require('../models');
 const { auth } = require('../middleware/auth');
-const { sendSystemEmail } = require('../services/emailService');
+const { sendSystemEmail, notifyAdmins } = require('../services/emailService');
 const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
@@ -168,6 +168,29 @@ router.post('/', async (req, res) => {
         }).then(success => {
             if (success) console.log(`[Compliance] Confirmation email sent to ${reporterEmail}`);
             else console.warn(`[Compliance] Failed to send confirmation email to ${reporterEmail}`);
+        });
+
+        // Notify Admins
+        notifyAdmins({
+            subject: `🚨 Neue Meldung eingegangen: ${reasonCategory}`,
+            text: `Hallo Admin,\n\neine neue Compliance-Meldung [${report.id}] wurde eingereicht.\n\nKategorie: ${reasonCategory}\nURL: ${contentUrl}\nAnmerkung: ${reasonDescription}\n\nBitte im Admin-Bereich prüfen.`,
+            html: `
+                <div style="font-family: Arial, sans-serif; border: 2px solid #d32f2f; padding: 20px; border-radius: 10px;">
+                    <h2 style="color: #d32f2f;">🚨 Neue Compliance-Meldung</h2>
+                    <p>Hallo Admin,</p>
+                    <p>eine neue Meldung wurde soeben im System erfasst.</p>
+                    <hr>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr><td style="padding: 5px; font-weight: bold;">ID:</td><td>${report.id}</td></tr>
+                        <tr><td style="padding: 5px; font-weight: bold;">Kategorie:</td><td>${reasonCategory}</td></tr>
+                        <tr><td style="padding: 5px; font-weight: bold;">Status:</td><td>Offen (Auto-Bann geprüft)</td></tr>
+                        <tr><td style="padding: 5px; font-weight: bold;">URL:</td><td><a href="${contentUrl}">${contentUrl}</a></td></tr>
+                    </table>
+                    <p><strong>Beschreibung:</strong><br>${reasonDescription}</p>
+                    <hr>
+                    <p>Bitte logge dich ein, um die Meldung im Admin-Bereich zu bearbeiten.</p>
+                </div>
+            `
         });
 
         res.status(201).json({ success: true, message: 'Meldung erfolgreich eingereicht.', reportId: report.id });

@@ -212,4 +212,76 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+// POST /:id/ban - Ban a user
+router.post('/:id/ban', async (req, res) => {
+    try {
+        const user = await User.findByPk(req.params.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        if (user.id === req.user.id) return res.status(400).json({ error: 'Cannot ban yourself' });
+
+        const { reason, days, permanent } = req.body;
+
+        let expiresAt = null;
+        if (!permanent && days) {
+            expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + parseInt(days));
+        }
+
+        await user.update({
+            bannedAt: new Date(),
+            banReason: reason || 'Kein Grund angegeben',
+            banExpiresAt: expiresAt,
+            isPermanentlyBanned: !!permanent
+        });
+
+        // Send Email
+        const { sendEmail } = require('../services/messagingService');
+        const durationText = permanent ? 'unbefristet' : `bis zum ${expiresAt.toLocaleDateString('de-DE')}`;
+        const html = `
+            <h3>Konto gesperrt</h3>
+            <p>Hallo ${user.username},</p>
+            <p>dein Konto wurde vorübergehend gesperrt.</p>
+            <p><b>Dauer:</b> ${durationText}</p>
+            <p><b>Grund:</b> ${reason || 'Verstoß gegen die Richtlinien'}</p>
+            <br>
+            <p>Falls du Fragen dazu hast, antworte bitte auf diese Email.</p>
+        `;
+        await sendEmail(user.email, 'Dein Konto wurde gesperrt', html);
+
+        res.json({ message: 'User banned successfully', user });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /:id/unban - Unban a user
+router.post('/:id/unban', async (req, res) => {
+    try {
+        const user = await User.findByPk(req.params.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        await user.update({
+            bannedAt: null,
+            banReason: null,
+            banExpiresAt: null,
+            isPermanentlyBanned: false
+        });
+
+        // Send Email
+        const { sendEmail } = require('../services/messagingService');
+        const html = `
+            <h3>Konto reaktiviert</h3>
+            <p>Hallo ${user.username},</p>
+            <p>dein Konto wurde soeben wieder freigeschaltet. Du kannst dich nun wieder wie gewohnt anmelden.</p>
+            <br>
+            <p>Viel Spaß weiterhin mit GabelGuru!</p>
+        `;
+        await sendEmail(user.email, 'Dein Konto wurde wieder freigeschaltet', html);
+
+        res.json({ message: 'User unbanned successfully', user });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
