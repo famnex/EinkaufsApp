@@ -300,8 +300,10 @@ export default function CookingMode({ recipe, onClose }) {
 
     // NEW: Tooltip for Ingredient details in Steps
     const [ingredientTooltip, setIngredientTooltip] = useState(null); // { x, y, ingredient }
+    const leaveTimeoutRef = useRef(null);
 
     const handleIngredientHover = (e, ing) => {
+        if (leaveTimeoutRef.current) clearTimeout(leaveTimeoutRef.current);
         const rect = e.currentTarget.getBoundingClientRect();
         setIngredientTooltip({
             x: rect.left + (rect.width / 2),
@@ -311,7 +313,9 @@ export default function CookingMode({ recipe, onClose }) {
     };
 
     const handleIngredientLeave = () => {
-        setIngredientTooltip(null);
+        leaveTimeoutRef.current = setTimeout(() => {
+            setIngredientTooltip(null);
+        }, 100);
     };
 
     const handleTooltipHide = () => {
@@ -590,22 +594,14 @@ export default function CookingMode({ recipe, onClose }) {
                                             ) : (
                                                 <span
                                                     key={idx}
-                                                    onClick={(e) => {
-                                                        const isCurrentlyOpen = ingredientTooltip?.ingredient?.id === frag.id;
-                                                        if (isCurrentlyOpen) {
-                                                            toggleIngredient(frag.id);
-                                                            handleIngredientLeave(); // Optional: close tooltip on toggle
-                                                        } else {
-                                                            handleIngredientHover(e, frag.ingredient);
-                                                        }
-                                                    }}
+                                                    onClick={(e) => handleIngredientHover(e, frag.ingredient)}
                                                     onMouseEnter={(e) => handleIngredientHover(e, frag.ingredient)}
                                                     onMouseLeave={handleIngredientLeave}
                                                     className={cn(
-                                                        "px-1.5 py-0.5 rounded-md cursor-pointer transition-colors mx-0.5 border-b-2 border-primary/30 hover:border-primary",
+                                                        "px-1.5 py-0.5 rounded-md cursor-pointer transition-colors mx-0.5 border-b-2 border-primary/40 hover:border-primary shadow-sm",
                                                         checkedIngredients.has(frag.id)
-                                                            ? "bg-green-100 text-green-800 line-through decoration-green-800/50 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700"
-                                                            : "bg-primary/10 text-primary font-bold hover:bg-primary/20 dark:bg-primary/20 dark:text-primary-foreground"
+                                                            ? "bg-green-100 text-green-900 line-through decoration-green-900/60 dark:bg-green-900/40 dark:text-green-200 dark:border-green-600"
+                                                            : "bg-primary/25 text-primary font-black hover:bg-primary/35 dark:bg-primary/30 dark:text-primary-foreground"
                                                     )}
                                                 >
                                                     {frag.text}
@@ -717,18 +713,44 @@ export default function CookingMode({ recipe, onClose }) {
                             initial={{ opacity: 0, y: 10, scale: 0.9 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
-                            className="fixed z-[300] p-3 bg-card/90 backdrop-blur-md text-card-foreground text-sm rounded-xl shadow-xl border border-border pointer-events-none transform -translate-x-1/2 -translate-y-full"
+                            onMouseEnter={() => {
+                                if (leaveTimeoutRef.current) clearTimeout(leaveTimeoutRef.current);
+                            }}
+                            onMouseLeave={handleIngredientLeave}
+                            className="fixed z-[300] p-4 bg-card/95 backdrop-blur-md text-card-foreground text-sm rounded-2xl shadow-2xl border border-border flex items-center gap-4 transform -translate-x-1/2 -translate-y-[calc(100%+12px)]"
                             style={{
                                 top: ingredientTooltip.y,
                                 left: ingredientTooltip.x,
                             }}
                         >
-                            <div className="font-bold text-lg whitespace-nowrap">
-                                {Number(ingredientTooltip.ingredient.amount.toFixed(2)).toLocaleString('de-DE')} {ingredientTooltip.ingredient.unit}
+                            <div className="flex-1">
+                                <div className="font-bold text-lg whitespace-nowrap">
+                                    {Number(ingredientTooltip.ingredient.amount.toFixed(2)).toLocaleString('de-DE')} {ingredientTooltip.ingredient.unit}
+                                </div>
+                                <div className="text-xs text-muted-foreground whitespace-nowrap opacity-80">
+                                    {ingredientTooltip.ingredient.name}
+                                </div>
                             </div>
-                            <div className="text-xs text-muted-foreground whitespace-nowrap opacity-80">
-                                {ingredientTooltip.ingredient.name}
-                            </div>
+
+                            <Button
+                                size="icon"
+                                variant={checkedIngredients.has(ingredientTooltip.ingredient.id) ? "secondary" : "primary"}
+                                onClick={() => {
+                                    toggleIngredient(ingredientTooltip.ingredient.id);
+                                    handleIngredientLeave();
+                                }}
+                                className={cn(
+                                    "w-10 h-10 rounded-xl shrink-0 transition-all",
+                                    checkedIngredients.has(ingredientTooltip.ingredient.id)
+                                        ? "bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"
+                                        : "shadow-lg shadow-primary/20"
+                                )}
+                            >
+                                <Check size={20} className={cn(
+                                    "transition-transform duration-300",
+                                    checkedIngredients.has(ingredientTooltip.ingredient.id) ? "scale-110" : "scale-100"
+                                )} />
+                            </Button>
                         </motion.div>
                     )}
                 </AnimatePresence>

@@ -12,6 +12,13 @@ export default function ReloadPrompt() {
     } = useRegisterSW({
         onRegistered(r) {
             console.log('SW Registered: ' + r)
+            // Poll for updates every minute
+            if (r) {
+                setInterval(() => {
+                    r.update();
+                    console.log('[PWA] Checking for updates...');
+                }, 60 * 1000);
+            }
         },
         onRegisterError(error) {
             console.log('SW registration error', error)
