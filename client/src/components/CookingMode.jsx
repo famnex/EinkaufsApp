@@ -164,9 +164,6 @@ export default function CookingMode({ recipe, onClose }) {
                 // 1. Fetch Lists to find determining "Next Shopping Date"
                 const { data: allLists } = await api.get('/lists');
 
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-
                 // Helper to get local YYYY-MM-DD
                 const getLocalISODate = (d) => {
                     const year = d.getFullYear();
@@ -175,43 +172,40 @@ export default function CookingMode({ recipe, onClose }) {
                     return `${year}-${month}-${day}`;
                 };
 
-                // Find the closest list in the future (Date > Today)
-                // API returns desc, so reverse or sort
-                const futureLists = allLists
-                    .filter(l => new Date(l.date) > today)
-                    .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-                const nextShoppingList = futureLists[0];
+                const today = new Date();
+                const todayStr = getLocalISODate(today);
 
                 const tomorrow = new Date(today);
                 tomorrow.setDate(tomorrow.getDate() + 1);
+                const tomorrowStr = getLocalISODate(tomorrow);
 
-                let end = new Date(today);
+                // Find the closest list in the future (Date > Today)
+                const futureLists = allLists
+                    .filter(l => l.date > todayStr)
+                    .sort((a, b) => a.date.localeCompare(b.date));
+
+                const nextShoppingList = futureLists[0];
+
+                let endStr;
                 if (nextShoppingList) {
-                    // Range goes UNTIL the day before the shopping list (but API uses inclusive usually, or we filter)
-                    // We set end date TO the list date.
-                    end = new Date(nextShoppingList.date);
+                    endStr = nextShoppingList.date;
                 } else {
                     // Fallback: 7 days if no list planned
-                    end.setDate(end.getDate() + 7);
+                    const fallbackEnd = new Date(today);
+                    fallbackEnd.setDate(fallbackEnd.getDate() + 7);
+                    endStr = getLocalISODate(fallbackEnd);
                 }
 
-                const startStr = getLocalISODate(tomorrow);
-                const endStr = getLocalISODate(end);
+                console.log(`[CookingMode] Warning Check Window: ${tomorrowStr} to ${endStr} (Next List: ${nextShoppingList?.date || 'None'})`);
 
-                console.log(`[CookingMode] Warning Check Window: ${startStr} to ${endStr} (Next List: ${nextShoppingList?.date || 'None'})`);
-
-                const { data: menus } = await api.get(`/menus?start=${startStr}&end=${endStr}`);
+                const { data: menus } = await api.get(`/menus?start=${tomorrowStr}&end=${endStr}`);
 
                 const usageMap = {};
 
                 for (const menu of menus) {
-                    // Stop if we hit the shopping list date (just to be safe/precise)
-                    // Also filter out any accidental "today" or past dates if API returns them
-                    // (Though query params should handle it, we safeguard)
-                    const menuDate = new Date(menu.date);
-                    if (menuDate < tomorrow) continue;
-                    if (nextShoppingList && menuDate >= new Date(nextShoppingList.date)) break;
+                    // Safety: ignore everything <= today or >= next list date
+                    if (menu.date <= todayStr) continue;
+                    if (nextShoppingList && menu.date >= nextShoppingList.date) break;
 
                     if (!menu.Recipe || !menu.Recipe.RecipeIngredients) continue;
 
@@ -226,7 +220,9 @@ export default function CookingMode({ recipe, onClose }) {
                             if (!usageMap[pid]) usageMap[pid] = [];
                             usageMap[pid].push({
                                 date: menu.date,
-                                recipeName: menu.Recipe.title
+                                recipeName: menu.Recipe.title,
+                                quantity: ri.quantity,
+                                unit: ri.unit
                             });
                         }
                     });
@@ -245,6 +241,10 @@ export default function CookingMode({ recipe, onClose }) {
 
 
     const toggleIngredient = (id) => {
+        // iOS PWA Audio Unlock: Prime audio on user gesture
+        const audio = new Audio();
+        audio.play().then(() => audio.pause()).catch(() => { });
+
         const next = new Set(checkedIngredients);
         if (next.has(id)) next.delete(id);
         else next.add(id);
@@ -252,6 +252,10 @@ export default function CookingMode({ recipe, onClose }) {
     };
 
     const nextStep = () => {
+        // iOS PWA Audio Unlock
+        const audio = new Audio();
+        audio.play().then(() => audio.pause()).catch(() => { });
+
         if (step < steps.length - 1) {
             setDirection(1);
             setStep(step + 1);
@@ -259,6 +263,10 @@ export default function CookingMode({ recipe, onClose }) {
     };
 
     const prevStep = () => {
+        // iOS PWA Audio Unlock
+        const audio = new Audio();
+        audio.play().then(() => audio.pause()).catch(() => { });
+
         if (step > 0) {
             setDirection(-1);
             setStep(step - 1);
@@ -301,6 +309,12 @@ export default function CookingMode({ recipe, onClose }) {
             }
         };
     }, []);
+
+    // Helper to unlock audio context on iOS PWA
+    const audioUnlock = () => {
+        const audio = new Audio();
+        audio.play().then(() => audio.pause()).catch(() => { });
+    };
 
     const getTextSizeClass = () => {
         switch (textSize) {
@@ -764,9 +778,12 @@ export default function CookingMode({ recipe, onClose }) {
                             <div className="text-muted-foreground mb-2">Wird bis zum nächsten Einkauf nochmal gebraucht:</div>
                             <ul className="space-y-1">
                                 {tooltipData.items.map((u, idx) => (
-                                    <li key={idx} className="flex gap-2 text-xs font-medium bg-muted/50 p-1.5 rounded-lg">
-                                        <span className="text-foreground shrink-0 w-10">{new Date(u.date).toLocaleDateString('de-DE', { weekday: 'short' })}</span>
-                                        <span className="truncate">{u.recipeName}</span>
+                                    <li key={idx} className="flex flex-col gap-0.5 text-xs font-medium bg-muted/50 p-2 rounded-lg">
+                                        <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase tracking-widest">
+                                            <span>{new Date(u.date).toLocaleDateString('de-DE', { weekday: 'short' })}</span>
+                                            <span className="text-amber-500 font-bold">{u.quantity} {u.unit}</span>
+                                        </div>
+                                        <span className="truncate text-foreground font-semibold">{u.recipeName}</span>
                                     </li>
                                 ))}
                             </ul>
