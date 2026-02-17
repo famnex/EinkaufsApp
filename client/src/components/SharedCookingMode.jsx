@@ -344,8 +344,8 @@ export default function SharedCookingMode({ recipe, onClose }) {
                                                     className={cn(
                                                         "px-1.5 py-0.5 rounded-md cursor-pointer transition-colors mx-0.5 border-b-2 border-primary/30 hover:border-primary",
                                                         checkedIngredients.has(frag.id)
-                                                            ? "bg-green-100 text-green-800 line-through decoration-green-800/50 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700"
-                                                            : "bg-primary/10 text-primary font-bold hover:bg-primary/20 dark:bg-primary/20 dark:text-primary-foreground"
+                                                            ? "bg-secondary text-secondary-foreground line-through decoration-secondary-foreground/50 opacity-60 dark:bg-secondary/30 dark:text-secondary-foreground"
+                                                            : "bg-primary text-primary-foreground font-bold shadow-md dark:bg-primary dark:text-primary-foreground"
                                                     )}
                                                 >
                                                     {frag.text}

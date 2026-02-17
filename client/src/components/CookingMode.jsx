@@ -7,7 +7,8 @@ import api from '../lib/axios';
 import CookingAssistant from './CookingAssistant';
 import { useAuth } from '../contexts/AuthContext';
 import ShareConfirmationModal from './ShareConfirmationModal';
-import { sortIngredientsBySteps, findIngredientsInText } from '../lib/recipe-parser';
+import { sortIngredientsBySteps, findIngredientsInText, findTimesInText } from '../lib/recipe-parser';
+import TimerOverlay from './TimerOverlay';
 
 export default function CookingMode({ recipe, onClose }) {
     const [step, setStep] = useState(0);
@@ -18,6 +19,7 @@ export default function CookingMode({ recipe, onClose }) {
     const { user } = useAuth();
     const [futureUsage, setFutureUsage] = useState({}); // { ingredientId: [{ date, recipeName }] }
     const [direction, setDirection] = useState(0);
+    const [timers, setTimers] = useState([]); // [{ id, label, duration, remaining, isRunning }]
 
     // AI Voice Control State
     const [scaleFactor, setScaleFactor] = useState(1);
@@ -93,38 +95,60 @@ export default function CookingMode({ recipe, onClose }) {
         const currentText = steps[step];
         if (!currentText) return [];
 
-        const matches = findIngredientsInText(currentText, ingredients);
+        const ingredientMatches = findIngredientsInText(currentText, ingredients);
+        const timeMatches = findTimesInText(currentText);
 
-        // No matches -> return single text fragment
-        if (matches.length === 0) return [{ text: currentText, type: 'text' }];
+        const allMatches = [
+            ...ingredientMatches.map(m => ({ ...m, category: 'ingredient' })),
+            ...timeMatches.map(m => ({ ...m, category: 'time' }))
+        ].sort((a, b) => a.index - b.index);
+
+        // Filter overlapping matches (prefer ingredients over times if they overlap, though rare)
+        const filteredMatches = [];
+        let lastEnd = 0;
+        allMatches.forEach(match => {
+            if (match.index >= lastEnd) {
+                filteredMatches.push(match);
+                lastEnd = match.index + match.length;
+            }
+        });
 
         const fragments = [];
-        let lastIndex = 0;
+        let currentIndex = 0;
 
-        matches.sort((a, b) => a.index - b.index).forEach(match => {
+        filteredMatches.forEach(match => {
             // Text before match
-            if (match.index > lastIndex) {
+            if (match.index > currentIndex) {
                 fragments.push({
-                    text: currentText.substring(lastIndex, match.index),
+                    text: currentText.substring(currentIndex, match.index),
                     type: 'text'
                 });
             }
 
             // The match itself
-            fragments.push({
-                text: match.matchedText, // Use exact text from step (e.g. "Tomaten")
-                type: 'ingredient',
-                ingredient: match.ingredient,
-                id: match.ingredientId
-            });
+            if (match.category === 'ingredient') {
+                fragments.push({
+                    text: match.matchedText,
+                    type: 'ingredient',
+                    ingredient: match.ingredient,
+                    id: match.ingredientId
+                });
+            } else {
+                fragments.push({
+                    text: match.matchedText,
+                    type: 'time',
+                    label: match.label,
+                    totalSeconds: match.totalSeconds
+                });
+            }
 
-            lastIndex = match.index + match.matchedText.length; // Use matchedText length
+            currentIndex = match.index + match.length;
         });
 
         // Remaining text
-        if (lastIndex < currentText.length) {
+        if (currentIndex < currentText.length) {
             fragments.push({
-                text: currentText.substring(lastIndex),
+                text: currentText.substring(currentIndex),
                 type: 'text'
             });
         }
@@ -322,6 +346,25 @@ export default function CookingMode({ recipe, onClose }) {
         setTooltipData(null);
     };
 
+    const handleTimeClick = (text, seconds, label) => {
+        const newTimer = {
+            id: Date.now(),
+            label: label || text,
+            duration: seconds,
+            remaining: seconds,
+            isRunning: true
+        };
+        setTimers(prev => [...prev, newTimer]);
+    };
+
+    const updateTimer = (id, updates) => {
+        setTimers(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+    };
+
+    const deleteTimer = (id) => {
+        setTimers(prev => prev.filter(t => t.id !== id));
+    };
+
     const handleVoiceAction = (action) => {
         if (!action) return;
         switch (action.type) {
@@ -349,6 +392,15 @@ export default function CookingMode({ recipe, onClose }) {
                         ...prev,
                         [action.payload.original]: action.payload.replacement
                     }));
+                }
+                break;
+            case 'START_TIMER':
+                if (action.payload?.seconds) {
+                    handleTimeClick(
+                        action.payload.text || `${Math.floor(action.payload.seconds / 60)} Min`,
+                        action.payload.seconds,
+                        action.payload.label
+                    );
                 }
                 break;
             default:
@@ -591,7 +643,7 @@ export default function CookingMode({ recipe, onClose }) {
                                         {stepFragments.map((frag, idx) => (
                                             frag.type === 'text' ? (
                                                 <span key={idx}>{frag.text}</span>
-                                            ) : (
+                                            ) : frag.type === 'ingredient' ? (
                                                 <span
                                                     key={idx}
                                                     onClick={(e) => handleIngredientHover(e, frag.ingredient)}
@@ -600,9 +652,17 @@ export default function CookingMode({ recipe, onClose }) {
                                                     className={cn(
                                                         "px-1.5 py-0.5 rounded-md cursor-pointer transition-colors mx-0.5 border-b-2 border-primary/40 hover:border-primary shadow-sm",
                                                         checkedIngredients.has(frag.id)
-                                                            ? "bg-green-100 text-green-900 line-through decoration-green-900/60 dark:bg-green-900/40 dark:text-green-200 dark:border-green-600"
-                                                            : "bg-primary/25 text-primary font-black hover:bg-primary/35 dark:bg-primary/30 dark:text-primary-foreground"
+                                                            ? "bg-secondary text-secondary-foreground line-through decoration-secondary-foreground/60 opacity-60 dark:bg-secondary/40 dark:text-secondary-foreground"
+                                                            : "bg-primary text-primary-foreground font-black shadow-md dark:bg-primary dark:text-primary-foreground"
                                                     )}
+                                                >
+                                                    {frag.text}
+                                                </span>
+                                            ) : (
+                                                <span
+                                                    key={idx}
+                                                    onClick={() => handleTimeClick(frag.text, frag.totalSeconds, frag.label)}
+                                                    className="px-1.5 py-0.5 rounded-md cursor-pointer transition-colors ml-[5px] mx-0.5 border-b-2 border-secondary/40 hover:border-secondary shadow-sm bg-secondary text-secondary-foreground font-black shadow-md dark:bg-secondary dark:text-secondary-foreground"
                                                 >
                                                     {frag.text}
                                                 </span>
@@ -675,6 +735,12 @@ export default function CookingMode({ recipe, onClose }) {
                     currentStep={step}
                     servings={recipe.servings * scaleFactor}
                     onAction={handleVoiceAction}
+                />
+
+                <TimerOverlay
+                    timers={timers}
+                    onUpdate={updateTimer}
+                    onDelete={deleteTimer}
                 />
 
                 {/* --- FIXED TOOLTIP LAYER --- */}

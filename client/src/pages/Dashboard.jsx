@@ -427,7 +427,7 @@ export default function Dashboard() {
                             onPointerMove={onPointerMove}
                             onPointerUp={onPointerUp}
                             onPointerCancel={onPointerUp}
-                            className="touch-pan-y overflow-hidden relative"
+                            className="touch-pan-y overflow-hidden relative select-none"
                             ref={calendarRef}
                         >
                             <AnimatePresence initial={false} custom={direction} mode="popLayout">
@@ -529,6 +529,8 @@ export default function Dashboard() {
                     transition: none !important;
                     position: relative;
                     overflow: visible !important;
+                    user-select: none !important;
+                    -webkit-user-select: none !important;
                 }
 
                 /* Today: Border in Primary Color */

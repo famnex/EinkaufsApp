@@ -7,7 +7,7 @@ import { cn } from '../lib/utils';
 export default function CookingAssistant(props) {
     const { isOpen, onClose, recipe } = props;
     const [messages, setMessages] = useState([
-        { role: 'assistant', content: `Hallo! Ich bin dein Koch-Assistent. Frag mich einfach, wenn du Hilfe bei "${recipe?.title}" brauchst.` }
+        { role: 'assistant', content: `Hallo! Ich bin dein Guru. Frag mich einfach, wenn du Hilfe bei "${recipe?.title}" brauchst.` }
     ]);
     const [isListening, setIsListening] = useState(false); // Active recording for query
     const [isStandby, setIsStandby] = useState(false); // Waiting for wake word
@@ -64,8 +64,10 @@ export default function CookingAssistant(props) {
                 }
                 const fullLower = fullTranscript.toLowerCase();
 
-                const wakeWords = ['hey chefkoch', 'hey checkoch', 'hallo chef', 'chef koch', 'chefkoch', 'checkoch'];
+                const wakeWords = [
+                    'hallo guru', 'hallo google', 'hallo gabel', 'hallo gabelguru', 'hallo fork', 'hallo forky'
 
+                ];
                 // ====== WAKE-CAPTURE MODE: entweder Standby ODER wir haben Wake schon gehört und sammeln noch ======
                 if (isStandbyRef.current || pendingWakeRef.current) {
 
@@ -297,8 +299,14 @@ export default function CookingAssistant(props) {
             if (recognitionRef.current) recognitionRef.current.stop();
 
             const token = localStorage.getItem('token');
-            const baseUrl = import.meta.env.VITE_API_URL || (import.meta.env.BASE_URL === '/' ? '/api' : `${import.meta.env.BASE_URL}api`.replace('//', '/'));
+            let baseUrl = import.meta.env.VITE_API_URL;
+            if (!baseUrl) {
+                const base = import.meta.env.BASE_URL || '/';
+                baseUrl = (base.endsWith('/') ? base : base + '/') + 'api';
+                baseUrl = baseUrl.replace(/\/+api$/, '/api'); // Fix potential //api
+            }
             const url = `${baseUrl}/ai/speak?text=${encodeURIComponent(text)}&token=${token}`;
+            console.log("TTS Request URL:", url);
 
             // Reuse the persistent audio object
             const audio = audioRef.current;
@@ -322,9 +330,9 @@ export default function CookingAssistant(props) {
                 }
             };
 
-            audio.onerror = () => {
+            audio.onerror = (e) => {
                 setIsSpeaking(false);
-                console.error("Audio playback error");
+                console.error("Audio playback error for URL:", audio.src, e);
             };
 
             // This play call should now work because the object was "unlocked" during handleSend or toggleListening
@@ -339,7 +347,10 @@ export default function CookingAssistant(props) {
         if (audioRef.current) {
             audioRef.current.pause();
             audioRef.current.currentTime = 0;
-            audioRef.current.src = ""; // Clear source
+            // Setting src to "" can cause the browser to try and load the current page
+            // We use removeAttribute instead.
+            audioRef.current.removeAttribute('src');
+            try { audioRef.current.load(); } catch (e) { }
         }
         setIsSpeaking(false);
     };
@@ -413,7 +424,7 @@ export default function CookingAssistant(props) {
                 <div className="p-4 bg-primary text-primary-foreground flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Bot size={24} />
-                        <h3 className="font-bold">Chef Assistant</h3>
+                        <h3 className="font-bold">Guru Assistant</h3>
                     </div>
                     <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-full transition-colors">
                         <X size={20} />
@@ -459,7 +470,7 @@ export default function CookingAssistant(props) {
                     {isStandby && !isListening && (
                         <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-blue-500/80 text-white px-4 py-2 rounded-full text-xs font-medium flex items-center gap-2 backdrop-blur-sm z-10 animate-bounce">
                             <Sparkles size={12} />
-                            Warte auf "Hey Checkoch"...
+                            Warte auf "Hallo Guru"...
                         </div>
                     )}
 
@@ -473,7 +484,7 @@ export default function CookingAssistant(props) {
                                     ? "bg-blue-500 text-white ring-2 ring-blue-500/30"
                                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                             )}
-                            title={isStandby ? "Hands-Free ausschalten" : "Hands-Free (Hey Checkoch) aktivieren"}
+                            title={isStandby ? "Hands-Free ausschalten" : "Hands-Free (Hallo Guru) aktivieren"}
                         >
                             <Sparkles size={20} />
                         </button>

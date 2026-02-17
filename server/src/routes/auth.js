@@ -419,13 +419,15 @@ router.post('/login', async (req, res) => {
         // Check Ban Status
         if (user.bannedAt) {
             const now = new Date();
-            let banMessage = `Dein Konto ist gesperrt. Grund: ${user.banReason || 'Unbekannt'}.`;
+            const reason = user.banReason || 'Unbekannt';
+            const reasonWithPeriod = reason.endsWith('.') ? reason : `${reason}.`;
+            let banMessage = `Dein Konto ist gesperrt. Grund: ${reasonWithPeriod}`;
 
             if (user.isPermanentlyBanned) {
                 banMessage += ' Diese Sperre ist permanent.';
             } else if (user.banExpiresAt) {
                 if (user.banExpiresAt > now) {
-                    banMessage += ` Die Sperre läuft bis zum ${new Date(user.banExpiresAt).toLocaleDateString('de-DE')} ab.`;
+                    banMessage += ` Die Sperre läuft am ${new Date(user.banExpiresAt).toLocaleDateString('de-DE')} ab.`;
                 } else {
                     // This case should be handled by cron, but for safety:
                     // If login happens and ban is expired, we could auto-unban here too.
@@ -449,7 +451,8 @@ router.post('/login', async (req, res) => {
             userAgent: req.headers['user-agent']
         });
 
-        const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
+        const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '30d' });
+
         res.json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier } });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -487,7 +490,8 @@ router.post('/signup', async (req, res) => {
             newsletterSignupDate: newsletter ? new Date() : null
         });
 
-        const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
+        const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '30d' });
+
         res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey } });
     } catch (err) {
         console.error('Signup Error:', err); // Debug Log

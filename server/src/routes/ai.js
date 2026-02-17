@@ -729,8 +729,23 @@ router.post('/chat', auth, async (req, res) => {
         
         3. SUBSTITUTION:
            - "SUBSTITUTE": Replace an ingredient. Payload: { "original": "Milk", "replacement": "Cream" }
+
+        4. TIMERS:
+           - "START_TIMER": Start a timer. Payload: { "seconds": 300, "label": "Nudeln kochen", "text": "5 Minuten" }
         
-        Rules:
+        Rules for TIMERS:
+        - If user says anything about starting a timer:
+            - **STEP TIMER**: Look at the CURRENT STEP: "${context?.steps[context?.currentStep || 0] || ''}". 
+              If user says "den Timer" (of this step), find the duration.
+              If exactly ONE duration is in the step: Return START_TIMER with those seconds.
+              If MULTIPLE durations: Ask which one.
+              If NO duration: Say so and ask for a manual duration.
+            - **CUSTOM TIMER**: If user mentions a specific duration like "5 Minuten" or "1 Stunde":
+              CALCULATE SECONDS IMMEDIATELY (e.g. 5 Min = 300, 1 Std = 3600).
+              ALWAYS Return START_TIMER action. Example: { "seconds": 300, "label": "Individueller Timer", "text": "5 Minuten" }.
+        - NEVER reply with a time in text without ALSO including the START_TIMER action if the user wants to start it.
+        
+        General Rules:
         - FASSE DICH EXTREM KURZ. Avoid Smalltalk.
         - If the user just chats, return "action": null.
         - If the user says "Ok" or "Danke", confirm and end.

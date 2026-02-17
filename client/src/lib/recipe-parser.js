@@ -48,6 +48,28 @@ function normalize(str) {
 }
 
 /**
+ * Expands a range to full word boundaries
+ */
+function expandToWordBoundaries(text, start, end) {
+    const isWordChar = (char) => /[\wäöüÄÖÜß]/i.test(char);
+    let newStart = start;
+    let newEnd = end;
+
+    while (newStart > 0 && isWordChar(text[newStart - 1])) {
+        newStart--;
+    }
+    while (newEnd < text.length && isWordChar(text[newEnd])) {
+        newEnd++;
+    }
+
+    return {
+        start: newStart,
+        end: newEnd,
+        text: text.substring(newStart, newEnd)
+    };
+}
+
+/**
  * Stop words list (German) - these are excluded from ingredient matching
  */
 const STOP_WORDS = new Set([
@@ -167,15 +189,16 @@ export function findIngredientsInText(stepText, ingredients) {
                 const matchedText = m[0].toLowerCase();
 
                 if (!isOverlapping(start, end) && !STOP_WORDS.has(matchedText)) {
+                    const expanded = expandToWordBoundaries(stepText, start, end);
                     matches.push({
                         ingredientId: ing.id,
                         ingredient: ing,
-                        matchedText: m[0],
-                        index: start,
-                        length: m[0].length,
+                        matchedText: expanded.text,
+                        index: expanded.start,
+                        length: expanded.text.length,
                         type: 'exact-strict'
                     });
-                    matchedRanges.push([start, end]);
+                    matchedRanges.push([expanded.start, expanded.end]);
                 }
             }
             return;
@@ -188,15 +211,16 @@ export function findIngredientsInText(stepText, ingredients) {
             const matchedText = stepText.substring(idx, end).toLowerCase();
 
             if (!isOverlapping(idx, end) && !STOP_WORDS.has(matchedText)) {
+                const expanded = expandToWordBoundaries(stepText, idx, end);
                 matches.push({
                     ingredientId: ing.id,
                     ingredient: ing,
-                    matchedText: stepText.substring(idx, end),
-                    index: idx,
-                    length: lowerName.length,
+                    matchedText: expanded.text,
+                    index: expanded.start,
+                    length: expanded.text.length,
                     type: 'exact'
                 });
-                matchedRanges.push([idx, end]);
+                matchedRanges.push([expanded.start, expanded.end]);
             }
             idx = lowerStep.indexOf(lowerName, end);
         }
@@ -220,15 +244,16 @@ export function findIngredientsInText(stepText, ingredients) {
         });
 
         if (foundIng) {
+            const expanded = expandToWordBoundaries(stepText, start, end);
             matches.push({
                 ingredientId: foundIng.id,
                 ingredient: foundIng,
-                matchedText: word,
-                index: start,
-                length: word.length,
+                matchedText: expanded.text,
+                index: expanded.start,
+                length: expanded.text.length,
                 type: 'reverse-suffix'
             });
-            matchedRanges.push([start, end]);
+            matchedRanges.push([expanded.start, expanded.end]);
         }
     }
 
@@ -256,15 +281,16 @@ export function findIngredientsInText(stepText, ingredients) {
 
             if (dist <= threshold && dist > 0) {
                 if (!isOverlapping(start, end)) {
+                    const expanded = expandToWordBoundaries(stepText, start, end);
                     matches.push({
                         ingredientId: ing.id,
                         ingredient: ing,
-                        matchedText: word,
-                        index: start,
-                        length: word.length,
+                        matchedText: expanded.text,
+                        index: expanded.start,
+                        length: expanded.text.length,
                         type: 'fuzzy'
                     });
-                    matchedRanges.push([start, end]);
+                    matchedRanges.push([expanded.start, expanded.end]);
                 }
             }
         });
@@ -306,4 +332,58 @@ export function sortIngredientsBySteps(ingredients, steps) {
         }
         return appearanceA.matchIdx - appearanceB.matchIdx;
     });
+}
+/**
+ * Finds all occurrences of time durations (min, sek, h) in a text.
+ * Returns an array of matches with metadata.
+ * 
+ * @param {string} text 
+ * @returns {Array} - [{ totalSeconds, matchedText, index, length }]
+ */
+export function findTimesInText(text) {
+    const matches = [];
+    if (!text) return matches;
+
+    // Pattern for times: numbers followed by units
+    // Handles: 10 Min, 5 Sekunden, 1.5 Stunden, 1 h, etc.
+    const timeRegex = /(\d+(?:[.,]\d+)?)\s*(min(?:uten?)?|sek(?:unden?)?|std|stunden?|h)\b/gi;
+
+    const iter = text.matchAll(timeRegex);
+    for (const m of iter) {
+        const value = parseFloat(m[1].replace(',', '.'));
+        const unit = m[2].toLowerCase();
+        let totalSeconds = 0;
+
+        if (unit.startsWith('sek')) {
+            totalSeconds = value;
+        } else if (unit.startsWith('min')) {
+            totalSeconds = value * 60;
+        } else if (unit.startsWith('std') || unit.startsWith('stunden') || unit === 'h') {
+            totalSeconds = value * 3600;
+        }
+
+        if (totalSeconds > 0) {
+            // Check for following word as label
+            let label = m[0]; // Fallback to duration string
+            const afterMatch = text.substring(m.index + m[0].length).trim();
+            if (afterMatch && !afterMatch.startsWith('.') && !afterMatch.startsWith(',')) {
+                // Peek at the next word
+                const nextWordMatch = afterMatch.match(/^[\wäöüÄÖÜß]+/);
+                if (nextWordMatch && nextWordMatch[0].length > 1) {
+                    label = nextWordMatch[0];
+                }
+            }
+
+            matches.push({
+                totalSeconds,
+                matchedText: m[0],
+                label,
+                index: m.index,
+                length: m[0].length,
+                type: 'time'
+            });
+        }
+    }
+
+    return matches;
 }
