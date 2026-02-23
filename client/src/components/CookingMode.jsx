@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, Maximize2, Minimize2, AlertTriangle, Sparkles, Share2 } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, Maximize2, Minimize2, AlertTriangle, Sparkles, Share2, Mic } from 'lucide-react';
 import { Button } from './Button';
 import { cn, getImageUrl } from '../lib/utils';
 import api from '../lib/axios';
@@ -16,6 +16,7 @@ export default function CookingMode({ recipe, onClose }) {
     const [textSize, setTextSize] = useState(1); // 0: Small, 1: Normal, 2: Large
     const [showIngredientsMobile, setShowIngredientsMobile] = useState(false); // For mobile toggle
     const [showAssistant, setShowAssistant] = useState(false);
+    const [assistantStatus, setAssistantStatus] = useState({ isListening: false, isStandby: false });
     const { user } = useAuth();
     const [futureUsage, setFutureUsage] = useState({}); // { ingredientId: [{ date, recipeName }] }
     const [direction, setDirection] = useState(0);
@@ -788,16 +789,33 @@ export default function CookingMode({ recipe, onClose }) {
                 {user?.tier !== 'Plastikgabel' && (
                     <motion.button
                         initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
+                        animate={{
+                            scale: 1,
+                            boxShadow: (assistantStatus.isListening || assistantStatus.isStandby)
+                                ? ["0 0 0 0px rgba(139, 92, 246, 0.4)", "0 0 0 15px rgba(139, 92, 246, 0)"]
+                                : "0 10px 15px -3px rgba(0, 0, 0, 0.1)"
+                        }}
+                        transition={(assistantStatus.isListening || assistantStatus.isStandby) ? {
+                            boxShadow: {
+                                duration: 1.5,
+                                repeat: Infinity,
+                                ease: "easeOut"
+                            }
+                        } : {}}
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                         onClick={() => {
                             resumeAudio();
                             setShowAssistant(!showAssistant);
                         }}
-                        className="fixed top-[calc(120px+env(safe-area-inset-top))] right-4 md:top-auto md:right-auto md:bottom-6 md:left-6 z-[100] w-12 h-12 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-full shadow-lg flex items-center justify-center text-white border-2 border-white/20"
+                        className={cn(
+                            "fixed top-[calc(120px+env(safe-area-inset-top))] right-4 md:top-auto md:right-auto md:bottom-6 md:left-6 z-[100] w-12 h-12 rounded-full flex items-center justify-center text-white border-2 border-white/20 transition-colors",
+                            (assistantStatus.isListening || assistantStatus.isStandby)
+                                ? "bg-gradient-to-br from-red-500 via-purple-600 to-indigo-600"
+                                : "bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 shadow-lg"
+                        )}
                     >
-                        <Sparkles size={20} />
+                        {assistantStatus.isListening ? <Mic size={20} className="animate-pulse" /> : <Sparkles size={20} />}
                     </motion.button>
                 )}
 
@@ -810,6 +828,7 @@ export default function CookingMode({ recipe, onClose }) {
                     onAction={handleVoiceAction}
                     audioContext={audioContextRef.current}
                     hasActiveAlarm={timers.some(t => t.remaining === 0 && t.isRunning)}
+                    onStatusChange={setAssistantStatus}
                 />
 
                 <TimerOverlay

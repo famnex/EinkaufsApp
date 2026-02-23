@@ -1029,6 +1029,7 @@ export default function SettingsPage() {
     // Tab Definitions
     const profileTabs = [
         { id: 'general', label: 'Benutzerprofil', icon: User },
+        { id: 'newsletter', label: 'Newsletter', icon: Mail },
         { id: 'email', label: 'E-Mail-Adresse ändern', icon: Mail },
         { id: 'password', label: 'Passwort ändern', icon: Lock },
         { id: 'strikes', label: 'Sicherheitsstatus & Verstöße', icon: ShieldCheck }
@@ -1074,6 +1075,50 @@ export default function SettingsPage() {
                             >
                                 Abmelden
                             </Button>
+                        </div>
+                    </Card>
+                );
+            case 'newsletter':
+                return (
+                    <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                        <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                            <Mail size={20} className="text-primary" />
+                            Newsletter Einstellungen
+                        </h2>
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-2xl border border-border/50">
+                                <div className="space-y-1">
+                                    <p className="font-bold text-foreground">Abonnement-Status</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {user?.newsletterSignedUp
+                                            ? `Angemeldet seit ${new Date(user.newsletterSignupDate).toLocaleDateString('de-DE')}`
+                                            : 'Nicht angemeldet'}
+                                    </p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only peer"
+                                        checked={user?.newsletterSignedUp || false}
+                                        onChange={(e) => {
+                                            const newVal = e.target.checked;
+                                            // Optimistic update
+                                            setUser({ ...user, newsletterSignedUp: newVal, newsletterSignupDate: newVal ? new Date() : null });
+                                            // API call
+                                            api.put('/auth/profile', { newsletterSignedUp: newVal }).catch(() => {
+                                                // Revert on error
+                                                setUser({ ...user, newsletterSignedUp: !newVal });
+                                                alert('Fehler beim Speichern der Newsletter-Einstellung');
+                                            });
+                                        }}
+                                    />
+                                    <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                </label>
+                            </div>
+
+                            <p className="text-xs text-muted-foreground italic px-1">
+                                Erhalte regelmäßig Updates zu neuen Funktionen, Rezepten und Community-Highlights. Du kannst dich jederzeit hier oder über den Link in den E-Mails abmelden.
+                            </p>
                         </div>
                     </Card>
                 );

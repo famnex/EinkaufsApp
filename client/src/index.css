@@ -195,7 +195,7 @@
 
   --ref-red: #ef4444;
   --ref-teal: #14b8a6;
-  --ref-header: #4a3f3f;
+  --ref-header: hsl(230 25% 7%);
   --ref-bg-dark: #03060a;
 }
 

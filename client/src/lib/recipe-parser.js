@@ -385,9 +385,10 @@ export function sortIngredientsBySteps(ingredients, steps) {
     if (!steps || steps.length === 0) return ingredients;
 
     const firstAppearance = {}; // ingId -> { stepIdx, matchIdx }
+    let occurrencesBefore = {}; // cumulative counts for sorting
 
     steps.forEach((step, stepIdx) => {
-        const { matches } = findIngredientsInText(step, ingredients);
+        const { matches, localOccurrences } = findIngredientsInText(step, ingredients, occurrencesBefore);
         matches.forEach(m => {
             if (firstAppearance[m.ingredientId] === undefined) {
                 firstAppearance[m.ingredientId] = {
@@ -396,6 +397,13 @@ export function sortIngredientsBySteps(ingredients, steps) {
                 };
             }
         });
+
+        // Accumulate for next step
+        const next = { ...occurrencesBefore };
+        Object.entries(localOccurrences).forEach(([k, v]) => {
+            next[k] = (next[k] || 0) + v;
+        });
+        occurrencesBefore = next;
     });
 
     return [...ingredients].sort((a, b) => {

@@ -22,7 +22,10 @@ export default function BottomNav() {
     const isActive = (path) => location.pathname === path;
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-card/80 dark:bg-[#4a3f3f]/90 backdrop-blur-xl border-t border-border h-20 flex items-center justify-around px-4 shadow-xl transition-colors duration-300">
+        <div
+            className="fixed bottom-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-xl border-t border-border h-20 flex items-center justify-around px-4 shadow-xl transition-colors duration-300"
+            style={{ WebkitBackdropFilter: 'blur(20px)' }}
+        >
             {tabs.map((tab) => {
                 const active = isActive(tab.path);
                 return (

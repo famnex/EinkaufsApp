@@ -81,7 +81,7 @@ router.get('/public-cookbooks', async (req, res) => {
 router.get('/me', auth, async (req, res) => {
     try {
         const user = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'tier', 'aiCredits']
+            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate']
         });
         if (!user) return res.status(404).json({ error: 'User not found' });
         res.json(user);
@@ -108,10 +108,14 @@ router.get('/credits', auth, async (req, res) => {
 // Update Profile (Title & Image)
 router.put('/profile', auth, upload.single('image'), async (req, res) => {
     try {
-        const { cookbookTitle, isPublicCookbook } = req.body;
+        const { cookbookTitle, isPublicCookbook, newsletterSignedUp } = req.body;
         const updates = {};
         if (cookbookTitle !== undefined) updates.cookbookTitle = cookbookTitle;
         if (isPublicCookbook !== undefined) updates.isPublicCookbook = isPublicCookbook;
+        if (newsletterSignedUp !== undefined) {
+            updates.newsletterSignedUp = newsletterSignedUp;
+            updates.newsletterSignupDate = newsletterSignedUp ? new Date() : null;
+        }
         if (req.file) {
             updates.cookbookImage = `/uploads/users/${req.user.effectiveId}/cookbook/${req.file.filename}`;
         } else if (req.body.cookbookImage === null || req.body.cookbookImage === 'null') {
@@ -453,7 +457,7 @@ router.post('/login', async (req, res) => {
 
         const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-        res.json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier } });
+        res.json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate } });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -492,7 +496,7 @@ router.post('/signup', async (req, res) => {
 
         const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-        res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey } });
+        res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate } });
     } catch (err) {
         console.error('Signup Error:', err); // Debug Log
         if (!process.env.JWT_SECRET) console.error('CRITICAL: JWT_SECRET is missing!');

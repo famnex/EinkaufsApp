@@ -66,48 +66,64 @@ export default function EditModeSelector({ editMode, setEditMode }) {
             <div className="md:hidden h-10 w-10 relative z-50">
                 <motion.div
                     layout
-                    onClick={() => !isOpen && setIsOpen(true)}
+                    transition={{ type: "tween", ease: "easeOut", duration: 0.25 }}
                     className={cn(
-                        "absolute right-0 top-0 flex items-center gap-1 p-1 rounded-2xl transition-colors",
-                        isOpen ? "bg-background/80 backdrop-blur-xl border border-border shadow-2xl" : "bg-primary shadow-md"
+                        "absolute right-0 top-0 flex items-center p-1 rounded-2xl h-10 transition-all overflow-hidden",
+                        isOpen ? "bg-background/95 backdrop-blur-2xl border border-border shadow-2xl" : "bg-primary shadow-lg ring-1 ring-white/20"
                     )}
-                    initial={false}
-                    animate={{ width: isOpen ? 'auto' : '40px' }}
-                    transition={{ type: "spring", stiffness: 500, damping: 30, mass: 1 }}
+                    style={{
+                        width: isOpen ? 'auto' : '40px',
+                        justifyContent: 'center'
+                    }}
                 >
-                    <AnimatePresence initial={false} mode="popLayout">
-                        {modes.map((mode) => {
-                            const isSelected = editMode === mode.id;
-                            const shouldShow = isOpen || isSelected;
+                    <div className="flex items-center gap-0.5 relative pointer-events-auto">
+                        <AnimatePresence mode="popLayout" initial={false}>
+                            {modes.map((mode) => {
+                                const isSelected = editMode === mode.id;
+                                const isVisible = isOpen || isSelected;
 
-                            if (!shouldShow) return null;
+                                if (!isVisible) return null;
 
-                            return (
-                                <motion.button
-                                    layout
-                                    key={mode.id}
-                                    initial={{ width: 0, opacity: 0, scale: 0.8 }}
-                                    animate={{ width: 'auto', opacity: 1, scale: 1 }}
-                                    exit={{ width: 0, opacity: 0, scale: 0.8 }}
-                                    transition={{ type: "spring", stiffness: 500, damping: 30, mass: 1 }}
-                                    onClick={(e) => {
-                                        if (isOpen) {
+                                return (
+                                    <motion.button
+                                        layout
+                                        key={mode.id}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{
+                                            type: "tween",
+                                            ease: "easeInOut",
+                                            duration: 0.15,
+                                            layout: { duration: 0.2 }
+                                        }}
+                                        onClick={(e) => {
                                             e.stopPropagation();
-                                            handleSelect(mode.id);
-                                        }
-                                    }}
-                                    className={cn(
-                                        "p-2 rounded-xl flex items-center justify-center flex-shrink-0",
-                                        isOpen && isSelected ? "bg-primary text-primary-foreground shadow-sm" : "",
-                                        isOpen && !isSelected ? "text-muted-foreground hover:bg-muted" : "",
-                                        !isOpen ? "text-primary-foreground" : ""
-                                    )}
-                                >
-                                    <mode.icon size={20} />
-                                </motion.button>
-                            );
-                        })}
-                    </AnimatePresence>
+                                            if (!isOpen) {
+                                                setIsOpen(true);
+                                            } else {
+                                                handleSelect(mode.id);
+                                            }
+                                        }}
+                                        className={cn(
+                                            "relative p-2 rounded-xl flex items-center justify-center flex-shrink-0 min-w-[40px] h-8 transition-colors duration-200",
+                                            isSelected ? "text-primary-foreground" : "text-muted-foreground hover:bg-muted/30"
+                                        )}
+                                    >
+                                        {/* Sliding Highlight Background - Active mode always has this */}
+                                        {isSelected && (
+                                            <motion.div
+                                                layoutId="modeHighlight"
+                                                className="absolute inset-0 bg-primary rounded-xl"
+                                                transition={{ type: "tween", ease: "easeOut", duration: 0.25 }}
+                                            />
+                                        )}
+                                        <mode.icon size={18} className="relative z-10" />
+                                    </motion.button>
+                                );
+                            })}
+                        </AnimatePresence>
+                    </div>
                 </motion.div>
             </div>
         </div>

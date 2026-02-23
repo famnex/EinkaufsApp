@@ -1,13 +1,95 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Clock, Users, ArrowRight, Wand2, Plus, Minus, Search, Trash2, Image as ImageIcon, Sparkles, Loader2, Tag, ShieldAlert } from 'lucide-react';
+import { X, Save, Clock, Users, ArrowRight, Wand2, Plus, Minus, Search, Trash2, Image as ImageIcon, Sparkles, Loader2, Tag, ShieldAlert, GripVertical } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
 import api from '../lib/axios';
 import { cn, getImageUrl } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+function SortableStepItem({ id, idx, text, onChange, onDelete }) {
+    const textareaRef = useRef(null);
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id });
+
+    // Auto-resize textarea
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+        }
+    }, [text]);
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 100 : 'auto',
+        position: 'relative'
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={cn(
+                "flex gap-4 items-start group",
+                isDragging && "opacity-50"
+            )}
+        >
+            <div
+                {...attributes}
+                {...listeners}
+                className="cursor-grab active:cursor-grabbing p-2 -ml-2 text-muted-foreground/40 hover:text-primary transition-colors mt-1"
+            >
+                <GripVertical size={20} />
+            </div>
+
+            <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0 mt-1">
+                {idx + 1}
+            </div>
+
+            <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={e => onChange(e.target.value)}
+                placeholder={`Schritt ${idx + 1}...`}
+                className="flex-1 min-h-[40px] p-4 rounded-2xl bg-muted/30 border border-transparent focus:bg-background focus:border-primary/20 transition-all resize-none outline-none shadow-sm overflow-hidden"
+                rows={1}
+            />
+
+            <button
+                onClick={onDelete}
+                className="p-2 text-muted-foreground hover:text-destructive transition-colors mt-1"
+            >
+                <X size={20} />
+            </button>
+        </div>
+    );
+}
 
 export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
     const { user } = useAuth();
@@ -37,7 +119,15 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
     const [deletedIngredients, setDeletedIngredients] = useState([]);
 
     // Tab 3: Steps
-    const [steps, setSteps] = useState(['']);
+    const [steps, setSteps] = useState([{ id: Date.now().toString(), text: '' }]);
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        })
+    );
 
 
 
@@ -76,9 +166,12 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
 
                         // Load steps
                         if (fullRecipe.instructions && Array.isArray(fullRecipe.instructions) && fullRecipe.instructions.length > 0) {
-                            setSteps(fullRecipe.instructions);
+                            setSteps(fullRecipe.instructions.map((text, idx) => ({
+                                id: `step-${idx}-${Date.now()}`,
+                                text
+                            })));
                         } else {
-                            setSteps(['']);
+                            setSteps([{ id: 'default', text: '' }]);
                         }
                     })
                     .catch(err => console.error(err))
@@ -111,7 +204,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
             imageSource: 'scraped'
         });
         setIngredients([]);
-        setSteps(['']);
+        setSteps([{ id: Date.now().toString(), text: '' }]);
     };
 
     const handleImageChange = (e) => {
@@ -180,7 +273,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
             formData.append('prep_time', basics.prep_time);
             formData.append('duration', basics.duration);
             formData.append('servings', basics.servings);
-            formData.append('instructions', JSON.stringify(steps.filter(s => s.trim())));
+            formData.append('instructions', JSON.stringify(steps.map(s => s.text).filter(t => t.trim())));
 
             formData.append('tags', JSON.stringify(basics.tags));
             formData.append('imageSource', basics.imageSource);
@@ -256,6 +349,17 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
             alert('Fehler beim Speichern: ' + (err.response?.data?.error || err.message));
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleDragEnd = (event) => {
+        const { active, over } = event;
+        if (active.id !== over?.id) {
+            setSteps((items) => {
+                const oldIndex = items.findIndex(i => i.id === active.id);
+                const newIndex = items.findIndex(i => i.id === over.id);
+                return arrayMove(items, oldIndex, newIndex);
+            });
         }
     };
 
@@ -576,39 +680,40 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                             {activeTab === 2 && (
                                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
                                     <div className="space-y-4">
-                                        {steps.map((step, idx) => (
-                                            <div key={idx} className="flex gap-4">
-                                                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0 mt-1">
-                                                    {idx + 1}
-                                                </div>
-                                                <textarea
-                                                    value={step}
-                                                    onChange={e => {
-                                                        const newSteps = [...steps];
-                                                        newSteps[idx] = e.target.value;
-                                                        setSteps(newSteps);
-                                                    }}
-                                                    placeholder={`Schritt ${idx + 1}...`}
-                                                    className="flex-1 min-h-[80px] p-3 rounded-xl bg-muted/30 border border-transparent focus:bg-background focus:border-primary/20 transition-all resize-none outline-none"
-                                                />
-                                                <button
-                                                    onClick={() => {
-                                                        const newSteps = [...steps];
-                                                        newSteps.splice(idx, 1);
-                                                        setSteps(newSteps);
-                                                    }}
-                                                    className="h-8 w-8 text-muted-foreground hover:text-destructive mt-1"
-                                                >
-                                                    <X size={16} />
-                                                </button>
-                                            </div>
-                                        ))}
+                                        <DndContext
+                                            sensors={sensors}
+                                            collisionDetection={closestCenter}
+                                            onDragEnd={handleDragEnd}
+                                        >
+                                            <SortableContext
+                                                items={steps}
+                                                strategy={verticalListSortingStrategy}
+                                            >
+                                                {steps.map((stepObj, idx) => (
+                                                    <SortableStepItem
+                                                        key={stepObj.id}
+                                                        id={stepObj.id}
+                                                        idx={idx}
+                                                        text={stepObj.text}
+                                                        onChange={(val) => {
+                                                            const newSteps = [...steps];
+                                                            newSteps[idx] = { ...newSteps[idx], text: val };
+                                                            setSteps(newSteps);
+                                                        }}
+                                                        onDelete={() => {
+                                                            const newSteps = steps.filter((_, i) => i !== idx);
+                                                            setSteps(newSteps.length > 0 ? newSteps : [{ id: Date.now().toString(), text: '' }]);
+                                                        }}
+                                                    />
+                                                ))}
+                                            </SortableContext>
+                                        </DndContext>
                                         <Button
                                             variant="outline"
-                                            onClick={() => setSteps([...steps, ''])}
-                                            className="w-full border-dashed"
+                                            onClick={() => setSteps([...steps, { id: Date.now().toString(), text: '' }])}
+                                            className="w-full border-dashed py-6 rounded-2xl hover:bg-primary/5 transition-colors border-primary/20"
                                         >
-                                            <Plus size={16} className="mr-2" /> Schritt hinzufügen
+                                            <Plus size={18} className="mr-2" /> Weiteren Schritt hinzufügen
                                         </Button>
                                     </div>
                                 </motion.div>

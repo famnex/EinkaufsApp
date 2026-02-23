@@ -82,7 +82,7 @@ export default function CommunityCookbooksContent() {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.1 }}
-                            className="text-4xl md:text-5xl font-black tracking-tight mb-6"
+                            className="text-2xl min-[400px]:text-3xl sm:text-4xl md:text-5xl font-black tracking-tight mb-6"
                         >
                             Entdecke neue <br />
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">Geschmackswelten</span>
