@@ -6,6 +6,7 @@ const { Settings, Recipe, Product, Tag, HiddenCleanup } = require('../models');
 const { auth } = require('../middleware/auth');
 const path = require('path');
 const fs = require('fs');
+const { optimizeImage } = require('../utils/imageOptimizer');
 
 router.post('/cleanup/toggle-hidden', auth, async (req, res) => {
     try {
@@ -486,26 +487,20 @@ router.post('/generate-image', auth, async (req, res) => {
         const filename = uniqueSuffix + '.jpg';
         const filepath = path.join(uploadDir, filename);
 
+        // Save raw buffer first so optimizer can read it
+        fs.writeFileSync(filepath, Buffer.from(imageResponse.data));
+
         try {
-            const image = await Jimp.read(imageResponse.data);
-
-            // Removed resize to keep full resolution (HD Landscape)
-            // if (image.bitmap.height > 800) {
-            //    image.resize(Jimp.AUTO, 800);
-            // }
-
-            await image
-                .quality(100)
-                .writeAsync(filepath);
-
-            console.log('Processed AI Image (Jimp) saved to:', filepath);
-        } catch (jimpError) {
-            console.error('Jimp Optimization failed, saving raw:', jimpError);
+            const { path: optimizedPath } = await optimizeImage(filepath);
+            const finalFilename = path.basename(optimizedPath);
+            console.log('Processed AI Image optimized saved to:', optimizedPath);
+            // Return local URL (relative)
+            res.json({ url: `uploads/users/${req.user.effectiveId}/recipes/${finalFilename}` });
+        } catch (optimizeError) {
+            console.error('Optimization failed, saving raw:', optimizeError);
             fs.writeFileSync(filepath, Buffer.from(imageResponse.data));
+            res.json({ url: `uploads/users/${req.user.effectiveId}/recipes/${filename}` });
         }
-
-        // Return local URL (relative)
-        res.json({ url: `uploads/users/${req.user.effectiveId}/recipes/${filename}` });
 
     } catch (err) {
         console.error('Image Generation Error:', err);
@@ -665,13 +660,17 @@ router.post('/regenerate-image', auth, async (req, res) => {
             const filepath = path.join(uploadDir, filename);
 
             fs.writeFileSync(filepath, Buffer.from(b64, 'base64'));
-            console.log('Regenerated Image saved to:', filepath);
+
+            // Optimize
+            const { path: optimizedPath } = await optimizeImage(filepath);
+            const finalFilename = path.basename(optimizedPath);
+            console.log('Regenerated Image optimized saved to:', optimizedPath);
 
             // Cleanup temp
             if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
 
             // Return RELATIVE URL
-            res.json({ url: `uploads/users/${req.user.effectiveId}/recipes/${filename}` });
+            res.json({ url: `uploads/users/${req.user.effectiveId}/recipes/${finalFilename}` });
 
         } catch (apiError) {
             // Cleanup temp on error

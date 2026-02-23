@@ -605,7 +605,13 @@ export default function Recipes() {
                 <AiImportModal
                     isOpen={isAiModalOpen}
                     onClose={() => setIsAiModalOpen(false)}
-                    onSave={fetchRecipes}
+                    onSave={(newRecipe) => {
+                        fetchRecipes();
+                        if (newRecipe) {
+                            setSelectedRecipe(newRecipe);
+                            setIsModalOpen(true);
+                        }
+                    }}
                 />
                 {
                     cookingRecipe && (

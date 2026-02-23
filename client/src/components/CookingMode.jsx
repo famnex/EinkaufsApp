@@ -30,6 +30,8 @@ export default function CookingMode({ recipe, onClose }) {
     const [touchEnd, setTouchEnd] = useState(null);
     const minSwipeDistance = 50;
 
+    const [isImageExpanded, setIsImageExpanded] = useState(false);
+
     const onTouchStart = (e) => {
         setTouchEnd(null);
         setTouchStart(e.targetTouches[0].clientX);
@@ -547,21 +549,53 @@ export default function CookingMode({ recipe, onClose }) {
                         showIngredientsMobile ? "translate-x-0 bg-background" : "-translate-x-full md:translate-x-0"
                     )}>
                         {/* Header Image */}
-                        <div className="relative h-48 md:h-64 shrink-0">
+                        <motion.div
+                            animate={{ height: isImageExpanded ? 'auto' : (window.innerWidth < 768 ? 192 : 256) }}
+                            transition={{ type: "spring", stiffness: 300, damping: 35 }}
+                            className="relative shrink-0 cursor-pointer overflow-hidden group bg-black/10"
+                            onClick={() => setIsImageExpanded(!isImageExpanded)}
+                        >
                             {recipe.image_url ? (
-                                <img src={getImageUrl(recipe.image_url)} className="w-full h-full object-cover" />
+                                <img
+                                    src={getImageUrl(recipe.image_url)}
+                                    className="absolute inset-0 w-full h-full object-cover object-center"
+                                />
                             ) : (
-                                <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground">No Image</div>
+                                <div className="absolute inset-0 w-full h-full bg-muted flex items-center justify-center text-muted-foreground text-xs uppercase tracking-widest font-bold">Kein Bild</div>
                             )}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+
+                            {/* Stable spacer for smooth animation */}
+                            <div className="w-full opacity-0 pointer-events-none">
+                                {recipe.image_url ? (
+                                    <img
+                                        src={getImageUrl(recipe.image_url)}
+                                        className="w-full h-auto"
+                                        aria-hidden="true"
+                                    />
+                                ) : (
+                                    <div className="h-64" />
+                                )}
+                            </div>
+
+                            <div
+                                className={cn(
+                                    "absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent transition-opacity duration-700",
+                                    isImageExpanded ? "opacity-30" : "opacity-100"
+                                )}
+                            />
                             <div className="absolute bottom-4 left-4 right-4 text-white">
-                                <h2 className="hidden md:block text-2xl font-bold leading-tight">{recipe.title}</h2>
-                                <p className="opacity-80 text-sm">
+                                <h2 className="hidden md:block text-2xl font-bold leading-tight drop-shadow-md">{recipe.title}</h2>
+                                <p className="opacity-90 text-sm font-medium drop-shadow-sm">
                                     {(recipe.servings * scaleFactor).toLocaleString('de-DE')} Portionen • {recipe.duration} Min
-                                    {scaleFactor !== 1 && <span className="ml-2 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full font-bold">Skaliert {scaleFactor}x</span>}
+                                    {scaleFactor !== 1 && <span className="ml-2 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-sm">Skaliert {scaleFactor}x</span>}
                                 </p>
                             </div>
-                        </div>
+
+                            {/* Expand/Collapse Hint */}
+                            <div className="absolute top-4 left-4 p-2 bg-black/20 backdrop-blur-md rounded-full text-white/80 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {isImageExpanded ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+                            </div>
+                        </motion.div>
 
                         {/* Ingredients List */}
                         <div

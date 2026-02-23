@@ -246,7 +246,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
             }
 
             console.log('--- AI IMPORT SUCCESS ---');
-            onSave();
+            onSave(recipe);
             onClose();
         } catch (err) {
             console.error('--- AI IMPORT ERROR ---', err);

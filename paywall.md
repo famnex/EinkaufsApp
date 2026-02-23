@@ -44,3 +44,6 @@ This document describes the multi-tier subscription system with Stripe and PayPa
 - `AiActionConfirmModal.jsx`: Kostenbestätigung vor KI-Nutzung.
 - `paymentService.js`: Backend-Logik für Stripe & PayPal.
 - `subscription.js`: API-Routen für Management und Webhooks.
+
+### Already implemented
+- Die Daten zur Zahlungsabwicklung von STripe und Paypal sind schon in der Datenbank gespeichert und werden über die settings-Seite vom Admin hinterlegt.

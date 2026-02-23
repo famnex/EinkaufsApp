@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useEditMode } from '../contexts/EditModeContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -92,7 +92,10 @@ export default function Layout({ children }) {
             >
                 <div className="max-w-7xl mx-auto pr-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-2 h-full overflow-hidden">
-                        <div className="w-20 h-20 -mt-2 self-start flex items-center justify-center overflow-visible z-50 flex-shrink-0">
+                        <Link
+                            to="/"
+                            className="w-20 h-20 -mt-2 self-start flex items-center justify-center overflow-visible z-50 flex-shrink-0 hover:opacity-80 transition-opacity active:scale-95"
+                        >
                             <img
                                 src={`${import.meta.env.BASE_URL}logo_wide.png`}
                                 alt="GabelGuru Logo"
@@ -105,7 +108,7 @@ export default function Layout({ children }) {
                             <div style={{ display: 'none' }} className="text-primary">
                                 <List size={20} />
                             </div>
-                        </div>
+                        </Link>
 
                         <div className="relative h-8 flex items-center">
                             <AnimatePresence mode="popLayout" custom={direction} initial={false}>

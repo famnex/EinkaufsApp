@@ -2,9 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-export function UnitCombobox({ value, onChange, suggestions = [], disabled = false, className = '' }) {
+export function UnitCombobox({ value, onChange, onToggle, suggestions = [], disabled = false, className = '' }) {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef(null);
+
+    // Call onToggle when isOpen changes
+    useEffect(() => {
+        if (onToggle) onToggle(isOpen);
+    }, [isOpen, onToggle]);
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -24,7 +29,7 @@ export function UnitCombobox({ value, onChange, suggestions = [], disabled = fal
     };
 
     return (
-        <div ref={containerRef} className={cn("relative", className)}>
+        <div ref={containerRef} className={cn("relative", isOpen && "z-50", className)}>
             <div className="relative flex w-full">
                 <input
                     type="text"

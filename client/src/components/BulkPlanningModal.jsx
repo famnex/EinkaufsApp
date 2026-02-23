@@ -367,7 +367,8 @@ function PlanningRow({
     onClearAdjustment, onSubstitute, onClearSubstitution, onSetSearchingFor, onSetSearchTerm, onDeleteItem
 }) {
     const adj = getAdj(item.product.id, adjustments);
-    const isSelected = adj.quantity !== '';
+    const isSelected = !!adjustments[item.product.id];
+    const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
 
     // Primary need (single unit) support
     const primaryNeed = item.primaryNeed;
@@ -425,8 +426,9 @@ function PlanningRow({
                 dragElastic={{ left: 0.5, right: 0.05 }}
                 onDragEnd={handleDragEnd}
                 className={cn(
-                    "group relative flex flex-col md:grid md:grid-cols-12 gap-4 md:gap-4 items-stretch md:items-center p-4 md:p-3 rounded-3xl border border-border transition-colors duration-300 bg-card z-10 touch-pan-y",
-                    isSelected ? "bg-primary/[0.03] border-primary/30 shadow-md ring-1 ring-primary/10" : "hover:bg-muted/30"
+                    "group relative flex flex-col md:grid md:grid-cols-12 gap-4 md:gap-4 items-stretch md:items-center p-4 md:p-3 rounded-3xl border border-border transition-colors duration-300 bg-card touch-pan-y",
+                    isSelected ? "bg-primary/[0.03] border-primary/30 shadow-md ring-1 ring-primary/10" : "hover:bg-muted/30",
+                    isUnitDropdownOpen ? "z-40" : "z-10"
                 )}
             >
                 {/* Desktop 'X' Button Overlay - Positioned relative to this card to be clickable */}
@@ -594,6 +596,7 @@ function PlanningRow({
                                     <UnitCombobox
                                         value={adj.unit || ''}
                                         onChange={(val) => onManualChange(item.product.id, 'unit', val)}
+                                        onToggle={setIsUnitDropdownOpen}
                                         suggestions={availableUnits}
                                         disabled={isLockedUnit}
                                         className="w-24 h-10 rounded-2xl"

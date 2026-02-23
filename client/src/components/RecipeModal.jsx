@@ -12,7 +12,9 @@ import { useAuth } from '../contexts/AuthContext';
 export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
     const { user } = useAuth();
     const [activeTab, setActiveTab] = useState(0); // 0: Basics, 1: Ingredients, 2: Steps, 3: AI
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(false); // Initial load
+    const [isSaving, setIsSaving] = useState(false); // Bottom save button
+    const [isGeneratingImage, setIsGeneratingImage] = useState(false); // AI image generation
     const [products, setProducts] = useState([]);
 
     // Tab 1: Basics
@@ -165,7 +167,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
     };
 
     const handleSave = async () => {
-        setLoading(true);
+        setIsSaving(true);
         console.log('--- RECIPE MODAL SAVE START ---');
         console.log('Basics:', basics);
         console.log('Ingredients:', ingredients);
@@ -253,7 +255,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
             }
             alert('Fehler beim Speichern: ' + (err.response?.data?.error || err.message));
         } finally {
-            setLoading(false);
+            setIsSaving(false);
         }
     };
 
@@ -420,7 +422,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                                     variant="outline"
                                                     size="sm"
                                                     className="w-full gap-2 text-xs"
-                                                    disabled={loading}
+                                                    disabled={loading || isSaving || isGeneratingImage}
                                                     onClick={async () => {
                                                         if (!basics.title) {
                                                             alert('Bitte erst einen Titel eingeben');
@@ -432,7 +434,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                                             if (!confirm('Eine Variation des aktuellen Bildes erstellen? (Kostenpflichtig)')) return;
 
                                                             try {
-                                                                setLoading(true);
+                                                                setIsGeneratingImage(true);
                                                                 const { data } = await api.post('/ai/regenerate-image', {
                                                                     imageUrl: basics.imagePreview,
                                                                     title: basics.title
@@ -442,25 +444,25 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                                             } catch (err) {
                                                                 alert('Fehler: ' + err.message);
                                                             } finally {
-                                                                setLoading(false);
+                                                                setIsGeneratingImage(false);
                                                             }
                                                         } else {
                                                             // New Generation
                                                             if (!confirm('Ein neues Bild für "' + basics.title + '" generieren? (Kostenpflichtig)')) return;
 
                                                             try {
-                                                                setLoading(true);
+                                                                setIsGeneratingImage(true);
                                                                 const { data } = await api.post('/ai/generate-image', { title: basics.title });
                                                                 setBasics(prev => ({ ...prev, imagePreview: data.url, image: null, imageSource: 'ai' }));
                                                             } catch (err) {
                                                                 alert('Fehler: ' + err.message);
                                                             } finally {
-                                                                setLoading(false);
+                                                                setIsGeneratingImage(false);
                                                             }
                                                         }
                                                     }}
                                                 >
-                                                    {loading ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                                                    {isGeneratingImage ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
                                                     {basics.imagePreview ? 'Variante' : 'AI Neu'}
                                                 </Button>
 
@@ -633,8 +635,8 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                             </div>
                             <div className="flex gap-2 w-full md:w-auto">
                                 <Button variant="ghost" onClick={onClose} className="flex-1 md:flex-none">Abbrechen</Button>
-                                <Button onClick={handleSave} disabled={loading} className="flex-1 md:flex-none min-w-[120px]">
-                                    {loading ? 'Speichert...' : 'Speichern'}
+                                <Button onClick={handleSave} disabled={loading || isSaving || isGeneratingImage} className="flex-1 md:flex-none min-w-[120px]">
+                                    {isSaving ? 'Speichert...' : 'Speichern'}
                                 </Button>
                             </div>
                         </div>

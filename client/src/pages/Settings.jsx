@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen, AlertTriangle } from 'lucide-react';
+import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen, AlertTriangle, Folder } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -80,6 +80,21 @@ export default function SettingsPage() {
     const [testingEmail, setTestingEmail] = useState(false);
     const [showSmtpPassword, setShowSmtpPassword] = useState(false);
     const [showImapPassword, setShowImapPassword] = useState(false);
+    const [isEmailConfigOpen, setIsEmailConfigOpen] = useState(false);
+
+    // Payment Configuration State
+    const [paypalConfig, setPaypalConfig] = useState({
+        clientId: '',
+        clientSecret: '',
+        webhookId: ''
+    });
+    const [stripeConfig, setStripeConfig] = useState({
+        publishableKey: '',
+        secretKey: '',
+        webhookSecret: ''
+    });
+    const [savingPayment, setSavingPayment] = useState(false);
+    const [isPaymentConfigOpen, setIsPaymentConfigOpen] = useState(false);
 
     // Design State
     const primaryColors = [
@@ -121,6 +136,14 @@ export default function SettingsPage() {
     const [complianceReports, setComplianceReports] = useState([]);
     const [loadingCompliance, setLoadingCompliance] = useState(false);
     const [selectedReport, setSelectedReport] = useState(null);
+
+    // Cleanup Stats State
+    const [cleanupStats, setCleanupStats] = useState(null);
+    const [loadingCleanup, setLoadingCleanup] = useState(false);
+    const [isCleaning, setIsCleaning] = useState(false);
+    const [progressCount, setProgressCount] = useState(0);
+    const [totalToProcess, setTotalToProcess] = useState(0);
+    const [cleaningType, setCleaningType] = useState(null); // 'orphaned' or 'resize'
 
     useEffect(() => {
         fetchStores();
@@ -165,6 +188,70 @@ export default function SettingsPage() {
         } finally {
             setLoadingCompliance(false);
         }
+    };
+
+    const fetchCleanupStats = async () => {
+        setLoadingCleanup(true);
+        try {
+            const { data } = await api.get('/system/cleanup/stats');
+            setCleanupStats(data);
+        } catch (err) {
+            console.error('Failed to fetch cleanup stats:', err);
+        } finally {
+            setLoadingCleanup(false);
+        }
+    };
+
+    const handleCleanOrphaned = async () => {
+        if (!cleanupStats?.orphanedFiles?.length) return;
+        if (!confirm(`Möchtest du wirklich ${cleanupStats.orphanedCount} verwaiste Bilder unwiderruflich löschen?`)) return;
+
+        setIsCleaning(true);
+        setCleaningType('orphaned');
+        setTotalToProcess(cleanupStats.orphanedFiles.length);
+        setProgressCount(0);
+
+        let successCount = 0;
+        for (const file of cleanupStats.orphanedFiles) {
+            try {
+                await api.delete(`/system/cleanup/file?filePath=${encodeURIComponent(file.path)}`);
+                successCount++;
+            } catch (err) {
+                console.error(`Failed to delete ${file.path}:`, err);
+            }
+            setProgressCount(prev => prev + 1);
+        }
+
+        alert(`${successCount} Bilder erfolgreich gelöscht.`);
+        setIsCleaning(false);
+        setCleaningType(null);
+        fetchCleanupStats();
+    };
+
+    const handleResizeAll = async () => {
+        if (!cleanupStats?.allFiles?.length) return;
+        if (!confirm('Möchtest du wirklich alle Bilder optimieren? Dabei werden zu große Bilder verkleinert und PNG-Dateien in platzsparende JPGs umgewandelt. Dieser Vorgang kann nicht rückgängig gemacht werden.')) return;
+
+        setIsCleaning(true);
+        setCleaningType('resize');
+        setTotalToProcess(cleanupStats.allFiles.length);
+        setProgressCount(0);
+
+        let optimizedCount = 0;
+        for (const file of cleanupStats.allFiles) {
+            try {
+                const { data } = await api.post('/system/cleanup/resize-file', { filePath: file.path });
+                if (data.resized || data.converted) optimizedCount++;
+            } catch (err) {
+                console.error(`Failed to resize ${file.path}:`, err);
+            }
+            setProgressCount(prev => prev + 1);
+        }
+
+        alert(`${optimizedCount} Bilder wurden optimiert.`);
+        setIsCleaning(false);
+        setCleaningType(null);
+        fetchCleanupStats();
     };
 
     const updateReportStatus = async (id, newStatus, note, internalNote) => {
@@ -267,6 +354,20 @@ export default function SettingsPage() {
             }
             if (systemSettingsRes.data.system_secondary_color) {
                 setSecondaryColor(systemSettingsRes.data.system_secondary_color);
+            }
+
+            // Load Payment settings
+            if (systemSettingsRes.data) {
+                setPaypalConfig({
+                    clientId: systemSettingsRes.data.paypal_client_id || '',
+                    clientSecret: '', // Never populate secret from server
+                    webhookId: systemSettingsRes.data.paypal_webhook_id || ''
+                });
+                setStripeConfig({
+                    publishableKey: systemSettingsRes.data.stripe_publishable_key || '',
+                    secretKey: '', // Never populate secret from server
+                    webhookSecret: systemSettingsRes.data.stripe_webhook_secret || ''
+                });
             }
 
             // Load email settings
@@ -620,6 +721,27 @@ export default function SettingsPage() {
         }
     };
 
+    const handleSavePayment = async () => {
+        setSavingPayment(true);
+        try {
+            await Promise.all([
+                api.post('/system/settings', { key: 'paypal_client_id', value: paypalConfig.clientId }),
+                api.post('/system/settings', { key: 'paypal_client_secret', value: paypalConfig.clientSecret }),
+                api.post('/system/settings', { key: 'paypal_webhook_id', value: paypalConfig.webhookId }),
+                api.post('/system/settings', { key: 'stripe_publishable_key', value: stripeConfig.publishableKey }),
+                api.post('/system/settings', { key: 'stripe_secret_key', value: stripeConfig.secretKey }),
+                api.post('/system/settings', { key: 'stripe_webhook_secret', value: stripeConfig.webhookSecret })
+            ]);
+            alert('Zahlungskonfiguration gespeichert');
+        } catch (err) {
+            console.error('Failed to save payment settings', err);
+            alert('Fehler beim Speichern der Zahlungskonfiguration');
+        } finally {
+            setSavingPayment(false);
+        }
+    };
+
+
 
 
     // Helper for local preview (duplicated from App.jsx for simplicity or move to utils)
@@ -686,6 +808,7 @@ export default function SettingsPage() {
         if (activeTab === 'admin' && user?.role === 'admin') {
             if (activeAdminTab === 'logs') fetchLogs();
             if (activeAdminTab === 'texts') fetchLegalTexts();
+            if (activeAdminTab === 'cleanup') fetchCleanupStats();
         }
 
         // Desktop default for profile/admin sub-tabs
@@ -1149,56 +1272,44 @@ export default function SettingsPage() {
     };
 
     const ProfileSection = (
-        <div className="space-y-6">
-            {/* Mobile Accordion for Profile Submenu */}
-            <div className="sm:hidden space-y-2">
-                {profileTabs.map((sub) => {
-                    const isActive = activeProfileTab === sub.id;
-                    return (
-                        <div key={sub.id} className="border border-border/50 rounded-lg overflow-hidden bg-card/30">
-                            <button
-                                onClick={() => setActiveProfileTab(isActive ? '' : sub.id)}
-                                className={cn(
-                                    "w-full flex items-center justify-between p-3 text-sm font-bold text-left transition-colors",
-                                    isActive ? "bg-primary/5 text-primary" : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-                                )}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <sub.icon size={16} />
-                                    <span>{sub.label}</span>
-                                </div>
-                                <ChevronDown
-                                    size={16}
-                                    className={cn("text-muted-foreground transition-transform duration-300", isActive && "rotate-180 text-primary")}
-                                />
-                            </button>
-                            <AnimatePresence initial={false}>
-                                {isActive && (
-                                    <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: "auto", opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
-                                        transition={{ duration: 0.2 }}
-                                    >
-                                        <div className="p-3 border-t border-border/50">
-                                            {getProfileContent(sub.id)}
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </div>
-                    );
-                })}
-            </div>
-
-            {/* Desktop Sections for Profile */}
-            <div className="hidden sm:block space-y-6">
-                {profileTabs.map(tab => (
-                    <div key={tab.id}>
-                        {getProfileContent(tab.id)}
+        <div className="space-y-3">
+            {profileTabs.map((sub) => {
+                const isActive = activeProfileTab === sub.id;
+                return (
+                    <div key={sub.id} className="border border-border/50 rounded-2xl overflow-hidden bg-card/30 shadow-sm transition-all duration-300">
+                        <button
+                            onClick={() => setActiveProfileTab(isActive ? '' : sub.id)}
+                            className={cn(
+                                "w-full flex items-center justify-between p-4 md:p-5 text-sm md:text-base font-bold text-left transition-all",
+                                isActive ? "bg-primary/5 text-primary" : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                            )}
+                        >
+                            <div className="flex items-center gap-3">
+                                <sub.icon size={18} className={isActive ? "text-primary" : "text-muted-foreground"} />
+                                <span>{sub.label}</span>
+                            </div>
+                            <ChevronDown
+                                size={18}
+                                className={cn("text-muted-foreground transition-transform duration-300", isActive && "rotate-180 text-primary")}
+                            />
+                        </button>
+                        <AnimatePresence initial={false}>
+                            {isActive && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.25, ease: "easeInOut" }}
+                                >
+                                    <div className="p-2 md:p-4 border-t border-border/50 bg-background/10">
+                                        {getProfileContent(sub.id)}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
-                ))}
-            </div>
+                );
+            })}
         </div>
     );
 
@@ -1966,198 +2077,345 @@ export default function SettingsPage() {
                     </Button>
                 </div>
             </Card>
-            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
-                <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                    <Mail size={20} className="text-primary" />
-                    E-Mail Konfiguration
-                </h2>
-                <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">SMTP Host</label>
-                            <Input
-                                type="text"
-                                value={emailConfig.smtpHost}
-                                onChange={(e) => setEmailConfig({ ...emailConfig, smtpHost: e.target.value })}
-                                placeholder="smtp.example.com"
-                                className="bg-muted border-transparent focus:bg-background transition-colors"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">SMTP Port</label>
-                            <Input
-                                type="number"
-                                value={emailConfig.smtpPort}
-                                onChange={(e) => setEmailConfig({ ...emailConfig, smtpPort: e.target.value })}
-                                placeholder="587"
-                                className="bg-muted border-transparent focus:bg-background transition-colors"
-                            />
-                        </div>
-                    </div>
 
-                    <div>
-                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">SMTP Benutzername</label>
-                        <Input
-                            type="text"
-                            value={emailConfig.smtpUser}
-                            onChange={(e) => setEmailConfig({ ...emailConfig, smtpUser: e.target.value })}
-                            placeholder="user@example.com"
-                            className="bg-muted border-transparent focus:bg-background transition-colors"
-                        />
+            {/* Email Configuration - Collapsible */}
+            <div className="border border-border/50 rounded-2xl overflow-hidden bg-card/30 shadow-sm">
+                <button
+                    onClick={() => setIsEmailConfigOpen(!isEmailConfigOpen)}
+                    className={cn(
+                        "w-full flex items-center justify-between p-5 text-lg font-bold text-left transition-all",
+                        isEmailConfigOpen ? "bg-primary/5 text-primary" : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                    )}
+                >
+                    <div className="flex items-center gap-3">
+                        <Mail size={20} className={isEmailConfigOpen ? "text-primary" : "text-muted-foreground"} />
+                        <span>E-Mail Konfiguration</span>
                     </div>
+                    <ChevronDown
+                        size={20}
+                        className={cn("text-muted-foreground transition-transform duration-300", isEmailConfigOpen && "rotate-180 text-primary")}
+                    />
+                </button>
+                <AnimatePresence>
+                    {isEmailConfigOpen && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.3, ease: "easeInOut" }}
+                        >
+                            <div className="p-6 border-t border-border/50 bg-background/5 space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">SMTP Host</label>
+                                        <Input
+                                            type="text"
+                                            value={emailConfig.smtpHost}
+                                            onChange={(e) => setEmailConfig({ ...emailConfig, smtpHost: e.target.value })}
+                                            placeholder="smtp.example.com"
+                                            className="bg-muted border-transparent focus:bg-background transition-colors"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">SMTP Port</label>
+                                        <Input
+                                            type="number"
+                                            value={emailConfig.smtpPort}
+                                            onChange={(e) => setEmailConfig({ ...emailConfig, smtpPort: e.target.value })}
+                                            placeholder="587"
+                                            className="bg-muted border-transparent focus:bg-background transition-colors"
+                                        />
+                                    </div>
+                                </div>
 
-                    <div>
-                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">SMTP Passwort</label>
-                        <div className="relative">
-                            <Input
-                                type={showSmtpPassword ? "text" : "password"}
-                                value={emailConfig.smtpPassword}
-                                onChange={(e) => setEmailConfig({ ...emailConfig, smtpPassword: e.target.value })}
-                                placeholder="••••••••"
-                                className="bg-muted border-transparent focus:bg-background transition-colors pr-10"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowSmtpPassword(!showSmtpPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                                {showSmtpPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Absender-Adresse</label>
-                        <Input
-                            type="email"
-                            value={emailConfig.smtpFrom}
-                            onChange={(e) => setEmailConfig({ ...emailConfig, smtpFrom: e.target.value })}
-                            placeholder="noreply@example.com"
-                            className="bg-muted border-transparent focus:bg-background transition-colors"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Absender Name (Optional)</label>
-                        <Input
-                            type="text"
-                            value={emailConfig.smtpSenderName}
-                            onChange={(e) => setEmailConfig({ ...emailConfig, smtpSenderName: e.target.value })}
-                            placeholder="GabelGuru Admin"
-                            className="bg-muted border-transparent focus:bg-background transition-colors"
-                        />
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="checkbox"
-                            id="smtpSecure"
-                            checked={emailConfig.smtpSecure}
-                            onChange={(e) => setEmailConfig({ ...emailConfig, smtpSecure: e.target.checked })}
-                            className="w-4 h-4 rounded border-border bg-muted checked:bg-primary"
-                        />
-                        <label htmlFor="smtpSecure" className="text-sm font-medium text-foreground cursor-pointer">
-                            Sichere Verbindung (TLS/SSL)
-                        </label>
-                    </div>
-
-                    {/* IMAP Section */}
-                    <div className="pt-6 border-t border-border">
-                        <h3 className="text-lg font-bold text-foreground mb-4">IMAP (E-Mails empfangen)</h3>
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">IMAP Host</label>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">SMTP Benutzername</label>
                                     <Input
                                         type="text"
-                                        value={emailConfig.imapHost}
-                                        onChange={(e) => setEmailConfig({ ...emailConfig, imapHost: e.target.value })}
-                                        placeholder="imap.example.com"
+                                        value={emailConfig.smtpUser}
+                                        onChange={(e) => setEmailConfig({ ...emailConfig, smtpUser: e.target.value })}
+                                        placeholder="user@example.com"
                                         className="bg-muted border-transparent focus:bg-background transition-colors"
                                     />
                                 </div>
+
                                 <div>
-                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">IMAP Port</label>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">SMTP Passwort</label>
+                                    <div className="relative">
+                                        <Input
+                                            type={showSmtpPassword ? "text" : "password"}
+                                            value={emailConfig.smtpPassword}
+                                            onChange={(e) => setEmailConfig({ ...emailConfig, smtpPassword: e.target.value })}
+                                            placeholder="••••••••"
+                                            className="bg-muted border-transparent focus:bg-background transition-colors pr-10"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowSmtpPassword(!showSmtpPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                        >
+                                            {showSmtpPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Absender-Adresse</label>
                                     <Input
-                                        type="number"
-                                        value={emailConfig.imapPort}
-                                        onChange={(e) => setEmailConfig({ ...emailConfig, imapPort: e.target.value })}
-                                        placeholder="993"
+                                        type="email"
+                                        value={emailConfig.smtpFrom}
+                                        onChange={(e) => setEmailConfig({ ...emailConfig, smtpFrom: e.target.value })}
+                                        placeholder="noreply@example.com"
                                         className="bg-muted border-transparent focus:bg-background transition-colors"
                                     />
                                 </div>
-                            </div>
 
-                            <div>
-                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">IMAP Benutzername</label>
-                                <Input
-                                    type="text"
-                                    value={emailConfig.imapUser}
-                                    onChange={(e) => setEmailConfig({ ...emailConfig, imapUser: e.target.value })}
-                                    placeholder="user@example.com"
-                                    className="bg-muted border-transparent focus:bg-background transition-colors"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">IMAP Passwort</label>
-                                <div className="relative">
+                                <div>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Absender Name (Optional)</label>
                                     <Input
-                                        type={showImapPassword ? "text" : "password"}
-                                        value={emailConfig.imapPassword}
-                                        onChange={(e) => setEmailConfig({ ...emailConfig, imapPassword: e.target.value })}
-                                        placeholder="••••••••"
-                                        className="bg-muted border-transparent focus:bg-background transition-colors pr-10"
+                                        type="text"
+                                        value={emailConfig.smtpSenderName}
+                                        onChange={(e) => setEmailConfig({ ...emailConfig, smtpSenderName: e.target.value })}
+                                        placeholder="GabelGuru Admin"
+                                        className="bg-muted border-transparent focus:bg-background transition-colors"
                                     />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowImapPassword(!showImapPassword)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                                    >
-                                        {showImapPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                    </button>
                                 </div>
-                            </div>
 
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    id="imapSecure"
-                                    checked={emailConfig.imapSecure}
-                                    onChange={(e) => setEmailConfig({ ...emailConfig, imapSecure: e.target.checked })}
-                                    className="w-4 h-4 rounded border-border bg-muted checked:bg-primary"
-                                />
-                                <label htmlFor="imapSecure" className="text-sm font-medium text-foreground cursor-pointer">
-                                    Sichere Verbindung (TLS/SSL)
-                                </label>
-                            </div>
-                        </div>
-                    </div>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        id="smtpSecure"
+                                        checked={emailConfig.smtpSecure}
+                                        onChange={(e) => setEmailConfig({ ...emailConfig, smtpSecure: e.target.checked })}
+                                        className="w-4 h-4 rounded border-border bg-muted checked:bg-primary"
+                                    />
+                                    <label htmlFor="smtpSecure" className="text-sm font-medium text-foreground cursor-pointer">
+                                        Sichere Verbindung (TLS/SSL)
+                                    </label>
+                                </div>
 
-                    <div className="flex gap-3 pt-4 border-t border-border">
-                        <Button
-                            onClick={handleSaveEmail}
-                            disabled={savingEmail}
-                            className="flex-1"
-                        >
-                            {savingEmail ? <Loader2 size={16} className="animate-spin mr-2" /> : <Check size={16} className="mr-2" />}
-                            {savingEmail ? 'Speichere...' : 'Speichern'}
-                        </Button>
-                        <Button
-                            onClick={handleTestEmail}
-                            disabled={testingEmail || !emailConfig.smtpHost}
-                            variant="outline"
-                            className="flex-1"
-                        >
-                            {testingEmail ? <Loader2 size={16} className="animate-spin mr-2" /> : <Mail size={16} className="mr-2" />}
-                            {testingEmail ? 'Sende...' : 'Testmail senden'}
-                        </Button>
+                                {/* IMAP Section */}
+                                <div className="pt-6 border-t border-border">
+                                    <h3 className="text-lg font-bold text-foreground mb-4">IMAP (E-Mails empfangen)</h3>
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">IMAP Host</label>
+                                                <Input
+                                                    type="text"
+                                                    value={emailConfig.imapHost}
+                                                    onChange={(e) => setEmailConfig({ ...emailConfig, imapHost: e.target.value })}
+                                                    placeholder="imap.example.com"
+                                                    className="bg-muted border-transparent focus:bg-background transition-colors"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">IMAP Port</label>
+                                                <Input
+                                                    type="number"
+                                                    value={emailConfig.imapPort}
+                                                    onChange={(e) => setEmailConfig({ ...emailConfig, imapPort: e.target.value })}
+                                                    placeholder="993"
+                                                    className="bg-muted border-transparent focus:bg-background transition-colors"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">IMAP Benutzername</label>
+                                            <Input
+                                                type="text"
+                                                value={emailConfig.imapUser}
+                                                onChange={(e) => setEmailConfig({ ...emailConfig, imapUser: e.target.value })}
+                                                placeholder="user@example.com"
+                                                className="bg-muted border-transparent focus:bg-background transition-colors"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">IMAP Passwort</label>
+                                            <div className="relative">
+                                                <Input
+                                                    type={showImapPassword ? "text" : "password"}
+                                                    value={emailConfig.imapPassword}
+                                                    onChange={(e) => setEmailConfig({ ...emailConfig, imapPassword: e.target.value })}
+                                                    placeholder="••••••••"
+                                                    className="bg-muted border-transparent focus:bg-background transition-colors pr-10"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowImapPassword(!showImapPassword)}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                                >
+                                                    {showImapPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                id="imapSecure"
+                                                checked={emailConfig.imapSecure}
+                                                onChange={(e) => setEmailConfig({ ...emailConfig, imapSecure: e.target.checked })}
+                                                className="w-4 h-4 rounded border-border bg-muted checked:bg-primary"
+                                            />
+                                            <label htmlFor="imapSecure" className="text-sm font-medium text-foreground cursor-pointer">
+                                                Sichere Verbindung (TLS/SSL)
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3 pt-4 border-t border-border">
+                                    <Button
+                                        onClick={handleSaveEmail}
+                                        disabled={savingEmail}
+                                        className="flex-1"
+                                    >
+                                        {savingEmail ? <Loader2 size={16} className="animate-spin mr-2" /> : <Check size={16} className="mr-2" />}
+                                        {savingEmail ? 'Speichere...' : 'E-Mail Speichern'}
+                                    </Button>
+                                    <Button
+                                        onClick={handleTestEmail}
+                                        disabled={testingEmail || !emailConfig.smtpHost}
+                                        variant="outline"
+                                        className="flex-1"
+                                    >
+                                        {testingEmail ? <Loader2 size={16} className="animate-spin mr-2" /> : <Mail size={16} className="mr-2" />}
+                                        {testingEmail ? 'Sende...' : 'Testmail senden'}
+                                    </Button>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground italic">
+                                    Die Testmail wird an die E-Mail-Adresse des aktuell angemeldeten Administrators gesendet.
+                                </p>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+
+            {/* Payment Configuration - Collapsible */}
+            <div className="border border-border/50 rounded-2xl overflow-hidden bg-card/30 shadow-sm">
+                <button
+                    onClick={() => setIsPaymentConfigOpen(!isPaymentConfigOpen)}
+                    className={cn(
+                        "w-full flex items-center justify-between p-5 text-lg font-bold text-left transition-all",
+                        isPaymentConfigOpen ? "bg-primary/5 text-primary" : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                    )}
+                >
+                    <div className="flex items-center gap-3">
+                        <CreditCard size={20} className={isPaymentConfigOpen ? "text-primary" : "text-muted-foreground"} />
+                        <span>Zahlungskonfiguration</span>
                     </div>
-                    <p className="text-[10px] text-muted-foreground italic">
-                        Die Testmail wird an die E-Mail-Adresse des aktuell angemeldeten Administrators gesendet.
-                    </p>
-                </div>
-            </Card>
+                    <ChevronDown
+                        size={20}
+                        className={cn("text-muted-foreground transition-transform duration-300", isPaymentConfigOpen && "rotate-180 text-primary")}
+                    />
+                </button>
+                <AnimatePresence>
+                    {isPaymentConfigOpen && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.3, ease: "easeInOut" }}
+                        >
+                            <div className="p-6 border-t border-border/50 bg-background/5 space-y-8">
+                                {/* PayPal */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="p-2 bg-blue-500/10 rounded-lg">
+                                            <CreditCard size={18} className="text-blue-500" />
+                                        </div>
+                                        <h3 className="text-lg font-bold">PayPal</h3>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Client ID</label>
+                                            <Input
+                                                value={paypalConfig.clientId}
+                                                onChange={(e) => setPaypalConfig({ ...paypalConfig, clientId: e.target.value })}
+                                                placeholder="PayPal Client ID"
+                                                className="bg-muted border-transparent focus:bg-background"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Client Secret</label>
+                                            <Input
+                                                type="password"
+                                                value={paypalConfig.clientSecret}
+                                                onChange={(e) => setPaypalConfig({ ...paypalConfig, clientSecret: e.target.value })}
+                                                placeholder="••••••••"
+                                                className="bg-muted border-transparent focus:bg-background"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Webhook ID</label>
+                                            <Input
+                                                value={paypalConfig.webhookId}
+                                                onChange={(e) => setPaypalConfig({ ...paypalConfig, webhookId: e.target.value })}
+                                                placeholder="PayPal Webhook ID"
+                                                className="bg-muted border-transparent focus:bg-background"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Stripe */}
+                                <div className="space-y-4 pt-6 border-t border-border/50">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="p-2 bg-indigo-500/10 rounded-lg">
+                                            <CreditCard size={18} className="text-indigo-500" />
+                                        </div>
+                                        <h3 className="text-lg font-bold">Stripe</h3>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Publishable Key</label>
+                                            <Input
+                                                value={stripeConfig.publishableKey}
+                                                onChange={(e) => setStripeConfig({ ...stripeConfig, publishableKey: e.target.value })}
+                                                placeholder="pk_test_..."
+                                                className="bg-muted border-transparent focus:bg-background"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Secret Key</label>
+                                            <Input
+                                                type="password"
+                                                value={stripeConfig.secretKey}
+                                                onChange={(e) => setStripeConfig({ ...stripeConfig, secretKey: e.target.value })}
+                                                placeholder="sk_test_..."
+                                                className="bg-muted border-transparent focus:bg-background"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Webhook Secret</label>
+                                            <Input
+                                                type="password"
+                                                value={stripeConfig.webhookSecret}
+                                                onChange={(e) => setStripeConfig({ ...stripeConfig, webhookSecret: e.target.value })}
+                                                placeholder="whsec_..."
+                                                className="bg-muted border-transparent focus:bg-background"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <Button
+                                    onClick={handleSavePayment}
+                                    disabled={savingPayment}
+                                    className="w-full mt-4"
+                                >
+                                    {savingPayment ? <Loader2 size={18} className="animate-spin mr-2" /> : <Check size={18} className="mr-2" />}
+                                    {savingPayment ? 'Speichere...' : 'Zahlungskonfiguration Speichern'}
+                                </Button>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
         </div>
     );
 
@@ -2998,10 +3256,173 @@ export default function SettingsPage() {
         </div>
     );
 
+    const CleanupSection = (
+        <div className="space-y-6">
+            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                        <Trash2 size={20} className="text-primary" />
+                        Dateisystem Aufräumen
+                    </h2>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={fetchCleanupStats} disabled={loadingCleanup}>
+                            {loadingCleanup ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                            Aktualisieren
+                        </Button>
+                    </div>
+                </div>
+
+                {cleanupStats?.uploadsDir && (
+                    <div className="mb-8 p-4 bg-muted/30 border border-border/50 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 group">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="p-2 bg-background rounded-xl border border-border text-primary shrink-0">
+                                <Folder size={18} />
+                            </div>
+                            <div className="overflow-hidden">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-0.5">Speicherpfad</p>
+                                <p className="text-xs font-mono text-foreground truncate select-all" title={cleanupStats.uploadsDir}>
+                                    {cleanupStats.uploadsDir}
+                                </p>
+                            </div>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-9 px-3 gap-2 shrink-0 md:opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => {
+                                navigator.clipboard.writeText(cleanupStats.uploadsDir);
+                                // Optional logic for a toast or temporary "Copied!" text if available
+                            }}
+                        >
+                            <Copy size={14} /> Pfad kopieren
+                        </Button>
+                    </div>
+                )}
+
+                {loadingCleanup && !cleanupStats ? (
+                    <div className="flex flex-col items-center justify-center p-12 text-muted-foreground">
+                        <Loader2 size={40} className="animate-spin mb-4 opacity-50 text-primary" />
+                        <p>Analysiere Dateisystem...</p>
+                    </div>
+                ) : cleanupStats ? (
+                    <div className="space-y-6">
+                        {isCleaning && (
+                            <div className="space-y-3 p-4 bg-primary/5 rounded-2xl border border-primary/20 animate-in fade-in slide-in-from-top-4">
+                                <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-primary">
+                                    <span>{cleaningType === 'orphaned' ? 'Lösche verwaiste Bilder...' : 'Bilder werden verkleinert...'}</span>
+                                    <span>{Math.round((progressCount / totalToProcess) * 100)}%</span>
+                                </div>
+                                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                                    <motion.div
+                                        className="h-full bg-primary"
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${(progressCount / totalToProcess) * 100}%` }}
+                                        transition={{ duration: 0.3 }}
+                                    />
+                                </div>
+                                <p className="text-[10px] text-muted-foreground text-center font-bold">
+                                    Verarbeite Datei {progressCount} von {totalToProcess}
+                                </p>
+                            </div>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 shadow-sm flex flex-col items-center text-center">
+                                <Layers size={21} className="text-primary mb-2" />
+                                <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Bilder gesamt</h3>
+                                <p className="text-2xl font-black text-foreground">{cleanupStats.count}</p>
+                            </div>
+
+                            <div className="p-4 rounded-2xl bg-secondary/5 border border-secondary/10 shadow-sm flex flex-col items-center text-center">
+                                <CloudDownload size={21} className="text-secondary mb-2" />
+                                <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Speicherplatz</h3>
+                                <p className="text-2xl font-black text-foreground">
+                                    {(cleanupStats.totalSize / (1024 * 1024)).toFixed(1)} <span className="text-sm font-bold">MB</span>
+                                </p>
+                            </div>
+
+                            <div className="p-4 rounded-2xl bg-orange-500/5 border border-orange-500/10 shadow-sm flex flex-col items-center text-center">
+                                <Trash2 size={21} className="text-orange-500 mb-2" />
+                                <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Verwaiste Bilder</h3>
+                                <p className="text-2xl font-black text-foreground">{cleanupStats.orphanedCount}</p>
+                            </div>
+
+                            <div className="p-4 rounded-2xl bg-destructive/5 border border-destructive/10 shadow-sm flex flex-col items-center text-center">
+                                <AlertTriangle size={21} className="text-destructive mb-2" />
+                                <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Verschwendung</h3>
+                                <p className="text-2xl font-black text-foreground">
+                                    {(cleanupStats.orphanedSize / (1024 * 1024)).toFixed(1)} <span className="text-sm font-bold">MB</span>
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <Button
+                                onClick={handleCleanOrphaned}
+                                disabled={isCleaning || !cleanupStats?.orphanedCount}
+                                className="bg-orange-500 hover:bg-orange-600 text-white font-bold h-12 rounded-xl shadow-lg shadow-orange-500/20 transition-all active:scale-95"
+                            >
+                                <Trash2 size={18} className="mr-2" />
+                                Verwaiste Bilder löschen
+                            </Button>
+                            <Button
+                                onClick={handleResizeAll}
+                                disabled={isCleaning || !cleanupStats?.count}
+                                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-12 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95"
+                            >
+                                <Sparkles size={18} className="mr-2" />
+                                Bilder optimieren
+                            </Button>
+                        </div>
+
+                        <div className="p-6 rounded-2xl bg-muted/30 border border-border/50 shadow-sm flex flex-col items-center text-center">
+                            <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Größte Datei</h3>
+                            <div className="flex items-center gap-4 w-full justify-center">
+                                <div className="text-left">
+                                    <p className="text-sm font-bold text-foreground truncate max-w-[200px]" title={cleanupStats.largestFile.name}>
+                                        {cleanupStats.largestFile.name}
+                                    </p>
+                                    <p className="text-xs font-black text-muted-foreground">
+                                        {(cleanupStats.largestFile.size / (1024 * 1024)).toFixed(2)} MB
+                                    </p>
+                                </div>
+                                {cleanupStats.largestFile.path && (
+                                    <a
+                                        href={cleanupStats.largestFile.path}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-2 bg-background border border-border px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-muted transition-colors"
+                                    >
+                                        <Eye size={14} /> Datei ansehen
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center p-12 text-muted-foreground border-2 border-dashed border-border rounded-2xl">
+                        <p className="mb-4">Klicke auf Aktualisieren, um die Analyse zu starten.</p>
+                        <Button onClick={fetchCleanupStats}>Starten</Button>
+                    </div>
+                )}
+
+                <div className="mt-8 p-4 bg-yellow-50/50 dark:bg-yellow-900/10 border border-yellow-200/50 dark:border-yellow-700/30 rounded-xl">
+                    <div className="flex gap-3">
+                        <AlertTriangle size={20} className="text-yellow-600 shrink-0" />
+                        <div className="text-xs text-yellow-800 dark:text-yellow-200/80 leading-relaxed">
+                            <p className="font-bold mb-1">Information zur Speicherplatz-Nutzung</p>
+                            <p>Hier werden alle Bilder (.jpg, .png, .gif, etc.) im öffentlichen Upload-Verzeichnis analysiert. Ein hoher Speicherverbrauch kann die Backups verlangsamen. Achte darauf, unnötige oder extrem große Bilder (z.B. &gt; 10MB) zu vermeiden.</p>
+                        </div>
+                    </div>
+                </div>
+            </Card>
+        </div>
+    );
+
     const adminTabs = [
         { id: 'users', label: 'Benutzer', icon: Users },
         { id: 'messaging', label: 'Messaging', icon: Mail },
         { id: 'compliance', label: 'Compliance', icon: ShieldCheck },
+        { id: 'cleanup', label: 'Aufräumen', icon: Trash2 },
         { id: 'logs', label: 'Logs', icon: FileText },
         { id: 'texts', label: 'Rechtstexte', icon: Type },
         { id: 'system', label: 'System', icon: SettingsIcon }
@@ -3012,6 +3433,7 @@ export default function SettingsPage() {
             case 'users': return UsersSection;
             case 'messaging': return MessagingSection;
             case 'compliance': return ComplianceSection;
+            case 'cleanup': return CleanupSection;
             case 'logs': return LogsSection;
             case 'texts': return TextsSection;
             case 'system': return SystemSection;

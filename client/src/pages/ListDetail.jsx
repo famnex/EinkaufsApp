@@ -727,7 +727,10 @@ export default function ListDetail() {
                                                     </div>
 
                                                     {/* Center: Name */}
-                                                    <div className="text-center px-1 z-10 relative mt-0 mb-auto flex flex-col justify-center flex-grow pt-2 md:pt-0"> {/* Adjusted padding/flex */}
+                                                    <div className={cn(
+                                                        "text-center px-1 z-10 relative mt-0 flex flex-col justify-center flex-grow pt-2 md:pt-0",
+                                                        zoomLevel === 0 ? "pb-8" : "mb-auto" // Add bottom padding for quantity in small tiles
+                                                    )}>
                                                         <div className={cn(
                                                             "font-bold leading-none tracking-wide text-white line-clamp-2 break-words text-shadow-sm hyphens-auto",
                                                             zoomLevel === 0 ? "text-sm md:text-lg" : "text-xl md:text-2xl"
@@ -755,7 +758,12 @@ export default function ListDetail() {
                                                             e.stopPropagation();
                                                             setQuantityItem(item);
                                                         }}
-                                                        className="mx-auto bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider transition-colors z-10 relative mt-2 backdrop-blur-sm"
+                                                        className={cn(
+                                                            "mx-auto bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider transition-colors z-10 backdrop-blur-sm",
+                                                            zoomLevel === 0
+                                                                ? "absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap" // Fixed bottom in small tiles
+                                                                : "relative mt-2" // Standard flow for larger tiles
+                                                        )}
                                                     >
                                                         {item.quantity} <span className="text-[10px] opacity-80">{(item.unit || item.Product?.unit) === 'Stück' ? 'Stk' : (item.unit || item.Product?.unit)}</span>
                                                     </div>
@@ -880,19 +888,19 @@ export default function ListDetail() {
             <div className="fixed bottom-24 right-4 flex flex-col gap-2 z-40">
                 <Button
                     size="icon"
-                    variant="secondary"
+                    variant="outline"
                     onClick={() => setZoomLevel(prev => Math.min(prev + 1, 2))}
                     disabled={zoomLevel >= 2}
-                    className="rounded-full shadow-lg bg-background/80 backdrop-blur border border-border"
+                    className="rounded-full shadow-lg bg-background/80 backdrop-blur border border-border text-foreground"
                 >
                     <ZoomIn size={20} />
                 </Button>
                 <Button
                     size="icon"
-                    variant="secondary"
+                    variant="outline"
                     onClick={() => setZoomLevel(prev => Math.max(prev - 1, 0))}
                     disabled={zoomLevel <= 0}
-                    className="rounded-full shadow-lg bg-background/80 backdrop-blur border border-border"
+                    className="rounded-full shadow-lg bg-background/80 backdrop-blur border border-border text-foreground"
                 >
                     <ZoomOut size={20} />
                 </Button>

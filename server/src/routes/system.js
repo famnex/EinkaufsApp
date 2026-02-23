@@ -3,8 +3,10 @@ const router = express.Router();
 const { auth, admin } = require('../middleware/auth');
 const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
+const Jimp = require('jimp');
 const { readAlexaLogs } = require('../utils/logger');
-const { Settings } = require('../models');
+const { Settings, Recipe, User, Store, ComplianceReport } = require('../models');
 
 // Helper to run a command and return promise (for non-streaming checks)
 const runCommand = (cmd, args, cwd) => {
@@ -278,6 +280,228 @@ router.get('/stream-update', auth, admin, (req, res) => {
     req.on('close', () => {
         // console.log('Client disconnected from update stream');
     });
+});
+
+// Helper for recursive image scan
+const scanImages = (dir, baseDir, results = { count: 0, totalSize: 0, largestFile: { name: '', size: 0 }, allFiles: [] }) => {
+    if (!fs.existsSync(dir)) return results;
+    const files = fs.readdirSync(dir);
+
+    files.forEach(file => {
+        const fullPath = path.join(dir, file);
+        const stat = fs.statSync(fullPath);
+
+        if (stat.isDirectory()) {
+            scanImages(fullPath, baseDir, results);
+        } else {
+            const ext = path.extname(file).toLowerCase();
+            const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp'];
+
+            if (imageExts.includes(ext)) {
+                results.count++;
+                results.totalSize += stat.size;
+
+                // Path relative to public/uploads
+                const relPath = fullPath.replace(baseDir, '').replace(/\\/g, '/').replace(/^\//, '');
+
+                results.allFiles.push({
+                    path: relPath,
+                    size: stat.size,
+                    name: file
+                });
+
+                if (stat.size > results.largestFile.size) {
+                    results.largestFile = {
+                        name: file,
+                        size: stat.size,
+                        path: `/uploads/${relPath}`
+                    };
+                }
+            }
+        }
+    });
+    return results;
+};
+
+// Get Cleanup Stats (Admin only)
+router.get('/cleanup/stats', auth, admin, async (req, res) => {
+    try {
+        const uploadsDir = path.join(__dirname, '../../public/uploads');
+        // We need the base path to normalize relative paths
+        const stats = scanImages(uploadsDir, uploadsDir);
+
+        // Fetch all image references from DB
+        const [recipes, users, stores, compliance] = await Promise.all([
+            Recipe.findAll({ attributes: ['image_url'], raw: true }),
+            User.findAll({ attributes: ['cookbookImage'], raw: true }),
+            Store.findAll({ attributes: ['logo_url'], raw: true }),
+            ComplianceReport.findAll({ attributes: ['screenshotPath'], raw: true })
+        ]);
+
+        // Normalize DB paths: remove leading slashes and 'uploads/' prefix
+        const normalize = (p) => {
+            if (!p) return null;
+            return p.replace(/^\/*uploads\//, '').replace(/^\//, '');
+        };
+
+        const dbPaths = new Set([
+            ...recipes.map(r => normalize(r.image_url)),
+            ...users.map(u => normalize(u.cookbookImage)),
+            ...stores.map(s => normalize(s.logo_url)),
+            ...compliance.map(c => normalize(c.screenshotPath))
+        ].filter(Boolean));
+
+        // Identify orphaned files
+        const orphanedFiles = [];
+        let orphanedCount = 0;
+        let orphanedSize = 0;
+
+        stats.allFiles.forEach(file => {
+            if (!dbPaths.has(file.path)) {
+                orphanedCount++;
+                orphanedSize += file.size;
+                orphanedFiles.push(file);
+            }
+        });
+
+        res.json({
+            count: stats.count,
+            totalSize: stats.totalSize,
+            largestFile: stats.largestFile,
+            orphanedCount,
+            orphanedSize,
+            orphanedFiles,
+            allFiles: stats.allFiles,
+            uploadsDir
+        });
+    } catch (err) {
+        console.error('Failed to get cleanup stats:', err);
+        res.status(500).json({ error: 'Failed to get cleanup stats' });
+    }
+});
+
+// Delete a single file from uploads (Admin only)
+router.delete('/cleanup/file', auth, admin, async (req, res) => {
+    try {
+        const { filePath } = req.query;
+        if (!filePath) return res.status(400).json({ error: 'filePath is required' });
+
+        // Security: ensure path is within uploads
+        const uploadsDir = path.join(__dirname, '../../public/uploads');
+        const fullPath = path.normalize(path.join(uploadsDir, filePath));
+
+        if (!fullPath.startsWith(uploadsDir)) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ error: 'File not found' });
+        }
+    } catch (err) {
+        console.error('Delete file error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Resize or optimize an image (Admin only)
+router.post('/cleanup/resize-file', auth, admin, async (req, res) => {
+    try {
+        const { filePath } = req.body;
+        if (!filePath) return res.status(400).json({ error: 'filePath is required' });
+
+        const uploadsDir = path.join(__dirname, '../../public/uploads');
+        const fullPath = path.normalize(path.join(uploadsDir, filePath));
+
+        if (!fullPath.startsWith(uploadsDir)) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        if (!fs.existsSync(fullPath)) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        const ext = path.extname(fullPath).toLowerCase();
+        const isPng = ext === '.png';
+        let currentPath = fullPath;
+        let currentRelPath = filePath;
+        let converted = false;
+        let resized = false;
+
+        const image = await Jimp.read(fullPath);
+
+        // Resize if needed
+        if (image.bitmap.width > 800) {
+            image.resize(800, Jimp.AUTO);
+            resized = true;
+        }
+
+        // Convert PNG to JPG
+        if (isPng) {
+            const newRelPath = filePath.replace(/\.png$/i, '.jpg');
+            const newFullPath = fullPath.replace(/\.png$/i, '.jpg');
+
+            await image.quality(80).writeAsync(newFullPath);
+
+            // Delete old PNG
+            fs.unlinkSync(fullPath);
+
+            // Update Database References
+            const { Op } = require('sequelize');
+
+            const updateRefs = async (Model, column) => {
+                // Find records that contain the filename part
+                // We use Op.or to search for both slash versions
+                const slashPath = filePath.replace(/\\/g, '/');
+                const backslashPath = filePath.replace(/\//g, '\\');
+
+                const records = await Model.findAll({
+                    where: {
+                        [Op.or]: [
+                            { [column]: { [Op.like]: `%${slashPath}%` } },
+                            { [column]: { [Op.like]: `%${backslashPath}%` } }
+                        ]
+                    }
+                });
+
+                for (const record of records) {
+                    const oldValue = record[column];
+                    // Replace whichever one is found
+                    let newValue = oldValue.replace(slashPath, newRelPath.replace(/\\/g, '/'))
+                        .replace(backslashPath, newRelPath.replace(/\//g, '\\'));
+
+                    if (oldValue !== newValue) {
+                        await record.update({ [column]: newValue });
+                    }
+                }
+            };
+
+            await Promise.all([
+                updateRefs(Recipe, 'image_url'),
+                updateRefs(User, 'cookbookImage'),
+                updateRefs(Store, 'logo_url'),
+                updateRefs(ComplianceReport, 'screenshotPath')
+            ]);
+
+            converted = true;
+            currentRelPath = newRelPath;
+        } else if (resized) {
+            // Just save the resized version of non-PNG (or already JPG)
+            await image.writeAsync(fullPath);
+        }
+
+        res.json({
+            success: true,
+            resized,
+            converted,
+            newPath: currentRelPath
+        });
+    } catch (err) {
+        console.error('Optimize file error:', err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 module.exports = router;

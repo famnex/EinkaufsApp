@@ -5,6 +5,7 @@ const { auth } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { optimizeImage } = require('../utils/imageOptimizer');
 // const axios = require('axios'); // Removed for compliance
 
 // Configure multer for image upload
@@ -232,7 +233,9 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
 
         let finalImageUrl = null;
         if (req.file) {
-            finalImageUrl = `/uploads/users/${req.user.effectiveId}/recipes/${req.file.filename}`;
+            const { path: optimizedPath } = await optimizeImage(req.file.path);
+            const finalFilename = path.basename(optimizedPath);
+            finalImageUrl = `/uploads/users/${req.user.effectiveId}/recipes/${finalFilename}`;
         } else if (req.body.image_url) {
             // Only allow relative URLs (from our own system/AI generation)
             if (!req.body.image_url.startsWith('http')) {
@@ -324,7 +327,9 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
 
         if (req.file) {
             console.log('New file uploaded:', req.file.filename);
-            updates.image_url = `/uploads/users/${req.user.effectiveId}/recipes/${req.file.filename}`;
+            const { path: optimizedPath } = await optimizeImage(req.file.path);
+            const finalFilename = path.basename(optimizedPath);
+            updates.image_url = `/uploads/users/${req.user.effectiveId}/recipes/${finalFilename}`;
             if (!updates.imageSource) updates.imageSource = 'upload';
         } else if (req.body.image_url !== undefined) {
             console.log('New image URL:', req.body.image_url);
