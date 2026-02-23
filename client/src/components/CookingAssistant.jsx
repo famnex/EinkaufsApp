@@ -5,7 +5,7 @@ import api from '../lib/axios';
 import { cn } from '../lib/utils';
 
 export default function CookingAssistant(props) {
-    const { isOpen, onClose, recipe } = props;
+    const { isOpen, onClose, recipe, audioContext, hasActiveAlarm } = props;
     const [messages, setMessages] = useState([
         { role: 'assistant', content: `Hallo! Ich bin dein Guru. Frag mich einfach, wenn du Hilfe bei "${recipe?.title}" brauchst.` }
     ]);
@@ -24,18 +24,13 @@ export default function CookingAssistant(props) {
     const wakeMatchedRef = useRef('');           // welches Wakeword wurde getroffen
 
 
-    // Initialize Audio System once
+    // Reuse AudioContext from CookingMode (shared singleton, already unlocked by user gestures)
     useEffect(() => {
         if (!audioRef.current) {
             audioRef.current = new Audio();
             audioRef.current.preload = 'auto';
         }
-        if (!audioContextRef.current) {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (AudioContext) {
-                audioContextRef.current = new AudioContext();
-            }
-        }
+        // audioContext comes as prop – no need to create our own
     }, []);
 
     // Scroll to bottom
@@ -128,7 +123,7 @@ export default function CookingAssistant(props) {
                         if (command && command.length > 2) {
                             console.log("Direct Command Detected:", command);
                             setInputText(command);
-                            handleSend(command); // <-- nur wenn wirklich Command vorhanden
+                            handleSend(command, true); // voice-initiated
                         } else {
                             // KEINE Nachfrage: direkt weiter zuhören
                             setTimeout(() => {
@@ -146,7 +141,7 @@ export default function CookingAssistant(props) {
 
                 const lastResult = event.results[event.results.length - 1];
                 if (lastResult?.isFinal) {
-                    handleSend(fullTranscript);
+                    handleSend(fullTranscript, true); // voice-initiated
                 }
             };
 
@@ -206,6 +201,13 @@ export default function CookingAssistant(props) {
         return { matched, command };
     };
 
+    // Helper: resume the shared AudioContext on every user gesture
+    const resumeAudio = () => {
+        const ctx = audioContext || audioContextRef.current;
+        if (ctx && ctx.state === 'suspended') {
+            ctx.resume();
+        }
+    };
 
     // CRITICAL: Unlock Audio on iOS PWA
     const unlockAudio = () => {
@@ -214,16 +216,17 @@ export default function CookingAssistant(props) {
                 audioRef.current.pause();
             }).catch(e => console.log("Audio unlock failed or not needed", e));
         }
-        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-            audioContextRef.current.resume();
+        const ctx = audioContext || audioContextRef.current;
+        if (ctx && ctx.state === 'suspended') {
+            ctx.resume();
         }
     };
 
-    // Audio Cues
+    // Audio Cues (use shared context if available, fall back to own)
     const playAudioCue = (type) => {
         try {
-            if (!audioContextRef.current) return;
-            const ctx = audioContextRef.current;
+            const ctx = audioContext || audioContextRef.current;
+            if (!ctx) return;
             if (ctx.state === 'suspended') ctx.resume();
 
             const osc = ctx.createOscillator();
@@ -246,44 +249,46 @@ export default function CookingAssistant(props) {
         }
     };
 
-    const startActiveListening = () => {
-        setIsListening(true);
-        // isStandby is already false
-        recognitionRef.current?.start();
+    // Completely stops all voice activity (recognition, standby, speaking)
+    const stopAll = () => {
+        try { recognitionRef.current?.stop(); } catch (e) { }
+        setIsStandby(false);
+        isStandbyRef.current = false;
+        setIsListening(false);
+        stopSpeaking();
+        pendingWakeRef.current = false;
+        clearTimeout(wakeTimeoutRef.current);
     };
 
     const toggleStandby = () => {
-        unlockAudio();
+        resumeAudio();
         if (isStandby) {
-            setIsStandby(false);
-            isStandbyRef.current = false;
-            recognitionRef.current?.stop();
+            // Currently in standby → stop everything
+            stopAll();
         } else {
-            setIsStandby(true);
-            isStandbyRef.current = true;
-            recognitionRef.current?.start();
+            // Stop whatever is active, then start standby
+            stopAll();
+            setTimeout(() => {
+                setIsStandby(true);
+                isStandbyRef.current = true;
+                try { recognitionRef.current?.start(); } catch (e) { }
+            }, 80);
         }
     };
 
     const toggleActiveListening = () => {
-        unlockAudio();
+        resumeAudio();
         if (isListening) {
-            recognitionRef.current?.stop();
+            // Currently listening → stop everything
+            stopAll();
         } else {
-            // Stop standby first if active
-            if (isStandby) {
-                setIsStandby(false);
-                isStandbyRef.current = false;
-                recognitionRef.current?.stop();
-                // Wait a tiny bit for stop to process before starting new session
-                setTimeout(() => {
-                    playAudioCue('start');
-                    startActiveListening();
-                }, 100);
-            } else {
+            // Stop whatever is active, then start active listening
+            stopAll();
+            setTimeout(() => {
                 playAudioCue('start');
-                startActiveListening();
-            }
+                setIsListening(true);
+                try { recognitionRef.current?.start(); } catch (e) { }
+            }, 80);
         }
     };
 
@@ -355,9 +360,9 @@ export default function CookingAssistant(props) {
         setIsSpeaking(false);
     };
 
-    const handleSend = async (text = inputText) => {
+    const handleSend = async (text = inputText, fromVoice = false) => {
         if (!text.trim()) return;
-        unlockAudio(); // SYNCHRONOUS User Gesture
+        resumeAudio(); // iOS: keep shared AudioContext warm
 
         // Detect termination
         const terminationWords = ['ok', 'danke', 'alles klar', 'fertig', 'stopp', 'tschüss', 'ciao'];
@@ -398,6 +403,16 @@ export default function CookingAssistant(props) {
                 props.onAction(data.action);
             }
 
+            // Skip TTS entirely if: alarm is active, OR user typed (not voice)
+            if (hasActiveAlarm) {
+                console.log('[CookingAssistant] Alarm active – skipping TTS');
+                return;
+            }
+            if (!fromVoice) {
+                console.log('[CookingAssistant] Text input – skipping TTS and mic');
+                return;
+            }
+
             // Pass the ending flag to speak so it knows whether to restart mic
             speak(data.reply, isEnding);
 
@@ -430,6 +445,12 @@ export default function CookingAssistant(props) {
                         <X size={20} />
                     </button>
                 </div>
+
+                {hasActiveAlarm && (
+                    <div className="bg-red-500/90 text-white text-xs font-bold px-3 py-1.5 flex items-center gap-2 border-b border-red-600">
+                        <span className="animate-pulse">🔔</span> Timer läuft – Sprachausgabe pausiert
+                    </div>
+                )}
 
                 {/* Chat Area */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/30">

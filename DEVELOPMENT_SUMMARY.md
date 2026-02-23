@@ -34,6 +34,17 @@ Dieses Dokument dient als Gedächtnisstütze für alle wesentlichen Änderungen,
   - `SharedCookbook.jsx` & `SharedRecipe.jsx`: Dynamische Inhalte basierend auf `cookbookInfo`.
   - `AuthContext.jsx`: Synchronisiert den Benutzer-Status beim App-Start mit dem Server.
 
-## 4. Nächste Schritte (Referenz)
+## 4. iOS Audio (Kochmodus Timer)
+
+**Problem**: `new Audio(base64).play()` aus einem `setInterval` heraus wird von iOS blockiert, da iOS Audio nur bei direkter User-Gesture erlaubt.
+
+**Lösung (Feb 2026)**:
+- `CookingMode.jsx`: Erstellt einen **einzigen `AudioContext`** (`audioContextRef`) beim Mount. Auf jedem User-Klick (`nextStep`, `prevStep`, `toggleIngredient`, Assistent-Button, Timer-Buttons) wird `audioContext.resume()` aufgerufen ("warm halten").
+- `TimerOverlay.jsx`: Bekommt den `audioContext` als Prop. Die Alarm-Melodie (A5→D6→E6) wird mit **`OscillatorNode` + `GainNode`** (Web Audio API) erzeugt – kein `new Audio()` mehr.
+- Zusätzlich: `navigator.vibrate([300, 150, 300])` als Fallback für den Hardware-Stummschalter.
+
+**Wichtig**: Die `AudioContext`-Instanz darf **nicht** per `close()` freigegeben werden, solange Timer aktiv sein können.
+
+## 5. Nächste Schritte (Referenz)
 - Bei neuen Features immer darauf achten, das `UserId`-Feld mitzuführen.
 - Bei Änderungen an der DB-Struktur immer `db.md` aktualisieren.

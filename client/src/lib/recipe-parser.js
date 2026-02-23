@@ -150,34 +150,63 @@ const STOP_WORDS = new Set([
 
 /**
  * Finds all occurrences of ingredients in a text step.
- * Returns an array of matches with metadata.
- * 
- * @param {string} stepText 
+ * Handles duplicate ingredients: the Nth text occurrence of a name is mapped
+ * to the Nth ingredient entry with that name in the list.
+ *
+ * @param {string} stepText
  * @param {Array} ingredients - Array of ingredient objects { id, name, ... }
- * @returns {Array} - [{ ingredientId, name, matchedText, index, length }]
+ * @param {Object} occurrencesBefore - { normalizedName -> count } of how many times
+ *   each ingredient name was seen in PREVIOUS steps. Pass {} for the first step.
+ * @returns {{ matches: Array, localOccurrences: Object }}
+ *   matches: [{ ingredientId, ingredient, matchedText, index, length, type }]
+ *   localOccurrences: { name -> count } for THIS step only (accumulate externally)
  */
-export function findIngredientsInText(stepText, ingredients) {
+export function findIngredientsInText(stepText, ingredients, occurrencesBefore = {}) {
     const matches = [];
-    if (!stepText) return matches;
+    if (!stepText) return { matches, localOccurrences: {} };
 
     const lowerStep = stepText.toLowerCase();
+    const localOccurrences = {}; // name -> count within this step
 
-    // Strategy 1: Exact / Substing Match
+    // Group ingredients by normalised name to handle duplicates
+    const nameGroups = {}; // normalizedName -> [ing, ing, ...]
+    ingredients.forEach(ing => {
+        const key = ing.name.toLowerCase();
+        if (!nameGroups[key]) nameGroups[key] = [];
+        nameGroups[key].push(ing);
+    });
+
+    // Strategy 1: Exact / Substring Match
     // We sort ingredients by length (desc) to match "Olivenöl" before "Öl"
     const sortedIngredients = [...ingredients].sort((a, b) => b.name.length - a.name.length);
 
     // Keep track of matched ranges to avoid overlapping matches
     const matchedRanges = []; // [start, end]
-
     const isOverlapping = (start, end) => {
         return matchedRanges.some(r => (start < r[1] && end > r[0]));
     };
 
+    /**
+     * Pick the right ingredient from the name group based on global occurrence count.
+     * Increments the local counter for that name.
+     */
+    const pickIngredient = (key) => {
+        const globalIdx = (occurrencesBefore[key] || 0) + (localOccurrences[key] || 0);
+        localOccurrences[key] = (localOccurrences[key] || 0) + 1;
+        const group = nameGroups[key] || [];
+        return group[Math.min(globalIdx, group.length - 1)] || group[0];
+    };
+
+    // Track which names have been processed so we don't double-process duplicates
+    const processedNames = new Set();
+
     sortedIngredients.forEach(ing => {
         const lowerName = ing.name.toLowerCase();
 
-        // Skip if ingredient name itself is a stop word
+        // Skip stop words and already-processed names
         if (STOP_WORDS.has(lowerName)) return;
+        if (processedNames.has(lowerName)) return;
+        processedNames.add(lowerName);
 
         // --- RULE 1: Strict "Ei"/"Eier" Check ---
         if (lowerName === 'ei' || lowerName === 'eier') {
@@ -190,9 +219,10 @@ export function findIngredientsInText(stepText, ingredients) {
 
                 if (!isOverlapping(start, end) && !STOP_WORDS.has(matchedText)) {
                     const expanded = expandToWordBoundaries(stepText, start, end);
+                    const chosenIng = pickIngredient(lowerName);
                     matches.push({
-                        ingredientId: ing.id,
-                        ingredient: ing,
+                        ingredientId: chosenIng.id,
+                        ingredient: chosenIng,
                         matchedText: expanded.text,
                         index: expanded.start,
                         length: expanded.text.length,
@@ -204,7 +234,8 @@ export function findIngredientsInText(stepText, ingredients) {
             return;
         }
 
-        // Standard Substring Match for others
+        // Standard Substring Match – find ALL occurrences of this name,
+        // assign each to the corresponding ingredient in the group in order.
         let idx = lowerStep.indexOf(lowerName);
         while (idx !== -1) {
             const end = idx + lowerName.length;
@@ -212,9 +243,10 @@ export function findIngredientsInText(stepText, ingredients) {
 
             if (!isOverlapping(idx, end) && !STOP_WORDS.has(matchedText)) {
                 const expanded = expandToWordBoundaries(stepText, idx, end);
+                const chosenIng = pickIngredient(lowerName);
                 matches.push({
-                    ingredientId: ing.id,
-                    ingredient: ing,
+                    ingredientId: chosenIng.id,
+                    ingredient: chosenIng,
                     matchedText: expanded.text,
                     index: expanded.start,
                     length: expanded.text.length,
@@ -224,6 +256,42 @@ export function findIngredientsInText(stepText, ingredients) {
             }
             idx = lowerStep.indexOf(lowerName, end);
         }
+    });
+
+    // Strategy 1b: Synonym Matching
+    // For ingredients that haven't been matched yet (or that still have unmatched slots),
+    // try all their synonyms as substring matches. This is more precise than suffix/fuzzy.
+    sortedIngredients.forEach(ing => {
+        const lowerName = ing.name.toLowerCase();
+        if (STOP_WORDS.has(lowerName)) return;
+        if (!ing.synonyms || ing.synonyms.length === 0) return;
+
+        ing.synonyms.forEach(syn => {
+            const lowerSyn = (syn || '').toLowerCase().trim();
+            if (!lowerSyn || lowerSyn.length < 2 || STOP_WORDS.has(lowerSyn)) return;
+
+            let idx = lowerStep.indexOf(lowerSyn);
+            while (idx !== -1) {
+                const end = idx + lowerSyn.length;
+                const matchedText = stepText.substring(idx, end).toLowerCase();
+
+                if (!isOverlapping(idx, end) && !STOP_WORDS.has(matchedText)) {
+                    const expanded = expandToWordBoundaries(stepText, idx, end);
+                    // Use the ingredient's main name key so occurrence tracking is consistent
+                    const chosenIng = pickIngredient(lowerName);
+                    matches.push({
+                        ingredientId: chosenIng.id,
+                        ingredient: chosenIng,
+                        matchedText: expanded.text,
+                        index: expanded.start,
+                        length: expanded.text.length,
+                        type: 'synonym'
+                    });
+                    matchedRanges.push([expanded.start, expanded.end]);
+                }
+                idx = lowerStep.indexOf(lowerSyn, end);
+            }
+        });
     });
 
     // Strategy 2: Reverse Search (Compound / Suffix Match)
@@ -244,10 +312,12 @@ export function findIngredientsInText(stepText, ingredients) {
         });
 
         if (foundIng) {
+            const key = foundIng.name.toLowerCase();
             const expanded = expandToWordBoundaries(stepText, start, end);
+            const chosenIng = pickIngredient(key);
             matches.push({
-                ingredientId: foundIng.id,
-                ingredient: foundIng,
+                ingredientId: chosenIng.id,
+                ingredient: chosenIng,
                 matchedText: expanded.text,
                 index: expanded.start,
                 length: expanded.text.length,
@@ -281,10 +351,12 @@ export function findIngredientsInText(stepText, ingredients) {
 
             if (dist <= threshold && dist > 0) {
                 if (!isOverlapping(start, end)) {
+                    const key = lowerIngName;
                     const expanded = expandToWordBoundaries(stepText, start, end);
+                    const chosenIng = pickIngredient(key);
                     matches.push({
-                        ingredientId: ing.id,
-                        ingredient: ing,
+                        ingredientId: chosenIng.id,
+                        ingredient: chosenIng,
                         matchedText: expanded.text,
                         index: expanded.start,
                         length: expanded.text.length,
@@ -296,7 +368,10 @@ export function findIngredientsInText(stepText, ingredients) {
         });
     }
 
-    return matches.sort((a, b) => a.index - b.index);
+    return {
+        matches: matches.sort((a, b) => a.index - b.index),
+        localOccurrences
+    };
 }
 
 /**
@@ -312,7 +387,7 @@ export function sortIngredientsBySteps(ingredients, steps) {
     const firstAppearance = {}; // ingId -> { stepIdx, matchIdx }
 
     steps.forEach((step, stepIdx) => {
-        const matches = findIngredientsInText(step, ingredients);
+        const { matches } = findIngredientsInText(step, ingredients);
         matches.forEach(m => {
             if (firstAppearance[m.ingredientId] === undefined) {
                 firstAppearance[m.ingredientId] = {
@@ -363,12 +438,47 @@ export function findTimesInText(text) {
         }
 
         if (totalSeconds > 0) {
-            // Check for following word as label
-            let label = m[0]; // Fallback to duration string
-            const afterMatch = text.substring(m.index + m[0].length).trim();
-            if (afterMatch && !afterMatch.startsWith('.') && !afterMatch.startsWith(',')) {
-                // Peek at the next word
-                const nextWordMatch = afterMatch.match(/^[\wäöüÄÖÜß]+/);
+            // Extract a meaningful label: the last word before the next '.', 'und', or ','
+            // (whichever comes first after the time match)
+            let label = m[0]; // Fallback: the raw duration string (e.g. "10 Min")
+            const afterMatch = text.substring(m.index + m[0].length);
+
+            // Find the position of each delimiter after the match
+            const delimiters = [
+                { char: '.', idx: afterMatch.indexOf('.') },
+                { char: ',', idx: afterMatch.indexOf(',') },
+                // 'und' as a word boundary (not part of a word)
+                { char: 'und', idx: (() => { const r = afterMatch.search(/\bund\b/i); return r; })() }
+            ].filter(d => d.idx !== -1);
+
+            // Take the earliest delimiter
+            const nearest = delimiters.reduce((min, d) => d.idx < min.idx ? d : min,
+                { idx: Infinity });
+
+            if (nearest.idx !== Infinity) {
+                // Segment from after the time to the delimiter
+                const segment = afterMatch.substring(0, nearest.idx).trim();
+                // Grab the last meaningful word in that segment (skip short/empty)
+                const words = segment.match(/[\wäöüÄÖÜß]+/g);
+                if (words && words.length > 0) {
+                    // Skip weak/auxiliary verbs at the end – use the word before them
+                    const SKIP_WORDS = new Set([
+                        'lassen', 'werden', 'sein', 'haben',
+                        'können', 'müssen', 'sollen', 'dürfen', 'wollen', 'mögen',
+                        'bleiben', 'stehen', 'liegen', 'stellen', 'geben',
+                    ]);
+                    let pick = words.length - 1;
+                    while (pick > 0 && SKIP_WORDS.has(words[pick].toLowerCase())) {
+                        pick--;
+                    }
+                    const candidate = words[pick];
+                    if (candidate && candidate.length > 1) {
+                        label = candidate;
+                    }
+                }
+            } else {
+                // No delimiter found: fall back to first word after the match
+                const nextWordMatch = afterMatch.trim().match(/^[\wäöüÄÖÜß]+/);
                 if (nextWordMatch && nextWordMatch[0].length > 1) {
                     label = nextWordMatch[0];
                 }

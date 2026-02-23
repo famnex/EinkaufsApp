@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, Maximize2, Minimize2, AlertTriangle, Sparkles, Share2 } from 'lucide-react';
 import { Button } from './Button';
@@ -20,6 +20,7 @@ export default function CookingMode({ recipe, onClose }) {
     const [futureUsage, setFutureUsage] = useState({}); // { ingredientId: [{ date, recipeName }] }
     const [direction, setDirection] = useState(0);
     const [timers, setTimers] = useState([]); // [{ id, label, duration, remaining, isRunning }]
+    const audioContextRef = useRef(null);
 
     // AI Voice Control State
     const [scaleFactor, setScaleFactor] = useState(1);
@@ -74,14 +75,19 @@ export default function CookingMode({ recipe, onClose }) {
         const originalName = ri.Product?.name || 'Unknown';
         const subName = substitutions[originalName];
 
+        // Parse synonyms safely (may be JSON string or array)
+        let synonyms = ri.Product?.synonyms || [];
+        if (typeof synonyms === 'string') { try { synonyms = JSON.parse(synonyms); } catch { synonyms = []; } }
+
         return {
             id: ri.id,
             productId: ri.ProductId,
             name: subName || originalName,
-            originalName: originalName, // Keep original for reference
+            originalName: originalName,
             isSubstituted: !!subName,
             amount: ri.quantity * scaleFactor,
-            unit: ri.unit || ri.Product?.unit
+            unit: ri.unit || ri.Product?.unit,
+            synonyms: Array.isArray(synonyms) ? synonyms : []
         };
     }) || [], [recipe, substitutions, scaleFactor]);
 
@@ -92,12 +98,27 @@ export default function CookingMode({ recipe, onClose }) {
         return sortIngredientsBySteps(rawIngredients, steps);
     }, [rawIngredients, steps]);
 
+    // Precompute cumulative occurrence offsets per step so duplicate ingredients
+    // are mapped to the correct list entry (1st text occurrence → 1st ingredient, etc.)
+    const occurrencesByStep = useMemo(() => {
+        const result = [{}]; // result[i] = occurrencesBefore for step i
+        for (let i = 0; i < steps.length; i++) {
+            const { localOccurrences } = findIngredientsInText(steps[i], ingredients, result[i]);
+            const next = { ...result[i] };
+            Object.entries(localOccurrences).forEach(([k, v]) => {
+                next[k] = (next[k] || 0) + v;
+            });
+            result.push(next);
+        }
+        return result;
+    }, [steps, ingredients]);
+
     // --- NEW: Parse Steps for Highlighting ---
     const stepFragments = useMemo(() => {
         const currentText = steps[step];
         if (!currentText) return [];
 
-        const ingredientMatches = findIngredientsInText(currentText, ingredients);
+        const { matches: ingredientMatches } = findIngredientsInText(currentText, ingredients, occurrencesByStep[step] || {});
         const timeMatches = findTimesInText(currentText);
 
         const allMatches = [
@@ -156,7 +177,7 @@ export default function CookingMode({ recipe, onClose }) {
         }
 
         return fragments;
-    }, [step, steps, ingredients]);
+    }, [step, steps, ingredients, occurrencesByStep]);
 
 
     // Fetch future usage
@@ -242,11 +263,29 @@ export default function CookingMode({ recipe, onClose }) {
     }, [recipe]); // Note: removed ingredients dep to avoid loop if object ref changes, handled by memo
 
 
-    const toggleIngredient = (id) => {
-        // iOS PWA Audio Unlock: Prime audio on user gesture
-        const audio = new Audio();
-        audio.play().then(() => audio.pause()).catch(() => { });
+    // iOS Audio: Create and keep a single shared AudioContext.
+    // It must be resumed on every user gesture to stay unlocked.
+    useEffect(() => {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext && !audioContextRef.current) {
+            audioContextRef.current = new AudioContext();
+            console.log('[CookingMode] AudioContext created, state:', audioContextRef.current.state);
+        }
+        return () => {
+            // Don't close – TimerOverlay may still need it briefly after unmount
+        };
+    }, []);
 
+    // Helper to resume AudioContext synchronously during a user gesture.
+    // Call this at the start of every click/tap handler.
+    const resumeAudio = useCallback(() => {
+        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+            audioContextRef.current.resume();
+        }
+    }, []);
+
+    const toggleIngredient = (id) => {
+        resumeAudio(); // iOS: keep AudioContext alive
         const next = new Set(checkedIngredients);
         if (next.has(id)) next.delete(id);
         else next.add(id);
@@ -254,10 +293,7 @@ export default function CookingMode({ recipe, onClose }) {
     };
 
     const nextStep = () => {
-        // iOS PWA Audio Unlock
-        const audio = new Audio();
-        audio.play().then(() => audio.pause()).catch(() => { });
-
+        resumeAudio();
         if (step < steps.length - 1) {
             setDirection(1);
             setStep(step + 1);
@@ -265,10 +301,7 @@ export default function CookingMode({ recipe, onClose }) {
     };
 
     const prevStep = () => {
-        // iOS PWA Audio Unlock
-        const audio = new Audio();
-        audio.play().then(() => audio.pause()).catch(() => { });
-
+        resumeAudio();
         if (step > 0) {
             setDirection(-1);
             setStep(step - 1);
@@ -311,12 +344,6 @@ export default function CookingMode({ recipe, onClose }) {
             }
         };
     }, []);
-
-    // Helper to unlock audio context on iOS PWA
-    const audioUnlock = () => {
-        const audio = new Audio();
-        audio.play().then(() => audio.pause()).catch(() => { });
-    };
 
     const getTextSizeClass = () => {
         switch (textSize) {
@@ -765,9 +792,7 @@ export default function CookingMode({ recipe, onClose }) {
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                         onClick={() => {
-                            // iOS PWA Audio Unlock: Synchronous User Gesture
-                            const audio = new Audio();
-                            audio.play().then(() => audio.pause()).catch(() => { });
+                            resumeAudio();
                             setShowAssistant(!showAssistant);
                         }}
                         className="fixed top-[calc(120px+env(safe-area-inset-top))] right-4 md:top-auto md:right-auto md:bottom-6 md:left-6 z-[100] w-12 h-12 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-full shadow-lg flex items-center justify-center text-white border-2 border-white/20"
@@ -783,12 +808,15 @@ export default function CookingMode({ recipe, onClose }) {
                     currentStep={step}
                     servings={recipe.servings * scaleFactor}
                     onAction={handleVoiceAction}
+                    audioContext={audioContextRef.current}
+                    hasActiveAlarm={timers.some(t => t.remaining === 0 && t.isRunning)}
                 />
 
                 <TimerOverlay
                     timers={timers}
                     onUpdate={updateTimer}
                     onDelete={deleteTimer}
+                    audioContext={audioContextRef.current}
                 />
 
                 {/* --- FIXED TOOLTIP LAYER --- */}

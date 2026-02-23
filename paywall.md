@@ -28,6 +28,7 @@ This document describes the multi-tier subscription system with Stripe and PayPa
 - Jede KI-Funktion (Produktwechsel, Rezept-Assistent, etc.) muss vor der Ausführung die Kosten anzeigen.
 - Der Nutzer muss die Kosten explizit bestätigen (`AiActionConfirmModal`).
 - Transaktionen werden in der `CreditTransactions` Tabelle geloggt.
+- Beachte, dass es unterschiedliche Kosten geben kann, je nach Subscription.
 
 ## Technical Implementation Notes
 
@@ -47,3 +48,13 @@ This document describes the multi-tier subscription system with Stripe and PayPa
 
 ### Already implemented
 - Die Daten zur Zahlungsabwicklung von STripe und Paypal sind schon in der Datenbank gespeichert und werden über die settings-Seite vom Admin hinterlegt.
+
+### Display Logic
+- Unter 'Abo & Credits' hat man bei "Aktuelles Abo" die Möglichkeit, ein Abo zu kaufen, kündigen oder upgraden.
+- Beim Klick auf "Abo kaufen" wird die SubscriptionModal geöffnet.
+- Dort kann man die Tiere auswählen und die AGB bestätigen.
+- Die Tiers werden dort detailliert beschrieben.
+- Nach dem Klick auf "Zahlungspflichtig bestellen" wird die Stripe/PayPal Checkout Seite geöffnet.
+- Nach erfolgreicher Bezahlung wird die SubscriptionModal geschlossen.
+
+

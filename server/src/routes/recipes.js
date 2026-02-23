@@ -53,6 +53,19 @@ router.get('/', auth, async (req, res) => {
                     required: false,
                     attributes: ['id', 'name'],
                     through: { attributes: [] }
+                },
+                {
+                    // Lightweight ingredient include – only product name for search
+                    model: RecipeIngredient,
+                    where: { UserId: req.user.effectiveId },
+                    required: false,
+                    attributes: ['id'],
+                    include: [{
+                        model: Product,
+                        where: { UserId: req.user.effectiveId },
+                        required: false,
+                        attributes: ['name']
+                    }]
                 }
             ],
             order: [['title', 'ASC']]
