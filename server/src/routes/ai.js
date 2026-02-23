@@ -112,6 +112,7 @@ router.post('/parse', auth, async (req, res) => {
         - Translate all text (instructions, names, category, tags) to GERMAN.
         - Ensure "amount" is a JSON Number, not a string. Handle ranges or fractions by converting to decimal number.
         - "prep_time" and "total_time" must be in MINUTES (integer). Parse "1h 30m" to 90.
+        - Wenn bei den Zutaten zusätzliche Angaben stehen (z.B. Möhren (gerieben), Gurken in Scheiben, ...), dann füge einen Schritt VOR den sonstigen Zubereitungsschritten ein, in welchem diese Anweisungen stehen (zB. "Möhren reiben, Gurken in Scheiben schneiden").
         `;
 
         const completion = await openai.chat.completions.create({
