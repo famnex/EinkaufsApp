@@ -9,27 +9,23 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const BASE_PATH = process.env.BASE_PATH || ''; // e.g. '/EinkaufsApp'
+
+const BASE_PATH = process.env.BASE_PATH || '';
+console.log('=== DEBUG: BASE_PATH ist ->', BASE_PATH); // <-- Das hier einfügen
 
 app.use('/uploads/compliance', express.static(path.join(__dirname, 'uploads/compliance')));
 
 app.use(cors());
 
-
-// Stripe Webhook MUST be registered BEFORE express.json() to get raw body for signature verification
-app.post(`${BASE_PATH || ''}/api/subscription/webhook/stripe`, express.raw({ type: 'application/json' }), async (req, res) => {
-    try {
-        const subscriptionRoute = require('./src/routes/subscription');
-        // Forward to the webhook handler
-        subscriptionRoute.handleStripeWebhook(req, res);
-    } catch (err) {
-        console.error('Webhook route error:', err);
-        res.status(500).json({ error: 'Internal server error' });
+app.use((req, res, next) => {
+    // Wenn die Anfrage an den Stripe-Webhook geht, überspringe express.json()
+    if (req.originalUrl.includes('/webhook/stripe')) {
+        next();
+    } else {
+        // Für alle anderen Routen, nutze normales JSON
+        express.json()(req, res, next);
     }
 });
-
-app.use(express.json());
-
 
 
 // Serve static files
