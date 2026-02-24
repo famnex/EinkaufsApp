@@ -24,9 +24,9 @@ export default function LoginPage() {
 
     useEffect(() => {
         if (user) {
-            navigate('/', { replace: true });
+            navigate(from, { replace: true });
         }
-    }, [user, navigate]);
+    }, [user, navigate, from]);
 
     useEffect(() => {
         const checkReg = async () => {

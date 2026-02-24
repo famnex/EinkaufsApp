@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen, AlertTriangle, Folder } from 'lucide-react';
+import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, UserMinus, LogOut, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen, AlertTriangle, Folder, Calendar, CalendarX, Info } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -14,6 +14,7 @@ import AlexaLogsModal from '../components/AlexaLogsModal';
 import UserDetailModal from '../components/UserDetailModal';
 import SubscriptionModal from '../components/SubscriptionModal';
 import SubscriptionCancelModal from '../components/SubscriptionCancelModal';
+import HouseholdConfirmModal from '../components/HouseholdConfirmModal';
 import api from '../lib/axios';
 import { Search } from 'lucide-react';
 import ReactQuill from 'react-quill-new';
@@ -56,6 +57,9 @@ export default function SettingsPage() {
     const [isUserDetailModalOpen, setIsUserDetailModalOpen] = useState(false);
     const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+    const [isHouseholdModalOpen, setIsHouseholdModalOpen] = useState(false);
+    const [householdModalType, setHouseholdModalType] = useState('leave'); // 'leave' | 'remove'
+    const [selectedMember, setSelectedMember] = useState(null);
     const [initialDetailTab, setInitialDetailTab] = useState('general');
 
     // System Design State
@@ -129,7 +133,7 @@ export default function SettingsPage() {
         }
     }, [activeTab]);
 
-    // Handle payment return URLs (?payment=success|cancel)
+    // Handle payment return URLs (?payment=success|cancel) and direct tab links (?tab=...)
     useEffect(() => {
         const paymentStatus = searchParams.get('payment');
         if (paymentStatus) {
@@ -143,6 +147,14 @@ export default function SettingsPage() {
             }
             // Clean up the URL
             searchParams.delete('payment');
+            setSearchParams(searchParams, { replace: true });
+        }
+
+        const tab = searchParams.get('tab');
+        if (tab) {
+            setActiveTab(tab);
+            // Clean up the URL (optional but cleaner)
+            searchParams.delete('tab');
             setSearchParams(searchParams, { replace: true });
         }
     }, []);
@@ -184,7 +196,7 @@ export default function SettingsPage() {
                 fetchComplianceReports();
             }
         }
-    }, [user?.role, activeAdminTab, user?.id]); // Added user.id dependency
+    }, [user?.role, activeAdminTab, user?.id, user?.householdId]); // Added user.householdId dependency
 
     // User Strikes State
     const [userStrikes, setUserStrikes] = useState([]);
@@ -444,6 +456,46 @@ export default function SettingsPage() {
             console.error('Failed to fetch members', err);
         } finally {
             setFetchingMembers(false);
+        }
+    };
+
+    const handleLeaveHousehold = async () => {
+        setHouseholdModalType('leave');
+        setSelectedMember(null);
+        setIsHouseholdModalOpen(true);
+    };
+
+    const confirmLeaveHousehold = async () => {
+        setIsHouseholdModalOpen(false);
+        try {
+            await api.post('/auth/household/leave');
+            await refreshUser();
+            alert('Du hast den Haushalt verlassen.');
+        } catch (err) {
+            console.error('Failed to leave household', err);
+            alert('Fehler beim Verlassen des Haushalts: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleRemoveMember = async (member) => {
+        setHouseholdModalType('remove');
+        setSelectedMember(member);
+        setIsHouseholdModalOpen(true);
+    };
+
+    const confirmRemoveMember = async () => {
+        if (!selectedMember) return;
+        const memberId = selectedMember.id;
+        const memberName = selectedMember.username;
+        setIsHouseholdModalOpen(false);
+
+        try {
+            await api.delete(`/auth/household/remove/${memberId}`);
+            await fetchHouseholdMembers();
+            alert(`${memberName} wurde aus dem Haushalt entfernt.`);
+        } catch (err) {
+            console.error('Failed to remove member', err);
+            alert('Fehler beim Entfernen des Mitglieds: ' + (err.response?.data?.error || err.message));
         }
     };
 
@@ -837,6 +889,7 @@ export default function SettingsPage() {
     const [loadingCredits, setLoadingCredits] = useState(false);
     const [loadingSubscription, setLoadingSubscription] = useState(false);
 
+
     useEffect(() => {
         if (activeTab === 'subscription') {
             fetchCreditHistory();
@@ -873,6 +926,21 @@ export default function SettingsPage() {
             await refreshUser();
         } catch (err) {
             console.error('Failed to refresh user status', err);
+        } finally {
+            setLoadingSubscription(false);
+        }
+    };
+
+    const handleOpenPortal = async () => {
+        setLoadingSubscription(true);
+        try {
+            const { data } = await api.post('/subscription/stripe/create-portal-session', {
+                returnUrl: window.location.origin + '/settings'
+            });
+            if (data.url) window.location.href = data.url;
+        } catch (err) {
+            console.error('Failed to open billing portal', err);
+            alert('Abrechnungsportal konnte nicht geöffnet werden: ' + (err.response?.data?.error || err.message));
         } finally {
             setLoadingSubscription(false);
         }
@@ -1576,8 +1644,19 @@ export default function SettingsPage() {
                                             <p className="text-[10px] text-muted-foreground">{member.role === 'admin' ? 'Administrator' : 'Mitglied'}</p>
                                         </div>
                                     </div>
-                                    {member.householdId === null && (
+                                    {member.householdId === null ? (
                                         <span className="text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-bold">Besitzer</span>
+                                    ) : (
+                                        !user.householdId && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                                onClick={() => handleRemoveMember(member)}
+                                            >
+                                                <UserMinus size={16} />
+                                            </Button>
+                                        )
                                     )}
                                 </div>
                             ))
@@ -1587,7 +1666,21 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                {!user.householdId && (
+                {user.householdId ? (
+                    <div className="pt-2">
+                        <Button
+                            variant="outline"
+                            className="w-full gap-2 border-destructive/30 text-destructive hover:bg-destructive/10"
+                            onClick={handleLeaveHousehold}
+                        >
+                            <LogOut size={16} />
+                            Haushalt verlassen
+                        </Button>
+                        <p className="text-[10px] text-muted-foreground mt-2 text-center px-4">
+                            Hinweis: Deine Rezepte und Listen verbleiben beim Haushalts-Besitzer.
+                        </p>
+                    </div>
+                ) : (
                     <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
                         <p className="text-xs text-muted-foreground mb-4 flex items-center gap-2">
                             <CheckCircle size={14} className="text-primary" /> Zusätzliche Person einladen
@@ -2677,9 +2770,17 @@ export default function SettingsPage() {
 
         const currentTier = user?.tier || 'Plastikgabel';
         const badgeImage = getTierBadge(currentTier);
+        const isMember = !!user?.householdId;
 
         return (
             <div className="space-y-8 relative">
+                {isMember && (
+                    <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl flex items-center gap-3 text-sm text-primary/80 font-medium">
+                        <Info size={18} />
+                        Nur der Besitzer des Haushalts kann hier Änderungen vornehmen.
+                    </div>
+                )}
+
                 {/* Tier Info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="p-6 bg-gradient-to-br from-primary/10 to-primary/5 rounded-3xl border border-primary/20 relative min-h-[160px] flex flex-col justify-center">
@@ -2696,23 +2797,58 @@ export default function SettingsPage() {
                                         {currentTier}
                                     </div>
                                 </div>
+
+                                {user?.subscriptionExpiresAt && (user?.tier !== 'Plastikgabel' && user?.tier !== 'Rainbowspoon') && (
+                                    <div className={cn(
+                                        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-4 w-fit",
+                                        user.cancelAtPeriodEnd
+                                            ? "bg-destructive/10 text-destructive border border-destructive/20"
+                                            : "bg-primary/10 text-primary border border-primary/20"
+                                    )}>
+                                        {user.cancelAtPeriodEnd ? (
+                                            <>
+                                                <CalendarX size={12} />
+                                                Abo gekündigt zum {new Date(user.subscriptionExpiresAt).toLocaleDateString('de-DE')}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <RefreshCw size={12} className="animate-spin-slow" />
+                                                Abo erneuert sich am {new Date(user.subscriptionExpiresAt).toLocaleDateString('de-DE')}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
                                 <div className="flex gap-2">
-                                    {(currentTier !== 'Rainbowspoon' && currentTier !== 'Goldgabel') && (
+                                    {(!isMember && currentTier !== 'Rainbowspoon' && currentTier !== 'Goldgabel') && (
                                         <Button
                                             size="sm"
                                             className="gap-2"
-                                            onClick={() => setIsSubscriptionModalOpen(true)}
+                                            onClick={() => {
+                                                if (user?.stripeSubscriptionId) {
+                                                    handleOpenPortal();
+                                                } else {
+                                                    setIsSubscriptionModalOpen(true);
+                                                }
+                                            }}
+                                            disabled={loadingSubscription}
                                         >
-                                            <Sparkles size={14} />
+                                            {loadingSubscription ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
                                             Upgrade
                                         </Button>
                                     )}
                                 </div>
-                                {(currentTier === 'Silbergabel' || currentTier === 'Goldgabel') && (
+                                {(!isMember && (currentTier === 'Silbergabel' || currentTier === 'Goldgabel')) && (
                                     <div className="mt-4">
                                         <button
-                                            onClick={() => setIsCancelModalOpen(true)}
-                                            className="text-[10px] text-muted-foreground hover:text-destructive transition-colors underline underline-offset-4 font-bold uppercase tracking-wider"
+                                            onClick={() => {
+                                                if (user?.stripeSubscriptionId) {
+                                                    handleOpenPortal();
+                                                } else {
+                                                    setIsCancelModalOpen(true);
+                                                }
+                                            }}
+                                            disabled={loadingSubscription}
+                                            className="text-[10px] text-muted-foreground hover:text-destructive transition-colors underline underline-offset-4 font-bold uppercase tracking-wider disabled:opacity-50"
                                         >
                                             Abo kündigen oder ändern
                                         </button>
@@ -2804,9 +2940,17 @@ export default function SettingsPage() {
                     onClose={() => setIsCancelModalOpen(false)}
                     currentTier={user?.tier || 'Plastikgabel'}
                     onRefreshed={() => {
+                        setIsCancelModalOpen(false);
                         refreshUser();
-                        fetchSubscriptionStatus();
                     }}
+                />
+
+                <HouseholdConfirmModal
+                    isOpen={isHouseholdModalOpen}
+                    onClose={() => setIsHouseholdModalOpen(false)}
+                    onConfirm={householdModalType === 'leave' ? confirmLeaveHousehold : confirmRemoveMember}
+                    type={householdModalType}
+                    memberName={selectedMember?.username}
                 />
             </div>
         );
@@ -3979,6 +4123,24 @@ export default function SettingsPage() {
                 isOpen={isSubscriptionModalOpen}
                 onClose={() => setIsSubscriptionModalOpen(false)}
                 currentTier={user?.tier}
+            />
+
+            <SubscriptionCancelModal
+                isOpen={isCancelModalOpen}
+                onClose={() => setIsCancelModalOpen(false)}
+                currentTier={user?.tier || 'Plastikgabel'}
+                onRefreshed={() => {
+                    setIsCancelModalOpen(false);
+                    refreshUser();
+                }}
+            />
+
+            <HouseholdConfirmModal
+                isOpen={isHouseholdModalOpen}
+                onClose={() => setIsHouseholdModalOpen(false)}
+                onConfirm={householdModalType === 'leave' ? confirmLeaveHousehold : confirmRemoveMember}
+                type={householdModalType}
+                memberName={selectedMember?.username}
             />
         </div>
     );

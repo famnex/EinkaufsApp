@@ -68,7 +68,7 @@ export default function SubscriptionCancelModal({ isOpen, onClose, currentTier, 
                                 <div className="text-sm">
                                     <p className="font-bold text-amber-500 mb-1">Wichtiger Hinweis</p>
                                     <p className="text-muted-foreground leading-snug">
-                                        Bei einer Kündigung oder einem Downgrade verfallen alle restlichen Coins unwiderruflich zum Ende des aktuellen Abrechnungszeitraums!
+                                        Bei einer Kündigung oder einem Downgrade zu Plastikgabel verfallen alle restlichen Coins unwiderruflich zum Ende des aktuellen Abrechnungszeitraums! Zudem werden bestehende Haushalte aufgelöst.
                                     </p>
                                 </div>
                             </div>

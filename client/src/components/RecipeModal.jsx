@@ -93,7 +93,7 @@ function SortableStepItem({ id, idx, text, onChange, onDelete }) {
 }
 
 export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
     const [activeTab, setActiveTab] = useState(0); // 0: Basics, 1: Ingredients, 2: Steps, 3: AI
     const [loading, setLoading] = useState(false); // Initial load
     const [isSaving, setIsSaving] = useState(false); // Bottom save button
@@ -554,6 +554,8 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
 
                                                                     const { data } = await api.post(endpoint, payload);
                                                                     setBasics(prev => ({ ...prev, imagePreview: data.url, image: null, imageSource: 'ai' }));
+                                                                    // Refresh user credits
+                                                                    refreshUser();
                                                                 } catch (err) {
                                                                     alert('Fehler: ' + err.message);
                                                                 } finally {

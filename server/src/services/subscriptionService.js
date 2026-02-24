@@ -67,21 +67,38 @@ const subscriptionService = {
 
             console.log(`[Cron] Downgrading user ${user.username}: ${user.tier} → ${newTier}`);
 
+            const updateData = {
+                subscriptionStatus: newTier === 'Plastikgabel' ? 'none' : 'active',
+                tier: newTier,
+                cancelAtPeriodEnd: false,
+                pendingTier: 'none'
+            };
+
+            // If reverting to Plastikgabel: Reset credits and dissolve household
+            let extraDetails = '';
+            if (newTier === 'Plastikgabel') {
+                updateData.aiCredits = 0;
+                updateData.householdId = null;
+                extraDetails = ' (Credits reset & Haushalt aufgelöst)';
+
+                // Dissolve household (if this user was the owner)
+                await User.update({ householdId: null }, {
+                    where: { householdId: user.id }
+                });
+
+                console.log(`[Cron] Reset credits and dissolved household for user ${user.username}`);
+            }
+
+            await user.update(updateData);
+
             await SubscriptionLog.create({
                 UserId: user.id,
                 username: user.username,
                 event: 'subscription_expired',
                 tier: newTier,
-                details: `Abo abgelaufen: ${user.tier} → ${newTier}`,
+                details: `Abo abgelaufen: ${user.tier} → ${newTier}${extraDetails}`,
                 ipHash: 'system',
                 userAgent: 'Cron-Job'
-            });
-
-            await user.update({
-                subscriptionStatus: newTier === 'Plastikgabel' ? 'none' : 'active',
-                tier: newTier,
-                cancelAtPeriodEnd: false,
-                pendingTier: 'none'
             });
         }
     },

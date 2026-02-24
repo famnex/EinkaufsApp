@@ -14,9 +14,12 @@ export default function JoinHousehold() {
     const token = searchParams.get('token');
 
     const [loading, setLoading] = useState(false);
+    const [terminating, setTerminating] = useState(false);
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(false);
     const [inviterName, setInviterName] = useState('...');
+
+    const isSubscribed = user?.tier !== 'Plastikgabel' && user?.tier !== 'Rainbowspoon';
 
     useEffect(() => {
         if (!token) {
@@ -42,7 +45,7 @@ export default function JoinHousehold() {
         };
 
         fetchInviteInfo();
-    }, [token]);
+    }, [token, user]);
 
     const handleJoin = async () => {
         setLoading(true);
@@ -56,6 +59,20 @@ export default function JoinHousehold() {
             setError(err.response?.data?.error || 'Fehler beim Beitreten des Haushalts.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleTerminateAndJoin = async () => {
+        if (!window.confirm('Möchtest du dein Abo wirklich sofort beenden? Dein aktueller Zeitraum verfällt dabei sofort.')) return;
+
+        setTerminating(true);
+        setError(null);
+        try {
+            await api.post('/subscription/terminate');
+            await handleJoin();
+        } catch (err) {
+            setError(err.response?.data?.error || 'Fehler beim Beenden des Abos.');
+            setTerminating(false);
         }
     };
 
@@ -103,6 +120,58 @@ export default function JoinHousehold() {
                     <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-2xl text-destructive text-sm flex gap-3">
                         <AlertTriangle className="shrink-0" />
                         <p>{error}</p>
+                    </div>
+                ) : isSubscribed ? (
+                    <div className="space-y-6">
+                        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl space-y-3">
+                            <h3 className="font-bold text-amber-600 flex items-center gap-2 text-sm uppercase tracking-wider">
+                                <AlertTriangle size={16} /> Abo-Konflikt
+                            </h3>
+                            <p className="text-xs text-amber-700 leading-relaxed font-medium">
+                                Du hast ein aktives <strong>{user.tier}</strong> Abo. Um einem Haushalt beizutreten, darf kein Abo bestehen, da die Abrechnung sonst kollidiert.
+                            </p>
+
+                            <div className="space-y-4 pt-2">
+                                <div className="space-y-2">
+                                    <p className="text-[10px] font-black text-amber-800/60 uppercase">Option 1: Später beitreten</p>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full text-xs border-amber-500/30 text-amber-700 hover:bg-amber-500/10 h-10"
+                                        onClick={() => navigate('/settings?tab=subscription')}
+                                    >
+                                        Abo kündigen & auslaufen lassen
+                                    </Button>
+                                    <p className="text-[9px] text-amber-600/70 italic px-1">
+                                        Du kannst dein Abo in den Einstellungen kündigen. Sobald es abgelaufen ist, kannst du über diesen Link beitreten.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <p className="text-[10px] font-black text-amber-800/60 uppercase">Option 2: Sofort beitreten</p>
+                                    <Button
+                                        size="lg"
+                                        className="w-full h-12 text-sm font-bold shadow-lg shadow-primary/20"
+                                        onClick={handleTerminateAndJoin}
+                                        disabled={terminating}
+                                    >
+                                        {terminating ? <Loader2 className="animate-spin" /> : 'Abo sofort beenden & Beitreten'}
+                                    </Button>
+                                    <p className="text-[9px] text-amber-600/70 italic px-1">
+                                        Achtung: Dein aktuelles Abo wird sofort beendet. Bezahlte Zeiträume verfallen dabei.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <Button
+                            variant="ghost"
+                            className="w-full text-muted-foreground"
+                            onClick={() => navigate('/')}
+                            disabled={terminating}
+                        >
+                            Abbrechen
+                        </Button>
                     </div>
                 ) : (
                     <div className="space-y-6">

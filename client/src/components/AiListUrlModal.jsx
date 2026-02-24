@@ -24,7 +24,7 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
     const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
 
     // Context
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
 
     // For list selection
     const navigate = useNavigate();
@@ -53,6 +53,8 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
             if (data.items && Array.isArray(data.items)) {
                 setAnalyzedItems(data.items.map(item => ({ ...item, selected: true })));
                 setView('review');
+                // Refresh user credits
+                refreshUser();
             } else {
                 setError('Keine Zutaten gefunden.');
             }

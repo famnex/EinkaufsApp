@@ -81,9 +81,23 @@ router.get('/public-cookbooks', async (req, res) => {
 router.get('/me', auth, async (req, res) => {
     try {
         const user = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate']
+            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'subscriptionExpiresAt', 'cancelAtPeriodEnd']
         });
         if (!user) return res.status(404).json({ error: 'User not found' });
+
+        // If user is a member, provide owner's subscription data
+        if (user.householdId) {
+            const owner = await User.findByPk(user.householdId, {
+                attributes: ['tier', 'aiCredits', 'subscriptionExpiresAt', 'cancelAtPeriodEnd']
+            });
+            if (owner) {
+                user.tier = owner.tier;
+                user.aiCredits = owner.aiCredits;
+                user.subscriptionExpiresAt = owner.subscriptionExpiresAt;
+                user.cancelAtPeriodEnd = owner.cancelAtPeriodEnd;
+            }
+        }
+
         res.json(user);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -94,8 +108,10 @@ router.get('/me', auth, async (req, res) => {
 router.get('/credits', auth, async (req, res) => {
     try {
         const { CreditTransaction } = require('../models');
+        const effectiveUserId = req.user.householdId || req.user.id;
+
         const history = await CreditTransaction.findAll({
-            where: { UserId: req.user.id },
+            where: { UserId: effectiveUserId },
             order: [['createdAt', 'DESC']],
             limit: 50
         });
@@ -124,7 +140,7 @@ router.put('/profile', auth, upload.single('image'), async (req, res) => {
 
         await User.update(updates, { where: { id: req.user.id } });
         const updatedUser = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook']
+            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'subscriptionExpiresAt', 'cancelAtPeriodEnd']
         });
         res.json(updatedUser);
     } catch (err) {
@@ -175,7 +191,7 @@ router.put('/email', auth, async (req, res) => {
         await user.update({ email: newEmail });
 
         const updatedUser = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId']
+            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'subscriptionExpiresAt', 'cancelAtPeriodEnd']
         });
 
         res.json({ success: true, user: updatedUser });
@@ -299,6 +315,13 @@ router.post('/household/join', auth, async (req, res) => {
         const targetHouseholdId = decoded.householdId;
         const joiningUserId = req.user.id;
 
+        // Subscription Check: Paid accounts cannot join another household
+        if (req.user.tier !== 'Plastikgabel' && req.user.tier !== 'Rainbowspoon') {
+            return res.status(400).json({
+                error: 'Abonnenten können keinem Haushalt beitreten. Bitte kündige dein Abo zuerst oder beende es sofort, um beitreten zu können.'
+            });
+        }
+
         if (joiningUserId === targetHouseholdId) {
             return res.status(400).json({ error: 'You are already the owner of this household' });
         }
@@ -369,6 +392,45 @@ router.post('/household/join', auth, async (req, res) => {
         console.error('Household join error:', err);
         if (err.name === 'TokenExpiredError') return res.status(400).json({ error: 'Einladung ist abgelaufen' });
         res.status(500).json({ error: 'Fehler beim Zusammenführen der Daten: ' + err.message });
+    }
+});
+
+// Leave Household
+router.post('/household/leave', auth, async (req, res) => {
+    try {
+        if (!req.user.householdId) {
+            return res.status(400).json({ error: 'Du bist in keinem Haushalt als Mitglied.' });
+        }
+
+        await req.user.update({ householdId: null });
+        res.json({ message: 'Haushalt erfolgreich verlassen.', user: req.user });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Remove Member from Household (Owner Only)
+router.delete('/household/remove/:memberId', auth, async (req, res) => {
+    try {
+        if (req.user.householdId) {
+            return res.status(403).json({ error: 'Nur der Haushalts-Besitzer kann Mitglieder entfernen.' });
+        }
+
+        const memberId = req.params.memberId;
+        const member = await User.findByPk(memberId);
+
+        if (!member) {
+            return res.status(404).json({ error: 'Mitglied nicht gefunden.' });
+        }
+
+        if (member.householdId !== req.user.id) {
+            return res.status(403).json({ error: 'Dieses Mitglied gehört nicht zu deinem Haushalt.' });
+        }
+
+        await member.update({ householdId: null });
+        res.json({ message: `Mitglied ${member.username} wurde aus dem Haushalt entfernt.` });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -457,7 +519,7 @@ router.post('/login', async (req, res) => {
 
         const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-        res.json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate } });
+        res.json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd } });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -496,7 +558,7 @@ router.post('/signup', async (req, res) => {
 
         const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-        res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate } });
+        res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd } });
     } catch (err) {
         console.error('Signup Error:', err); // Debug Log
         if (!process.env.JWT_SECRET) console.error('CRITICAL: JWT_SECRET is missing!');

@@ -10,7 +10,8 @@ const { User, CreditTransaction, SubscriptionLog, sequelize } = require('../mode
  */
 router.get('/status', auth, async (req, res) => {
     try {
-        const user = await User.findByPk(req.user.id, {
+        const effectiveUserId = req.user.householdId || req.user.id;
+        const user = await User.findByPk(effectiveUserId, {
             attributes: ['tier', 'aiCredits', 'subscriptionStatus', 'subscriptionExpiresAt', 'cancelAtPeriodEnd']
         });
         res.json(user);
@@ -43,6 +44,19 @@ router.post('/stripe/create-session', auth, async (req, res) => {
         });
 
         const session = await paymentService.createStripeSession(req.user.id, tier, successUrl, cancelUrl);
+        res.json({ url: session.url });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * POST /stripe/create-portal-session - Create Stripe Customer Portal session
+ */
+router.post('/stripe/create-portal-session', auth, async (req, res) => {
+    try {
+        const { returnUrl } = req.body;
+        const session = await paymentService.createPortalSession(req.user.id, returnUrl);
         res.json({ url: session.url });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -183,30 +197,46 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
 
             case 'customer.subscription.updated':
                 const updatedSub = event.data.object;
-                if (updatedSub.cancel_at_period_end) {
-                    await User.update({
-                        cancelAtPeriodEnd: true,
-                        subscriptionStatus: 'canceled'
-                    }, { where: { stripeSubscriptionId: updatedSub.id } });
+                const subUser = await User.findOne({ where: { stripeSubscriptionId: updatedSub.id } });
 
-                    const subUser = await User.findOne({ where: { stripeSubscriptionId: updatedSub.id } });
-                    if (subUser) {
-                        await SubscriptionLog.create({
-                            UserId: subUser.id,
-                            username: subUser.username,
-                            event: 'subscription_canceled_stripe',
-                            tier: subUser.tier,
-                            details: 'Canceled at period end via Stripe dashboard or API',
-                            ipHash: 'webhook',
-                            userAgent: 'Stripe-Webhook'
-                        });
-                    }
-                } else {
-                    await User.update({
-                        cancelAtPeriodEnd: false,
-                        subscriptionStatus: 'active'
-                    }, { where: { stripeSubscriptionId: updatedSub.id } });
+                if (!subUser) break;
+
+                const oldTier = subUser.tier;
+                const newPriceId = updatedSub.items.data[0].price.id;
+
+                // Load price IDs from admin settings to identify the new tier
+                const { Settings } = require('../models');
+                const priceSilber = await Settings.findOne({ where: { key: 'stripe_price_silber', UserId: null } });
+                const priceGold = await Settings.findOne({ where: { key: 'stripe_price_gold', UserId: null } });
+
+                let newTier = subUser.tier;
+                if (newPriceId === priceSilber?.value) newTier = 'Silbergabel';
+                if (newPriceId === priceGold?.value) newTier = 'Goldgabel';
+
+                const updateData = {
+                    cancelAtPeriodEnd: updatedSub.cancel_at_period_end,
+                    subscriptionStatus: updatedSub.status === 'active' ? 'active' : 'canceled'
+                };
+
+                // Handle Tier Upgrade
+                if (newTier !== oldTier && newTier === 'Goldgabel' && oldTier === 'Silbergabel') {
+                    updateData.tier = newTier;
+                    // Prorated Upgrade: Give the difference in monthly credits
+                    // Gold (1500) - Silber (600) = 900
+                    await creditService.addCredits(subUser.id, 900, `Upgrade-Bonus: Silber -> Gold`);
+
+                    await SubscriptionLog.create({
+                        UserId: subUser.id,
+                        username: subUser.username,
+                        event: 'subscription_upgraded',
+                        tier: newTier,
+                        details: `Upgrade von ${oldTier} auf ${newTier} via Stripe`,
+                        ipHash: 'webhook',
+                        userAgent: 'Stripe-Webhook'
+                    });
                 }
+
+                await subUser.update(updateData);
                 break;
 
             case 'invoice.payment_succeeded': {
@@ -342,5 +372,51 @@ router.post('/downgrade', auth, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+/**
+ * POST /terminate - Immediately terminate subscription
+ */
+router.post('/terminate', auth, async (req, res) => {
+    try {
+        const user = await User.findByPk(req.user.id);
+
+        // If there is a Stripe subscription, cancel it immediately in Stripe
+        if (user.stripeSubscriptionId) {
+            try {
+                const stripeInstance = await paymentService.getStripe();
+                await stripeInstance.subscriptions.cancel(user.stripeSubscriptionId);
+            } catch (stripeErr) {
+                console.error('Stripe cancel error (ignored during termination):', stripeErr);
+                // We proceed even if Stripe fails, as we want to clear the local status
+            }
+        }
+
+        // Reset user subscription status locally
+        await user.update({
+            tier: 'Plastikgabel',
+            subscriptionStatus: 'none',
+            stripeSubscriptionId: null,
+            paypalSubscriptionId: null,
+            cancelAtPeriodEnd: false,
+            subscriptionExpiresAt: null,
+            pendingTier: 'none'
+        });
+
+        await SubscriptionLog.create({
+            UserId: user.id,
+            username: user.username,
+            event: 'subscription_terminated_immediate',
+            tier: user.tier,
+            details: 'Sofortige Beendigung für Haushaltsbeitritt',
+            ipHash: req.ip || 'unknown',
+            userAgent: req.headers['user-agent'] || 'unknown'
+        });
+
+        res.json({ message: 'Abo wurde sofort beendet. Du kannst nun einem Haushalt beitreten.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 module.exports = router;

@@ -36,6 +36,12 @@ export default function SignupPage() {
 
     const isSetup = searchParams.get('setup') === 'true';
 
+    useEffect(() => {
+        if (user) {
+            navigate(from, { replace: true });
+        }
+    }, [user, navigate, from]);
+
     // Fetch legal texts when entering the legal step
     useEffect(() => {
         if (step === 'legal') {

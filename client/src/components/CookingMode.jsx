@@ -19,7 +19,7 @@ export default function CookingMode({ recipe, onClose }) {
     const [showIngredientsMobile, setShowIngredientsMobile] = useState(false); // For mobile toggle
     const [showAssistant, setShowAssistant] = useState(false);
     const [assistantStatus, setAssistantStatus] = useState({ isListening: false, isStandby: false });
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
     const [futureUsage, setFutureUsage] = useState({}); // { ingredientId: [{ date, recipeName }] }
     const [direction, setDirection] = useState(0);
     const [timers, setTimers] = useState([]); // [{ id, label, duration, remaining, isRunning }]
@@ -965,6 +965,8 @@ export default function CookingMode({ recipe, onClose }) {
                     onConfirm={() => {
                         aiActionData?.onConfirm();
                         setAiConfirmModalOpen(false);
+                        // Refresh user credits
+                        refreshUser();
                     }}
                     actionTitle={aiActionData?.title}
                     actionDescription={aiActionData?.description}

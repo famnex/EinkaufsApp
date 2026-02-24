@@ -69,6 +69,7 @@ const paymentService = {
         return session;
     },
 
+
     /**
      * Handle Stripe Webhook
      */
@@ -78,11 +79,30 @@ const paymentService = {
     },
 
     /**
-     * Create PayPal Subscription (simplified - usually handled by frontend SDK with Plan ID)
-     * For backend, we might just verify or capture if needed.
+     * Create a Stripe Customer Portal session
      */
-    async verifyPayPalSubscription(subscriptionId) {
-        // Verification logic using PayPal SDK
+    async createPortalSession(userId, returnUrl) {
+        const stripeInstance = await this.getStripe();
+        const user = await User.findByPk(userId);
+
+        if (!user.stripeCustomerId) {
+            throw new Error('Kein Stripe-Kundenkonto gefunden.');
+        }
+
+        const session = await stripeInstance.billingPortal.sessions.create({
+            customer: user.stripeCustomerId,
+            return_url: returnUrl,
+        });
+
+        return session;
+    },
+
+    /**
+     * Handle Stripe Webhook
+     */
+    async handleStripeWebhook(event) {
+        // Logic for subscription.updated, customer.subscription.deleted, etc.
+        // This is primarily handled in subscription.js route for now.
     }
 };
 

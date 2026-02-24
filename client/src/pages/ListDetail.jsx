@@ -25,7 +25,7 @@ import SubscriptionModal from '../components/SubscriptionModal';
 export default function ListDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
     const { editMode } = useEditMode();
     const { addChange } = useSync();
     const [list, setList] = useState(null);
@@ -235,6 +235,8 @@ export default function ListDetail() {
             });
 
             setSubstituteSuggestions(data.suggestions || []);
+            // Refresh user credits
+            refreshUser();
         } catch (err) {
             console.error('Failed to get AI suggestions:', err);
             // Error handling already in modal logic usually, but here we provide a fallback

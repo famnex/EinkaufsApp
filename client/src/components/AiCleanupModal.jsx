@@ -20,7 +20,7 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
     const [showHidden, setShowHidden] = useState(false);
 
     // Context & Modals
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
     const [aiConfirmModalOpen, setAiConfirmModalOpen] = useState(false);
     const [aiActionData, setAiActionData] = useState(null);
     const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
@@ -196,6 +196,8 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
 
             setResults(formattedResults);
             setStep('review');
+            // Refresh user credits
+            refreshUser();
         } catch (err) {
             console.error(err);
             alert('Fehler bei der AI-Anfrage: ' + (err.response?.data?.error || err.message));
@@ -278,6 +280,8 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
             const { data } = await api.post('/ai/find-duplicates', { products: productList });
             setDuplicateSuggestions(data.suggestions || []);
             setDuplicateAnalyzed(true);
+            // Refresh user credits
+            refreshUser();
         } catch (err) {
             console.error(err);
             alert('Fehler bei der Duplikatserkennung: ' + (err.response?.data?.error || err.message));
