@@ -2782,13 +2782,7 @@ export default function SettingsPage() {
                                         <Button
                                             size="sm"
                                             className="gap-2"
-                                            onClick={() => {
-                                                if (user?.stripeSubscriptionId) {
-                                                    handleOpenPortal();
-                                                } else {
-                                                    setIsSubscriptionModalOpen(true);
-                                                }
-                                            }}
+                                            onClick={() => setIsSubscriptionModalOpen(true)}
                                             disabled={loadingSubscription}
                                         >
                                             {loadingSubscription ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}

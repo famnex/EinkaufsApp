@@ -187,8 +187,11 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                 if (newPriceId === priceGold?.value) newTier = 'Goldgabel';
 
                 const updateData = {
-                    cancelAtPeriodEnd: updatedSub.cancel_at_period_end,
-                    subscriptionStatus: updatedSub.status === 'active' ? 'active' : 'canceled'
+                    cancelAtPeriodEnd: updatedSub.cancel_at_period_end || !!updatedSub.cancel_at,
+                    subscriptionStatus: updatedSub.status === 'active' ? 'active' : 'canceled',
+                    subscriptionExpiresAt: updatedSub.cancel_at
+                        ? new Date(updatedSub.cancel_at * 1000)
+                        : (updatedSub.current_period_end ? new Date(updatedSub.current_period_end * 1000) : subUser.subscriptionExpiresAt)
                 };
 
                 // Handle Tier Upgrade
