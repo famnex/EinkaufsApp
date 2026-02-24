@@ -54,13 +54,25 @@ const paymentService = {
 
         const session = await stripeInstance.checkout.sessions.create({
             customer_email: user.email,
-            // Expanding payment method types for Stripe
             payment_method_types: ['card', 'sepa_debit', 'link'],
             line_items: [{
                 price: prices[tier],
                 quantity: 1,
             }],
             mode: 'subscription',
+
+            // --- HIER DIE RECHTLICHEN ERGÄNZUNGEN ---
+            consent_collection: {
+                terms_of_service: 'required', // Erzwingt die Checkbox (Link muss im Dashboard hinterlegt sein!)
+            },
+            custom_text: {
+                submit: {
+                    // Dieser Text erscheint direkt über dem "Bezahlen"-Button
+                    message: 'Ich stimme der sofortigen Ausführung des Vertrages zu und bestätige, dass mein Widerrufsrecht bei Beginn der Ausführung digitaler Inhalte erlischt.',
+                },
+            },
+            // ----------------------------------------
+
             success_url: successUrl,
             cancel_url: cancelUrl,
             metadata: { userId, tier }
