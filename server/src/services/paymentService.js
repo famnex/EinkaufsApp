@@ -33,13 +33,12 @@ const paymentService = {
     },
 
     /**
-     * Create a Stripe Checkout Session for subscription
-     */
+         * Create a Stripe Checkout Session for subscription or upgrade
+         */
     async createStripeSession(userId, tier, successUrl, cancelUrl) {
         const stripeInstance = await this.getStripe();
         const user = await User.findByPk(userId);
 
-        // Load price IDs from admin settings
         const priceSilber = await Settings.findOne({ where: { key: 'stripe_price_silber', UserId: null } });
         const priceGold = await Settings.findOne({ where: { key: 'stripe_price_gold', UserId: null } });
 
@@ -49,30 +48,47 @@ const paymentService = {
         };
 
         if (!prices[tier]) {
-            throw new Error(`Stripe Price ID für "${tier}" ist nicht konfiguriert. Bitte in den Admin-Einstellungen hinterlegen.`);
+            throw new Error(`Stripe Price ID für "${tier}" ist nicht konfiguriert.`);
         }
 
+        // --- LOGIK FÜR BESTEHENDES ABO (UPGRADE/DOWNGRADE) ---
+        // Falls der User bereits ein Abo hat, nutzen wir die Subscription Update Logik
+        if (user.stripeSubscriptionId) {
+            const subscription = await stripeInstance.subscriptions.retrieve(user.stripeSubscriptionId);
+
+            await stripeInstance.subscriptions.update(user.stripeSubscriptionId, {
+                items: [{
+                    id: subscription.items.data[0].id,
+                    price: prices[tier], // Hier die neue Price-ID
+                }],
+                proration_behavior: 'always_invoice', // Berechnet Differenz sofort
+                payment_behavior: 'pending_if_incomplete',
+                metadata: { userId, tier }
+            });
+
+            // Wir geben hier ein spezielles Flag zurück, damit dein Controller weiß: 
+            // "Kein Redirect zu Stripe nötig, Abo wurde im Hintergrund aktualisiert"
+            return { url: successUrl, type: 'update' };
+        }
+
+        // --- LOGIK FÜR NEUES ABO (CHECKOUT) ---
         const session = await stripeInstance.checkout.sessions.create({
-            customer_email: user.email,
+            customer: user.stripeCustomerId || undefined, // Bestehenden Kunden nutzen falls vorhanden
+            customer_email: user.stripeCustomerId ? undefined : user.email,
             payment_method_types: ['card', 'sepa_debit', 'link'],
             line_items: [{
                 price: prices[tier],
                 quantity: 1,
             }],
             mode: 'subscription',
-
-            // --- HIER DIE RECHTLICHEN ERGÄNZUNGEN ---
             consent_collection: {
-                terms_of_service: 'required', // Erzwingt die Checkbox (Link muss im Dashboard hinterlegt sein!)
+                terms_of_service: 'required',
             },
             custom_text: {
                 submit: {
-                    // Dieser Text erscheint direkt über dem "Bezahlen"-Button
                     message: 'Ich stimme der sofortigen Ausführung des Vertrages zu und bestätige, dass mein Widerrufsrecht bei Beginn der Ausführung digitaler Inhalte erlischt.',
                 },
             },
-            // ----------------------------------------
-
             success_url: successUrl,
             cancel_url: cancelUrl,
             metadata: { userId, tier }
