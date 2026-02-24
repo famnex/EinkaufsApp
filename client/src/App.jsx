@@ -234,6 +234,7 @@ function AppContent() {
               } />
               <Route path="/privacy" element={<LegalPage type="privacy" />} />
               <Route path="/imprint" element={<LegalPage type="imprint" />} />
+              <Route path="/terms" element={<LegalPage type="terms" />} />
               <Route path="/compliance" element={<CompliancePage />} />
               <Route path="/share-target" element={<ShareTargetHandler />} />
 

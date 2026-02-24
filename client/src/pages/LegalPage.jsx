@@ -20,6 +20,10 @@ export default function LegalPage({ type }) {
         imprint: {
             title: 'Impressum',
             icon: FileText
+        },
+        terms: {
+            title: 'Nutzungsbedingungen',
+            icon: FileText
         }
     };
 
