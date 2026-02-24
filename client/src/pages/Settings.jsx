@@ -931,6 +931,15 @@ export default function SettingsPage() {
         }
     };
 
+    const handleRefreshCredits = async () => {
+        try {
+            await fetchCreditHistory();
+            await refreshUser();
+        } catch (err) {
+            console.error('Failed to refresh credits:', err);
+        }
+    };
+
     const handleOpenPortal = async () => {
         setLoadingSubscription(true);
         try {
@@ -1158,13 +1167,16 @@ export default function SettingsPage() {
         { id: 'strikes', label: 'Sicherheitsstatus & Verstöße', icon: ShieldCheck }
     ];
 
+    const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+        ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier);
+
     const tabs = [
         { id: 'profile', label: 'Profil & Sicherheit', icon: User },
         { id: 'subscription', label: 'Abo & Credits', icon: CreditCard },
         { id: 'household', label: 'Haushalt', icon: Users },
         { id: 'cookbook', label: 'Öffentliches Kochbuch', icon: ChefHat },
         { id: 'stores', label: 'Geschäfte', icon: StoreIcon },
-        { id: 'integration', label: 'Integration', icon: Building2 },
+        ...(hasSpecialTier ? [{ id: 'alexa', label: 'Alexa', icon: Building2 }] : []),
         ...(user?.role === 'admin' ? [
             { id: 'admin', label: 'Verwaltung', icon: Shield }
         ] : [])
@@ -2819,7 +2831,7 @@ export default function SettingsPage() {
                                     </div>
                                 )}
                                 <div className="flex gap-2">
-                                    {(!isMember && currentTier !== 'Rainbowspoon' && currentTier !== 'Goldgabel') && (
+                                    {(!isMember && currentTier !== 'Rainbowspoon' && currentTier !== 'Goldgabel' && !user?.cancelAtPeriodEnd) && (
                                         <Button
                                             size="sm"
                                             className="gap-2"
@@ -2888,13 +2900,24 @@ export default function SettingsPage() {
                     )}
                 </div>
 
-                {/* History Table - Only for Silver/Gold */}
                 {(currentTier === 'Silbergabel' || currentTier === 'Goldgabel') && (
                     <div>
-                        <h3 className="font-bold mb-4 flex items-center gap-2 px-1">
-                            <History size={18} className="text-muted-foreground" />
-                            Kontoauszug (AI Credits)
-                        </h3>
+                        <div className="flex items-center justify-between mb-4 px-1">
+                            <h3 className="font-bold flex items-center gap-2">
+                                <History size={18} className="text-muted-foreground" />
+                                Kontoauszug (AI Credits)
+                            </h3>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={handleRefreshCredits}
+                                disabled={loadingCredits}
+                                className="h-8 w-8 text-muted-foreground hover:text-primary transition-colors"
+                                title="Kontoauszug aktualisieren"
+                            >
+                                <RefreshCw size={16} className={loadingCredits ? "animate-spin" : ""} />
+                            </Button>
+                        </div>
                         <div className="bg-muted/20 rounded-2xl border border-border overflow-hidden min-h-[200px]">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-muted/50 border-b border-border">
@@ -3959,7 +3982,7 @@ export default function SettingsPage() {
         <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
             <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
                 <Building2 size={20} className="text-primary" />
-                Integrationen
+                Alexa
             </h2>
             <div className="space-y-6">
                 <div>
@@ -4038,7 +4061,7 @@ export default function SettingsPage() {
                                             {tab.id === 'cookbook' && CookbookSection}
                                             {tab.id === 'stores' && StoresSection}
                                             {tab.id === 'subscription' && SubscriptionSection}
-                                            {tab.id === 'integration' && ApiSection}
+                                            {tab.id === 'alexa' && ApiSection}
                                             {tab.id === 'admin' && AdminSection}
                                         </div>
                                     </motion.div>
@@ -4088,7 +4111,7 @@ export default function SettingsPage() {
                     {activeTab === 'cookbook' && CookbookSection}
                     {activeTab === 'stores' && StoresSection}
                     {activeTab === 'subscription' && SubscriptionSection}
-                    {activeTab === 'integration' && ApiSection}
+                    {activeTab === 'alexa' && ApiSection}
                     {activeTab === 'admin' && AdminSection}
                 </motion.div>
             </div>

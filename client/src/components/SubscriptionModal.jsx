@@ -9,7 +9,7 @@ import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plastikgabel' }) {
-    const { refreshUser } = useAuth();
+    const { user, refreshUser } = useAuth();
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState(null);
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
@@ -41,17 +41,25 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
             return;
         }
 
-        // Directly proceed to Stripe
         setLoading(true);
         try {
-            const { data } = await api.post('/subscription/stripe/create-session', {
-                tier: tierName,
-                successUrl: window.location.origin + '/settings?payment=success',
-                cancelUrl: window.location.origin + '/settings?payment=cancel'
-            });
-            if (data.url) window.location.href = data.url;
+            if (user?.stripeSubscriptionId) {
+                // For existing subscribers, send to portal
+                const { data } = await api.post('/subscription/stripe/create-portal-session', {
+                    returnUrl: window.location.origin + '/settings'
+                });
+                if (data.url) window.location.href = data.url;
+            } else {
+                // For new subscribers, send to checkout
+                const { data } = await api.post('/subscription/stripe/create-session', {
+                    tier: tierName,
+                    successUrl: window.location.origin + '/settings?payment=success',
+                    cancelUrl: window.location.origin + '/settings?payment=cancel'
+                });
+                if (data.url) window.location.href = data.url;
+            }
         } catch (err) {
-            alert('Checkout failed: ' + (err.response?.data?.error || err.message));
+            alert('Aktion fehlgeschlagen: ' + (err.response?.data?.error || err.message));
         } finally {
             setLoading(false);
         }

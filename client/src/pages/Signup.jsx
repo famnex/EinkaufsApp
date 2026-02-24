@@ -28,7 +28,7 @@ export default function SignupPage() {
     const [acceptedTerms, setAcceptedTerms] = useState(false);
     const [subscribeNewsletter, setSubscribeNewsletter] = useState(false);
 
-    const { signup } = useAuth();
+    const { signup, user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams] = useSearchParams();

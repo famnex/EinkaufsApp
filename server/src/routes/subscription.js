@@ -374,6 +374,43 @@ router.post('/downgrade', auth, async (req, res) => {
 });
 
 /**
+ * POST /reactivate - Reactivate subscription (cancel the cancellation) at period end
+ */
+router.post('/reactivate', auth, async (req, res) => {
+    try {
+        const user = await User.findByPk(req.user.id);
+        if (!user.stripeSubscriptionId || !user.cancelAtPeriodEnd) {
+            return res.status(400).json({ error: 'Keine aktive Kündigung zum Widerrufen gefunden.' });
+        }
+
+        const stripeInstance = await paymentService.getStripe();
+        await stripeInstance.subscriptions.update(user.stripeSubscriptionId, {
+            cancel_at_period_end: false
+        });
+
+        await user.update({
+            cancelAtPeriodEnd: false,
+            subscriptionStatus: 'active',
+            pendingTier: 'none'
+        });
+
+        await SubscriptionLog.create({
+            UserId: user.id,
+            username: user.username,
+            event: 'subscription_reactivated_user',
+            tier: user.tier,
+            details: 'Self-service reactivation (canceled the cancellation)',
+            ipHash: req.ip || 'unknown',
+            userAgent: req.headers['user-agent'] || 'unknown'
+        });
+
+        res.json({ message: 'Deine Kündigung wurde erfolgreich zurückgenommen. Dein Abo läuft weiter.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
  * POST /terminate - Immediately terminate subscription
  */
 router.post('/terminate', auth, async (req, res) => {
