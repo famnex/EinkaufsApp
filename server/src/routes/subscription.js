@@ -12,7 +12,7 @@ router.get('/status', auth, async (req, res) => {
     try {
         const effectiveUserId = req.user.householdId || req.user.id;
         const user = await User.findByPk(effectiveUserId, {
-            attributes: ['tier', 'aiCredits', 'subscriptionStatus', 'subscriptionExpiresAt', 'cancelAtPeriodEnd']
+            attributes: ['id', 'tier', 'aiCredits', 'subscriptionStatus', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
         });
         res.json(user);
     } catch (err) {

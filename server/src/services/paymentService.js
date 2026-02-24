@@ -94,7 +94,11 @@ const paymentService = {
      */
     async createPortalSession(userId, returnUrl) {
         const stripeInstance = await this.getStripe();
-        const user = await User.findByPk(userId);
+
+        // Effective User check (Members use Owner's Billing)
+        const currentUser = await User.findByPk(userId);
+        const effectiveUserId = currentUser.householdId || userId;
+        const user = await User.findByPk(effectiveUserId);
 
         let customerId = user.stripeCustomerId;
 
