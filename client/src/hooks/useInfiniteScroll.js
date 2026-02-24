@@ -35,9 +35,9 @@ export function useInfiniteScroll(items, pageSize = 24) {
                 }
             },
             {
-                threshold: 0.1,
-                // Start loading slightly before the user hits the bottom
-                rootMargin: '200px'
+                threshold: 0.01,
+                // Start loading much before the user hits the bottom
+                rootMargin: '1000px'
             }
         );
 

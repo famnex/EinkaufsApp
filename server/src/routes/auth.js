@@ -412,8 +412,8 @@ router.post('/household/leave', auth, async (req, res) => {
 // Remove Member from Household (Owner Only)
 router.delete('/household/remove/:memberId', auth, async (req, res) => {
     try {
-        if (req.user.householdId) {
-            return res.status(403).json({ error: 'Nur der Haushalts-Besitzer kann Mitglieder entfernen.' });
+        if (req.user.role !== 'admin' && req.user.householdId) {
+            return res.status(403).json({ error: 'Nur der Haushalts-Besitzer oder ein Administrator kann Mitglieder entfernen.' });
         }
 
         const memberId = req.params.memberId;
@@ -423,7 +423,7 @@ router.delete('/household/remove/:memberId', auth, async (req, res) => {
             return res.status(404).json({ error: 'Mitglied nicht gefunden.' });
         }
 
-        if (member.householdId !== req.user.id) {
+        if (req.user.role !== 'admin' && member.householdId !== req.user.id) {
             return res.status(403).json({ error: 'Dieses Mitglied gehört nicht zu deinem Haushalt.' });
         }
 

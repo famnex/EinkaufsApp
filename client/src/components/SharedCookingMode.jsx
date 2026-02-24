@@ -2,15 +2,20 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, AlertTriangle } from 'lucide-react';
 import { Button } from './Button';
+import CookingExitModal from './CookingExitModal';
 import { cn, getImageUrl } from '../lib/utils';
 import { sortIngredientsBySteps, findIngredientsInText } from '../lib/recipe-parser';
+import useLockBodyScroll from '../hooks/useLockBodyScroll';
 
 export default function SharedCookingMode({ recipe, onClose }) {
     const [step, setStep] = useState(0);
     const [checkedIngredients, setCheckedIngredients] = useState(new Set());
     const [textSize, setTextSize] = useState(1); // 0: Small, 1: Normal, 2: Large
-    const [showIngredientsMobile, setShowIngredientsMobile] = useState(false); // For mobile toggle
+    const [showIngredientsMobile, setShowIngredientsMobile] = useState(true); // For mobile toggle
     const [direction, setDirection] = useState(0);
+    const [isExitModalOpen, setIsExitModalOpen] = useState(false);
+
+    useLockBodyScroll(true);
 
     // Swipe Logic for Steps
     const [touchStart, setTouchStart] = useState(null);
@@ -137,7 +142,7 @@ export default function SharedCookingMode({ recipe, onClose }) {
         const handleKeyDown = (e) => {
             if (e.key === 'ArrowRight') nextStep();
             if (e.key === 'ArrowLeft') prevStep();
-            if (e.key === 'Escape') onClose();
+            if (e.key === 'Escape') setIsExitModalOpen(true);
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
@@ -211,7 +216,7 @@ export default function SharedCookingMode({ recipe, onClose }) {
                     {/* Top Row: Title & Close */}
                     <div className="flex items-center justify-between p-4 pb-2">
                         <h3 className="font-bold truncate pr-4 text-lg">{recipe.title}</h3>
-                        <Button variant="ghost" size="icon" onClick={onClose} className="-mr-2">
+                        <Button variant="ghost" size="icon" onClick={() => setIsExitModalOpen(true)} className="-mr-2">
                             <X size={24} />
                         </Button>
                     </div>
@@ -241,7 +246,7 @@ export default function SharedCookingMode({ recipe, onClose }) {
 
                     {/* Close Button & Controls (Top Right Overlay) - Desktop Only */}
                     <div className="absolute top-4 right-4 z-50 hidden md:flex gap-2">
-                        <Button variant="secondary" onClick={onClose} className="rounded-full w-12 h-12 p-0 shadow-lg">
+                        <Button variant="secondary" onClick={() => setIsExitModalOpen(true)} className="rounded-full w-12 h-12 p-0 shadow-lg">
                             <X size={24} />
                         </Button>
                     </div>
@@ -378,7 +383,7 @@ export default function SharedCookingMode({ recipe, onClose }) {
                             </div>
 
                             <Button
-                                onClick={step === steps.length - 1 ? onClose : nextStep}
+                                onClick={step === steps.length - 1 ? () => setIsExitModalOpen(true) : nextStep}
                                 className={cn(
                                     "h-14 px-8 rounded-2xl text-lg flex-1 md:flex-none shadow-xl",
                                     step === steps.length - 1 ? "bg-green-600 hover:bg-green-700 text-white" : "bg-primary text-primary-foreground"
@@ -416,6 +421,13 @@ export default function SharedCookingMode({ recipe, onClose }) {
                         </motion.div>
                     )}
                 </AnimatePresence>
+                <CookingExitModal
+                    isOpen={isExitModalOpen}
+                    onClose={() => setIsExitModalOpen(false)}
+                    onConfirm={onClose}
+                    hasPaidAi={false}
+                    isSilbergabel={false}
+                />
             </motion.div>
         </AnimatePresence>
     );

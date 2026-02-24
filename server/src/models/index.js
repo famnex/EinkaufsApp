@@ -36,7 +36,6 @@ const User = sequelize.define('User', {
     cancelAtPeriodEnd: { type: DataTypes.BOOLEAN, defaultValue: false },
     stripeCustomerId: { type: DataTypes.STRING, allowNull: true },
     stripeSubscriptionId: { type: DataTypes.STRING, allowNull: true },
-    paypalSubscriptionId: { type: DataTypes.STRING, allowNull: true },
     pendingTier: { type: DataTypes.ENUM('Silbergabel', 'none'), defaultValue: 'none' },
     lastRefillAt: { type: DataTypes.DATE, allowNull: true },
     newsletterSignedUp: { type: DataTypes.BOOLEAN, defaultValue: false },

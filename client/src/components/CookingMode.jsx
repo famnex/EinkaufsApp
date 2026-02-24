@@ -11,18 +11,22 @@ import { sortIngredientsBySteps, findIngredientsInText, findTimesInText } from '
 import TimerOverlay from './TimerOverlay';
 import AiActionConfirmModal from './AiActionConfirmModal';
 import SubscriptionModal from './SubscriptionModal';
+import CookingExitModal from './CookingExitModal';
+import useLockBodyScroll from '../hooks/useLockBodyScroll';
 
 export default function CookingMode({ recipe, onClose }) {
     const [step, setStep] = useState(0);
     const [checkedIngredients, setCheckedIngredients] = useState(new Set());
     const [textSize, setTextSize] = useState(1); // 0: Small, 1: Normal, 2: Large
-    const [showIngredientsMobile, setShowIngredientsMobile] = useState(false); // For mobile toggle
+    const [showIngredientsMobile, setShowIngredientsMobile] = useState(true); // For mobile toggle
     const [showAssistant, setShowAssistant] = useState(false);
     const [assistantStatus, setAssistantStatus] = useState({ isListening: false, isStandby: false });
     const { user, refreshUser } = useAuth();
     const [futureUsage, setFutureUsage] = useState({}); // { ingredientId: [{ date, recipeName }] }
     const [direction, setDirection] = useState(0);
     const [timers, setTimers] = useState([]); // [{ id, label, duration, remaining, isRunning }]
+
+    useLockBodyScroll(true);
     const [scaleFactor, setScaleFactor] = useState(1);
     const audioContextRef = useRef(null);
 
@@ -32,7 +36,9 @@ export default function CookingMode({ recipe, onClose }) {
     // Subscription & AI Credits
     const [aiConfirmModalOpen, setAiConfirmModalOpen] = useState(false);
     const [aiActionData, setAiActionData] = useState(null);
+    const [hasPaidForAi, setHasPaidForAi] = useState(false);
     const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+    const [isExitModalOpen, setIsExitModalOpen] = useState(false);
 
     // Swipe Logic for Steps
     const [touchStart, setTouchStart] = useState(null);
@@ -321,7 +327,7 @@ export default function CookingMode({ recipe, onClose }) {
         const handleKeyDown = (e) => {
             if (e.key === 'ArrowRight') nextStep();
             if (e.key === 'ArrowLeft') prevStep();
-            if (e.key === 'Escape') onClose();
+            if (e.key === 'Escape') setIsExitModalOpen(true);
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
@@ -538,7 +544,7 @@ export default function CookingMode({ recipe, onClose }) {
                             <Button size="sm" onClick={handleShareRequest} className="bg-secondary text-secondary-foreground hover:bg-secondary/90 px-4">
                                 <Share2 size={20} />
                             </Button>
-                            <Button size="sm" onClick={onClose} className="bg-primary text-primary-foreground hover:bg-primary/90 px-4">
+                            <Button size="sm" onClick={() => setIsExitModalOpen(true)} className="bg-primary text-primary-foreground hover:bg-primary/90 px-4">
                                 <X size={20} />
                             </Button>
                         </div>
@@ -573,7 +579,7 @@ export default function CookingMode({ recipe, onClose }) {
                         <Button onClick={handleShareRequest} className="rounded-full w-12 h-12 p-0 shadow-lg bg-secondary text-secondary-foreground hover:bg-secondary/90 border-none">
                             <Share2 size={24} />
                         </Button>
-                        <Button onClick={onClose} className="rounded-full w-12 h-12 p-0 shadow-lg bg-primary text-primary-foreground hover:bg-primary/90 border-none">
+                        <Button onClick={() => setIsExitModalOpen(true)} className="rounded-full w-12 h-12 p-0 shadow-lg bg-primary text-primary-foreground hover:bg-primary/90 border-none">
                             <X size={24} />
                         </Button>
                     </div>
@@ -777,7 +783,7 @@ export default function CookingMode({ recipe, onClose }) {
                             </div>
 
                             <Button
-                                onClick={step === steps.length - 1 ? onClose : nextStep}
+                                onClick={step === steps.length - 1 ? () => setIsExitModalOpen(true) : nextStep}
                                 className={cn(
                                     "h-14 px-8 rounded-2xl text-lg flex-1 md:flex-none shadow-xl",
                                     step === steps.length - 1 ? "bg-green-600 hover:bg-green-700 text-white" : "bg-primary text-primary-foreground"
@@ -823,13 +829,25 @@ export default function CookingMode({ recipe, onClose }) {
                             if (user?.tier === 'Plastikgabel') return;
 
                             // 2. Credit Confirmation (if Silbergabel)
-                            if (user?.tier === 'Silbergabel') {
+                            if (user?.tier === 'Silbergabel' && !hasPaidForAi) {
                                 setAiActionData({
-                                    type: 'TEXT',
+                                    type: 'COOKING_SESSION',
                                     title: 'KI Koch-Assistent',
-                                    description: 'Aktiviere den KI-Assistenten für dieses Rezept.',
-                                    cost: 5,
-                                    onConfirm: () => setShowAssistant(true)
+                                    description: 'Aktiviere den KI-Assistenten für dieses Rezept. Die Kosten fallen nur einmalig pro Kochvorgang an.',
+                                    cost: 10,
+                                    onConfirm: async () => {
+                                        try {
+                                            await api.post('/ai/deduct', {
+                                                type: 'COOKING_SESSION',
+                                                description: `KI Assistent: ${recipe.title}`
+                                            });
+                                            setHasPaidForAi(true);
+                                            setShowAssistant(true);
+                                            refreshUser();
+                                        } catch (err) {
+                                            alert(err.response?.data?.error || "Fehler beim Abbuchen der Coins");
+                                        }
+                                    }
                                 });
                                 setAiConfirmModalOpen(true);
                                 return;
@@ -846,9 +864,9 @@ export default function CookingMode({ recipe, onClose }) {
                         )}
                     >
                         {assistantStatus.isListening ? <Mic size={20} className="animate-pulse" /> : <Sparkles size={20} />}
-                        {user?.tier === 'Silbergabel' && (
+                        {user?.tier === 'Silbergabel' && !hasPaidForAi && (
                             <div className="absolute -top-1 -right-1 bg-white text-primary text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-sm border border-primary/20">
-                                5
+                                10
                             </div>
                         )}
                     </motion.button>
@@ -978,6 +996,14 @@ export default function CookingMode({ recipe, onClose }) {
                     isOpen={isSubscriptionModalOpen}
                     onClose={() => setIsSubscriptionModalOpen(false)}
                     currentTier={user?.tier}
+                />
+
+                <CookingExitModal
+                    isOpen={isExitModalOpen}
+                    onClose={() => setIsExitModalOpen(false)}
+                    onConfirm={onClose}
+                    hasPaidAi={hasPaidForAi}
+                    isSilbergabel={user?.tier === 'Silbergabel'}
                 />
             </motion.div>
         </AnimatePresence>

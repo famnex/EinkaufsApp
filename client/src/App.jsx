@@ -221,82 +221,23 @@ function AppContent() {
               <Route path="/shared/:sharingKey/recipe/:id" element={<PublicLayout><SharedRecipe /></PublicLayout>} />
               <Route path="/shared/:sharingKey/cookbook" element={<PublicLayout><SharedCookbook /></PublicLayout>} />
 
-              <Route path="/community-cookbooks" element={
-                user ? (
-                  <ProtectedRoute>
-                    <Layout>
-                      <CommunityCookbooksContent />
-                    </Layout>
-                  </ProtectedRoute>
-                ) : (
-                  <PublicCookbooks />
-                )
-              } />
+              {/* Main App Layout */}
+              <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                <Route path="/" element={user ? <Dashboard /> : <LandingPage />} />
+                <Route path="/menu" element={<MenuPlan />} />
+                <Route path="/recipes" element={<Recipes />} />
+                <Route path="/lists" element={<Lists />} />
+                <Route path="/lists/:id" element={<ListDetail />} />
+                <Route path="/products" element={<Products />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/community-cookbooks" element={user ? <CommunityCookbooksContent /> : <PublicCookbooks />} />
+              </Route>
+
               <Route path="/privacy" element={<LegalPage type="privacy" />} />
               <Route path="/imprint" element={<LegalPage type="imprint" />} />
               <Route path="/terms" element={<LegalPage type="terms" />} />
               <Route path="/compliance" element={<CompliancePage />} />
               <Route path="/share-target" element={<ShareTargetHandler />} />
-
-              <Route path="/" element={
-                user ? (
-                  <ProtectedRoute>
-                    <Layout>
-                      <Dashboard />
-                    </Layout>
-                  </ProtectedRoute>
-                ) : (
-                  <LandingPage />
-                )
-              } />
-
-              <Route path="/menu" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <MenuPlan />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-
-              <Route path="/recipes" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Recipes />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-
-              <Route path="/lists" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Lists />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-
-              <Route path="/lists/:id" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <ListDetail />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-
-              <Route path="/products" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Products />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-
-              <Route path="/settings" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <SettingsPage />
-                  </Layout>
-                </ProtectedRoute>
-              } />
 
               <Route path="/join-household" element={
                 <ProtectedRoute>

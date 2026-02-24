@@ -1,9 +1,8 @@
 const stripe = require('stripe');
-const paypal = require('@paypal/checkout-server-sdk');
 const { Settings, User } = require('../models');
 
 /**
- * Service to handle Stripe and PayPal payments
+ * Service to handle Stripe payments
  */
 const paymentService = {
     /**
@@ -13,23 +12,6 @@ const paymentService = {
         const setting = await Settings.findOne({ where: { key: 'stripe_secret_key', UserId: null } });
         if (!setting || !setting.value) throw new Error('Stripe Secret Key not configured');
         return stripe(setting.value);
-    },
-
-    /**
-     * Get PayPal environment and client
-     */
-    async getPayPalClient() {
-        const clientIdSetting = await Settings.findOne({ where: { key: 'paypal_client_id', UserId: null } });
-        const clientSecretSetting = await Settings.findOne({ where: { key: 'paypal_client_secret', UserId: null } });
-
-        if (!clientIdSetting || !clientSecretSetting) throw new Error('PayPal credentials not configured');
-
-        // Note: In production you'd use LiveEnvironment
-        const environment = new paypal.core.SandboxEnvironment(
-            clientIdSetting.value,
-            clientSecretSetting.value
-        );
-        return new paypal.core.PayPalHttpClient(environment);
     },
 
     /**
@@ -54,21 +36,30 @@ const paymentService = {
         // --- LOGIK FÜR BESTEHENDES ABO (UPGRADE/DOWNGRADE) ---
         // Falls der User bereits ein Abo hat, nutzen wir die Subscription Update Logik
         if (user.stripeSubscriptionId) {
-            const subscription = await stripeInstance.subscriptions.retrieve(user.stripeSubscriptionId);
+            try {
+                const subscription = await stripeInstance.subscriptions.retrieve(user.stripeSubscriptionId);
 
-            await stripeInstance.subscriptions.update(user.stripeSubscriptionId, {
-                items: [{
-                    id: subscription.items.data[0].id,
-                    price: prices[tier], // Hier die neue Price-ID
-                }],
-                proration_behavior: 'always_invoice', // Berechnet Differenz sofort
-                payment_behavior: 'pending_if_incomplete',
-                metadata: { userId, tier }
-            });
+                if (!subscription.items.data || subscription.items.data.length === 0) {
+                    throw new Error('Keine Abo-Positionen in Stripe gefunden.');
+                }
 
-            // Wir geben hier ein spezielles Flag zurück, damit dein Controller weiß: 
-            // "Kein Redirect zu Stripe nötig, Abo wurde im Hintergrund aktualisiert"
-            return { url: successUrl, type: 'update' };
+                await stripeInstance.subscriptions.update(user.stripeSubscriptionId, {
+                    items: [{
+                        id: subscription.items.data[0].id,
+                        price: prices[tier], // Hier die neue Price-ID
+                    }],
+                    proration_behavior: 'always_invoice', // Berechnet Differenz sofort
+                    payment_behavior: 'pending_if_incomplete',
+                    metadata: { userId, tier }
+                });
+
+                // Wir geben hier ein spezielles Flag zurück, damit dein Controller weiß: 
+                // "Kein Redirect zu Stripe nötig, Abo wurde im Hintergrund aktualisiert"
+                return { url: successUrl, type: 'update' };
+            } catch (err) {
+                console.error("Stripe Upgrade Error:", err);
+                throw new Error('Upgrade konnte nicht durchgeführt werden: ' + err.message);
+            }
         }
 
         // --- LOGIK FÜR NEUES ABO (CHECKOUT) ---
@@ -99,38 +90,37 @@ const paymentService = {
 
 
     /**
-     * Handle Stripe Webhook
-     */
-    async handleStripeWebhook(event) {
-        // Logic for subscription.updated, customer.subscription.deleted, etc.
-        // This will be expanded in subscription.js route
-    },
-
-    /**
      * Create a Stripe Customer Portal session
      */
     async createPortalSession(userId, returnUrl) {
         const stripeInstance = await this.getStripe();
         const user = await User.findByPk(userId);
 
-        if (!user.stripeCustomerId) {
-            throw new Error('Kein Stripe-Kundenkonto gefunden.');
+        let customerId = user.stripeCustomerId;
+
+        // Fallback: Falls keine CustomerId existiert, aber eine SubscriptionId, lade die CustomerId von Stripe
+        if (!customerId && user.stripeSubscriptionId) {
+            try {
+                const subscription = await stripeInstance.subscriptions.retrieve(user.stripeSubscriptionId);
+                customerId = subscription.customer;
+                if (customerId) {
+                    await user.update({ stripeCustomerId: customerId });
+                }
+            } catch (err) {
+                console.error("Failed to retrieve customer from subscription:", err);
+            }
+        }
+
+        if (!customerId) {
+            throw new Error('Kein Stripe-Kundenkonto gefunden. Bitte führen Sie erst eine Buchung durch.');
         }
 
         const session = await stripeInstance.billingPortal.sessions.create({
-            customer: user.stripeCustomerId,
+            customer: customerId,
             return_url: returnUrl,
         });
 
         return session;
-    },
-
-    /**
-     * Handle Stripe Webhook
-     */
-    async handleStripeWebhook(event) {
-        // Logic for subscription.updated, customer.subscription.deleted, etc.
-        // This is primarily handled in subscription.js route for now.
     }
 };
 

@@ -24,7 +24,7 @@ Zentrales Benutzermodell.
 - `cancelAtPeriodEnd` (BOOLEAN): Ob das Abo zum Ende der Laufzeit gekündigt wurde [NEW v0.26.7].
 - `stripeCustomerId` (STRING): Stripe Kunden-ID [NEW v0.26.7].
 - `stripeSubscriptionId` (STRING): Stripe Abo-ID [NEW v0.26.7].
-- `paypalSubscriptionId` (STRING): PayPal Abo-ID [NEW v0.26.7].
+- `paypalSubscriptionId` (STRING): PayPal Abo-ID (ENTFERNT v0.28.10)
 - `lastRefillAt` (DATE): Timestamp of last monthly AI credit refill [NEW v0.26.7].
 - `pendingTier` (ENUM): 'Silbergabel', 'none' - Scheduled downgrade [NEW v0.26.8].
 - `newsletterSignedUp` (BOOLEAN): Newsletter-Status [NEW v0.24.1].

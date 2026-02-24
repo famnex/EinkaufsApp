@@ -7,12 +7,15 @@ import SubscriptionCancelModal from './SubscriptionCancelModal';
 import api from '../lib/axios';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
+import useLockBodyScroll from '../hooks/useLockBodyScroll';
 
 export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plastikgabel' }) {
     const { user, refreshUser } = useAuth();
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState(null);
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+
+    useLockBodyScroll(isOpen);
 
     useEffect(() => {
         if (isOpen) {
@@ -254,9 +257,9 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
                                 <div className="flex-1">
                                     <h4 className="font-bold mb-1">* Über das flexible Coin-System</h4>
                                     <p className="text-sm text-muted-foreground leading-relaxed">
-                                        Coins werden nur für rechenintensive AI-Modelle (wie GPT-4o und DALL-E 3) benötigt.
+                                        Coins werden nur für die rechenintensiven AI-Funktionen benötigt.
                                         In den Premium-Plänen erhältst du ein monatliches Kontingent, das für die meisten Nutzer völlig ausreicht.
-                                        Du kannst jederzeit zusätzliche Coins einzeln nachkaufen.
+                                        Eine Textanfrage kostet 5 Coins, der AI-Kochassistent 10 Coins je Nutzung und die Bildgenerierung 40 bis 60 coins.
                                     </p>
                                 </div>
                                 <Button variant="ghost" size="sm" className="gap-2 pointer-events-none">

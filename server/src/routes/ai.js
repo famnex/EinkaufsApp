@@ -260,6 +260,20 @@ router.post('/cleanup', auth, async (req, res) => {
     }
 });
 
+// Generic Credit Deduction Endpoint
+router.post('/deduct', auth, async (req, res) => {
+    try {
+        const { type, description } = req.body;
+        if (!type) return res.status(400).json({ error: 'Type is required' });
+
+        await creditService.deductCredits(req.user.effectiveId, type, description || `KI Nutzung: ${type}`);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('AI Deduction Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Single Product Lookup Endpoint
 router.post('/lookup', auth, async (req, res) => {
     try {
@@ -719,7 +733,7 @@ router.post('/chat', auth, async (req, res) => {
         }
 
         // Deduct Credits
-        await creditService.deductCredits(req.user.effectiveId, 'TEXT', 'KI Kochassistent Chat');
+        await creditService.deductCredits(req.user.effectiveId, 'COOKING_CHAT', 'KI Kochassistent Chat');
 
         const openai = new OpenAI({ apiKey: setting.value });
 

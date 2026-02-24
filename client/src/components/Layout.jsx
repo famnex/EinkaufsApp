@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation, Link, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useEditMode } from '../contexts/EditModeContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -83,7 +83,7 @@ export default function Layout({ children }) {
     return (
         <div className="min-h-screen bg-background pb-24">
             <header
-                className="sticky top-0 z-40 w-full bg-background/80 backdrop-blur-xl border-b border-border transition-all"
+                className="sticky top-0 z-40 w-full bg-background/80 backdrop-blur-xl border-b border-border"
                 style={{
                     paddingTop: 'env(safe-area-inset-top)',
                     paddingLeft: 'env(safe-area-inset-left)',
@@ -154,11 +154,11 @@ export default function Layout({ children }) {
                             </AnimatePresence>
                         </div>
 
-                        <EditModeSelector editMode={editMode} setEditMode={setEditMode} />
+                        {location.pathname !== '/settings' && <EditModeSelector editMode={editMode} setEditMode={setEditMode} />}
 
                         <button
                             onClick={toggleTheme}
-                            className="p-2 rounded-xl bg-muted text-muted-foreground hover:bg-muted/80 transition-all flex-shrink-0"
+                            className="p-2 rounded-xl bg-muted text-muted-foreground hover:bg-muted/80 flex-shrink-0"
                         >
                             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                         </button>
@@ -169,13 +169,13 @@ export default function Layout({ children }) {
             <main className="max-w-7xl mx-auto px-4 py-2">
                 <AnimatePresence mode="wait">
                     <motion.div
-                        key={window.location.pathname}
+                        key={location.pathname}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.2 }}
                     >
-                        {children}
+                        <Outlet />
                     </motion.div>
                 </AnimatePresence>
             </main>

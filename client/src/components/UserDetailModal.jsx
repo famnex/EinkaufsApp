@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Users, ChefHat, Building2, CreditCard, Sparkles, Loader2, Save, History, Plus, Minus, AlertTriangle, Key, CheckCircle } from 'lucide-react';
+import { X, User, Users, ChefHat, Building2, CreditCard, Sparkles, Loader2, Save, History, Plus, Minus, AlertTriangle, Key, CheckCircle, LogOut } from 'lucide-react';
 import { Card } from './Card';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -290,17 +290,62 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
                                                                             <p className="text-[10px] text-muted-foreground">{member.email}</p>
                                                                         </div>
                                                                     </div>
-                                                                    <span className={cn(
-                                                                        "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter",
-                                                                        member.role === 'admin' ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-                                                                    )}>
-                                                                        {member.role === 'admin' ? 'Admin' : 'Member'}
-                                                                    </span>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className={cn(
+                                                                            "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter",
+                                                                            member.role === 'admin' ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                                                                        )}>
+                                                                            {member.role === 'admin' ? 'Admin' : 'Member'}
+                                                                        </span>
+                                                                        {member.id !== userId && member.id !== (data.user.householdId || data.user.id) && (
+                                                                            <button
+                                                                                onClick={async () => {
+                                                                                    if (confirm(`${member.username} wirklich aus diesem Haushalt entfernen?`)) {
+                                                                                        try {
+                                                                                            await api.delete(`/auth/household/remove/${member.id}`);
+                                                                                            fetchDetail();
+                                                                                            if (onUpdate) onUpdate();
+                                                                                            alert('Mitglied entfernt.');
+                                                                                        } catch (err) {
+                                                                                            alert('Fehler: ' + (err.response?.data?.error || err.message));
+                                                                                        }
+                                                                                    }
+                                                                                }}
+                                                                                className="p-1.5 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
+                                                                                title="Aus Haushalt entfernen"
+                                                                            >
+                                                                                <Minus size={14} />
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             ))}
                                                         </div>
                                                     ) : (
                                                         <p className="text-sm text-muted-foreground italic">Kein Haushalt verknüpft.</p>
+                                                    )}
+                                                    {data.user.householdId && (
+                                                        <div className="mt-6 pt-6 border-t border-border">
+                                                            <Button
+                                                                variant="outline"
+                                                                className="w-full gap-2 border-destructive/30 text-destructive hover:bg-destructive/10"
+                                                                onClick={async () => {
+                                                                    if (confirm(`Möchtest du ${data.user.username} wirklich aus seinem aktuellen Haushalt entfernen?`)) {
+                                                                        try {
+                                                                            await api.delete(`/auth/household/remove/${data.user.id}`);
+                                                                            fetchDetail();
+                                                                            if (onUpdate) onUpdate();
+                                                                            alert('Benutzer wurde aus dem Haushalt entfernt.');
+                                                                        } catch (err) {
+                                                                            alert('Fehler: ' + (err.response?.data?.error || err.message));
+                                                                        }
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <LogOut size={16} />
+                                                                Aus Haushalt entfernen
+                                                            </Button>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
@@ -440,6 +485,46 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
                                                             </div>
                                                         </div>
                                                         <p className="text-[10px] text-muted-foreground mt-2 italic">Guthaben für AI-Analysen und Bildgenerierung.</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Detailed Subscription Info */}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div className="p-4 bg-muted/20 rounded-2xl border border-border space-y-3">
+                                                        <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Checkout Status</h4>
+                                                        <div className="space-y-2">
+                                                            <div className="flex justify-between text-sm">
+                                                                <span className="text-muted-foreground">Status:</span>
+                                                                <span className={cn(
+                                                                    "font-bold uppercase text-[10px] px-2 py-0.5 rounded-full",
+                                                                    data.user.subscriptionStatus === 'active' ? "bg-emerald-100 text-emerald-700" :
+                                                                        data.user.subscriptionStatus === 'canceled' ? "bg-amber-100 text-amber-700" :
+                                                                            data.user.subscriptionStatus === 'past_due' ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-600"
+                                                                )}>{data.user.subscriptionStatus || 'NONE'}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-sm">
+                                                                <span className="text-muted-foreground">Läuft bis:</span>
+                                                                <span className="font-medium">{data.user.subscriptionExpiresAt ? new Date(data.user.subscriptionExpiresAt).toLocaleDateString('de-DE') : '-'}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-sm">
+                                                                <span className="text-muted-foreground">Auto-Renewal:</span>
+                                                                <span className="font-medium">{data.user.cancelAtPeriodEnd ? 'AUS' : 'AN'}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="p-4 bg-muted/20 rounded-2xl border border-border space-y-3">
+                                                        <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Provider IDs</h4>
+                                                        <div className="space-y-2">
+                                                            <div className="flex flex-col gap-0.5">
+                                                                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Stripe Customer</span>
+                                                                <span className="font-mono text-[11px] truncate">{data.user.stripeCustomerId || '-'}</span>
+                                                            </div>
+                                                            <div className="flex flex-col gap-0.5">
+                                                                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Stripe Subscription</span>
+                                                                <span className="font-mono text-[11px] truncate">{data.user.stripeSubscriptionId || '-'}</span>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
 

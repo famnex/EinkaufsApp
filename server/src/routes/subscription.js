@@ -63,33 +63,6 @@ router.post('/stripe/create-portal-session', auth, async (req, res) => {
     }
 });
 
-/**
- * POST /paypal/create-subscription - Create PayPal subscription (Placeholder)
- */
-router.post('/paypal/create-subscription', auth, async (req, res) => {
-    try {
-        const { tier } = req.body;
-        const user = await User.findByPk(req.user.id);
-
-        // Log PayPal checkout attempt
-        await SubscriptionLog.create({
-            UserId: req.user.id,
-            username: user.username,
-            event: 'checkout_initiated',
-            tier: tier || 'unknown',
-            details: 'PayPal Checkout versucht (noch nicht verfügbar)',
-            ipHash: req.ip || 'unknown',
-            userAgent: req.headers['user-agent'] || 'unknown'
-        });
-
-        res.json({
-            message: 'PayPal Integration in Vorbereitung.',
-            tier
-        });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
 
 /**
  * POST /checkout/canceled - Log when user abandons checkout
@@ -433,7 +406,6 @@ router.post('/terminate', auth, async (req, res) => {
             tier: 'Plastikgabel',
             subscriptionStatus: 'none',
             stripeSubscriptionId: null,
-            paypalSubscriptionId: null,
             cancelAtPeriodEnd: false,
             subscriptionExpiresAt: null,
             pendingTier: 'none'

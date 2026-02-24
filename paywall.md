@@ -1,6 +1,6 @@
 # Paywall & Subscription System Documentation
 
-This document describes the multi-tier subscription system with Stripe and PayPal integration, including specific credit logic and user confirmations.
+This document describes the multi-tier subscription system with Stripe integration, including specific credit logic and user confirmations.
 
 ## Subscription Tiers & Features
 
@@ -16,13 +16,13 @@ This document describes the multi-tier subscription system with Stripe and PayPa
 
 ### Upgrades
 - Upgrades (z.B. Silber -> Gold) werden sofort wirksam.
-- Stripe/PayPal verrechnen den Restbetrag des laufenden Monats anteilig (Proration).
+- Stripe verrechnet den Restbetrag des laufenden Monats anteilig (Proration).
 - Der Nutzer erhält sofort Zugriff auf die neuen Features und Credits.
 
 ### Kündigung
 - Nutzer können jederzeit zum Ende der Laufzeit kündigen.
 - Der Status bleibt bis zum Ablaufdatum "active", danach erfolgt der Downgrade auf Plastikgabel.
-- `cancel_at_period_end` wird im Payment-Provider gesetzt.
+- `cancel_at_period_end` wird im Stripe-Portal gesetzt.
 
 ### KI-Bestätigungs-Workflow
 - Jede KI-Funktion (Produktwechsel, Rezept-Assistent, etc.) muss vor der Ausführung die Kosten anzeigen.
@@ -36,25 +36,23 @@ This document describes the multi-tier subscription system with Stripe and PayPa
 - `subscriptionStatus`: ENUM('active', 'canceled', 'past_due', 'none')
 - `subscriptionExpiresAt`: DATE
 - `cancelAtPeriodEnd`: BOOLEAN
-- `stripeCustomerId`: STRING
 - `stripeSubscriptionId`: STRING
-- `paypalSubscriptionId`: STRING
 
 ### Components
 - `SubscriptionModal.jsx`: Tier-Auswahl und AGB-Zustimmung.
 - `AiActionConfirmModal.jsx`: Kostenbestätigung vor KI-Nutzung.
-- `paymentService.js`: Backend-Logik für Stripe & PayPal.
+- `paymentService.js`: Backend-Logik für Stripe.
 - `subscription.js`: API-Routen für Management und Webhooks.
 
 ### Already implemented
-- Die Daten zur Zahlungsabwicklung von STripe und Paypal sind schon in der Datenbank gespeichert und werden über die settings-Seite vom Admin hinterlegt.
+- Die Daten zur Zahlungsabwicklung von Stripe sind schon in der Datenbank gespeichert und werden über die settings-Seite vom Admin hinterlegt.
 
 ### Display Logic
 - Unter 'Abo & Credits' hat man bei "Aktuelles Abo" die Möglichkeit, ein Abo zu kaufen, kündigen oder upgraden.
 - Beim Klick auf "Abo kaufen" wird die SubscriptionModal geöffnet.
 - Dort kann man die Tiere auswählen und die AGB bestätigen.
 - Die Tiers werden dort detailliert beschrieben.
-- Nach dem Klick auf "Zahlungspflichtig bestellen" wird die Stripe/PayPal Checkout Seite geöffnet.
+- Nach dem Klick auf "Zahlungspflichtig bestellen" wird die Stripe Checkout Seite geöffnet.
 - Nach erfolgreicher Bezahlung wird die SubscriptionModal geschlossen.
 
 

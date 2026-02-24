@@ -25,22 +25,7 @@ export default function SharedCookbook() {
     const [selectedTags, setSelectedTags] = useState([]);
     const [categories, setCategories] = useState(['Alle']);
     const [allTags, setAllTags] = useState([]);
-    const [filtersOpen, setFiltersOpen] = useState(() => {
-        // Default to open for new users
-        try {
-            const hasSeenFilters = localStorage.getItem('hasSeenFilters');
-            return !hasSeenFilters;
-        } catch {
-            return true;
-        }
-    });
-
-    useEffect(() => {
-        // Mark as seen once filters are closed or after first visit
-        // Actually, if we want it open ONLY for new users, we should mark it as seen immediately
-        // so next time it defaults to closed (unless they keep it open? No, standard behavior is usually closed)
-        localStorage.setItem('hasSeenFilters', 'true');
-    }, []);
+    const [filtersOpen, setFiltersOpen] = useState(false);
     const [isSlotMachineOpen, setIsSlotMachineOpen] = useState(false);
 
     // Determine API URL
@@ -219,75 +204,99 @@ export default function SharedCookbook() {
 
             <div className="max-w-7xl mx-auto px-4 pb-20">
                 {/* Filters */}
-                {/* Filters - Accordion on Mobile */}
-                <div className="mb-6 space-y-4">
+                {/* Filters - Accordion */}
+                <div className="mb-8 p-1 bg-muted/30 rounded-2xl border border-border/50">
                     <button
                         onClick={() => setFiltersOpen(!filtersOpen)}
-                        className="md:hidden flex items-center justify-between w-full p-4 bg-card border border-border rounded-xl font-bold"
+                        className="flex items-center justify-between w-full p-4 hover:bg-muted/50 transition-colors rounded-xl font-bold"
                     >
-                        <div className="flex items-center gap-2">
-                            <Filter size={18} />
-                            <span>Kategorien & Filter</span>
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                                <Filter size={18} />
+                            </div>
+                            <div className="text-left">
+                                <span className="block text-sm md:text-base">Kategorien & Filter</span>
+                                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                                    {selectedCategory !== 'Alle' || selectedTags.length > 0 ? 'Filter aktiv' : 'Alle Rezepte anzeigen'}
+                                </span>
+                            </div>
                         </div>
-                        {filtersOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                        <div className="flex items-center gap-2">
+                            {(selectedCategory !== 'Alle' || selectedTags.length > 0) && (
+                                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                            )}
+                            {filtersOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                        </div>
                     </button>
 
-                    <div className={cn("space-y-6", filtersOpen ? "block" : "hidden md:block")}>
-                        {/* Categories names */}
-                        <div className="flex flex-wrap gap-2 justify-center">
-                            {categories.map(cat => (
-                                <button
-                                    key={cat}
-                                    onClick={() => setSelectedCategory(cat)}
-                                    className={cn(
-                                        "px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-all border",
-                                        selectedCategory === cat
-                                            ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/25 scale-105"
-                                            : "bg-card hover:bg-muted border-border text-muted-foreground hover:text-foreground"
-                                    )}
-                                >
-                                    {cat}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Tags */}
-                        {allTags.length > 0 && (
-                            <div className="bg-card/50 rounded-2xl p-4 border border-border/50">
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3 font-bold">
-                                    <Filter size={16} />
-                                    <span>Filter nach Tags:</span>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {allTags.map(tag => {
-                                        const isSelected = selectedTags.includes(tag);
-                                        return (
+                    <AnimatePresence>
+                        {filtersOpen && (
+                            <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                className="overflow-hidden"
+                            >
+                                <div className="p-4 pt-2 border-t border-border/50 space-y-6">
+                                    {/* Categories names */}
+                                    <div className="flex flex-wrap gap-2 justify-center">
+                                        {categories.map(cat => (
                                             <button
-                                                key={tag}
-                                                onClick={() => toggleTag(tag)}
+                                                key={cat}
+                                                onClick={() => setSelectedCategory(cat)}
                                                 className={cn(
-                                                    "px-3 py-1 rounded-md text-xs font-medium transition-colors border",
-                                                    isSelected
-                                                        ? "bg-secondary text-secondary-foreground border-secondary shadow-sm"
-                                                        : "bg-transparent border-transparent hover:bg-muted text-muted-foreground"
+                                                    "px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-all border",
+                                                    selectedCategory === cat
+                                                        ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/25 scale-105"
+                                                        : "bg-card hover:bg-muted border-border text-muted-foreground hover:text-foreground"
                                                 )}
                                             >
-                                                #{tag}
+                                                {cat}
                                             </button>
-                                        );
-                                    })}
-                                    {selectedTags.length > 0 && (
-                                        <button
-                                            onClick={() => setSelectedTags([])}
-                                            className="px-3 py-1 rounded-md text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors ml-auto"
-                                        >
-                                            Filter zurücksetzen
-                                        </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Tags */}
+                                    {allTags.length > 0 && (
+                                        <div className="bg-card/50 rounded-2xl p-4 border border-border/50">
+                                            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3 font-bold">
+                                                <Filter size={16} />
+                                                <span>Filter nach Tags:</span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {allTags.map(tag => {
+                                                    const isSelected = selectedTags.includes(tag);
+                                                    return (
+                                                        <button
+                                                            key={tag}
+                                                            onClick={() => toggleTag(tag)}
+                                                            className={cn(
+                                                                "px-3 py-1 rounded-md text-xs font-medium transition-colors border",
+                                                                isSelected
+                                                                    ? "bg-secondary text-secondary-foreground border-secondary shadow-sm"
+                                                                    : "bg-transparent border-transparent hover:bg-muted text-muted-foreground"
+                                                            )}
+                                                        >
+                                                            #{tag}
+                                                        </button>
+                                                    );
+                                                })}
+                                                {selectedTags.length > 0 && (
+                                                    <button
+                                                        onClick={() => setSelectedTags([])}
+                                                        className="px-3 py-1 rounded-md text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors ml-auto"
+                                                    >
+                                                        Filter zurücksetzen
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
-                            </div>
+                            </motion.div>
                         )}
-                    </div>
+                    </AnimatePresence>
                 </div>
 
                 {/* Grid */}

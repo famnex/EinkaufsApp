@@ -91,12 +91,6 @@ export default function SettingsPage() {
     const [showImapPassword, setShowImapPassword] = useState(false);
     const [isEmailConfigOpen, setIsEmailConfigOpen] = useState(false);
 
-    // Payment Configuration State
-    const [paypalConfig, setPaypalConfig] = useState({
-        clientId: '',
-        clientSecret: '',
-        webhookId: ''
-    });
     const [stripeConfig, setStripeConfig] = useState({
         publishableKey: '',
         secretKey: '',
@@ -395,11 +389,6 @@ export default function SettingsPage() {
 
             // Load Payment settings
             if (systemSettingsRes.data) {
-                setPaypalConfig({
-                    clientId: systemSettingsRes.data.paypal_client_id || '',
-                    clientSecret: '', // Never populate secret from server
-                    webhookId: systemSettingsRes.data.paypal_webhook_id || ''
-                });
                 setStripeConfig({
                     publishableKey: systemSettingsRes.data.stripe_publishable_key || '',
                     secretKey: '', // Never populate secret from server
@@ -805,14 +794,11 @@ export default function SettingsPage() {
         try {
             // Build list of settings to save, skipping empty secrets to avoid overwriting
             const settings = [
-                { key: 'paypal_client_id', value: paypalConfig.clientId },
-                { key: 'paypal_webhook_id', value: paypalConfig.webhookId },
                 { key: 'stripe_publishable_key', value: stripeConfig.publishableKey },
                 { key: 'stripe_price_silber', value: stripeConfig.priceSilber },
                 { key: 'stripe_price_gold', value: stripeConfig.priceGold },
             ];
             // Only send secrets if they were actually entered (non-empty)
-            if (paypalConfig.clientSecret) settings.push({ key: 'paypal_client_secret', value: paypalConfig.clientSecret });
             if (stripeConfig.secretKey) settings.push({ key: 'stripe_secret_key', value: stripeConfig.secretKey });
             if (stripeConfig.webhookSecret) settings.push({ key: 'stripe_webhook_secret', value: stripeConfig.webhookSecret });
 
@@ -2651,45 +2637,6 @@ export default function SettingsPage() {
                             transition={{ duration: 0.3, ease: "easeInOut" }}
                         >
                             <div className="p-6 border-t border-border/50 bg-background/5 space-y-8">
-                                {/* PayPal */}
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="p-2 bg-blue-500/10 rounded-lg">
-                                            <CreditCard size={18} className="text-blue-500" />
-                                        </div>
-                                        <h3 className="text-lg font-bold">PayPal</h3>
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-4">
-                                        <div>
-                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Client ID</label>
-                                            <Input
-                                                value={paypalConfig.clientId}
-                                                onChange={(e) => setPaypalConfig({ ...paypalConfig, clientId: e.target.value })}
-                                                placeholder="PayPal Client ID"
-                                                className="bg-muted border-transparent focus:bg-background"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Client Secret</label>
-                                            <Input
-                                                type="password"
-                                                value={paypalConfig.clientSecret}
-                                                onChange={(e) => setPaypalConfig({ ...paypalConfig, clientSecret: e.target.value })}
-                                                placeholder="••••••••"
-                                                className="bg-muted border-transparent focus:bg-background"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Webhook ID</label>
-                                            <Input
-                                                value={paypalConfig.webhookId}
-                                                onChange={(e) => setPaypalConfig({ ...paypalConfig, webhookId: e.target.value })}
-                                                placeholder="PayPal Webhook ID"
-                                                className="bg-muted border-transparent focus:bg-background"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
 
                                 {/* Stripe */}
                                 <div className="space-y-4 pt-6 border-t border-border/50">

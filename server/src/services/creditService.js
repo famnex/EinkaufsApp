@@ -17,6 +17,16 @@ const creditService = {
             'Plastikgabel': 0, // Should be blocked anyway
             'Silbergabel': 60,
             'Goldgabel': 40
+        },
+        'COOKING_SESSION': {
+            'Plastikgabel': 0,
+            'Silbergabel': 10,
+            'Goldgabel': 0
+        },
+        'COOKING_CHAT': {
+            'Plastikgabel': 0,
+            'Silbergabel': 0,
+            'Goldgabel': 0
         }
     },
 
