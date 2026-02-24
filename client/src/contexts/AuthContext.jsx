@@ -29,6 +29,17 @@ export const AuthProvider = ({ children }) => {
         initAuth();
     }, []);
 
+    const refreshUser = async () => {
+        try {
+            const { data } = await api.get('/auth/me');
+            setUser(data);
+            localStorage.setItem('user', JSON.stringify(data));
+            return data;
+        } catch (err) {
+            console.error('Failed to refresh user', err);
+        }
+    };
+
     const login = async (email, password) => {
         const { data } = await api.post('/auth/login', { email, password });
         localStorage.setItem('token', data.token);
@@ -78,8 +89,20 @@ export const AuthProvider = ({ children }) => {
         }
     }, [user]);
 
+    // Handle automatic refresh when window gains focus (e.g. returning from Payment)
+    useEffect(() => {
+        const handleFocus = () => {
+            if (localStorage.getItem('token')) {
+                refreshUser();
+            }
+        };
+
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
+    }, []);
+
     return (
-        <AuthContext.Provider value={{ user, setUser, login, signup, logout, loading, notificationCounts, fetchNotificationCounts }}>
+        <AuthContext.Provider value={{ user, setUser, login, signup, logout, refreshUser, loading, notificationCounts, fetchNotificationCounts }}>
             {!loading && children}
         </AuthContext.Provider>
     );

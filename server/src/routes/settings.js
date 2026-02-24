@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { Settings } = require('../models');
+const { Settings, User, sequelize } = require('../models');
+const { Op } = require('sequelize');
 const { auth } = require('../middleware/auth');
 const nodemailer = require('nodemailer');
 
@@ -17,24 +18,69 @@ router.get('/system/version', auth, (req, res) => {
     });
 });
 
-// GET /logs - Admin only, paginated
+// GET /logs - Admin only, paginated and searchable
 router.get('/logs', auth, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
 
     try {
-        const { limit = 50, offset = 0 } = req.query;
-        const { LoginLog } = require('../models');
+        const { limit = 50, offset = 0, type = 'login', search = '' } = req.query;
+        const { LoginLog, SubscriptionLog, CreditTransaction } = require('../models');
 
-        const logs = await LoginLog.findAll({
-            limit: parseInt(limit),
-            offset: parseInt(offset),
-            order: [['createdAt', 'DESC']]
-        });
+        let logs = [];
+        let total = 0;
+        const where = {};
 
-        const total = await LoginLog.count();
+        if (type === 'login') {
+            if (search) {
+                where[Op.or] = [
+                    { username: { [Op.like]: `%${search}%` } },
+                    { event: { [Op.like]: `%${search}%` } },
+                    { ipHash: { [Op.like]: `%${search}%` } }
+                ];
+            }
+            logs = await LoginLog.findAll({
+                where,
+                limit: parseInt(limit),
+                offset: parseInt(offset),
+                order: [['createdAt', 'DESC']]
+            });
+            total = await LoginLog.count({ where });
+        } else if (type === 'subscription') {
+            if (search) {
+                where[Op.or] = [
+                    { username: { [Op.like]: `%${search}%` } },
+                    { event: { [Op.like]: `%${search}%` } },
+                    { tier: { [Op.like]: `%${search}%` } },
+                    { details: { [Op.like]: `%${search}%` } }
+                ];
+            }
+            logs = await SubscriptionLog.findAll({
+                where,
+                limit: parseInt(limit),
+                offset: parseInt(offset),
+                order: [['createdAt', 'DESC']]
+            });
+            total = await SubscriptionLog.count({ where });
+        } else if (type === 'credit') {
+            if (search) {
+                where[Op.or] = [
+                    { '$User.username$': { [Op.like]: `%${search}%` } },
+                    { description: { [Op.like]: `%${search}%` } }
+                ];
+            }
+            logs = await CreditTransaction.findAll({
+                where,
+                include: [{ model: User, attributes: ['username'] }],
+                limit: parseInt(limit),
+                offset: parseInt(offset),
+                order: [['createdAt', 'DESC']]
+            });
+            total = await CreditTransaction.count({ where, include: [{ model: User }] });
+        }
 
         res.json({ logs, total });
     } catch (err) {
+        console.error('Error fetching logs:', err);
         res.status(500).json({ error: err.message });
     }
 });

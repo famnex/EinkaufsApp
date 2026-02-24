@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
-const { User, CreditTransaction, Settings } = require('../models');
+const { User, CreditTransaction, Settings, SubscriptionLog } = require('../models');
 const { auth: verifyToken } = require('../middleware/auth');
 const isAdmin = require('../middleware/admin');
 
@@ -138,6 +138,7 @@ router.put('/:id/detail', async (req, res) => {
         if (!user) return res.status(404).json({ error: 'User not found' });
 
         const { username, email, password, role, tier, cookbookTitle, cookbookImage } = req.body;
+        const oldTier = user.tier;
 
         if (username) user.username = username;
         if (email) user.email = email;
@@ -152,6 +153,20 @@ router.put('/:id/detail', async (req, res) => {
         }
 
         await user.save();
+
+        // Log admin tier change
+        if (tier && tier !== oldTier) {
+            await SubscriptionLog.create({
+                UserId: user.id,
+                username: user.username,
+                event: 'tier_changed_admin',
+                tier: tier,
+                details: `Admin-Änderung: ${oldTier} → ${tier}`,
+                ipHash: req.ip || 'admin',
+                userAgent: req.headers['user-agent'] || 'admin'
+            });
+        }
+
         res.json({ message: 'User updated successfully', user });
     } catch (err) {
         res.status(500).json({ error: err.message });

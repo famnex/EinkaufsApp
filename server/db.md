@@ -18,6 +18,14 @@
 - isPermanentlyBanned (Boolean)
 - resetPasswordToken (String, Nullable, for password reset)
 - resetPasswordExpires (DateTime, Nullable, for password reset)
+- subscriptionStatus (Enum: 'active', 'canceled', 'past_due', 'none')
+- subscriptionExpiresAt (DateTime, Nullable)
+- cancelAtPeriodEnd (Boolean, default false)
+- stripeCustomerId (String, Nullable)
+- stripeSubscriptionId (String, Nullable)
+- paypalSubscriptionId (String, Nullable)
+- pendingTier (Enum: 'Silbergabel', 'none')
+- lastRefillAt (DateTime, Nullable)
 
 ### Recipes
 - id (Integer, Primary Key)
@@ -81,6 +89,27 @@
 - userAgent (String)
 - createdAt (DateTime)
 
+### SubscriptionLogs
+- id (Integer, Primary Key)
+- UserId (Integer, Nullable, Foreign Key -> Users)
+- username (String)
+- event (String: 'checkout_initiated', 'checkout_completed', 'checkout_canceled', 'subscription_renewed', 'payment_failed', 'subscription_expired', 'subscription_canceled_user', 'subscription_deleted', 'tier_changed_admin', 'credits_refilled')
+- tier (String)
+- amount (Decimal)
+- currency (String, default 'EUR')
+- details (Text)
+- ipHash (String)
+- userAgent (String)
+- createdAt (DateTime)
+
+### CreditTransactions
+- id (Integer, Primary Key)
+- UserId (Integer, Nullable, Foreign Key -> Users)
+- delta (Decimal)
+- description (Text)
+- type (String: 'usage', 'booking')
+- createdAt (DateTime)
+
 ### Emails
 - id (Integer, Primary Key)
 - messageId (String, Nullable, Unique email Message-ID, Unique Index)
@@ -104,6 +133,8 @@
 - Products can be in many ListItems
 - Users have many Settings
 - Users have many LoginLogs
+- Users have many SubscriptionLogs
+- Users have many CreditTransactions
 - Users have many Emails
 
 ### ComplianceReports

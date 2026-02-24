@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Clock, Users, ArrowRight, Wand2, Plus, Minus, Search, Trash2, Image as ImageIcon, Sparkles, Loader2, Tag, ShieldAlert, GripVertical } from 'lucide-react';
+import { X, Save, Clock, Users, ArrowRight, Wand2, Plus, Minus, Search, Trash2, Image as ImageIcon, Sparkles, Loader2, Tag, ShieldAlert, GripVertical, Play } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
 import api from '../lib/axios';
 import { cn, getImageUrl } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
+import AiActionConfirmModal from './AiActionConfirmModal';
 import {
     DndContext,
     closestCenter,
@@ -97,6 +98,8 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
     const [loading, setLoading] = useState(false); // Initial load
     const [isSaving, setIsSaving] = useState(false); // Bottom save button
     const [isGeneratingImage, setIsGeneratingImage] = useState(false); // AI image generation
+    const [aiConfirmModalOpen, setAiConfirmModalOpen] = useState(false);
+    const [aiActionData, setAiActionData] = useState(null);
     const [products, setProducts] = useState([]);
 
     // Tab 1: Basics
@@ -523,51 +526,47 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                                 {/* AI Button */}
                                                 <Button
                                                     type="button"
-                                                    variant="outline"
                                                     size="sm"
-                                                    className="w-full gap-2 text-xs"
+                                                    className="w-full gap-2 text-[10px] bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-md shadow-indigo-500/10"
                                                     disabled={loading || isSaving || isGeneratingImage}
-                                                    onClick={async () => {
+                                                    onClick={() => {
                                                         if (!basics.title) {
                                                             alert('Bitte erst einen Titel eingeben');
                                                             return;
                                                         }
 
-                                                        // Decide between Variation (Img2Img) and New Generation (Txt2Img)
-                                                        if (basics.imagePreview) {
-                                                            if (!confirm('Eine Variation des aktuellen Bildes erstellen? (Kostenpflichtig)')) return;
+                                                        const isVariation = !!basics.imagePreview;
+                                                        const cost = user?.tier === 'Goldgabel' ? 40 : 60;
 
-                                                            try {
+                                                        setAiActionData({
+                                                            title: isVariation ? 'KI Variation erstellen' : 'KI Bild generieren',
+                                                            description: isVariation
+                                                                ? `Eine neue Variante des Bildes für "${basics.title}" erstellen.`
+                                                                : `Ein passendes Bild für "${basics.title}" erstellen.`,
+                                                            cost,
+                                                            onConfirm: async () => {
                                                                 setIsGeneratingImage(true);
-                                                                const { data } = await api.post('/ai/regenerate-image', {
-                                                                    imageUrl: basics.imagePreview,
-                                                                    title: basics.title
-                                                                });
-                                                                // Cache buster not strictly needed if filename changes, but good practice
-                                                                setBasics(prev => ({ ...prev, imagePreview: data.url, image: null, imageSource: 'ai' }));
-                                                            } catch (err) {
-                                                                alert('Fehler: ' + err.message);
-                                                            } finally {
-                                                                setIsGeneratingImage(false);
-                                                            }
-                                                        } else {
-                                                            // New Generation
-                                                            if (!confirm('Ein neues Bild für "' + basics.title + '" generieren? (Kostenpflichtig)')) return;
+                                                                try {
+                                                                    const endpoint = isVariation ? '/ai/regenerate-image' : '/ai/generate-image';
+                                                                    const payload = isVariation
+                                                                        ? { imageUrl: basics.imagePreview, title: basics.title }
+                                                                        : { title: basics.title };
 
-                                                            try {
-                                                                setIsGeneratingImage(true);
-                                                                const { data } = await api.post('/ai/generate-image', { title: basics.title });
-                                                                setBasics(prev => ({ ...prev, imagePreview: data.url, image: null, imageSource: 'ai' }));
-                                                            } catch (err) {
-                                                                alert('Fehler: ' + err.message);
-                                                            } finally {
-                                                                setIsGeneratingImage(false);
+                                                                    const { data } = await api.post(endpoint, payload);
+                                                                    setBasics(prev => ({ ...prev, imagePreview: data.url, image: null, imageSource: 'ai' }));
+                                                                } catch (err) {
+                                                                    alert('Fehler: ' + err.message);
+                                                                } finally {
+                                                                    setIsGeneratingImage(false);
+                                                                }
                                                             }
-                                                        }
+                                                        });
+                                                        setAiConfirmModalOpen(true);
                                                     }}
                                                 >
                                                     {isGeneratingImage ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
-                                                    {basics.imagePreview ? 'Variante' : 'AI Neu'}
+                                                    {basics.imagePreview ? 'AI Variante' : 'AI Neu'}
+                                                    <span className="opacity-70">({user?.tier === 'Goldgabel' ? 40 : 60})</span>
                                                 </Button>
 
                                                 {/* Delete Button */}
@@ -748,6 +747,18 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                     </motion.div>
                 </div>
             )}
+            <AiActionConfirmModal
+                isOpen={aiConfirmModalOpen}
+                onClose={() => setAiConfirmModalOpen(false)}
+                onConfirm={() => {
+                    aiActionData?.onConfirm();
+                    setAiConfirmModalOpen(false);
+                }}
+                actionTitle={aiActionData?.title}
+                actionDescription={aiActionData?.description}
+                cost={aiActionData?.cost}
+                balance={user?.aiCredits}
+            />
         </AnimatePresence>
     );
 }

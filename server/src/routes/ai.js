@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const OpenAI = require('openai');
 const axios = require('axios');
-const { Settings, Recipe, Product, Tag, HiddenCleanup } = require('../models');
+const { Settings, Recipe, Product, Tag, HiddenCleanup, User } = require('../models');
 const { auth } = require('../middleware/auth');
+const creditService = require('../services/creditService');
 const path = require('path');
 const fs = require('fs');
 const { optimizeImage } = require('../utils/imageOptimizer');
@@ -42,6 +43,9 @@ router.post('/parse', auth, async (req, res) => {
         if (!setting || !setting.value) {
             return res.status(400).json({ error: 'OpenAI API Key not configured in Settings' });
         }
+
+        // Deduct Credits
+        await creditService.deductCredits(req.user.effectiveId, 'TEXT', 'Rezept parsen');
 
         // Fetch existing categories and tags to guide the AI
         const existingCategories = await Recipe.findAll({
@@ -143,6 +147,9 @@ router.post('/cleanup', auth, async (req, res) => {
         if (!setting || !setting.value) {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
         }
+
+        // Deduct Credits (per batch or per product? simple TEXT deduction for now)
+        await creditService.deductCredits(req.user.effectiveId, 'TEXT', `KI Cleanup: ${type}`);
 
         const openai = new OpenAI({ apiKey: setting.value });
 
@@ -264,6 +271,9 @@ router.post('/lookup', auth, async (req, res) => {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
         }
 
+        // Deduct Credits
+        await creditService.deductCredits(req.user.effectiveId, 'TEXT', `KI Lookup: ${name}`);
+
         const openai = new OpenAI({ apiKey: setting.value });
 
         // Get existing categories for context
@@ -330,6 +340,9 @@ router.post('/suggest-substitute', auth, async (req, res) => {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
         }
 
+        // Deduct Credits
+        await creditService.deductCredits(req.user.effectiveId, 'TEXT', `KI Ersatzvorschlag: ${productName}`);
+
         const openai = new OpenAI({ apiKey: setting.value });
 
         const prompt = `
@@ -384,6 +397,9 @@ router.post('/find-duplicates', auth, async (req, res) => {
         if (!setting || !setting.value) {
             return res.status(400).json({ error: 'OpenAI API Key ist nicht konfiguriert' });
         }
+
+        // Deduct Credits
+        await creditService.deductCredits(req.user.effectiveId, 'TEXT', 'KI Duplikatsuche');
 
         const openai = new OpenAI({ apiKey: setting.value });
 
@@ -461,6 +477,9 @@ router.post('/generate-image', auth, async (req, res) => {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
         }
 
+        // Deduct Credits
+        await creditService.deductCredits(req.user.effectiveId, 'IMAGE', 'KI Bild generieren');
+
         const openai = new OpenAI({ apiKey: setting.value });
 
         const response = await openai.images.generate({
@@ -519,6 +538,9 @@ router.post('/regenerate-image', auth, async (req, res) => {
         if (!setting || !setting.value) {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
         }
+
+        // Deduct Credits
+        await creditService.deductCredits(req.user.effectiveId, 'IMAGE_VAR', 'KI Bild variieren');
 
         console.log('Regenerating image via GPT-Image-1-Mini from:', imageUrl);
 
@@ -696,6 +718,9 @@ router.post('/chat', auth, async (req, res) => {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
         }
 
+        // Deduct Credits
+        await creditService.deductCredits(req.user.effectiveId, 'TEXT', 'KI Kochassistent Chat');
+
         const openai = new OpenAI({ apiKey: setting.value });
 
         const systemPrompt = `
@@ -780,6 +805,9 @@ router.post('/extract-list-ingredients', auth, async (req, res) => {
         if (!setting || !setting.value) {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
         }
+
+        // Deduct Credits
+        await creditService.deductCredits(req.user.effectiveId, 'TEXT', 'KI Einkaufslisten-Extraktion');
 
         // 1. Check for URL
         const urlRegex = /(https?:\/\/[^\s]+)/g;

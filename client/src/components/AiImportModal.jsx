@@ -6,6 +6,9 @@ import { Input } from './Input';
 import api from '../lib/axios';
 import { cn, getImageUrl } from '../lib/utils';
 import ResilientImage from './ResilientImage';
+import { useAuth } from '../contexts/AuthContext';
+import AiActionConfirmModal from './AiActionConfirmModal';
+import SubscriptionModal from './SubscriptionModal';
 
 // Simple client-side version of German normalization
 function normalizeGerman(name) {
@@ -40,6 +43,12 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
     const [imageFile, setImageFile] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
     const [complianceChecked, setComplianceChecked] = useState(false);
+
+    // Context & Modals
+    const { user } = useAuth();
+    const [aiConfirmModalOpen, setAiConfirmModalOpen] = useState(false);
+    const [aiActionData, setAiActionData] = useState(null);
+    const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -76,6 +85,27 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
             return;
         }
 
+        // 1. Tier Check - Handled by visibility wrapper, but keeping here for consistency
+        if (user?.tier === 'Plastikgabel') return;
+
+        // 2. Credit Confirmation (if Silbergabel)
+        if (user?.tier === 'Silbergabel') {
+            setAiActionData({
+                type: 'TEXT',
+                title: 'Rezept analysieren',
+                description: 'KI-Analyse des Textes zur Extraktion von Zutaten und Schritten.',
+                cost: 5,
+                onConfirm: () => executeAnalyze()
+            });
+            setAiConfirmModalOpen(true);
+            return;
+        }
+
+        // 3. Free for Goldgabel (bypass prompt)
+        executeAnalyze();
+    };
+
+    const executeAnalyze = async () => {
         setStep('processing');
         console.log('--- AI ANALYZE START ---');
         console.log('Input:', inputText.substring(0, 100) + '...');
@@ -203,7 +233,6 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
             formData.append('tags', JSON.stringify(parsedData.tags || []));
 
             if (imageFile) {
-                console.log('Appending Uploaded Image File:', imageFile.name);
                 formData.append('image', imageFile);
                 formData.append('imageSource', 'upload');
             } else if (parsedData.image_url) {
@@ -212,9 +241,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                 formData.append('imageSource', source);
             }
 
-            console.log('Sending Recipe FormData...');
             const { data: recipe } = await api.post('/recipes', formData);
-            console.log('Recipe Created:', recipe.id);
 
             // 2. Process Ingredients
             for (let i = 0; i < parsedData.ingredients.length; i++) {
@@ -225,8 +252,6 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                 if (mapping.type === 'existing') {
                     productId = mapping.productId;
                 } else {
-                    // Create new Product
-                    console.log('Creating new product:', mapping.newName);
                     const { data: newProd } = await api.post('/products', {
                         name: mapping.newName,
                         unit: rawIng.unit || 'Stück',
@@ -236,8 +261,6 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                     productId = newProd.id;
                 }
 
-                // Link to Recipe
-                console.log(`Linking Product ${productId} to Recipe ${recipe.id}`);
                 await api.post(`/recipes/${recipe.id}/ingredients`, {
                     ProductId: productId,
                     quantity: rawIng.amount || 1,
@@ -245,7 +268,6 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                 });
             }
 
-            console.log('--- AI IMPORT SUCCESS ---');
             onSave(recipe);
             onClose();
         } catch (err) {
@@ -270,7 +292,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                     {/* Header */}
                     <div className="p-6 border-b border-border flex items-center justify-between bg-card/80 backdrop-blur-md z-10">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-primary/10 rounded-xl text-primary">
+                            <div className="p-2 bg-indigo-500/10 rounded-xl text-indigo-600">
                                 <Sparkles size={24} />
                             </div>
                             <div>
@@ -284,7 +306,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                     </div>
 
                     {/* Content */}
-                    <div className="flex-1 overflow-y-auto p-6">
+                    <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
                         {step === 'input' && (
                             <div className="space-y-4">
                                 <p className="text-muted-foreground">Füge den Rezepttext hier ein. Die KI wird versuchen, Zutaten und Schritte zu extrahieren. <span className="font-bold text-destructive">Keine URLs erlaubt!</span></p>
@@ -306,8 +328,6 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                         />
                                         <label htmlFor="compliance-check" className="leading-snug cursor-pointer">
                                             Ich bestätige, dass ich nur Inhalte (z. B. Rezepte, Texte, Bilder) eingebe oder importiere, an denen ich die erforderlichen Rechte habe oder deren Nutzung ausdrücklich erlaubt ist. Ich werde keine Inhalte aus Quellen übernehmen, deren Nutzungsbedingungen dies untersagen (z. B. automatisches Auslesen/Scraping). Mir ist bewusst, dass urheberrechtlich geschützte Inhalte nicht ohne Erlaubnis verwendet werden dürfen. Bei Verstößen können Inhalte entfernt und Zugänge gesperrt werden. Rechteinhaber können Inhalte melden: gabelguru.de/compliance. Bitte keine sensiblen Daten eingeben (z. B. Gesundheitsdaten, politische/religiöse Angaben) und keine personenbezogenen Daten Dritter. Deine Eingabe wird zur Beantwortung an unseren KI-Dienstleister OpenAI übermittelt.
-
-
                                         </label>
                                     </div>
                                 </div>
@@ -319,7 +339,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                         className="h-12 px-8 text-lg gap-2 shadow-lg shadow-primary/20"
                                     >
                                         <Sparkles size={18} />
-                                        Analysieren
+                                        Analysieren {user?.tier === 'Silbergabel' && <span className="ml-1 opacity-70 text-xs bg-white/20 px-2 py-0.5 rounded-full">(5 Coins)</span>}
                                     </Button>
                                 </div>
                             </div>
@@ -351,30 +371,40 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                                     <Sparkles size={32} className="opacity-20" />
                                                     <span className="text-xs">Kein Bild gefunden</span>
                                                     <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="secondary"
-                                                            className="gap-2"
-                                                            disabled={isGenerating}
-                                                            onClick={async () => {
-                                                                if (!confirm('Ein neues Bild mit AI generieren? (Kostenpflichtig)')) return;
-                                                                setIsGenerating(true);
-                                                                try {
-                                                                    const { data } = await api.post('/ai/generate-image', { title: parsedData.title });
-                                                                    const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-                                                                    const url = data.url.startsWith(base) ? data.url : base + data.url;
-                                                                    setParsedData(prev => ({ ...prev, image_url: url, imageSource: 'ai' }));
-                                                                    setImageFile(null);
-                                                                } catch (err) {
-                                                                    alert('Fehler beim Generieren: ' + err.message);
-                                                                } finally {
-                                                                    setIsGenerating(false);
-                                                                }
-                                                            }}
-                                                        >
-                                                            {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                                                            AI Bild
-                                                        </Button>
+                                                        {user?.tier !== 'Plastikgabel' && (
+                                                            <Button
+                                                                size="sm"
+                                                                className="gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20"
+                                                                disabled={isGenerating}
+                                                                onClick={() => {
+                                                                    const cost = user?.tier === 'Goldgabel' ? 40 : 60;
+                                                                    setAiActionData({
+                                                                        type: 'IMAGE',
+                                                                        title: 'KI Bild generieren',
+                                                                        description: `Ein passendes Bild für "${parsedData.title}" erstellen.`,
+                                                                        cost,
+                                                                        onConfirm: async () => {
+                                                                            setIsGenerating(true);
+                                                                            try {
+                                                                                const { data } = await api.post('/ai/generate-image', { title: parsedData.title });
+                                                                                const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+                                                                                const url = data.url.startsWith(base) ? data.url : base + data.url;
+                                                                                setParsedData(prev => ({ ...prev, image_url: url, imageSource: 'ai' }));
+                                                                                setImageFile(null);
+                                                                            } catch (err) {
+                                                                                alert('Fehler beim Generieren: ' + (err.response?.data?.error || err.message));
+                                                                            } finally {
+                                                                                setIsGenerating(false);
+                                                                            }
+                                                                        }
+                                                                    });
+                                                                    setAiConfirmModalOpen(true);
+                                                                }}
+                                                            >
+                                                                {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                                                                AI Neu <span className="opacity-70 text-[10px]">({user?.tier === 'Goldgabel' ? 40 : 60})</span>
+                                                            </Button>
+                                                        )}
 
                                                         <div className="relative">
                                                             <input
@@ -393,35 +423,49 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
 
                                             {parsedData.image_url && (
                                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center backdrop-blur-sm gap-2">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="secondary"
-                                                        className="gap-2 w-32"
-                                                        disabled={isGenerating}
-                                                        onClick={async () => {
-                                                            const isVariation = !!parsedData.image_url;
-                                                            if (!confirm(isVariation ? 'Eine Variation dieses Bildes erstellen? (Kostenpflichtig)' : 'Ein neues Bild mit AI generieren? (Kostenpflichtig)')) return;
+                                                    {user?.tier !== 'Plastikgabel' && (
+                                                        <Button
+                                                            size="sm"
+                                                            className="gap-2 w-40 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20"
+                                                            disabled={isGenerating}
+                                                            onClick={() => {
+                                                                const isVariation = !!parsedData.image_url;
+                                                                const cost = user?.tier === 'Goldgabel' ? 40 : 60;
 
-                                                            setIsGenerating(true);
-                                                            try {
-                                                                const endpoint = isVariation ? '/ai/regenerate-image' : '/ai/generate-image';
-                                                                const payload = isVariation
-                                                                    ? { imageUrl: parsedData.image_url, title: parsedData.title }
-                                                                    : { title: parsedData.title };
+                                                                setAiActionData({
+                                                                    type: 'IMAGE',
+                                                                    title: isVariation ? 'KI Variation erstellen' : 'KI Bild generieren',
+                                                                    description: isVariation
+                                                                        ? `Eine neue Variante des Bildes für "${parsedData.title}" erstellen.`
+                                                                        : `Ein passendes Bild für "${parsedData.title}" erstellen.`,
+                                                                    cost,
+                                                                    onConfirm: async () => {
+                                                                        setIsGenerating(true);
+                                                                        try {
+                                                                            const endpoint = isVariation ? '/ai/regenerate-image' : '/ai/generate-image';
+                                                                            const payload = isVariation
+                                                                                ? { imageUrl: parsedData.image_url, title: parsedData.title }
+                                                                                : { title: parsedData.title };
 
-                                                                const { data } = await api.post(endpoint, payload);
-                                                                setParsedData(prev => ({ ...prev, image_url: data.url, imageSource: 'ai' }));
-                                                                setImageFile(null);
-                                                            } catch (err) {
-                                                                alert('Fehler beim Generieren: ' + err.message);
-                                                            } finally {
-                                                                setIsGenerating(false);
-                                                            }
-                                                        }}
-                                                    >
-                                                        {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                                                        AI Variation
-                                                    </Button>
+                                                                            const { data } = await api.post(endpoint, payload);
+                                                                            const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+                                                                            const url = data.url.startsWith(base) ? data.url : base + data.url;
+                                                                            setParsedData(prev => ({ ...prev, image_url: url, imageSource: 'ai' }));
+                                                                            setImageFile(null);
+                                                                        } catch (err) {
+                                                                            alert('Fehler beim Generieren: ' + (err.response?.data?.error || err.message));
+                                                                        } finally {
+                                                                            setIsGenerating(false);
+                                                                        }
+                                                                    }
+                                                                });
+                                                                setAiConfirmModalOpen(true);
+                                                            }}
+                                                        >
+                                                            {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                                                            AI Variante <span className="opacity-70 text-[10px]">({user?.tier === 'Goldgabel' ? 40 : 60})</span>
+                                                        </Button>
+                                                    )}
 
                                                     <div className="relative">
                                                         <input
@@ -481,7 +525,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                         <p className="text-sm text-muted-foreground">{parsedData.description}</p>
 
                                         <h4 className="font-bold text-sm uppercase text-muted-foreground pt-2">Zubereitung</h4>
-                                        <div className="space-y-2 pl-4 border-l-2 border-primary/20 max-h-64 overflow-y-auto custom-scrollbar">
+                                        <div className="space-y-2 pl-4 border-l-2 border-primary/20 max-h-64 overflow-y-auto scrollbar-hide">
                                             {parsedData.steps.map((step, i) => (
                                                 <p key={i} className="text-sm"><span className="font-bold text-primary mr-2">{i + 1}.</span>{step}</p>
                                             ))}
@@ -533,7 +577,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                         <Check size={20} className="text-primary" />
                                         Zutaten Zuordnung
                                     </h3>
-                                    <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                                    <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 scrollbar-hide">
                                         {parsedData.ingredients.map((ing, idx) => {
                                             const mapping = mappings[idx];
                                             return (
@@ -597,6 +641,25 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                     )}
                 </motion.div>
             </div>
+
+            <AiActionConfirmModal
+                isOpen={aiConfirmModalOpen}
+                onClose={() => setAiConfirmModalOpen(false)}
+                onConfirm={() => {
+                    aiActionData?.onConfirm();
+                    setAiConfirmModalOpen(false);
+                }}
+                actionTitle={aiActionData?.title}
+                actionDescription={aiActionData?.description}
+                cost={aiActionData?.cost}
+                balance={user?.aiCredits}
+            />
+
+            <SubscriptionModal
+                isOpen={isSubscriptionModalOpen}
+                onClose={() => setIsSubscriptionModalOpen(false)}
+                currentTier={user?.tier}
+            />
         </AnimatePresence>
     );
 }

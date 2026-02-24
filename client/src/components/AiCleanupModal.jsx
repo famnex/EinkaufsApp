@@ -2,6 +2,9 @@ import { useState, useMemo, useEffect } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, Tag, Scale, Factory, AlertCircle, CheckCircle2, Loader2, Save, ChevronRight, ArrowRight, Eye, EyeOff, Copy } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import AiActionConfirmModal from './AiActionConfirmModal';
+import SubscriptionModal from './SubscriptionModal';
 import { Button } from './Button';
 import { Card } from './Card';
 import { cn } from '../lib/utils';
@@ -15,6 +18,12 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
     const [results, setResults] = useState([]); // [{ id, name, original, suggestion, accepted: true, value: '' }]
     const [saving, setSaving] = useState(false);
     const [showHidden, setShowHidden] = useState(false);
+
+    // Context & Modals
+    const { user } = useAuth();
+    const [aiConfirmModalOpen, setAiConfirmModalOpen] = useState(false);
+    const [aiActionData, setAiActionData] = useState(null);
+    const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
 
     // Duplicate Detection State
     const [duplicateSuggestions, setDuplicateSuggestions] = useState([]);
@@ -141,9 +150,27 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
     };
 
     const handleStartCleanup = async () => {
-        // ... existing handleStartCleanup ... (using context to skip replacement of this part)
-        // Actually I need to be careful with replace_file_content target.
-        // I will target from `toggleAll` down to the button render safely.
+        // 1. Tier Check - Handled by trigger
+        if (user?.tier === 'Plastikgabel') return;
+
+        // 2. Credit Confirmation (Silbergabel: 5 coins, Goldgabel: 0 coins)
+        if (user?.tier === 'Silbergabel') {
+            setAiActionData({
+                type: 'TEXT',
+                title: 'Produkte bereinigen',
+                description: `KI-Vorschläge für ${selectedIds.size} Produkte generieren (${selectedType}).`,
+                cost: 5,
+                onConfirm: () => executeCleanup()
+            });
+            setAiConfirmModalOpen(true);
+            return;
+        }
+
+        // 3. Free for Goldgabel (bypass prompt)
+        executeCleanup();
+    };
+
+    const executeCleanup = async () => {
         setStep('loading');
         try {
             const productsToClean = filteredProducts
@@ -218,6 +245,32 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
     };
 
     const handleStartDuplicateAnalysis = async () => {
+        // 1. Tier Check
+        if (user?.tier === 'Plastikgabel') {
+            if (window.confirm('Duplikatserkennung ist ein Smart Feature der Silbergabel. Upgrade jetzt?')) {
+                setIsSubscriptionModalOpen(true);
+            }
+            return;
+        }
+
+        // 2. Credit Confirmation (if not Goldgabel)
+        if (user?.tier !== 'Goldgabel') {
+            setAiActionData({
+                type: 'TEXT',
+                title: 'Duplikate finden',
+                description: 'KI-Analyse aller Produkte zur Erkennung von Mehrfacheinträgen.',
+                cost: 5,
+                onConfirm: () => executeDuplicateAnalysis()
+            });
+            setAiConfirmModalOpen(true);
+            return;
+        }
+
+        // 3. Free for Goldgabel
+        executeDuplicateAnalysis();
+    };
+
+    const executeDuplicateAnalysis = async () => {
         setDuplicateLoading(true);
         setDuplicateAnalyzed(false);
         try {
@@ -693,6 +746,24 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
                     </motion.div>
                 </div>
             )}
+            <AiActionConfirmModal
+                isOpen={aiConfirmModalOpen}
+                onClose={() => setAiConfirmModalOpen(false)}
+                onConfirm={() => {
+                    aiActionData?.onConfirm();
+                    setAiConfirmModalOpen(false);
+                }}
+                actionTitle={aiActionData?.title}
+                actionDescription={aiActionData?.description}
+                cost={aiActionData?.cost}
+                balance={user?.aiCredits}
+            />
+
+            <SubscriptionModal
+                isOpen={isSubscriptionModalOpen}
+                onClose={() => setIsSubscriptionModalOpen(false)}
+                currentTier={user?.tier}
+            />
         </AnimatePresence>
     );
 }

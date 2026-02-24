@@ -28,6 +28,17 @@ const User = sequelize.define('User', {
         defaultValue: 'Plastikgabel'
     },
     aiCredits: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0.00 },
+    subscriptionStatus: {
+        type: DataTypes.ENUM('active', 'canceled', 'past_due', 'none'),
+        defaultValue: 'none'
+    },
+    subscriptionExpiresAt: { type: DataTypes.DATE, allowNull: true },
+    cancelAtPeriodEnd: { type: DataTypes.BOOLEAN, defaultValue: false },
+    stripeCustomerId: { type: DataTypes.STRING, allowNull: true },
+    stripeSubscriptionId: { type: DataTypes.STRING, allowNull: true },
+    paypalSubscriptionId: { type: DataTypes.STRING, allowNull: true },
+    pendingTier: { type: DataTypes.ENUM('Silbergabel', 'none'), defaultValue: 'none' },
+    lastRefillAt: { type: DataTypes.DATE, allowNull: true },
     newsletterSignedUp: { type: DataTypes.BOOLEAN, defaultValue: false },
     newsletterSignupDate: { type: DataTypes.DATE, allowNull: true },
     bannedAt: { type: DataTypes.DATE, allowNull: true },
@@ -167,10 +178,13 @@ const Recipe = require('./Recipe')(sequelize);
 const RecipeIngredient = require('./RecipeIngredient')(sequelize);
 const Tag = require('./Tag')(sequelize);
 const LoginLog = require('./LoginLog')(sequelize);
+const SubscriptionLog = require('./SubscriptionLog')(sequelize);
 const ComplianceReport = require('./ComplianceReport')(sequelize);
 
 LoginLog.belongsTo(User);
+SubscriptionLog.belongsTo(User);
 User.hasMany(LoginLog);
+User.hasMany(SubscriptionLog);
 
 ComplianceReport.belongsTo(User, { as: 'accusedUser', foreignKey: 'accusedUserId' });
 User.hasMany(ComplianceReport, { as: 'strikes', foreignKey: 'accusedUserId' });
@@ -255,6 +269,7 @@ module.exports = {
     ProductSubstitution,
     CreditTransaction,
     LoginLog,
+    SubscriptionLog,
     Email,
     ComplianceReport
 };

@@ -18,8 +18,15 @@ Zentrales Benutzermodell.
 - `cookbookImage` (STRING): Pfad zum Hero-Bild des Kochbuchs.
 - `householdId` (INT): ID des gemeinsamen Haushalts (Isolationsebene).
 - `tier` (ENUM: 'Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon'): Abonnement-Status.
-- `tier` (ENUM: 'Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon'): Abonnement-Status.
 - `aiCredits` (DECIMAL): Aktuelles AI-Guthaben.
+- `subscriptionStatus` (ENUM): 'active', 'canceled', 'past_due', 'none' [NEW v0.26.7].
+- `subscriptionExpiresAt` (DATE): Ablaufdatum des Abos [NEW v0.26.7].
+- `cancelAtPeriodEnd` (BOOLEAN): Ob das Abo zum Ende der Laufzeit gekündigt wurde [NEW v0.26.7].
+- `stripeCustomerId` (STRING): Stripe Kunden-ID [NEW v0.26.7].
+- `stripeSubscriptionId` (STRING): Stripe Abo-ID [NEW v0.26.7].
+- `paypalSubscriptionId` (STRING): PayPal Abo-ID [NEW v0.26.7].
+- `lastRefillAt` (DATE): Timestamp of last monthly AI credit refill [NEW v0.26.7].
+- `pendingTier` (ENUM): 'Silbergabel', 'none' - Scheduled downgrade [NEW v0.26.8].
 - `newsletterSignedUp` (BOOLEAN): Newsletter-Status [NEW v0.24.1].
 - `newsletterSignupDate` (DATE): Datum der Newsletter-Anmeldung [NEW v0.24.1].
 - `bannedAt` (DATETIME, NULLABLE): Wenn gesetzt, ist das öffentliche Kochbuch gesperrt.
@@ -31,6 +38,18 @@ Aufzeichnung aller AI-Guthaben-Bewegungen.
 - `delta` (DECIMAL): Betrag der Änderung (+/-).
 - `description` (STRING): Grund der Buchung.
 - `createdAt` / `updatedAt` (DATE)
+
+### `SubscriptionLogs` [NEW v0.26.9]
+Protokollierung aller Abonnements-bezogenen Aktivitäten.
+- `id` (INT, PK)
+- `UserId` (INT, FK)
+- `username` (STRING): Denormalisiert für schnelle Log-Suche.
+- `event` (STRING): z.B. 'checkout_completed', 'subscription_canceled_user', etc.
+- `tier` (STRING): Betroffener Plan.
+- `amount` / `currency` (DECIMAL/STRING)
+- `details` (TEXT): JSON-Details oder Fehlermeldungen.
+- `ipHash` / `userAgent` (STRING)
+- `createdAt` (DATE)
 
 ### `Manufacturers` / `Stores`
 - `id` (INT, PK)
@@ -134,6 +153,14 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 
 6.  **Newsletter (v0.24.1)**: `node server/migrations/migrate_v0.24.1.js`
     - Fügt `newsletterSignedUp` und `newsletterSignupDate` Spalten zu `Users` hinzu.
+
+7.  **Subscription Refinements (v0.26.8)**: `node server/migrations/migrate_v0.26.8_subscription_refines.js`
+    - Neue Spalte `pendingTier` in `Users`.
+    - Logik für verzögerte Kündigung und Downgrade.
+
+8.  **Logging Expansion (v0.26.9)**: `node server/migrations/migrate_v0.26.9_logging_expansion.js`
+    - Neue Tabelle `SubscriptionLogs`.
+    - Erweiterung der Log-Suche im Admin-Bereich (Login, Abo, Credits).
 
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*

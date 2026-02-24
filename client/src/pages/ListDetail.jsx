@@ -19,6 +19,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
 import { arrayMove, SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
 import { SortableItem } from '../components/SortableItem';
+import AiActionConfirmModal from '../components/AiActionConfirmModal';
+import SubscriptionModal from '../components/SubscriptionModal';
 
 export default function ListDetail() {
     const { id } = useParams();
@@ -53,6 +55,11 @@ export default function ListDetail() {
 
     // AI List Import State
     const [aiImportModalOpen, setAiImportModalOpen] = useState(false);
+
+    // AI Confirmation State
+    const [aiConfirmModalOpen, setAiConfirmModalOpen] = useState(false);
+    const [aiActionData, setAiActionData] = useState(null);
+    const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
 
     // Double-Tap Detection (use ref to avoid closure issues)
     const lastTapTimeRef = useRef(null);
@@ -211,6 +218,11 @@ export default function ListDetail() {
 
     // === Product Substitution Handlers ===
     const handleOpenSubstituteModal = async (item) => {
+        // Double-Tap Substitution ist immer kostenlos und für alle Tiers verfügbar
+        startSubstituteSearch(item);
+    };
+
+    const startSubstituteSearch = async (item) => {
         setSubstituteTarget(item);
         setSubstituteModalOpen(true);
         setSubstituteLoading(true);
@@ -225,7 +237,8 @@ export default function ListDetail() {
             setSubstituteSuggestions(data.suggestions || []);
         } catch (err) {
             console.error('Failed to get AI suggestions:', err);
-            alert('KI-Vorschläge konnten nicht geladen werden.');
+            // Error handling already in modal logic usually, but here we provide a fallback
+            alert(err.response?.data?.error || 'KI-Vorschläge konnten nicht geladen werden.');
             setSubstituteModalOpen(false);
         } finally {
             setSubstituteLoading(false);
@@ -591,9 +604,7 @@ export default function ListDetail() {
                                                                     singleTapTimeoutRef.current = null;
                                                                 }
 
-                                                                if (user?.tier !== 'Plastikgabel') {
-                                                                    handleOpenSubstituteModal(item);
-                                                                }
+                                                                handleOpenSubstituteModal(item);
                                                                 lastTapTimeRef.current = null;
                                                                 lastTapItemRef.current = null;
                                                                 return;
@@ -906,6 +917,23 @@ export default function ListDetail() {
                 </Button>
             </div>
 
+            <AiActionConfirmModal
+                isOpen={aiConfirmModalOpen}
+                onClose={() => setAiConfirmModalOpen(false)}
+                onConfirm={() => {
+                    aiActionData?.onConfirm();
+                    setAiConfirmModalOpen(false);
+                }}
+                actionTitle={aiActionData?.title}
+                actionDescription={aiActionData?.description}
+                cost={aiActionData?.cost}
+            />
+
+            <SubscriptionModal
+                isOpen={isSubscriptionModalOpen}
+                onClose={() => setIsSubscriptionModalOpen(false)}
+                currentTier={user?.tier}
+            />
         </div>
     );
 }

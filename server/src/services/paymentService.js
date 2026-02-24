@@ -1,0 +1,89 @@
+const stripe = require('stripe');
+const paypal = require('@paypal/checkout-server-sdk');
+const { Settings, User } = require('../models');
+
+/**
+ * Service to handle Stripe and PayPal payments
+ */
+const paymentService = {
+    /**
+     * Get Stripe instance with secret key from settings
+     */
+    async getStripe() {
+        const setting = await Settings.findOne({ where: { key: 'stripe_secret_key', UserId: null } });
+        if (!setting || !setting.value) throw new Error('Stripe Secret Key not configured');
+        return stripe(setting.value);
+    },
+
+    /**
+     * Get PayPal environment and client
+     */
+    async getPayPalClient() {
+        const clientIdSetting = await Settings.findOne({ where: { key: 'paypal_client_id', UserId: null } });
+        const clientSecretSetting = await Settings.findOne({ where: { key: 'paypal_client_secret', UserId: null } });
+
+        if (!clientIdSetting || !clientSecretSetting) throw new Error('PayPal credentials not configured');
+
+        // Note: In production you'd use LiveEnvironment
+        const environment = new paypal.core.SandboxEnvironment(
+            clientIdSetting.value,
+            clientSecretSetting.value
+        );
+        return new paypal.core.PayPalHttpClient(environment);
+    },
+
+    /**
+     * Create a Stripe Checkout Session for subscription
+     */
+    async createStripeSession(userId, tier, successUrl, cancelUrl) {
+        const stripeInstance = await this.getStripe();
+        const user = await User.findByPk(userId);
+
+        // Load price IDs from admin settings
+        const priceSilber = await Settings.findOne({ where: { key: 'stripe_price_silber', UserId: null } });
+        const priceGold = await Settings.findOne({ where: { key: 'stripe_price_gold', UserId: null } });
+
+        const prices = {
+            'Silbergabel': priceSilber?.value,
+            'Goldgabel': priceGold?.value
+        };
+
+        if (!prices[tier]) {
+            throw new Error(`Stripe Price ID für "${tier}" ist nicht konfiguriert. Bitte in den Admin-Einstellungen hinterlegen.`);
+        }
+
+        const session = await stripeInstance.checkout.sessions.create({
+            customer_email: user.email,
+            // Expanding payment method types for Stripe
+            payment_method_types: ['card', 'sepa_debit', 'link'],
+            line_items: [{
+                price: prices[tier],
+                quantity: 1,
+            }],
+            mode: 'subscription',
+            success_url: successUrl,
+            cancel_url: cancelUrl,
+            metadata: { userId, tier }
+        });
+
+        return session;
+    },
+
+    /**
+     * Handle Stripe Webhook
+     */
+    async handleStripeWebhook(event) {
+        // Logic for subscription.updated, customer.subscription.deleted, etc.
+        // This will be expanded in subscription.js route
+    },
+
+    /**
+     * Create PayPal Subscription (simplified - usually handled by frontend SDK with Plan ID)
+     * For backend, we might just verify or capture if needed.
+     */
+    async verifyPayPalSubscription(subscriptionId) {
+        // Verification logic using PayPal SDK
+    }
+};
+
+module.exports = paymentService;

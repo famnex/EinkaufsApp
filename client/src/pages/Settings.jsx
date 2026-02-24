@@ -4,7 +4,7 @@ import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, Arr
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { cn, getImageUrl } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { useEditMode } from '../contexts/EditModeContext';
@@ -12,6 +12,8 @@ import StoreModal from '../components/StoreModal';
 import UpdateModal from '../components/UpdateModal';
 import AlexaLogsModal from '../components/AlexaLogsModal';
 import UserDetailModal from '../components/UserDetailModal';
+import SubscriptionModal from '../components/SubscriptionModal';
+import SubscriptionCancelModal from '../components/SubscriptionCancelModal';
 import api from '../lib/axios';
 import { Search } from 'lucide-react';
 import ReactQuill from 'react-quill-new';
@@ -19,9 +21,10 @@ import 'react-quill-new/dist/quill.snow.css';
 
 export default function SettingsPage() {
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [stores, setStores] = useState([]);
     const [loading, setLoading] = useState(true);
-    const { user, setUser, notificationCounts, fetchNotificationCounts } = useAuth();
+    const { user, setUser, refreshUser, notificationCounts, fetchNotificationCounts } = useAuth();
     const { editMode, setEditMode } = useEditMode();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedStore, setSelectedStore] = useState(null);
@@ -51,6 +54,8 @@ export default function SettingsPage() {
     const [householdMembers, setHouseholdMembers] = useState([]);
     const [fetchingMembers, setFetchingMembers] = useState(false);
     const [isUserDetailModalOpen, setIsUserDetailModalOpen] = useState(false);
+    const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
     const [initialDetailTab, setInitialDetailTab] = useState('general');
 
     // System Design State
@@ -91,7 +96,9 @@ export default function SettingsPage() {
     const [stripeConfig, setStripeConfig] = useState({
         publishableKey: '',
         secretKey: '',
-        webhookSecret: ''
+        webhookSecret: '',
+        priceSilber: '',
+        priceGold: ''
     });
     const [savingPayment, setSavingPayment] = useState(false);
     const [isPaymentConfigOpen, setIsPaymentConfigOpen] = useState(false);
@@ -121,6 +128,24 @@ export default function SettingsPage() {
             if (!activeProfileTab) setActiveProfileTab('general');
         }
     }, [activeTab]);
+
+    // Handle payment return URLs (?payment=success|cancel)
+    useEffect(() => {
+        const paymentStatus = searchParams.get('payment');
+        if (paymentStatus) {
+            if (paymentStatus === 'cancel') {
+                // Log the cancellation
+                api.post('/subscription/checkout/canceled', { tier: 'unknown' }).catch(() => { });
+            }
+            if (paymentStatus === 'success') {
+                setActiveTab('subscription');
+                refreshUser();
+            }
+            // Clean up the URL
+            searchParams.delete('payment');
+            setSearchParams(searchParams, { replace: true });
+        }
+    }, []);
 
     // Email/Password Change State
     const [emailChangeData, setEmailChangeData] = useState({ currentPassword: '', newEmail: '' });
@@ -366,7 +391,9 @@ export default function SettingsPage() {
                 setStripeConfig({
                     publishableKey: systemSettingsRes.data.stripe_publishable_key || '',
                     secretKey: '', // Never populate secret from server
-                    webhookSecret: systemSettingsRes.data.stripe_webhook_secret || ''
+                    webhookSecret: systemSettingsRes.data.stripe_webhook_secret || '',
+                    priceSilber: systemSettingsRes.data.stripe_price_silber || '',
+                    priceGold: systemSettingsRes.data.stripe_price_gold || ''
                 });
             }
 
@@ -724,14 +751,22 @@ export default function SettingsPage() {
     const handleSavePayment = async () => {
         setSavingPayment(true);
         try {
-            await Promise.all([
-                api.post('/system/settings', { key: 'paypal_client_id', value: paypalConfig.clientId }),
-                api.post('/system/settings', { key: 'paypal_client_secret', value: paypalConfig.clientSecret }),
-                api.post('/system/settings', { key: 'paypal_webhook_id', value: paypalConfig.webhookId }),
-                api.post('/system/settings', { key: 'stripe_publishable_key', value: stripeConfig.publishableKey }),
-                api.post('/system/settings', { key: 'stripe_secret_key', value: stripeConfig.secretKey }),
-                api.post('/system/settings', { key: 'stripe_webhook_secret', value: stripeConfig.webhookSecret })
-            ]);
+            // Build list of settings to save, skipping empty secrets to avoid overwriting
+            const settings = [
+                { key: 'paypal_client_id', value: paypalConfig.clientId },
+                { key: 'paypal_webhook_id', value: paypalConfig.webhookId },
+                { key: 'stripe_publishable_key', value: stripeConfig.publishableKey },
+                { key: 'stripe_price_silber', value: stripeConfig.priceSilber },
+                { key: 'stripe_price_gold', value: stripeConfig.priceGold },
+            ];
+            // Only send secrets if they were actually entered (non-empty)
+            if (paypalConfig.clientSecret) settings.push({ key: 'paypal_client_secret', value: paypalConfig.clientSecret });
+            if (stripeConfig.secretKey) settings.push({ key: 'stripe_secret_key', value: stripeConfig.secretKey });
+            if (stripeConfig.webhookSecret) settings.push({ key: 'stripe_webhook_secret', value: stripeConfig.webhookSecret });
+
+            await Promise.all(
+                settings.map(s => api.post('/system/settings', s))
+            );
             alert('Zahlungskonfiguration gespeichert');
         } catch (err) {
             console.error('Failed to save payment settings', err);
@@ -782,6 +817,8 @@ export default function SettingsPage() {
     const [loadingLogs, setLoadingLogs] = useState(false);
     const [logsPage, setLogsPage] = useState(0);
     const [logsTotal, setLogsTotal] = useState(0);
+    const [activeLogType, setActiveLogType] = useState('login'); // 'login', 'subscription', 'credit'
+    const [logSearch, setLogSearch] = useState('');
 
     // Legal Texts State
     const [legalTexts, setLegalTexts] = useState({
@@ -833,9 +870,7 @@ export default function SettingsPage() {
     const refreshUserStatus = async () => {
         setLoadingSubscription(true);
         try {
-            const { data } = await api.get('/auth/profile');
-            setUser(data);
-            localStorage.setItem('user', JSON.stringify(data));
+            await refreshUser();
         } catch (err) {
             console.error('Failed to refresh user status', err);
         } finally {
@@ -843,10 +878,13 @@ export default function SettingsPage() {
         }
     };
 
-    const fetchLogs = async () => {
+    const fetchLogs = async (isSearch = false) => {
         setLoadingLogs(true);
         try {
-            const { data } = await api.get(`/settings/logs?limit=50&offset=${logsPage * 50}`);
+            const page = isSearch ? 0 : logsPage;
+            if (isSearch) setLogsPage(0);
+
+            const { data } = await api.get(`/settings/logs?limit=50&offset=${page * 50}&type=${activeLogType}&search=${logSearch}`);
             setLogs(data.logs);
             setLogsTotal(data.total);
         } catch (err) {
@@ -855,6 +893,23 @@ export default function SettingsPage() {
             setLoadingLogs(false);
         }
     };
+
+    // Debounced search for logs
+    useEffect(() => {
+        if (activeAdminTab === 'logs') {
+            const timer = setTimeout(() => {
+                fetchLogs(true);
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [logSearch, activeLogType]);
+
+    // Fetch logs when page changes
+    useEffect(() => {
+        if (activeAdminTab === 'logs') {
+            fetchLogs();
+        }
+    }, [logsPage]);
 
     const fetchLegalTexts = async () => {
         setLoadingLegal(true);
@@ -1553,44 +1608,152 @@ export default function SettingsPage() {
 
     const LogsSection = (
         <Card className="p-0 border-border bg-card/50 shadow-lg backdrop-blur-sm overflow-hidden">
-            <div className="p-8 border-b border-border">
-                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                    <FileText size={20} className="text-primary" />
-                    System Logs
-                </h2>
-                <p className="text-muted-foreground text-sm mt-1">Überblick über Anmeldeaktivitäten. IP-Adressen sind anonymisiert.</p>
+            <div className="p-8 border-b border-border space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                            <FileText size={20} className="text-primary" />
+                            System Protokolle
+                        </h2>
+                        <p className="text-muted-foreground text-sm mt-1">Überblick über Systemaktivitäten.</p>
+                    </div>
+                    {/* Search Input */}
+                    <div className="relative w-full md:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                        <input
+                            type="text"
+                            placeholder="Suchen..."
+                            className="w-full pl-10 pr-4 py-2 bg-muted/50 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                            value={logSearch}
+                            onChange={(e) => {
+                                setLogSearch(e.target.value);
+                                setLoadingLogs(true);
+                            }}
+                        />
+                    </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex bg-muted/30 p-1 rounded-xl w-fit">
+                    {[
+                        { id: 'login', label: 'Anmelde-Logs' },
+                        { id: 'subscription', label: 'Abo-Logs' },
+                        { id: 'credit', label: 'Credit-Logs' }
+                    ].map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => {
+                                setLogs([]); // Clear stale data immediately
+                                setLoadingLogs(true); // Prevent "No logs" during debounce
+                                setActiveLogType(tab.id);
+                                setLogsPage(0);
+                            }}
+                            className={cn(
+                                "px-4 py-2 rounded-lg text-xs font-bold transition-all",
+                                activeLogType === tab.id
+                                    ? "bg-primary text-primary-foreground shadow-sm"
+                                    : "text-muted-foreground hover:bg-muted/50"
+                            )}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
             </div>
+
             <div className="p-0 overflow-x-auto">
                 <table className="w-full text-left text-sm">
                     <thead className="bg-muted/50 text-muted-foreground font-medium border-b border-border">
-                        <tr>
-                            <th className="p-4">Zeitpunkt</th>
-                            <th className="p-4">Event</th>
-                            <th className="p-4">Benutzer</th>
-                            <th className="p-4">IP-Hash</th>
-                        </tr>
+                        {activeLogType === 'login' ? (
+                            <tr>
+                                <th className="p-4">Zeitpunkt</th>
+                                <th className="p-4">Event</th>
+                                <th className="p-4">Benutzer</th>
+                                <th className="p-4">IP-Hash</th>
+                            </tr>
+                        ) : activeLogType === 'subscription' ? (
+                            <tr>
+                                <th className="p-4">Zeitpunkt</th>
+                                <th className="p-4">Event</th>
+                                <th className="p-4">Benutzer</th>
+                                <th className="p-4">Tier</th>
+                                <th className="p-4">Betrag</th>
+                                <th className="p-4">Details</th>
+                            </tr>
+                        ) : (
+                            <tr>
+                                <th className="p-4">Zeitpunkt</th>
+                                <th className="p-4">Benutzer</th>
+                                <th className="p-4">Beschreibung</th>
+                                <th className="p-4">Änderung</th>
+                                <th className="p-4">Typ</th>
+                            </tr>
+                        )}
                     </thead>
                     <tbody className="divide-y divide-border">
                         {loadingLogs ? (
-                            <tr><td colSpan="4" className="p-8 text-center"><Loader2 className="animate-spin mx-auto" /></td></tr>
+                            <tr><td colSpan="6" className="p-8 text-center"><Loader2 className="animate-spin mx-auto" /></td></tr>
                         ) : logs.length === 0 ? (
-                            <tr><td colSpan="4" className="p-8 text-center text-muted-foreground">Keine Logs vorhanden.</td></tr>
+                            <tr><td colSpan="6" className="p-8 text-center text-muted-foreground">Keine Logs vorhanden.</td></tr>
                         ) : (
                             logs.map(log => (
                                 <tr key={log.id} className="hover:bg-muted/30">
                                     <td className="p-4 whitespace-nowrap">{new Date(log.createdAt).toLocaleString()}</td>
-                                    <td className="p-4">
-                                        <span className={cn(
-                                            "px-2 py-1 rounded-full text-xs font-bold",
-                                            log.event === 'login_success' ? "bg-green-100 text-green-700" :
-                                                log.event === 'login_failed' ? "bg-red-100 text-red-700" :
-                                                    "bg-gray-100 text-gray-700"
-                                        )}>
-                                            {log.event}
-                                        </span>
-                                    </td>
-                                    <td className="p-4">{log.username || '-'} <span className="text-xs text-muted-foreground ml-1">({log.UserId ? 'ID: ' + log.UserId : 'Unbekannt'})</span></td>
-                                    <td className="p-4 font-mono text-xs text-muted-foreground" title={log.ipHash}>{log.ipHash?.substring(0, 16)}...</td>
+
+                                    {activeLogType === 'login' && (
+                                        <>
+                                            <td className="p-4">
+                                                <span className={cn(
+                                                    "px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                                                    log.event === 'login_success' ? "bg-emerald-100 text-emerald-700" :
+                                                        log.event === 'login_failed' ? "bg-rose-100 text-rose-700" :
+                                                            "bg-slate-100 text-slate-700"
+                                                )}>
+                                                    {log.event}
+                                                </span>
+                                            </td>
+                                            <td className="p-4">{log.username || '-'} <span className="text-[10px] text-muted-foreground ml-1">({log.UserId ? 'ID: ' + log.UserId : 'Unbekannt'})</span></td>
+                                            <td className="p-4 font-mono text-xs text-muted-foreground" title={log.ipHash}>{log.ipHash?.substring(0, 16)}...</td>
+                                        </>
+                                    )}
+
+                                    {activeLogType === 'subscription' && (
+                                        <>
+                                            <td className="p-4">
+                                                <span className={cn(
+                                                    "px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                                                    log.event === 'checkout_completed' ? "bg-emerald-100 text-emerald-700" :
+                                                        log.event?.includes('canceled') ? "bg-amber-100 text-amber-700" :
+                                                            log.event?.includes('deleted') ? "bg-rose-100 text-rose-700" :
+                                                                "bg-purple-100 text-purple-700"
+                                                )}>
+                                                    {log.event}
+                                                </span>
+                                            </td>
+                                            <td className="p-4">{log.username || '-'}</td>
+                                            <td className="p-4 font-bold">{log.tier || '-'}</td>
+                                            <td className="p-4">{log.amount ? `${log.amount} ${log.currency}` : '-'}</td>
+                                            <td className="p-4 max-w-xs truncate text-xs text-muted-foreground" title={log.details}>{log.details}</td>
+                                        </>
+                                    )}
+
+                                    {activeLogType === 'credit' && (
+                                        <>
+                                            <td className="p-4">{log.User?.username || 'Unbekannt'}</td>
+                                            <td className="p-4">{log.description}</td>
+                                            <td className={cn(
+                                                "p-4 font-bold",
+                                                parseFloat(log.delta) > 0 ? "text-emerald-500" : "text-rose-500"
+                                            )}>
+                                                {parseFloat(log.delta) > 0 ? '+' : ''}{parseFloat(log.delta).toFixed(2)} 🪙
+                                            </td>
+                                            <td className="p-4">
+                                                <span className="px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-600">
+                                                    {log.type}
+                                                </span>
+                                            </td>
+                                        </>
+                                    )}
                                 </tr>
                             ))
                         )}
@@ -1598,8 +1761,24 @@ export default function SettingsPage() {
                 </table>
             </div>
             <div className="p-4 border-t border-border bg-muted/30 flex justify-between items-center text-xs text-muted-foreground">
-                <span>Gesamt: {logsTotal} (Zeige letzte 50)</span>
-                <span>Aufbewahrung: 14 Tage</span>
+                <div className="flex gap-2 items-center">
+                    <Button
+                        size="sm" variant="ghost" className="h-7 px-2"
+                        disabled={logsPage === 0}
+                        onClick={() => setLogsPage(p => Math.max(0, p - 1))}
+                    >
+                        Vorherige
+                    </Button>
+                    <span>Seite {logsPage + 1} (Gesamt: {logsTotal})</span>
+                    <Button
+                        size="sm" variant="ghost" className="h-7 px-2"
+                        disabled={(logsPage + 1) * 50 >= logsTotal}
+                        onClick={() => setLogsPage(p => p + 1)}
+                    >
+                        Nächste
+                    </Button>
+                </div>
+                <span>Zeige letzte 50 pro Seite</span>
             </div>
         </Card>
     );
@@ -2445,6 +2624,24 @@ export default function SettingsPage() {
                                                 className="bg-muted border-transparent focus:bg-background"
                                             />
                                         </div>
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Price ID Silbergabel</label>
+                                            <Input
+                                                value={stripeConfig.priceSilber}
+                                                onChange={(e) => setStripeConfig({ ...stripeConfig, priceSilber: e.target.value })}
+                                                placeholder="price_..."
+                                                className="bg-muted border-transparent focus:bg-background"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Price ID Goldgabel</label>
+                                            <Input
+                                                value={stripeConfig.priceGold}
+                                                onChange={(e) => setStripeConfig({ ...stripeConfig, priceGold: e.target.value })}
+                                                placeholder="price_..."
+                                                className="bg-muted border-transparent focus:bg-background"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
@@ -2496,80 +2693,121 @@ export default function SettingsPage() {
                                 <div className="flex items-center gap-4 mb-3">
                                     <img src={`/${badgeImage}`} alt={currentTier} className="w-16 h-16 object-contain" />
                                     <div className="text-2xl font-bold">
-                                        {currentTier === 'Rainbowspoon' ? 'Regenbogengabel' : currentTier}
+                                        {currentTier}
                                     </div>
                                 </div>
-                                <p className="text-xs text-muted-foreground">
-                                    Ihr aktueller Status. Upgrades sind derzeit nur über den Administrator möglich.
-                                </p>
+                                <div className="flex gap-2">
+                                    {(currentTier !== 'Rainbowspoon' && currentTier !== 'Goldgabel') && (
+                                        <Button
+                                            size="sm"
+                                            className="gap-2"
+                                            onClick={() => setIsSubscriptionModalOpen(true)}
+                                        >
+                                            <Sparkles size={14} />
+                                            Upgrade
+                                        </Button>
+                                    )}
+                                </div>
+                                {(currentTier === 'Silbergabel' || currentTier === 'Goldgabel') && (
+                                    <div className="mt-4">
+                                        <button
+                                            onClick={() => setIsCancelModalOpen(true)}
+                                            className="text-[10px] text-muted-foreground hover:text-destructive transition-colors underline underline-offset-4 font-bold uppercase tracking-wider"
+                                        >
+                                            Abo kündigen oder ändern
+                                        </button>
+                                    </div>
+                                )}
                             </>
                         )}
                     </div>
 
-                    <div className="p-6 bg-muted/30 rounded-3xl border border-border flex flex-col justify-between relative min-h-[160px]">
-                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-3 block">Verfügbare Credits</label>
-                        {loadingSubscription ? (
-                            <div className="flex-1 flex items-center justify-center">
-                                <Loader2 className="w-8 h-8 animate-spin text-primary/40" />
-                            </div>
-                        ) : (
-                            <>
-                                <div>
+                    {/* Verfügbare Credits - Only for Silver/Gold */}
+                    {(currentTier === 'Silbergabel' || currentTier === 'Goldgabel') && (
+                        <div className="p-6 bg-muted/30 rounded-3xl border border-border flex flex-col justify-between relative min-h-[160px]">
+                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-3 block">Verfügbare Credits</label>
+                            {loadingSubscription ? (
+                                <div className="flex-1 flex items-center justify-center">
+                                    <Loader2 className="w-8 h-8 animate-spin text-primary/40" />
+                                </div>
+                            ) : (
+                                <>
                                     <div className="flex items-center gap-2">
                                         <img src="/coin.png" alt="Credits" className="w-8 h-8 object-contain" />
                                         <span className="text-3xl font-black">{parseFloat(user?.aiCredits || 0).toFixed(2)}</span>
                                     </div>
-                                </div>
-                                <p className="text-[10px] text-muted-foreground mt-2 italic">Guthaben für AI-Analysen und Bildgenerierung.</p>
-                            </>
-                        )}
-                    </div>
+                                    {/* 
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setIsSubscriptionModalOpen(true)}
+                                        >
+                                            Credits buchen
+                                        </Button>
+                                        */}
+                                    <p className="text-[10px] text-muted-foreground mt-2 italic">Guthaben für AI-Analysen und Bildgenerierung.</p>
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
 
-                {/* History Table */}
-                <div>
-                    <h3 className="font-bold mb-4 flex items-center gap-2 px-1">
-                        <History size={18} className="text-muted-foreground" />
-                        Kontoauszug (AI Credits)
-                    </h3>
-                    <div className="bg-muted/20 rounded-2xl border border-border overflow-hidden min-h-[200px]">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-muted/50 border-b border-border">
-                                <tr>
-                                    <th className="px-4 py-3 font-bold">Datum</th>
-                                    <th className="px-4 py-3 font-bold">Beschreibung</th>
-                                    <th className="px-4 py-3 font-bold text-right">Betrag</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border/50">
-                                {loadingCredits ? (
+                {/* History Table - Only for Silver/Gold */}
+                {(currentTier === 'Silbergabel' || currentTier === 'Goldgabel') && (
+                    <div>
+                        <h3 className="font-bold mb-4 flex items-center gap-2 px-1">
+                            <History size={18} className="text-muted-foreground" />
+                            Kontoauszug (AI Credits)
+                        </h3>
+                        <div className="bg-muted/20 rounded-2xl border border-border overflow-hidden min-h-[200px]">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-muted/50 border-b border-border">
                                     <tr>
-                                        <td colSpan="3" className="px-4 py-20 text-center">
-                                            <Loader2 className="animate-spin mx-auto text-primary/50 w-8 h-8" />
-                                        </td>
+                                        <th className="px-4 py-3 font-bold">Datum</th>
+                                        <th className="px-4 py-3 font-bold">Beschreibung</th>
+                                        <th className="px-4 py-3 font-bold text-right">Betrag</th>
                                     </tr>
-                                ) : creditHistory?.length > 0 ? (
-                                    creditHistory.map(tx => (
-                                        <tr key={tx.id} className="hover:bg-muted/30 transition-colors">
-                                            <td className="px-4 py-3 text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString('de-DE')}</td>
-                                            <td className="px-4 py-3">{tx.description}</td>
-                                            <td className={cn(
-                                                "px-4 py-3 font-bold text-right",
-                                                parseFloat(tx.delta) > 0 ? "text-emerald-500" : "text-destructive"
-                                            )}>
-                                                {parseFloat(tx.delta) > 0 ? '+' : ''}{parseFloat(tx.delta).toFixed(2)}
+                                </thead>
+                                <tbody className="divide-y divide-border/50">
+                                    {loadingCredits ? (
+                                        <tr>
+                                            <td colSpan="3" className="px-4 py-20 text-center">
+                                                <Loader2 className="animate-spin mx-auto text-primary/50 w-8 h-8" />
                                             </td>
                                         </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan="3" className="px-4 py-20 text-center text-muted-foreground italic">Noch keine Transaktionen vorhanden.</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                                    ) : creditHistory?.length > 0 ? (
+                                        creditHistory.map(tx => (
+                                            <tr key={tx.id} className="hover:bg-muted/30 transition-colors">
+                                                <td className="px-4 py-3 text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString('de-DE')}</td>
+                                                <td className="px-4 py-3">{tx.description}</td>
+                                                <td className={cn(
+                                                    "px-4 py-3 font-bold text-right",
+                                                    parseFloat(tx.delta) > 0 ? "text-emerald-500" : "text-destructive"
+                                                )}>
+                                                    {parseFloat(tx.delta) > 0 ? '+' : ''}{parseFloat(tx.delta).toFixed(2)}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="3" className="px-4 py-20 text-center text-muted-foreground italic">Noch keine Transaktionen vorhanden.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
+                )}
+
+                <SubscriptionCancelModal
+                    isOpen={isCancelModalOpen}
+                    onClose={() => setIsCancelModalOpen(false)}
+                    currentTier={user?.tier || 'Plastikgabel'}
+                    onRefreshed={() => {
+                        refreshUser();
+                        fetchSubscriptionStatus();
+                    }}
+                />
             </div>
         );
     })();
@@ -3735,6 +3973,12 @@ export default function SettingsPage() {
                 onClose={() => setIsUserDetailModalOpen(false)}
                 userId={selectedUserId}
                 onUpdate={fetchUsers}
+            />
+
+            <SubscriptionModal
+                isOpen={isSubscriptionModalOpen}
+                onClose={() => setIsSubscriptionModalOpen(false)}
+                currentTier={user?.tier}
             />
         </div>
     );

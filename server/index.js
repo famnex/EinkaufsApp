@@ -49,6 +49,7 @@ apiRouter.use('/system', require('./src/routes/system'));
 apiRouter.use('/alexa', require('./src/routes/alexa'));
 apiRouter.use('/messaging', require('./src/routes/messaging'));
 apiRouter.use('/compliance', require('./src/routes/compliance'));
+apiRouter.use('/subscription', require('./src/routes/subscription'));
 
 // Mount API
 app.use(`${BASE_PATH}/api`, apiRouter);
@@ -260,9 +261,14 @@ const { initBanCron } = require('./src/services/banService');
 sequelize.sync({ alter: false }).then(() => {
     console.log('Database synced');
 
+    const { initEmailCron } = require('./src/services/messagingService');
+    const { initBanCron } = require('./src/services/banService');
+    const { initSubscriptionCron } = require('./src/services/subscriptionService');
+
     // Start background jobs
     initEmailCron();
     initBanCron();
+    initSubscriptionCron();
 
     app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);

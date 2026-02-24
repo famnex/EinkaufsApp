@@ -195,7 +195,6 @@ export default function Products() {
                         Hersteller
                     </button>
 
-                    {/* AI Cleanup Button */}
                     {user?.tier !== 'Plastikgabel' && (
                         <button
                             onClick={() => setIsAiCleanupOpen(true)}

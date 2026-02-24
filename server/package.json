@@ -1,6 +1,6 @@
 {
   "name": "server",
-  "version": "0.26.8",
+  "version": "0.28.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -12,6 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@paypal/checkout-server-sdk": "^1.0.3",
     "axios": "^1.13.5",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
@@ -28,7 +29,8 @@
     "openai": "^6.17.0",
     "puppeteer": "^24.37.2",
     "sequelize": "^6.37.7",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "stripe": "^20.3.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"

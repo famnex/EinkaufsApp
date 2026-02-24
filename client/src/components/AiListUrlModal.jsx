@@ -7,6 +7,9 @@ import { useNavigate } from 'react-router-dom';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { de } from 'date-fns/locale';
+import { useAuth } from '../contexts/AuthContext';
+import AiActionConfirmModal from './AiActionConfirmModal';
+import SubscriptionModal from './SubscriptionModal';
 
 export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, initialText = '' }) {
     const [input, setInput] = useState(initialText);
@@ -15,6 +18,13 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
     const [error, setError] = useState(null);
     const [view, setView] = useState('input'); // input, review, select-list
     const [selectedDate, setSelectedDate] = useState(new Date());
+
+    // AI Confirmation State
+    const [aiConfirmModalOpen, setAiConfirmModalOpen] = useState(false);
+    const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+
+    // Context
+    const { user } = useAuth();
 
     // For list selection
     const navigate = useNavigate();
@@ -28,6 +38,12 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
 
     const handleAnalyze = async () => {
         if (!input.trim()) return;
+
+        // Smart Import ist immer kostenlos und für alle Tiers verfügbar
+        executeAnalyze();
+    };
+
+    const executeAnalyze = async () => {
         setLoading(true);
         setError(null);
         setAnalyzedItems(null);
@@ -299,6 +315,23 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
                     </div>
                 </motion.div>
             </div>
+            <AiActionConfirmModal
+                isOpen={aiConfirmModalOpen}
+                onClose={() => setAiConfirmModalOpen(false)}
+                onConfirm={() => {
+                    setAiConfirmModalOpen(false);
+                    executeAnalyze();
+                }}
+                actionTitle="Rezept/Link analysieren"
+                actionDescription="KI-Analyse des Textes zur Extraktion von Zutaten."
+                cost={5}
+            />
+
+            <SubscriptionModal
+                isOpen={isSubscriptionModalOpen}
+                onClose={() => setIsSubscriptionModalOpen(false)}
+                currentTier={user?.tier}
+            />
         </AnimatePresence>
     );
 }

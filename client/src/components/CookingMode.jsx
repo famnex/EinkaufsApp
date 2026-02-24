@@ -9,6 +9,8 @@ import { useAuth } from '../contexts/AuthContext';
 import ShareConfirmationModal from './ShareConfirmationModal';
 import { sortIngredientsBySteps, findIngredientsInText, findTimesInText } from '../lib/recipe-parser';
 import TimerOverlay from './TimerOverlay';
+import AiActionConfirmModal from './AiActionConfirmModal';
+import SubscriptionModal from './SubscriptionModal';
 
 export default function CookingMode({ recipe, onClose }) {
     const [step, setStep] = useState(0);
@@ -21,11 +23,16 @@ export default function CookingMode({ recipe, onClose }) {
     const [futureUsage, setFutureUsage] = useState({}); // { ingredientId: [{ date, recipeName }] }
     const [direction, setDirection] = useState(0);
     const [timers, setTimers] = useState([]); // [{ id, label, duration, remaining, isRunning }]
+    const [scaleFactor, setScaleFactor] = useState(1);
     const audioContextRef = useRef(null);
 
     // AI Voice Control State
-    const [scaleFactor, setScaleFactor] = useState(1);
     const [substitutions, setSubstitutions] = useState({}); // { "Original Name": "New Name" }
+
+    // Subscription & AI Credits
+    const [aiConfirmModalOpen, setAiConfirmModalOpen] = useState(false);
+    const [aiActionData, setAiActionData] = useState(null);
+    const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
 
     // Swipe Logic for Steps
     const [touchStart, setTouchStart] = useState(null);
@@ -786,6 +793,7 @@ export default function CookingMode({ recipe, onClose }) {
                     </div>
                 </div>
 
+                {/* AI Assistant Toggle Button */}
                 {user?.tier !== 'Plastikgabel' && (
                     <motion.button
                         initial={{ scale: 0 }}
@@ -806,7 +814,29 @@ export default function CookingMode({ recipe, onClose }) {
                         whileTap={{ scale: 0.9 }}
                         onClick={() => {
                             resumeAudio();
-                            setShowAssistant(!showAssistant);
+                            if (showAssistant) {
+                                setShowAssistant(false);
+                                return;
+                            }
+
+                            // 1. Tier Check - Handled by visibility wrapper, but keeping for safety if triggered via key
+                            if (user?.tier === 'Plastikgabel') return;
+
+                            // 2. Credit Confirmation (if Silbergabel)
+                            if (user?.tier === 'Silbergabel') {
+                                setAiActionData({
+                                    type: 'TEXT',
+                                    title: 'KI Koch-Assistent',
+                                    description: 'Aktiviere den KI-Assistenten für dieses Rezept.',
+                                    cost: 5,
+                                    onConfirm: () => setShowAssistant(true)
+                                });
+                                setAiConfirmModalOpen(true);
+                                return;
+                            }
+
+                            // 3. Free for Goldgabel
+                            setShowAssistant(true);
                         }}
                         className={cn(
                             "fixed top-[calc(120px+env(safe-area-inset-top))] right-4 md:top-auto md:right-auto md:bottom-6 md:left-6 z-[100] w-12 h-12 rounded-full flex items-center justify-center text-white border-2 border-white/20 transition-colors",
@@ -816,6 +846,11 @@ export default function CookingMode({ recipe, onClose }) {
                         )}
                     >
                         {assistantStatus.isListening ? <Mic size={20} className="animate-pulse" /> : <Sparkles size={20} />}
+                        {user?.tier === 'Silbergabel' && (
+                            <div className="absolute -top-1 -right-1 bg-white text-primary text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-sm border border-primary/20">
+                                5
+                            </div>
+                        )}
                     </motion.button>
                 )}
 
@@ -923,6 +958,24 @@ export default function CookingMode({ recipe, onClose }) {
                     isOpen={!!shareModalConfig}
                     onClose={() => setShareModalConfig(null)}
                     onConfirm={handleConfirmShare}
+                />
+                <AiActionConfirmModal
+                    isOpen={aiConfirmModalOpen}
+                    onClose={() => setAiConfirmModalOpen(false)}
+                    onConfirm={() => {
+                        aiActionData?.onConfirm();
+                        setAiConfirmModalOpen(false);
+                    }}
+                    actionTitle={aiActionData?.title}
+                    actionDescription={aiActionData?.description}
+                    cost={aiActionData?.cost}
+                    balance={user?.aiCredits}
+                />
+
+                <SubscriptionModal
+                    isOpen={isSubscriptionModalOpen}
+                    onClose={() => setIsSubscriptionModalOpen(false)}
+                    currentTier={user?.tier}
                 />
             </motion.div>
         </AnimatePresence>
