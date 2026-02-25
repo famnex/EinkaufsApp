@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Users, ChefHat, Building2, CreditCard, Sparkles, Loader2, Save, History, Plus, Minus, AlertTriangle, Key, CheckCircle, LogOut } from 'lucide-react';
+import { X, User, Users, ChefHat, Building2, CreditCard, Sparkles, Loader2, Save, History, Plus, Minus, AlertTriangle, Key, CheckCircle, LogOut, Mail } from 'lucide-react';
 import { Card } from './Card';
 import { Button } from './Button';
 import { Input } from './Input';
 import api from '../lib/axios';
 import { cn, getImageUrl } from '../lib/utils';
 
-export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, initialTab = 'general' }) {
+export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, initialTab = 'general', onSendEmail }) {
     const [activeTab, setActiveTab] = useState(initialTab);
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState(null);
@@ -41,7 +41,8 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
                 tier: data.user.tier,
                 cookbookTitle: data.user.cookbookTitle,
                 cookbookImage: data.user.cookbookImage,
-                password: ''
+                password: '',
+                newsletterSignedUp: data.user.newsletterSignedUp || false
             });
         } catch (err) {
             console.error('Failed to fetch user detail', err);
@@ -187,9 +188,16 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
                                     <p className="text-sm text-muted-foreground">{data?.user?.email}</p>
                                 </div>
                             </div>
-                            <button onClick={onClose} className="p-2 hover:bg-muted rounded-xl transition-colors">
-                                <X size={24} />
-                            </button>
+                            <div className="flex gap-2">
+                                {onSendEmail && data?.user?.email && (
+                                    <button onClick={() => onSendEmail(data.user.email)} className="p-2 text-primary hover:bg-primary/10 rounded-xl transition-colors" title="Nachricht senden">
+                                        <Mail size={24} />
+                                    </button>
+                                )}
+                                <button onClick={onClose} className="p-2 hover:bg-muted rounded-xl transition-colors">
+                                    <X size={24} />
+                                </button>
+                            </div>
                         </div>
 
                         {/* Content Area */}
@@ -260,6 +268,21 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
                                                             <option value="user">Benutzer</option>
                                                             <option value="admin">Administrator</option>
                                                         </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Newsletter</label>
+                                                        <div className="flex items-center gap-3 h-12 bg-muted border-transparent rounded-2xl px-4 cursor-pointer" onClick={() => setEditData({ ...editData, newsletterSignedUp: !editData.newsletterSignedUp })}>
+                                                            <div className={cn(
+                                                                "w-10 h-6 rounded-full transition-colors flex items-center p-1",
+                                                                editData.newsletterSignedUp ? "bg-primary" : "bg-muted-foreground/30"
+                                                            )}>
+                                                                <div className={cn(
+                                                                    "w-4 h-4 rounded-full bg-white shadow-sm transition-transform",
+                                                                    editData.newsletterSignedUp ? "translate-x-4" : "translate-x-0"
+                                                                )} />
+                                                            </div>
+                                                            <span className="text-sm font-medium">{editData.newsletterSignedUp ? 'Abonniert' : 'Nicht abonniert'}</span>
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 <Button onClick={handleSaveGeneral} disabled={saving} className="w-full md:w-auto gap-2">

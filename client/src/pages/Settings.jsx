@@ -4496,6 +4496,15 @@ export default function SettingsPage() {
                 onClose={() => setIsUserDetailModalOpen(false)}
                 userId={selectedUserId}
                 onUpdate={fetchUsers}
+                onSendEmail={(email) => {
+                    setIsUserDetailModalOpen(false);
+                    setActiveTab('admin');
+                    setActiveAdminTab('messaging');
+                    setReplyTo(null);
+                    setComposeData({ to: email, cc: '', bcc: '', subject: '', body: 'Hallo {benutzername},<br><br>' });
+                    setShowCcBcc(false);
+                    setComposeOpen(true);
+                }}
             />
 
             <SubscriptionModal

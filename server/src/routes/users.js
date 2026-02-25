@@ -137,7 +137,7 @@ router.put('/:id/detail', async (req, res) => {
         const user = await User.findByPk(req.params.id);
         if (!user) return res.status(404).json({ error: 'User not found' });
 
-        const { username, email, password, role, tier, cookbookTitle, cookbookImage } = req.body;
+        const { username, email, password, role, tier, cookbookTitle, cookbookImage, newsletterSignedUp } = req.body;
         const oldTier = user.tier;
 
         if (username) user.username = username;
@@ -146,6 +146,12 @@ router.put('/:id/detail', async (req, res) => {
         if (tier) user.tier = tier;
         if (cookbookTitle !== undefined) user.cookbookTitle = cookbookTitle;
         if (cookbookImage !== undefined) user.cookbookImage = cookbookImage;
+        if (newsletterSignedUp !== undefined) {
+            user.newsletterSignedUp = newsletterSignedUp;
+            if (newsletterSignedUp && !user.newsletterSignupDate) {
+                user.newsletterSignupDate = new Date(); // Optionally set date if not present
+            }
+        }
 
         if (password) {
             const salt = await bcrypt.genSalt(10);
