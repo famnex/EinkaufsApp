@@ -51,7 +51,7 @@ async function sendEmail(to, subject, html) {
             auth: { user: smtpUser, pass: smtpPassword },
         });
 
-        const from = smtpSenderName ? `"${smtpSenderName}" <${smtpFrom}>` : smtpFrom || process.env.SMTP_FROM || 'noreply@gabelguru.local';
+        const from = smtpSenderName ? { name: smtpSenderName, address: smtpFrom } : (smtpFrom || process.env.SMTP_FROM || 'noreply@gabelguru.local');
 
         // Apply Global Footer
         const globalFooter = await getGlobalFooter();

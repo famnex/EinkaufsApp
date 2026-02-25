@@ -212,7 +212,7 @@ router.post('/send', auth, async (req, res) => {
             }
         });
 
-        const fromAddress = smtp.smtpSenderName ? `"${smtp.smtpSenderName}" <${smtp.smtpFrom || smtp.smtpUser}>` : (smtp.smtpFrom || smtp.smtpUser);
+        const fromAddress = smtp.smtpSenderName ? { name: smtp.smtpSenderName, address: smtp.smtpFrom || smtp.smtpUser } : (smtp.smtpFrom || smtp.smtpUser);
         const globalFooter = await getGlobalFooter();
         const baseHtml = body || '';
         const baseText = body ? body.replace(/<[^>]*>/g, '') : '';

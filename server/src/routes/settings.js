@@ -246,7 +246,7 @@ router.post('/email/test', auth, async (req, res) => {
         });
 
         // Send test email
-        const fromAddress = req.body.smtpSenderName ? `"${req.body.smtpSenderName}" <${smtpFrom}>` : smtpFrom;
+        const fromAddress = req.body.smtpSenderName ? { name: req.body.smtpSenderName, address: smtpFrom } : smtpFrom;
         await transporter.sendMail({
             from: fromAddress,
             to: recipientEmail,

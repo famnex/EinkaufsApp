@@ -25,21 +25,25 @@ async function loadSystemEmailConfig() {
             settings[key] = setting ? setting.value : null;
         }
 
-        // Construct config object
+        // Construct config object with fallbacks
         const config = {
             host: settings.smtp_host,
             port: parseInt(settings.smtp_port) || 587,
-            secure: settings.smtp_secure === 'true', // Note: 'true' string from DB
+            secure: settings.smtp_secure === 'true',
             auth: {
                 user: settings.smtp_user,
                 pass: settings.smtp_password
             },
-            from: settings.smtp_from,
-            senderName: settings.smtp_sender_name
+            from: settings.smtp_from || settings.smtp_user,
+            senderName: settings.smtp_sender_name || null
         };
 
-        return config;
+        if (!config.from) {
+            console.warn('[EmailService] SMTP From/User missing.');
+            return null;
+        }
 
+        return config;
     } catch (error) {
         console.error('[EmailService] Error loading configuration:', error);
         return null;
@@ -86,7 +90,7 @@ async function sendSystemEmail({ to, subject, text, html }) {
             auth: config.auth
         });
 
-        const fromAddress = config.senderName ? `"${config.senderName}" <${config.from}>` : config.from;
+        const fromAddress = config.senderName ? { name: config.senderName, address: config.from } : config.from;
 
         // Apply Global Footer
         const globalFooter = await getGlobalFooter();
@@ -102,14 +106,22 @@ async function sendSystemEmail({ to, subject, text, html }) {
             html: finalHtml
         });
 
+        // Use the new logSystem if available (or console log)
+        const { logSystem } = require('../utils/logger');
+        logSystem('INFO', `System email sent to ${to}`, {
+            subject,
+            from: typeof fromAddress === 'object' ? `${fromAddress.name} <${fromAddress.address}>` : fromAddress,
+            messageId: info.messageId
+        });
         console.log('[EmailService] Email sent:', info.messageId);
 
         // Log to DB
         try {
+            const senderString = typeof fromAddress === 'object' ? `"${fromAddress.name}" <${fromAddress.address}>` : fromAddress;
             await Email.create({
                 messageId: info.messageId,
                 folder: 'sent_system',
-                fromAddress: fromAddress,
+                fromAddress: senderString,
                 toAddress: Array.isArray(to) ? to.join(', ') : to,
                 subject: subject || '',
                 body: html || text || '',

@@ -3,7 +3,7 @@ const router = express.Router();
 const { auth } = require('../middleware/auth');
 const paymentService = require('../services/paymentService');
 const creditService = require('../services/creditService');
-const { sendEmail } = require('../services/messagingService');
+const { sendSystemEmail } = require('../services/emailService');
 const { User, CreditTransaction, SubscriptionLog, sequelize } = require('../models');
 
 /**
@@ -162,7 +162,7 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                             <p>Viel Spaß beim Kochen mit KI-Unterstützung!</p>
                         </div>
                     `;
-                    sendEmail(checkoutUser.email, `Dein Upgrade auf ${tier}`, html).catch(err => console.error('Failed to send checkout email:', err));
+                    sendSystemEmail({ to: checkoutUser.email, subject: `Dein Upgrade auf ${tier}`, html }).catch(err => console.error('Failed to send checkout email:', err));
                 }
                 break;
             }
@@ -203,7 +203,7 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                                 <p>Wir bedanken uns für die gemeinsame Zeit am Herd. Falls du es dir anders überlegst, kannst du jederzeit wieder bei uns einsteigen!</p>
                             </div>
                         `;
-                        sendEmail(userInstance.email, 'Dein Abo ist abgelaufen', html).catch(err => console.error('Failed to send subscription deleted email:', err));
+                        sendSystemEmail({ to: userInstance.email, subject: 'Dein Abo ist abgelaufen', html }).catch(err => console.error('Failed to send subscription deleted email:', err));
                     }
                 }
                 break;
@@ -267,7 +267,7 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                                 <p>Dein Coin-Stand wurde an dein neues Abo angepasst und auf <strong>1500 Coins</strong> aufgefüllt.</p>
                             </div>
                         `;
-                        sendEmail(subUser.email, `Upgrade auf ${newTier} bestätigt`, html).catch(err => console.error('Failed to send upgrade email:', err));
+                        sendSystemEmail({ to: subUser.email, subject: `Upgrade auf ${newTier} bestätigt`, html }).catch(err => console.error('Failed to send upgrade email:', err));
                     }
                 }
 
@@ -302,7 +302,7 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                                 <p>Wir würden uns freuen, dich irgendwann wieder bei Gabelguru begrüßen zu dürfen!</p>
                             </div>
                         `;
-                        sendEmail(subUser.email, 'Kündigung bestätigt', html).catch(err => console.error('Failed to send cancelation email:', err));
+                        sendSystemEmail({ to: subUser.email, subject: 'Kündigung bestätigt', html }).catch(err => console.error('Failed to send cancelation email:', err));
                     }
                 }
 
@@ -328,7 +328,7 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                                 <p>Dein <strong>${subUser.tier}</strong> Abo bleibt bestehen und verlängert sich automatisch weiter. Wir wünschen dir weiterhin viel Spaß beim Kochen.</p>
                             </div>
                         `;
-                        sendEmail(subUser.email, 'Kündigung widerrufen', html).catch(err => console.error('Failed to send reactivation email:', err));
+                        sendSystemEmail({ to: subUser.email, subject: 'Kündigung widerrufen', html }).catch(err => console.error('Failed to send reactivation email:', err));
                     }
                 }
 
@@ -378,7 +378,7 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                                     <p>Viel Spaß beim Kochen!</p>
                                 </div>
                             `;
-                            sendEmail(renewalUser.email, 'Abo verlängert & Coins erhalten', html).catch(err => console.error('Failed to send renewal email:', err));
+                            sendSystemEmail({ to: renewalUser.email, subject: 'Abo verlängert & Coins erhalten', html }).catch(err => console.error('Failed to send renewal email:', err));
                         }
                     }
                 }
@@ -454,7 +454,7 @@ router.post('/cancel', auth, async (req, res) => {
                     <p>Wir hoffen, dich bald wieder als Abonnenten begrüßen zu dürfen!</p>                    
                 </div>
             `;
-            sendEmail(user.email, 'Bestätigung deiner Kündigung', html).catch(err => console.error('Failed to send cancel email:', err));
+            sendSystemEmail({ to: user.email, subject: 'Bestätigung deiner Kündigung', html }).catch(err => console.error('Failed to send cancel email:', err));
         }
 
         res.json({ message: 'Abo zum Ende der Laufzeit gekündigt.' });

@@ -92,7 +92,7 @@ class NewsletterService {
         }
 
         const transporter = nodemailer.createTransport(smtpConfig);
-        const fromAddress = smtpConfig.senderName ? `\"${smtpConfig.senderName}\" <${smtpConfig.from}>` : smtpConfig.from;
+        const fromAddress = smtpConfig.senderName ? { name: smtpConfig.senderName, address: smtpConfig.from } : smtpConfig.from;
 
         for (const recipient of recipients) {
             try {
