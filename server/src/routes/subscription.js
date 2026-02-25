@@ -306,6 +306,32 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                     }
                 }
 
+                // Handle un-cancellation (reactivation)
+                const justReactivated = (subUser.cancelAtPeriodEnd && !updateData.cancelAtPeriodEnd);
+                if (justReactivated) {
+                    await SubscriptionLog.create({
+                        UserId: subUser.id,
+                        username: subUser.username,
+                        event: 'subscription_reactivated',
+                        tier: subUser.tier,
+                        details: `Kündigung wurde widerrufen. Abo läuft normal weiter.`,
+                        ipHash: 'webhook',
+                        userAgent: 'Stripe-Webhook'
+                    });
+
+                    if (subUser.email) {
+                        const html = `
+                            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                                <h2 style="color: #4f46e5;">Willkommen zurück!</h2>
+                                <p>Hallo <strong>${subUser.username}</strong>,</p>
+                                <p>wir freuen uns sehr, dass du deine Kündigung widerrufen hast!</p>
+                                <p>Dein <strong>${subUser.tier}</strong> Abo bleibt bestehen und verlängert sich automatisch weiter. Wir wünschen dir weiterhin viel Spaß beim Kochen.</p>
+                            </div>
+                        `;
+                        sendEmail(subUser.email, 'Kündigung widerrufen', html).catch(err => console.error('Failed to send reactivation email:', err));
+                    }
+                }
+
                 await subUser.update(updateData);
                 break;
             }

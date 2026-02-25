@@ -158,15 +158,18 @@ class NewsletterService {
             config[key] = s.value;
         });
 
-        if (!config.host || !config.user || !config.pass) return null;
+        if (!config.host || !config.user || !config.password) {
+            console.error('[NewsletterService] Missing basic SMTP configuration (host, user, or password).');
+            return null;
+        }
 
         return {
             host: config.host,
             port: parseInt(config.port) || 587,
-            secure: config.port === '465',
+            secure: config.secure === 'true' || config.port === '465',
             auth: {
                 user: config.user,
-                pass: config.pass
+                pass: config.password
             },
             from: config.from || config.user,
             senderName: config.sender_name
