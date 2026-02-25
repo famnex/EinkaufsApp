@@ -28,7 +28,17 @@ app.use((req, res, next) => {
     }
 });
 
-// Debug Request Logger
+// Basic Request Logger (Always on)
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        logSystem('INFO', `${req.method} ${req.originalUrl} ${res.statusCode} (${duration}ms) from ${req.ip}`);
+    });
+    next();
+});
+
+// Detailed Debug Logger
 app.use(async (req, res, next) => {
     if (await shouldLogDebug()) {
         const meta = {
@@ -40,15 +50,25 @@ app.use(async (req, res, next) => {
             }
         };
         if (req.method !== 'GET' && req.body) {
-            // Avoid logging passwords or sensitive data if possible, but for full debug:
             meta.body = { ...req.body };
             if (meta.body.password) meta.body.password = '***';
             if (meta.body.currentPassword) meta.body.currentPassword = '***';
             if (meta.body.newPassword) meta.body.newPassword = '***';
+            if (meta.body.smtp_password) meta.body.smtp_password = '***';
+            if (meta.body.imap_password) meta.body.imap_password = '***';
         }
-        logSystem('DEBUG', `${req.method} ${req.originalUrl}`, meta);
+        logSystem('DEBUG', `Details for ${req.method} ${req.originalUrl}`, meta);
     }
     next();
+});
+
+// Process-Level Error Handling
+process.on('unhandledRejection', (reason, promise) => {
+    logError('Unhandled Rejection at Promise', reason);
+});
+
+process.on('uncaughtException', (error) => {
+    logError('Uncaught Exception', error);
 });
 
 
@@ -291,8 +311,8 @@ if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging')
 }
 
 // Global Error Handler
-app.use((err, req, res, next) => {
-    logError(`Unhandled Error: ${req.method} ${req.originalUrl}`, err);
+app.use(async (err, req, res, next) => {
+    await logError(`Unhandled Error: ${req.method} ${req.originalUrl}`, err);
     res.status(500).json({
         error: 'Ein interner Serverfehler ist aufgetreten.',
         details: process.env.NODE_ENV === 'development' ? err.message : undefined

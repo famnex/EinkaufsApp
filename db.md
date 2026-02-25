@@ -176,6 +176,8 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*
 
-### v0.29.9 - Unified Debug Logging (Februar 2026)
-1. **Unifizierung**: Umstellung aller `console.log` Debug-Nachrichten in den E-Mail- und System-Diensten auf das zentrale `logSystem`-Modul.
-2. **Vorteil**: Alle erweiterten Debug-Infos (SMTP-Config, Versand-Details) werden nun auch in die Datei `logs/system.log` geschrieben, sofern der Debug-Modus aktiv ist.
+### v0.30.0 - Comprehensive System Observability (Februar 2026)
+1. **Request Logging**: Alle Anfragen werden nun mit Methode, URL, Status-Code und Dauer protokolliert.
+2. **Error Handling**: Implementierung eines globalen Error-Handlers und Prozess-Limitern (Uncaught Exceptions), die alle Fehler lückenlos in `system.log` schreiben.
+3. **Log-Überholung**: Umstellung fast aller Routen von `console.error` auf `logError`, um sicherzustellen, dass Fehler nicht nur in der Konsole, sondern auch in der Log-Datei landen.
+4. **Log-Level**: `INFO`, `WARN` und `ERROR` werden nun immer protokolliert, nur `DEBUG` ist optional.

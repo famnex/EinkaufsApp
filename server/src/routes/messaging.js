@@ -259,7 +259,7 @@ router.post('/send', auth, async (req, res) => {
 
         res.json({ success: true, messageId: info.messageId });
     } catch (err) {
-        console.error('[Messaging send] Error:', err);
+        logError('[Messaging send] Error:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -275,7 +275,7 @@ router.post('/fetch', auth, async (req, res) => {
         }
         res.json({ success: true, fetched: result.fetched, message: `${result.fetched} neue E-Mail(s) abgerufen` });
     } catch (err) {
-        console.error('[Messaging fetch] Error:', err);
+        logError('[Messaging fetch] Error:', err);
         res.status(500).json({ error: err.message });
     }
 });

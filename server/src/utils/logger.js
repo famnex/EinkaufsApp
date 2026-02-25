@@ -59,11 +59,11 @@ const logAlexa = (level, type, message, meta = {}) => {
  * Log a system message or error
  */
 const logSystem = async (level, message, meta = null) => {
-    const isError = level === 'ERROR' || level === 'FATAL';
+    const isDebug = level === 'DEBUG';
     const debugOn = await shouldLogDebug();
 
-    // If it's not an error and debug is off, don't log to file
-    if (!isError && !debugOn) return;
+    // If it's a debug message and debug is off, don't log to file or console
+    if (isDebug && !debugOn) return;
 
     const timestamp = new Date().toISOString();
     let logMessage = `[${timestamp}] [${level}] ${message}`;
@@ -93,8 +93,15 @@ const logSystem = async (level, message, meta = null) => {
 /**
  * Convenience wrapper for logging errors
  */
-const logError = (message, err) => {
-    logSystem('ERROR', message, err);
+const logError = async (message, err) => {
+    await logSystem('ERROR', message, err);
+};
+
+/**
+ * Convenience wrapper for logging warnings
+ */
+const logWarn = async (message, meta = null) => {
+    await logSystem('WARN', message, meta);
 };
 
 /**
@@ -148,5 +155,6 @@ module.exports = {
     readAlexaLogs,
     logSystem,
     logError,
+    logWarn,
     shouldLogDebug
 };
