@@ -242,7 +242,12 @@ router.post('/send', auth, async (req, res) => {
         const info = await transporter.sendMail(mailOptions);
 
         // Save to sent folder
-        const senderString = typeof fromAddress === 'object' ? `"${fromAddress.name}" <${fromAddress.address}>` : fromAddress;
+        let senderString = '';
+        if (fromAddress && typeof fromAddress === 'object') {
+            senderString = `"${fromAddress.name || ''}" <${fromAddress.address || ''}>`.trim();
+        } else {
+            senderString = String(fromAddress || '');
+        }
 
         await Email.create({
             messageId: info.messageId,
