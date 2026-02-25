@@ -480,10 +480,12 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
 });
 
 // Toggle Favorite
-router.patch('/:id/favorite', auth, async (req, res) => {
+router.post('/:id/favorite', auth, async (req, res) => {
     try {
+        console.log(`[POST /favorite] Incoming for recipe ${req.params.id}, user: ${req.user.id}`);
         const recipe = await Recipe.findByPk(req.params.id);
         if (!recipe) {
+            console.log(`[POST /favorite] Recipe ${req.params.id} not found in DB`);
             return res.status(404).json({ error: 'Recipe not found' });
         }
 
@@ -493,6 +495,7 @@ router.patch('/:id/favorite', auth, async (req, res) => {
 
         const user = await User.findByPk(req.user.id);
         if (!user) {
+            console.log(`[PATCH /favorite] User ${req.user.id} not found in DB`);
             return res.status(404).json({ error: 'User not found' });
         }
 

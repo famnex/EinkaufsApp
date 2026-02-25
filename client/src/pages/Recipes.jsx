@@ -221,16 +221,16 @@ export default function Recipes() {
             // Special category: 'Ohne Bilder' shows only recipes without images, special favorites logic
             let matchesCategory = false;
             if (selectedCategory === 'All') {
-                matchesCategory = r.UserId === effectiveUserId; // In "All", only show own recipes
+                matchesCategory = String(r.UserId) === String(effectiveUserId); // In "All", only show own recipes
             } else if (selectedCategory === 'Ohne Bilder') {
-                matchesCategory = r.UserId === effectiveUserId && !r.image_url;
+                matchesCategory = String(r.UserId) === String(effectiveUserId) && !r.image_url;
             } else if (selectedCategory === 'Meine Favoriten') {
                 matchesCategory = r.isFavorite === true; // Show all favorites for ME
             } else if (selectedCategory.startsWith('Favoriten von ')) {
                 const nameMatches = selectedCategory.replace('Favoriten von ', '');
                 matchesCategory = r.favoritedBy && r.favoritedBy.includes(nameMatches);
             } else {
-                matchesCategory = r.UserId === effectiveUserId && r.category === selectedCategory;
+                matchesCategory = String(r.UserId) === String(effectiveUserId) && r.category === selectedCategory;
             }
 
             return matchesSearch && matchesCategory;
@@ -302,7 +302,7 @@ export default function Recipes() {
         e.stopPropagation(); // prevent opening the recipe or other clicks
         try {
             const token = localStorage.getItem('token');
-            const { data } = await api.patch(`/recipes/${recipe.id}/favorite`, {}, {
+            const { data } = await api.post(`/recipes/${recipe.id}/favorite`, {}, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             // Update the specific recipe in state

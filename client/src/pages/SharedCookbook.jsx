@@ -104,7 +104,7 @@ export default function SharedCookbook() {
             const token = localStorage.getItem('token');
             if (!token) return; // Only logged in users can favorite
 
-            const { data } = await axios.patch(`${API_URL.replace(/\/$/, '')}/recipes/${recipe.id}/favorite`, {}, {
+            const { data } = await axios.post(`${API_URL.replace(/\/$/, '')}/recipes/${recipe.id}/favorite`, {}, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             // Update the specific recipe in state
