@@ -53,12 +53,12 @@ class NewsletterService {
                 await newsletter.save();
                 console.log(`[NewsletterService] Newsletter "${newsletter.subject}" completed.`);
 
-                // Continue with next newsletter if any
+                // Continue with next newsletter if any (no wait time between different newsletters)
                 return this._runCycle();
             } else {
-                // Wait for Y minutes
+                // Wait for Y minutes before the NEXT batch
                 const waitMs = (newsletter.waitMinutes || 5) * 60 * 1000;
-                console.log(`[NewsletterService] Batch finished for "${newsletter.subject}". Waiting ${newsletter.waitMinutes} minutes...`);
+                console.log(`[NewsletterService] Batch finished for "${newsletter.subject}". Waiting ${newsletter.waitMinutes} minutes until next batch...`);
                 setTimeout(() => this._runCycle(), waitMs);
             }
 
