@@ -15,6 +15,7 @@ export default function SignupPage() {
     // Form State
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
+    const [emailConfirm, setEmailConfirm] = useState('');
     const [password, setPassword] = useState('');
 
     // UI State
@@ -127,8 +128,13 @@ export default function SignupPage() {
         e.preventDefault();
         setError('');
 
-        if (!username || !email || !password) {
+        if (!username || !email || !emailConfirm || !password) {
             setError('Bitte alle Felder ausfüllen.');
+            return;
+        }
+
+        if (email !== emailConfirm) {
+            setError('Die E-Mail-Adressen stimmen nicht überein.');
             return;
         }
 
@@ -277,6 +283,28 @@ export default function SignupPage() {
                                         {emailExists && (
                                             <p className="text-[10px] text-destructive font-bold uppercase tracking-wider ml-1 mt-1">
                                                 Diese E-Mail-Adresse wird bereits verwendet.
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">E-Mail-Adresse bestätigen</label>
+                                        <Input
+                                            type="email"
+                                            value={emailConfirm}
+                                            onChange={(e) => setEmailConfirm(e.target.value)}
+                                            placeholder="du@beispiel.de"
+                                            required
+                                            onPaste={(e) => {
+                                                e.preventDefault();
+                                            }}
+                                            className={cn(
+                                                "bg-background/50 border-border h-12",
+                                                (email !== emailConfirm && emailConfirm.length > 0) && "border-destructive ring-destructive/20 focus-visible:ring-destructive"
+                                            )}
+                                        />
+                                        {(email !== emailConfirm && emailConfirm.length > 0) && (
+                                            <p className="text-[10px] text-destructive font-bold uppercase tracking-wider ml-1 mt-1">
+                                                Die E-Mail-Adressen stimmen nicht überein.
                                             </p>
                                         )}
                                     </div>

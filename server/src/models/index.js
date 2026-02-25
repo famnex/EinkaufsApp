@@ -21,6 +21,7 @@ const User = sequelize.define('User', {
     sharingKey: { type: DataTypes.STRING, allowNull: true, unique: true },
     cookbookTitle: { type: DataTypes.STRING, defaultValue: 'MEIN KOCHBUCH' },
     isPublicCookbook: { type: DataTypes.BOOLEAN, defaultValue: false },
+    isCommunityVisible: { type: DataTypes.BOOLEAN, defaultValue: false },
     cookbookImage: { type: DataTypes.STRING, allowNull: true },
     householdId: { type: DataTypes.INTEGER, allowNull: true },
     tier: {
@@ -204,6 +205,9 @@ Menu.belongsTo(Recipe);
 
 Recipe.belongsTo(User);
 User.hasMany(Recipe);
+
+User.belongsToMany(Recipe, { through: 'FavoriteRecipes', as: 'Favorites' });
+Recipe.belongsToMany(User, { through: 'FavoriteRecipes', as: 'FavoritedBy' });
 
 Menu.hasMany(ListItem);
 ListItem.belongsTo(Menu);

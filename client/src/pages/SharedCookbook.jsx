@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChefHat, Clock, Users, Filter, X, UtensilsCrossed, ArrowRight, ChevronDown, ChevronUp, Moon, Sun, Dices, Eye, ShieldCheck } from 'lucide-react';
+import { Search, ChefHat, Clock, Users, Filter, X, UtensilsCrossed, ArrowRight, ChevronDown, ChevronUp, Moon, Sun, Dices, Eye, ShieldCheck, Heart } from 'lucide-react';
 import axios from 'axios';
 import { cn, getImageUrl } from '../lib/utils';
 import { useTheme } from '../contexts/ThemeContext';
@@ -40,7 +40,9 @@ export default function SharedCookbook() {
         const fetchRecipes = async () => {
             try {
                 const url = `${API_URL.replace(/\/$/, '')}/recipes/public/${sharingKey}`;
-                const { data } = await axios.get(url);
+                const token = localStorage.getItem('token');
+                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                const { data } = await axios.get(url, { headers });
                 setRecipes(data.recipes);
                 setCookbookInfo({
                     title: data.cookbookTitle || 'MEIN KOCHBUCH',
@@ -95,6 +97,23 @@ export default function SharedCookbook() {
     }, [recipes, searchTerm, selectedCategory, selectedTags]);
 
     const { visibleItems: renderedRecipes, observerTarget } = useInfiniteScroll(filteredRecipes, 16);
+
+    const toggleFavorite = async (e, recipe) => {
+        e.stopPropagation(); // prevent opening the recipe or other clicks
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return; // Only logged in users can favorite
+
+            const { data } = await axios.patch(`${API_URL.replace(/\/$/, '')}/recipes/${recipe.id}/favorite`, {}, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            // Update the specific recipe in state
+            setRecipes(prev => prev.map(r => r.id === data.id ? { ...r, isFavorite: data.isFavorite } : r));
+        } catch (err) {
+            console.error('Failed to toggle favorite', err);
+            alert('Fehler beim Speichern der Favoriten-Einstellung.');
+        }
+    };
 
     const renderImageUrl = (url) => {
         if (!url) return null;
@@ -348,6 +367,20 @@ export default function SharedCookbook() {
                                                     {recipe.category || 'Rezept'}
                                                 </span>
                                             </div>
+
+                                            {/* Favorite Button (only if logged in) */}
+                                            {localStorage.getItem('token') && (
+                                                <button
+                                                    onClick={(e) => toggleFavorite(e, recipe)}
+                                                    className="absolute top-4 right-4 p-2 rounded-full backdrop-blur-sm bg-black/20 hover:bg-black/40 text-white transition-all duration-200 focus:outline-none z-10"
+                                                    title="Zu Favoriten hinzufügen/entfernen"
+                                                >
+                                                    <Heart
+                                                        size={20}
+                                                        className={cn("transition-colors duration-300", recipe.isFavorite ? "fill-rose-500 text-rose-500" : "text-white")}
+                                                    />
+                                                </button>
+                                            )}
                                         </div>
 
                                         {/* Content */}

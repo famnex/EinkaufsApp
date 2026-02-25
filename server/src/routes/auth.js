@@ -33,12 +33,12 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// Get Public Cookbooks
+// Get all public cookbooks (for community page)
 router.get('/public-cookbooks', async (req, res) => {
     try {
         logger.logSystem('DEBUG', 'Fetching public cookbooks...');
         const users = await User.findAll({
-            where: { isPublicCookbook: true, bannedAt: null },
+            where: { isCommunityVisible: true, bannedAt: null },
             attributes: ['id', 'username', 'cookbookTitle', 'cookbookImage', 'sharingKey'],
             include: [{
                 model: Recipe,
@@ -109,7 +109,7 @@ router.get('/check-username', async (req, res) => {
 router.get('/me', auth, async (req, res) => {
     try {
         const user = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
+            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
         });
         if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -156,10 +156,17 @@ router.get('/credits', auth, async (req, res) => {
 // Update Profile (Title & Image)
 router.put('/profile', auth, upload.single('image'), async (req, res) => {
     try {
-        const { cookbookTitle, isPublicCookbook, newsletterSignedUp } = req.body;
+        const { cookbookTitle, isPublicCookbook, isCommunityVisible, newsletterSignedUp } = req.body;
         const updates = {};
         if (cookbookTitle !== undefined) updates.cookbookTitle = cookbookTitle;
-        if (isPublicCookbook !== undefined) updates.isPublicCookbook = isPublicCookbook;
+        if (isPublicCookbook !== undefined) {
+            updates.isPublicCookbook = isPublicCookbook;
+            if (isPublicCookbook && !req.user.sharingKey) {
+                const crypto = require('crypto');
+                updates.sharingKey = crypto.randomUUID().replace(/-/g, '');
+            }
+        }
+        if (isCommunityVisible !== undefined) updates.isCommunityVisible = isCommunityVisible;
         if (newsletterSignedUp !== undefined) {
             updates.newsletterSignedUp = newsletterSignedUp;
             updates.newsletterSignupDate = newsletterSignedUp ? new Date() : null;
@@ -172,7 +179,7 @@ router.put('/profile', auth, upload.single('image'), async (req, res) => {
 
         await User.update(updates, { where: { id: req.user.id } });
         const updatedUser = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
+            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
         });
         res.json(updatedUser);
     } catch (err) {

@@ -38,6 +38,7 @@ export default function SettingsPage() {
     const [cookbookTitle, setCookbookTitle] = useState(user?.cookbookTitle || 'MEIN KOCHBUCH');
     const [cookbookImage, setCookbookImage] = useState(user?.cookbookImage || null);
     const [isPublicCookbook, setIsPublicCookbook] = useState(user?.isPublicCookbook || false);
+    const [isCommunityVisible, setIsCommunityVisible] = useState(user?.isCommunityVisible || false);
     const [savingCookbook, setSavingCookbook] = useState(false);
     const [sharingKey, setSharingKey] = useState(user?.sharingKey || '');
 
@@ -1653,24 +1654,32 @@ export default function SettingsPage() {
                     <ChefHat size={20} className="text-primary" />
                     Dein öffentliches Kochbuch
                 </h2>
-                <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={user?.isPublicCookbook || false}
-                        onChange={(e) => {
-                            const newVal = e.target.checked;
-                            // Optimistic update
-                            setUser({ ...user, isPublicCookbook: newVal });
-                            // API call
-                            api.put('/auth/profile', { isPublicCookbook: newVal }).catch(() => {
-                                setUser({ ...user, isPublicCookbook: !newVal }); // Revert on error
-                                alert('Fehler beim Speichern');
-                            });
-                        }}
-                    />
-                    <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                </label>
+                <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium">Öffentlichen Link aktivieren</span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={user?.isPublicCookbook || false}
+                            onChange={(e) => {
+                                const newVal = e.target.checked;
+                                // Optimistic update
+                                setUser({ ...user, isPublicCookbook: newVal });
+                                // API call
+                                api.put('/auth/profile', { isPublicCookbook: newVal }).then(res => {
+                                    // Update sharingKey if newly created
+                                    setUser(res.data);
+                                    setSharingKey(res.data.sharingKey || '');
+                                    setIsPublicCookbook(res.data.isPublicCookbook);
+                                }).catch(() => {
+                                    setUser({ ...user, isPublicCookbook: !newVal }); // Revert on error
+                                    alert('Fehler beim Speichern');
+                                });
+                            }}
+                        />
+                        <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                    </label>
+                </div>
             </div>
 
             {user?.isPublicCookbook && (
@@ -1731,15 +1740,21 @@ export default function SettingsPage() {
                         <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Sichtbarkeit</label>
                         <div className="flex items-center justify-between p-4 rounded-xl bg-background/50 border border-border">
                             <div>
-                                <h3 className="font-bold">Öffentliches Kochbuch</h3>
-                                <p className="text-xs text-muted-foreground">Dein Kochbuch erscheint in der Community-Liste.</p>
+                                <h3 className="font-bold">In der Community veröffentlichen</h3>
+                                <p className="text-xs text-muted-foreground">Dein Kochbuch erscheint in der Community-Liste für alle anderen Nutzer.</p>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input
                                     type="checkbox"
                                     className="sr-only peer"
-                                    checked={isPublicCookbook}
-                                    onChange={(e) => setIsPublicCookbook(e.target.checked)}
+                                    checked={user?.isCommunityVisible || false}
+                                    onChange={(e) => {
+                                        const newVal = e.target.checked;
+                                        setUser({ ...user, isCommunityVisible: newVal });
+                                        api.put('/auth/profile', { isCommunityVisible: newVal }).catch(() => {
+                                            setUser({ ...user, isCommunityVisible: !newVal });
+                                        });
+                                    }}
                                 />
                                 <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                             </label>

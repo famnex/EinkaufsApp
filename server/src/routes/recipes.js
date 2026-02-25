@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { Recipe, RecipeIngredient, Product, Manufacturer, Tag, Menu, RecipeTag, sequelize } = require('../models');
+const { Recipe, RecipeIngredient, Product, Manufacturer, Tag, Menu, RecipeTag, sequelize, User } = require('../models');
 const { auth } = require('../middleware/auth');
+const { Op } = require('sequelize');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -40,12 +41,28 @@ router.get('/tags', auth, async (req, res) => {
     }
 });
 
-// Get all recipes (optimized for list view)
+// Get all recipes (optimized for list view). Now includes both own and favorited community recipes for the whole household.
 router.get('/', auth, async (req, res) => {
     try {
+        const householdUsers = await User.findAll({
+            where: {
+                [Op.or]: [
+                    { id: req.user.effectiveId },
+                    { householdId: req.user.effectiveId }
+                ]
+            },
+            attributes: ['id', 'username']
+        });
+        const householdUserIds = householdUsers.map(u => u.id);
+
         const recipes = await Recipe.findAll({
-            where: { UserId: req.user.effectiveId },
-            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'createdAt', 'updatedAt'],
+            where: {
+                [Op.or]: [
+                    { UserId: req.user.effectiveId },
+                    { '$FavoritedBy.id$': { [Op.in]: householdUserIds } }
+                ]
+            },
+            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'createdAt', 'updatedAt', 'UserId'],
             include: [
                 {
                     model: Tag,
@@ -66,11 +83,28 @@ router.get('/', auth, async (req, res) => {
                         required: false,
                         attributes: ['name']
                     }]
+                },
+                {
+                    model: User,
+                    as: 'FavoritedBy',
+                    where: { id: { [Op.in]: householdUserIds } },
+                    required: false,
+                    attributes: ['id', 'username']
                 }
             ],
             order: [['title', 'ASC']]
         });
-        res.json(recipes);
+
+        // Add an explicit isFavorite flag based on the relation for the frontend, and favoritedBy array
+        const mappedRecipes = recipes.map(r => {
+            const plain = r.get({ plain: true });
+            plain.isFavorite = plain.FavoritedBy && plain.FavoritedBy.some(u => u.id === req.user.id);
+            plain.favoritedBy = plain.FavoritedBy ? plain.FavoritedBy.map(u => u.username) : [];
+            delete plain.FavoritedBy; // clean up payload
+            return plain;
+        });
+
+        res.json(mappedRecipes);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -124,52 +158,97 @@ router.get('/public/:sharingKey/:id', async (req, res) => {
     }
 });
 
-// Public recipes list (No Auth)
-router.get('/public/:sharingKey', async (req, res) => {
+// Optional Auth Middleware for Public Routes
+// Let's implement a quick inline optional check using the existing jwt logic, or just write it here.
+const jwt = require('jsonwebtoken');
+
+const checkOptionalAuth = async (req, res, next) => {
+    const authHeader = req.header('Authorization');
+    if (!authHeader) return next();
+
+    const token = authHeader.replace('Bearer ', '');
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const { User } = require('../models');
+        const user = await User.findByPk(decoded.id);
+        if (user) {
+            // For households, same logic as auth middleware
+            req.user = {
+                ...user.get({ plain: true }),
+                effectiveId: user.householdId || user.id
+            };
+        }
+    } catch (err) {
+        // Ignore errors, treating as unauthenticated
+    }
+    next();
+};
+
+// Public recipes list (Optional Auth)
+router.get('/public/:sharingKey', checkOptionalAuth, async (req, res) => {
     try {
         const { sharingKey } = req.params;
         const { User } = require('../models');
-        const user = await User.findOne({ where: { sharingKey } });
+        const listOwner = await User.findOne({ where: { sharingKey } });
 
-        if (!user) return res.status(403).json({ error: 'Ungültiger Freigabe-Link.' });
-        if (!user.isPublicCookbook) return res.status(403).json({ error: 'Dieses Kochbuch ist privat.' });
+        if (!listOwner) return res.status(403).json({ error: 'Ungültiger Freigabe-Link.' });
+        if (!listOwner.isPublicCookbook) return res.status(403).json({ error: 'Dieses Kochbuch ist privat.' });
 
         // Check for ban
-        if (user.bannedAt) {
+        if (listOwner.bannedAt) {
             return res.status(403).json({ error: 'Dieses Kochbuch wurde aufgrund eines Verstoßes gesperrt.' });
+        }
+
+        const includeArr = [
+            {
+                model: Tag,
+                where: { UserId: listOwner.id },
+                required: false,
+                attributes: ['id', 'name'],
+                through: { attributes: [] }
+            }
+        ];
+
+        // If viewer is logged in, check if they favorited these recipes
+        if (req.user) {
+            includeArr.push({
+                model: User,
+                as: 'FavoritedBy',
+                where: { id: req.user.id },
+                required: false,
+                attributes: ['id']
+            });
         }
 
         const recipes = await Recipe.findAll({
             where: {
-                UserId: user.id,
+                UserId: listOwner.id,
                 bannedAt: null // Exclude banned recipes from list
             },
-            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource'],
-            include: [
-                {
-                    model: Tag,
-                    where: { UserId: user.id },
-                    required: false,
-                    attributes: ['id', 'name'],
-                    through: { attributes: [] }
-                }
-            ],
+            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'isFavorite'],
+            include: includeArr,
             order: [['title', 'ASC']]
         });
 
-        // Filter out images where source is 'scraped' for public view
+        // Filter out images where source is 'scraped' for public view, and set isFavorite flag
         const sanitizedRecipes = recipes.map(r => {
             const plain = r.get({ plain: true });
             if (plain.imageSource === 'scraped') {
                 plain.image_url = null; // Hide image
+            }
+            if (req.user) {
+                plain.isFavorite = !!(plain.FavoritedBy && plain.FavoritedBy.length > 0);
+                delete plain.FavoritedBy;
+            } else {
+                plain.isFavorite = false;
             }
             return plain;
         });
 
         res.json({
             recipes: sanitizedRecipes,
-            cookbookTitle: user.cookbookTitle,
-            cookbookImage: user.cookbookImage
+            cookbookTitle: listOwner.cookbookTitle,
+            cookbookImage: listOwner.cookbookImage
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -396,6 +475,38 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
         res.json(reloaded);
     } catch (err) {
         console.error('--- RECIPE UPDATE ERROR ---', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Toggle Favorite
+router.patch('/:id/favorite', auth, async (req, res) => {
+    try {
+        const recipe = await Recipe.findByPk(req.params.id);
+        if (!recipe) {
+            return res.status(404).json({ error: 'Recipe not found' });
+        }
+
+        // We could add logic to ensure the recipe is either owned by the user,
+        // or belongs to a public cookbook. For now, we assume if they can see it,
+        // they can favorite it.
+
+        const user = await User.findByPk(req.user.id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const isFavorited = await user.hasFavorite(recipe);
+
+        if (isFavorited) {
+            await user.removeFavorite(recipe);
+            res.json({ id: recipe.id, isFavorite: false });
+        } else {
+            await user.addFavorite(recipe);
+            res.json({ id: recipe.id, isFavorite: true });
+        }
+    } catch (err) {
+        console.error('Toggle favorite error:', err);
         res.status(500).json({ error: err.message });
     }
 });

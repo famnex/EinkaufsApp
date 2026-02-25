@@ -60,7 +60,7 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
             }
         } catch (err) {
             console.error(err);
-            setError('Fehler bei der Analyse. Bitte versuche es erneut.');
+            setError(err.response?.data?.error || 'Fehler bei der Analyse. Bitte versuche es erneut.');
         } finally {
             setLoading(false);
         }

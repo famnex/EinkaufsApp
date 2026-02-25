@@ -103,6 +103,12 @@ Protokollierung aller Abonnements-bezogenen Aktivitäten.
 - `sharingKey` der `Users` erlaubt Zugriff auf Rezepte des jeweiligen Users.
 - `RecipeIngredients` verknüpft `Recipe` mit `Product` für einen spezifischen `UserId`.
 
+### `FavoriteRecipes` (Join Table) [NEW v0.30.13]
+- Verknüpft `Users` und `Recipes`.
+- Ermöglicht es Benutzern, sowohl eigene als auch fremde (Community) Rezepte zu favorisieren.
+- Spalten: `UserId`, `RecipeId`, `createdAt`, `updatedAt`
+- `isFavorite` (BOOLEAN): Gibt an, ob ein Rezept als Favorit markiert wurde [NEW v0.30.12].
+
 ### `Menus` / `Expenses` / `Tags` / `Settings`
 - Alle Tabellen enthalten ein `UserId` Feld zur strikten Isolation.
 
@@ -175,6 +181,15 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*
+
+### v0.30.14 - Community Visibility Separation (Februar 2026)
+1. **Sichtbarkeits-Trennung**: Einführung der `isCommunityVisible` Spalte in der `Users` Tabelle. Zuvor steuerte `isPublicCookbook` sowohl die generelle öffentliche Link-Freigabe als auch die Auflistung in der internen Community-Ansicht. Diese beiden Funktionen sind nun getrennt.
+
+### v0.30.13 - Global Recipe Favorites (Februar 2026)
+1. **Global Favorites**: Einführung der `FavoriteRecipes` Join-Tabelle, mit der Nutzer sowohl eigene als auch Rezepte aus fremden Kochbüchern favorisieren können. Die bestehende `isFavorite` Spalte in `Recipes` wird im Code ignoriert und durch diese N:M Beziehung ersetzt. 
+
+### v0.30.12 - Favorite Recipes (Februar 2026)
+1. **Favorite Feature**: Hinzufügen der `isFavorite` Spalte in der `Recipes` Tabelle, zusammen mit Backend-Routen und UI-Updates in der Rezeptansicht.
 
 ### v0.30.11 - AI Tier Limits & Fair Use (Februar 2026)
 1. **Frontend-Limitierung**: Der Button "AI Lookup" in der Produktbearbeitung ist jetzt für Nutzer mit `Plastikgabel`-Abo komplett ausgeblendet. Für Nutzer mit `Silbergabel` werden dort transparent die Kosten `(5 Coins)` eingeblendet.

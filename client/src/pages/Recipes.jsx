@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import api from '../lib/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices, ShieldAlert, Edit } from 'lucide-react';
+import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices, ShieldAlert, Edit, Heart } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
@@ -180,8 +180,34 @@ export default function Recipes() {
         }
     };
 
+    const effectiveUserId = user?.householdId || user?.id;
+
     const [selectedCategory, setSelectedCategory] = useState('All');
-    const categories = ['All', ...new Set(recipes.map(r => r.category).filter(Boolean))].sort().concat(['Ohne Bilder']);
+
+    // Dynamically build favorite categories based on who in the household favorited what
+    const favoriteCategories = useMemo(() => {
+        const cats = ['Meine Favoriten']; // Always include own favorites as an option
+        recipes.forEach(r => {
+            if (r.favoritedBy) {
+                r.favoritedBy.forEach(name => {
+                    if (name !== user?.username) {
+                        const catName = `Favoriten von ${name}`;
+                        if (!cats.includes(catName)) {
+                            cats.push(catName);
+                        }
+                    }
+                });
+            }
+        });
+        return cats.sort((a, b) => {
+            if (a === 'Meine Favoriten') return -1;
+            if (b === 'Meine Favoriten') return 1;
+            return a.localeCompare(b);
+        });
+    }, [recipes, user?.username]);
+
+    const availableCategories = [...new Set(recipes.map(r => r.category).filter(Boolean))].sort();
+    const categories = ['All', ...favoriteCategories, ...availableCategories, 'Ohne Bilder'];
 
     const filteredRecipes = useMemo(() => {
         return recipes.filter(r => {
@@ -192,12 +218,20 @@ export default function Recipes() {
                 r.Tags?.some(t => t.name.toLowerCase().includes(lowerSearch)) ||
                 r.RecipeIngredients?.some(ri => ri.Product?.name.toLowerCase().includes(lowerSearch));
 
-            // Special category: 'Ohne Bilder' shows only recipes without images
-            const matchesCategory = selectedCategory === 'All'
-                ? true
-                : selectedCategory === 'Ohne Bilder'
-                    ? !r.image_url
-                    : r.category === selectedCategory;
+            // Special category: 'Ohne Bilder' shows only recipes without images, special favorites logic
+            let matchesCategory = false;
+            if (selectedCategory === 'All') {
+                matchesCategory = r.UserId === effectiveUserId; // In "All", only show own recipes
+            } else if (selectedCategory === 'Ohne Bilder') {
+                matchesCategory = r.UserId === effectiveUserId && !r.image_url;
+            } else if (selectedCategory === 'Meine Favoriten') {
+                matchesCategory = r.isFavorite === true; // Show all favorites for ME
+            } else if (selectedCategory.startsWith('Favoriten von ')) {
+                const nameMatches = selectedCategory.replace('Favoriten von ', '');
+                matchesCategory = r.favoritedBy && r.favoritedBy.includes(nameMatches);
+            } else {
+                matchesCategory = r.UserId === effectiveUserId && r.category === selectedCategory;
+            }
 
             return matchesSearch && matchesCategory;
         });
@@ -243,20 +277,39 @@ export default function Recipes() {
 
         try {
             // Enable public cookbook
-            await api.put('/auth/profile', { isPublicCookbook: true });
+            const { data } = await api.put('/auth/profile', { isPublicCookbook: true });
 
-            // Update local state
+            // Update local state, taking backend's newly generated sharingKey
             if (user) {
-                setUser({ ...user, isPublicCookbook: true });
+                setUser({ ...user, ...data });
             }
 
+            // Replace placeholder in URL with actual sharing key if necessary
+            // Depending on how shareModalConfig.url is created, it might be stale. Let's fix it.
+            const actualUrl = shareModalConfig.url.replace('/shared//', `/shared/${data.sharingKey}/`).replace('/shared/undefined/', `/shared/${data.sharingKey}/`);
+
             // Proceed with share
-            executeShare(shareModalConfig.title, shareModalConfig.text, shareModalConfig.url);
+            executeShare(shareModalConfig.title, shareModalConfig.text, actualUrl);
         } catch (err) {
             console.error('Failed to enable public cookbook', err);
             alert('Fehler beim Aktivieren des öffentlichen Kochbuchs.');
         } finally {
             setShareModalConfig(null);
+        }
+    };
+
+    const toggleFavorite = async (e, recipe) => {
+        e.stopPropagation(); // prevent opening the recipe or other clicks
+        try {
+            const token = localStorage.getItem('token');
+            const { data } = await api.patch(`/recipes/${recipe.id}/favorite`, {}, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            // Update the specific recipe in state
+            setRecipes(prev => prev.map(r => r.id === data.id ? { ...r, isFavorite: data.isFavorite } : r));
+        } catch (err) {
+            console.error('Failed to toggle favorite', err);
+            alert('Fehler beim Speichern der Favoriten-Einstellung.');
         }
     };
 
@@ -453,6 +506,16 @@ export default function Recipes() {
                                                         )}
                                                     >
                                                         <MoreHorizontal size={20} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => toggleFavorite(e, recipe)}
+                                                        className="absolute top-12 right-0 p-2 rounded-full backdrop-blur-sm bg-black/20 hover:bg-black/40 text-white transition-all duration-200 focus:outline-none"
+                                                        title="Zu Favoriten hinzufügen/entfernen"
+                                                    >
+                                                        <Heart
+                                                            size={20}
+                                                            className={cn("transition-colors duration-300", recipe.isFavorite ? "fill-rose-500 text-rose-500" : "text-white")}
+                                                        />
                                                     </button>
 
                                                     {/* Menu Dropdown */}
