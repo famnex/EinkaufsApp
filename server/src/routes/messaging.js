@@ -213,6 +213,8 @@ router.post('/send', auth, async (req, res) => {
         });
 
         const fromAddress = smtp.smtpSenderName ? { name: smtp.smtpSenderName, address: smtp.smtpFrom || smtp.smtpUser } : (smtp.smtpFrom || smtp.smtpUser);
+        console.log(`[MessagingRoute] Preparing to send email to ${to} from:`, fromAddress);
+
         const globalFooter = await getGlobalFooter();
         const baseHtml = body || '';
         const baseText = body ? body.replace(/<[^>]*>/g, '') : '';
@@ -220,6 +222,7 @@ router.post('/send', auth, async (req, res) => {
         const finalHtml = baseHtml + globalFooter;
         const finalText = baseText + globalFooter.replace(/<[^>]*>/g, '');
 
+        console.log(`[MessagingRoute] Sending email to ${to} with subject: "${subject}"`);
         const mailOptions = {
             from: fromAddress,
             to,

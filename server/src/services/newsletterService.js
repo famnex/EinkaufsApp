@@ -119,6 +119,7 @@ class NewsletterService {
 
                 const fullBody = personalizedBody + (newsletter.footer ? `<div style="margin-top: 30px;">${newsletter.footer}</div>` : '') + mandatoryFooter;
 
+                console.log(`[NewsletterService] Sending e-mail to ${recipient.User.email} from:`, fromAddress);
                 await transporter.sendMail({
                     from: fromAddress,
                     to: recipient.User.email,
@@ -163,7 +164,7 @@ class NewsletterService {
             return null;
         }
 
-        return {
+        const smtpConfig = {
             host: config.host,
             port: parseInt(config.port) || 587,
             secure: config.secure === 'true' || config.port === '465',
@@ -174,6 +175,15 @@ class NewsletterService {
             from: config.from || config.user,
             senderName: config.sender_name
         };
+
+        console.log('[NewsletterService] Loaded Global SMTP Config:', {
+            host: smtpConfig.host,
+            user: smtpConfig.auth.user,
+            from: smtpConfig.from,
+            senderName: smtpConfig.senderName
+        });
+
+        return smtpConfig;
     }
 
     /**

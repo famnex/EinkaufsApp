@@ -16,6 +16,12 @@ async function getSmtpSettings(userId) {
         const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
         settings[camelKey] = s ? s.value : '';
     }
+    console.log(`[MessagingService] Loaded SMTP settings for UserId: ${userId}`, {
+        host: settings.smtpHost,
+        user: settings.smtpUser,
+        from: settings.smtpFrom,
+        senderName: settings.smtpSenderName
+    });
     return settings;
 }
 
@@ -52,11 +58,13 @@ async function sendEmail(to, subject, html) {
         });
 
         const from = smtpSenderName ? { name: smtpSenderName, address: smtpFrom } : (smtpFrom || process.env.SMTP_FROM || 'noreply@gabelguru.local');
+        console.log(`[MessagingService] Preparing to send email to ${to} from:`, from);
 
         // Apply Global Footer
         const globalFooter = await getGlobalFooter();
         const finalHtml = html ? (html + globalFooter) : '';
 
+        console.log(`[MessagingService] Sending email to ${to} with subject: "${subject}"`);
         const info = await transporter.sendMail({
             from: from,
             to: to,

@@ -194,6 +194,12 @@ router.post('/email', auth, async (req, res) => {
             fieldMap.imap_password = imapPassword;
         }
 
+        console.log('[SettingsRoute] Saving email settings:', Object.keys(fieldMap).reduce((acc, key) => {
+            if (key.includes('password')) acc[key] = '***';
+            else acc[key] = fieldMap[key];
+            return acc;
+        }, {}));
+
         for (const [key, value] of Object.entries(fieldMap)) {
             const [setting] = await Settings.findOrCreate({
                 where: { key, UserId: null }, // Global settings

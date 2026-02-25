@@ -176,6 +176,6 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*
 
-### v0.29.7 - Email Sender Fix (Februar 2026)
-1. **Fix**: Umstellung aller E-Mail-Dienste auf das robuste `nodemailer` Objekt-Format für den Absendernamen (`from: { name, address }`).
-2. **Migration**: `subscription.js` nutzt nun vollständig den zentralisierten `sendSystemEmail`-Dienst.
+### v0.29.8 - Extended Email Debugging (Februar 2026)
+1. **Debug Logging**: Implementierung umfassender Konsolen-Logs in allen E-Mail-Diensten (`emailService`, `messagingService`, `newsletterService`) und Routen.
+2. **Details**: Protokollierung von SMTP-Konfigurations-Ladevorgängen, Absender/Empfänger-Details, Betreffzeilen und Verarbeitungsstatus zur besseren Fehlerdiagnose.

@@ -38,6 +38,14 @@ async function loadSystemEmailConfig() {
             senderName: settings.smtp_sender_name || null
         };
 
+        console.log('[EmailService] SMTP Config loaded:', {
+            host: config.host,
+            user: config.auth.user,
+            from: config.from,
+            senderName: config.senderName,
+            secure: config.secure
+        });
+
         if (!config.from) {
             console.warn('[EmailService] SMTP From/User missing.');
             return null;
@@ -91,6 +99,7 @@ async function sendSystemEmail({ to, subject, text, html }) {
         });
 
         const fromAddress = config.senderName ? { name: config.senderName, address: config.from } : config.from;
+        console.log(`[EmailService] Preparing to send email to ${to} from:`, fromAddress);
 
         // Apply Global Footer
         const globalFooter = await getGlobalFooter();
@@ -98,6 +107,7 @@ async function sendSystemEmail({ to, subject, text, html }) {
         const finalHtml = html ? (html + globalFooter) : (text ? (text + globalFooter) : '');
         const finalText = text ? (text + globalFooter.replace(/<[^>]*>/g, '')) : (html ? html.replace(/<[^>]*>/g, '') : '');
 
+        console.log(`[EmailService] Sending email to ${to} with subject: "${subject}"`);
         const info = await transporter.sendMail({
             from: fromAddress,
             to,
