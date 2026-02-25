@@ -1,3 +1,5 @@
+const { Newsletter, NewsletterRecipient, User, Email, sequelize, Settings } = require('../models');
+const { Op } = require('sequelize');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const { logSystem, logError } = require('../utils/logger');

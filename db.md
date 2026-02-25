@@ -176,6 +176,9 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*
 
+### v0.30.1 - Newsletter Service Hotfix (Februar 2026)
+1. **Fix**: In `newsletterService.js` wurden die Model-Imports wiederhergestellt, die bei der Umstellung auf das neue Logging-System versehentlich entfernt wurden (`ReferenceError: Newsletter is not defined`).
+
 ### v0.30.0 - Comprehensive System Observability (Februar 2026)
 1. **Request Logging**: Alle Anfragen werden nun mit Methode, URL, Status-Code und Dauer protokolliert.
 2. **Error Handling**: Implementierung eines globalen Error-Handlers und Prozess-Limitern (Uncaught Exceptions), die alle Fehler lückenlos in `system.log` schreiben.
