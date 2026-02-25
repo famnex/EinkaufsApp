@@ -21,13 +21,11 @@ router.get('/', auth, async (req, res) => {
             include: [
                 {
                     model: Recipe,
-                    where: { UserId: req.user.effectiveId },
                     required: false,
                     include: [{
                         model: RecipeIngredient,
-                        where: { UserId: req.user.effectiveId },
                         required: false,
-                        include: [{ model: Product, where: { UserId: req.user.effectiveId }, required: false }]
+                        include: [{ model: Product, required: false }]
                     }]
                 },
                 { model: ListItem, where: { UserId: req.user.effectiveId }, required: false }

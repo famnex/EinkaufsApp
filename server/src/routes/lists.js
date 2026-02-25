@@ -4,6 +4,53 @@ const { List, ListItem, Product, Store, Manufacturer, ProductRelation, ProductSu
 const { Op } = require('sequelize');
 const { auth } = require('../middleware/auth');
 
+/**
+ * Resolves a product for a specific user.
+ * If the product belongs to the user, it returns it.
+ * If not, it tries to find a match by name or synonyms.
+ * If no match, it creates a new product for the user.
+ */
+async function resolveProductForUser(productId, userId) {
+    const originalProduct = await Product.findByPk(productId);
+    if (!originalProduct) return null;
+
+    // 1. Check ownership
+    if (originalProduct.UserId === userId) return originalProduct;
+
+    // 2. Try exact name match
+    let localProduct = await Product.findOne({
+        where: {
+            name: sequelize.where(sequelize.fn('LOWER', sequelize.col('name')), originalProduct.name.toLowerCase()),
+            UserId: userId
+        }
+    });
+    if (localProduct) return localProduct;
+
+    // 3. Try synonym match (Fallback in JS)
+    const productsWithSynonyms = await Product.findAll({
+        where: {
+            UserId: userId,
+            synonyms: { [Op.ne]: null }
+        }
+    });
+
+    localProduct = productsWithSynonyms.find(p => {
+        const syns = Array.isArray(p.synonyms) ? p.synonyms : [];
+        return syns.some(s => s.toLowerCase() === originalProduct.name.toLowerCase());
+    });
+
+    if (localProduct) return localProduct;
+
+    // 4. Fallback: Create new local product
+    return await Product.create({
+        name: originalProduct.name,
+        category: originalProduct.category,
+        unit: originalProduct.unit,
+        price_hint: originalProduct.price_hint,
+        source: 'manual',
+        UserId: userId
+    });
+}
 // Bulk Add Items (for AI Import)
 router.post('/:id/items/bulk', auth, async (req, res) => {
     try {
@@ -700,9 +747,15 @@ router.put('/:id/recipe-items', auth, async (req, res) => {
 
         // 3. Identify items to Create or Update
         const operations = items.map(async (newItem) => {
-            if (existingMap.has(newItem.ProductId)) {
+            // Resolve the product to the user's own product list
+            const resolvedProduct = await resolveProductForUser(newItem.ProductId, req.user.effectiveId);
+            if (!resolvedProduct) return null;
+
+            const resolvedProductId = resolvedProduct.id;
+
+            if (existingMap.has(resolvedProductId)) {
                 // Update quantity if changed
-                const existing = existingMap.get(newItem.ProductId);
+                const existing = existingMap.get(resolvedProductId);
                 if (existing.quantity !== newItem.quantity) {
                     return existing.update({ quantity: newItem.quantity });
                 }
@@ -712,7 +765,7 @@ router.put('/:id/recipe-items', auth, async (req, res) => {
                 return ListItem.create({
                     ListId: listId,
                     UserId: req.user.effectiveId,
-                    ProductId: newItem.ProductId,
+                    ProductId: resolvedProductId,
                     quantity: newItem.quantity,
                     MenuId: MenuId,
                     is_bought: false
@@ -790,13 +843,11 @@ router.get('/:id/planning-data', auth, async (req, res) => {
             include: [
                 {
                     model: require('../models').Recipe,
-                    where: { UserId: req.user.effectiveId },
                     required: false,
                     include: [{
                         model: require('../models').RecipeIngredient,
-                        where: { UserId: req.user.effectiveId },
                         required: false,
-                        include: [{ model: Product, where: { UserId: req.user.effectiveId }, required: false, include: [{ model: Store, where: { UserId: req.user.effectiveId }, required: false }] }]
+                        include: [{ model: Product, required: false, include: [{ model: Store, where: { UserId: req.user.effectiveId }, required: false }] }]
                     }]
                 }
             ]
@@ -829,21 +880,31 @@ router.get('/:id/planning-data', auth, async (req, res) => {
         });
 
         // 5. Aggregate Ingredients (Smart Aggregation by Unit)
-        const aggregated = {}; // ProductId -> { ... }
+        const aggregated = {}; // ResolvedProductId -> { ... }
+        const productCache = new Map(); // OrigProductId -> ResolvedProduct
 
-        menus.forEach(menu => {
-            if (!menu.Recipe || !menu.Recipe.RecipeIngredients) return;
+        for (const menu of menus) {
+            if (!menu.Recipe || !menu.Recipe.RecipeIngredients) continue;
 
-            menu.Recipe.RecipeIngredients.forEach(ing => {
+            for (const ing of menu.Recipe.RecipeIngredients) {
                 const origProductId = ing.ProductId;
-                // Check if there's a substitution for this product
-                const effectiveProductId = subsMap.get(origProductId) || origProductId;
 
-                if (!aggregated[origProductId]) {
+                if (!productCache.has(origProductId)) {
+                    productCache.set(origProductId, await resolveProductForUser(origProductId, req.user.effectiveId));
+                }
+                const resolvedProduct = productCache.get(origProductId);
+                if (!resolvedProduct) continue;
+
+                const resolvedProductId = resolvedProduct.id;
+
+                // Check if there's a substitution for this product
+                const effectiveProductId = subsMap.get(resolvedProductId) || resolvedProductId;
+
+                if (!aggregated[resolvedProductId]) {
                     // Check existingMap using the effective (substituted) product ID
                     const existing = existingMap.get(effectiveProductId) || { quantity: 0, id: null, unit: null };
-                    aggregated[origProductId] = {
-                        product: ing.Product,
+                    aggregated[resolvedProductId] = {
+                        product: resolvedProduct,
                         neededByUnit: {},
                         sources: [],
                         onList: existing.quantity,
@@ -851,8 +912,8 @@ router.get('/:id/planning-data', auth, async (req, res) => {
                         onListId: existing.id
                     };
                 }
-                const entry = aggregated[origProductId];
-                const unit = ing.unit || ing.Product.unit || 'Stück';
+                const entry = aggregated[resolvedProductId];
+                const unit = ing.unit || resolvedProduct.unit || 'Stück';
 
                 entry.neededByUnit[unit] = (entry.neededByUnit[unit] || 0) + parseFloat(ing.quantity);
 
@@ -862,8 +923,8 @@ router.get('/:id/planning-data', auth, async (req, res) => {
                     amount: ing.quantity,
                     unit: unit
                 });
-            });
-        });
+            }
+        }
 
         // 5. Format totals
         const resultIngredients = Object.values(aggregated).map(item => {
@@ -905,17 +966,21 @@ router.post('/:id/bulk-items', auth, async (req, res) => {
         await List.update({ status: 'active' }, { where: { id: listId, UserId: req.user.effectiveId, status: 'archived' } });
 
         for (const item of items) {
+            // Resolve the product to the user's own product list
+            const resolvedProduct = await resolveProductForUser(item.ProductId, req.user.effectiveId);
+            if (!resolvedProduct) continue;
+
+            const resolvedProductId = resolvedProduct.id;
+
             // Check if exists
             const existing = await ListItem.findOne({
-                where: { ListId: listId, ProductId: item.ProductId, UserId: req.user.effectiveId }
+                where: { ListId: listId, ProductId: resolvedProductId, UserId: req.user.effectiveId }
             });
 
             if (existing) {
                 // If units match, add quantities. If not, what? 
                 // For simplicity, if units differ, we might overwrite or add as string note? 
-                // Current simple logic: If unit provided, overwrite unit and ADD quantity? 
-                // Or if user sets specific unit, maybe they want to normalize?
-                // Let's assume: Add quantity, Update unit to new one (if provided)
+                // Current simple logic: Add quantity, Update unit to new one (if provided)
 
                 const newQuantity = parseFloat(existing.quantity) + parseFloat(item.quantity);
                 const updates = { quantity: newQuantity };
@@ -926,7 +991,7 @@ router.post('/:id/bulk-items', auth, async (req, res) => {
                 await ListItem.create({
                     ListId: listId,
                     UserId: req.user.effectiveId,
-                    ProductId: item.ProductId,
+                    ProductId: resolvedProductId,
                     quantity: item.quantity,
                     unit: item.unit
                 });
