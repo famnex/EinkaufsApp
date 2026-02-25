@@ -141,9 +141,9 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                     userAgent: 'Stripe-Webhook'
                 });
 
-                // Add initial coins
-                const initialCoins = tier === 'Goldgabel' ? 1500 : 600;
-                await creditService.addCredits(userId, initialCoins, `Willkommens-Credits für ${tier}`);
+                // Set initial coins to target
+                const targetCoins = tier === 'Goldgabel' ? 1500 : 600;
+                await creditService.setCreditsToTarget(userId, targetCoins, `Willkommens-Credits für ${tier}`);
 
                 // Send Upgrade Email
                 if (checkoutUser.email) {
@@ -158,7 +158,7 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                             <p>vielen Dank für deine Bestellung! Dein Upgrade auf das <strong>${tier}</strong> Abo war erfolgreich.</p>
                             <p>Dir stehen ab sofort folgende Vorteile zur Verfügung:</p>
                             <ul style="color: #475569;"><li>${benefits}</li></ul>
-                            <p>Deine ersten <strong>${initialCoins} Coins</strong> wurden soeben gutgeschrieben.</p>
+                            <p>Dein Stand wurde soeben auf <strong>${targetCoins} Coins</strong> aufgefüllt.</p>
                             <p>Viel Spaß beim Kochen mit KI-Unterstützung!</p>
                         </div>
                     `;
@@ -187,6 +187,24 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                         ipHash: 'webhook',
                         userAgent: 'Stripe-Webhook'
                     });
+
+                    if (userInstance.email) {
+                        const newTier = userInstance.pendingTier !== 'none' ? userInstance.pendingTier : 'Plastikgabel';
+                        const householdWarning = newTier === 'Plastikgabel'
+                            ? `<p style="color: #b91c1c; font-weight: bold;">Wichtiger Hinweis: Da dein Account auf Plastikgabel umgestellt wurde, wird dein geteilter Haushalt aufgelöst. Alle eingeladenen Mitglieder (außer dir als Besitzer) haben nun leere Konten und keinen Zugriff mehr auf gemeinsame Daten.</p>`
+                            : '';
+
+                        const html = `
+                            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                                <h2 style="color: #4f46e5;">Dein Abo ist abgelaufen</h2>
+                                <p>Hallo <strong>${userInstance.username}</strong>,</p>
+                                <p>dein bisheriges Abo ist nun offiziell beendet. Dein Account wurde auf <strong>${newTier}</strong> umgestellt.</p>
+                                ${householdWarning}
+                                <p>Wir bedanken uns für die gemeinsame Zeit am Herd. Falls du es dir anders überlegst, kannst du jederzeit wieder bei uns einsteigen!</p>
+                            </div>
+                        `;
+                        sendEmail(userInstance.email, 'Dein Abo ist abgelaufen', html).catch(err => console.error('Failed to send subscription deleted email:', err));
+                    }
                 }
                 break;
             }
@@ -220,9 +238,8 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                 // Handle Tier Upgrade
                 if (newTier !== oldTier && newTier === 'Goldgabel' && oldTier === 'Silbergabel') {
                     updateData.tier = newTier;
-                    // Prorated Upgrade: Give the difference in monthly credits
-                    // Gold (1500) - Silber (600) = 900
-                    await creditService.addCredits(subUser.id, 900, `Upgrade-Bonus: Silber -> Gold`);
+                    // Upgrade: Set to target
+                    await creditService.setCreditsToTarget(subUser.id, 1500, `Upgrade-Bonus: Silber -> Gold`);
 
                     await SubscriptionLog.create({
                         UserId: subUser.id,
@@ -239,7 +256,7 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                         const benefits = newTier === 'Goldgabel'
                             ? 'Unbegrenzter KI-Text-Assistent, bevorzugte Bildgenerierung zum Sparpreis und monatlich 1.500 Coins'
                             : 'Alle KI-Funktionen freigeschaltet und monatlich 600 Coins';
-                        const newCoins = (subUser.aiCredits || 0) + 900;
+
                         const html = `
                             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
                                 <h2 style="color: #4f46e5;">Abo-Upgrade erfolgreich!</h2>
@@ -247,10 +264,45 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                                 <p>dein Wechsel von ${oldTier} auf <strong>${newTier}</strong> wurde erfolgreich durchgeführt.</p>
                                 <p>Deine neuen Vorteile:</p>
                                 <ul style="color: #475569;"><li>${benefits}</li></ul>
-                                <p>Dein Coin-Stand wurde um die Differenz erhöht und beträgt nun ca. <strong>${newCoins} Coins</strong>.</p>
+                                <p>Dein Coin-Stand wurde an dein neues Abo angepasst und auf <strong>1500 Coins</strong> aufgefüllt.</p>
                             </div>
                         `;
                         sendEmail(subUser.email, `Upgrade auf ${newTier} bestätigt`, html).catch(err => console.error('Failed to send upgrade email:', err));
+                    }
+                }
+
+                // Handle Cancellation (active until period end)
+                const justCanceled = (!subUser.cancelAtPeriodEnd && updateData.cancelAtPeriodEnd);
+                if (justCanceled) {
+                    await SubscriptionLog.create({
+                        UserId: subUser.id,
+                        username: subUser.username,
+                        event: 'subscription_canceled',
+                        tier: subUser.tier,
+                        details: `Kündigung eingegangen. Läuft ab am: ${updateData.subscriptionExpiresAt.toLocaleDateString('de-DE')}`,
+                        ipHash: 'webhook',
+                        userAgent: 'Stripe-Webhook'
+                    });
+
+                    if (subUser.email) {
+                        const expiryDate = updateData.subscriptionExpiresAt.toLocaleDateString('de-DE');
+                        const targetTier = subUser.pendingTier !== 'none' ? subUser.pendingTier : 'Plastikgabel';
+                        const householdWarning = targetTier === 'Plastikgabel'
+                            ? `<p style="color: #b91c1c;"><strong>Achtung:</strong> Da du auf die kostenlose Plastikgabel zurückwechselst, wird dein Haushalt nach Ablauf des Abos aufgelöst. Alle Mitglieder (außer dir als Besitzer) bekommen dann wieder eigene, leere Konten und verlieren den Zugriff auf geteilte Daten.</p>`
+                            : '';
+
+                        const html = `
+                            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                                <h2 style="color: #4f46e5;">Kündigung eingegangen</h2>
+                                <p>Hallo <strong>${subUser.username}</strong>,</p>
+                                <p>wir bedauern sehr, dass du dein <strong>${subUser.tier}</strong> Abo gekündigt hast.</p>
+                                <p>Dein Abo läuft noch bis zum <strong>${expiryDate}</strong> und wird danach nicht mehr automatisch verlängert.</p>
+                                ${householdWarning}
+                                <p>Bis zum Ablaufdatum kannst du alle Funktionen wie gewohnt weiter nutzen.</p>
+                                <p>Wir würden uns freuen, dich irgendwann wieder bei Gabelguru begrüßen zu dürfen!</p>
+                            </div>
+                        `;
+                        sendEmail(subUser.email, 'Kündigung bestätigt', html).catch(err => console.error('Failed to send cancelation email:', err));
                     }
                 }
 
@@ -271,9 +323,9 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                             cancelAtPeriodEnd: false
                         });
 
-                        // Add monthly credits
-                        const monthlyCoins = renewalUser.tier === 'Goldgabel' ? 1500 : 600;
-                        await creditService.addCredits(renewalUser.id, monthlyCoins, `Monatliche Credits (${renewalUser.tier})`);
+                        // Refill monthly credits
+                        const targetCoins = renewalUser.tier === 'Goldgabel' ? 1500 : 600;
+                        const creditResult = await creditService.setCreditsToTarget(renewalUser.id, targetCoins, `Monatliche Auffüllung (${renewalUser.tier})`);
 
                         await SubscriptionLog.create({
                             UserId: renewalUser.id,
@@ -282,22 +334,21 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                             tier: renewalUser.tier,
                             amount: invoice.amount_paid / 100,
                             currency: (invoice.currency || 'EUR').toUpperCase(),
-                            details: `Verlängerung + ${monthlyCoins} Credits gutgeschrieben`,
+                            details: `Verlängerung. Coins auf ${targetCoins} aufgefüllt. Delta: ${creditResult.delta}`,
                             ipHash: 'webhook',
                             userAgent: 'Stripe-Webhook'
                         });
 
-                        console.log(`[Subscription] Renewed for ${renewalUser.username}, +${monthlyCoins} credits`);
+                        console.log(`[Subscription] Renewed for ${renewalUser.username}, refilled to ${targetCoins} credits`);
 
                         // Send Renewal Email
                         if (renewalUser.email) {
-                            const newTotal = (renewalUser.aiCredits || 0) + monthlyCoins;
                             const html = `
                                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
                                     <h2 style="color: #4f46e5;">Dein Abo wurde verlängert!</h2>
                                     <p>Hallo <strong>${renewalUser.username}</strong>,</p>
                                     <p>dein <strong>${renewalUser.tier}</strong> Abo wurde erfolgreich um einen weiteren Monat verlängert. Vielen Dank für deine Treue!</p>
-                                    <p>Wir haben dir soeben deine monatlichen <strong>${monthlyCoins} Coins</strong> gutgeschrieben. Dein neuer Stand beträgt: <strong>${newTotal} Coins</strong>.</p>
+                                    <p>Dein monatlicher Coin-Stand wurde soeben wieder aufgefüllt. Dein aktueller Stand beträgt nun: <strong>${targetCoins} Coins</strong>.</p>
                                     <p>Viel Spaß beim Kochen!</p>
                                 </div>
                             `;

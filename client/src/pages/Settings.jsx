@@ -1036,8 +1036,15 @@ export default function SettingsPage() {
         try {
             if (folder === 'newsletter') {
                 const res = await api.get('/newsletter');
-                setEmails(res.data || []);
-                setEmailsTotal(res.data.length || 0);
+                const mappedMails = res.data.map(n => ({
+                    ...n,
+                    folder: 'newsletter',
+                    date: n.createdAt,
+                    fromAddress: 'System (Newsletter)',
+                    toAddress: 'Alle Abonnenten'
+                }));
+                setEmails(mappedMails);
+                setEmailsTotal(mappedMails.length || 0);
             } else {
                 const currentSearch = search !== undefined ? search : messagingSearch;
                 const res = await api.get(`/messaging?folder=${folder || messagingFolder}&search=${encodeURIComponent(currentSearch)}`);
@@ -1065,6 +1072,18 @@ export default function SettingsPage() {
     const openEmail = async (id) => {
         setLoadingEmail(true);
         try {
+            if (messagingFolder === 'newsletter') {
+                const res = await api.get(`/newsletter/${id}`);
+                setSelectedEmail({
+                    ...res.data,
+                    folder: 'newsletter',
+                    date: res.data.createdAt,
+                    fromAddress: 'System (Newsletter)',
+                    toAddress: 'Alle Abonnenten (' + res.data.recipientsCount + ')'
+                });
+                return;
+            }
+
             const res = await api.get(`/messaging/${id}`);
             setSelectedEmail(res.data);
             // Update read status in list
@@ -3404,7 +3423,7 @@ export default function SettingsPage() {
                                                         </div>
                                                     ) : (
                                                         <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                                            {new Date(email.date).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                                            {email.date ? new Date(email.date).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
                                                         </span>
                                                     )}
                                                     {(messagingFolder === 'inbox' || messagingFolder === 'daemon') && (

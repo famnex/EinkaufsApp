@@ -109,6 +109,40 @@ const creditService = {
         });
 
         return true;
+    },
+
+    /**
+     * Sets credits to a target amount by adding the required delta (refill difference)
+     */
+    async setCreditsToTarget(userId, targetBalance, description) {
+        let user = await User.findByPk(userId);
+        if (!user) throw new Error('User not found');
+
+        const effectiveUserId = user.householdId || user.id;
+        const effectiveUser = effectiveUserId === user.id ? user : await User.findByPk(effectiveUserId);
+
+        if (!effectiveUser) throw new Error('Owner not found');
+
+        const currentBalance = parseFloat(effectiveUser.aiCredits || 0);
+        const target = parseFloat(targetBalance);
+
+        // Compute delta (difference to target). E.g. 600 - 450 = +150
+        const delta = target - currentBalance;
+
+        // If delta is 0, we don't need to do anything
+        if (delta === 0) return true;
+
+        await sequelize.transaction(async (t) => {
+            await effectiveUser.update({ aiCredits: target.toFixed(2) }, { transaction: t });
+            await CreditTransaction.create({
+                UserId: effectiveUserId,
+                delta: delta,
+                description,
+                type: 'booking'
+            }, { transaction: t });
+        });
+
+        return { delta, newBalance: target };
     }
 };
 

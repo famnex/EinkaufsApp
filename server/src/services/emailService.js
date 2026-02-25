@@ -1,4 +1,5 @@
 const { Settings, User, Email } = require('../models');
+const nodemailer = require('nodemailer');
 
 /**
  * Loads the system email configuration from the database.
@@ -53,7 +54,7 @@ async function getGlobalFooter() {
     try {
         const footer = await Settings.findOne({ where: { key: 'newsletter_footer', UserId: null } });
         if (footer && footer.value) {
-            return `<br><br>--<br><div style="font-size: 12px; color: #666;">${footer.value.replace(/\n/g, '<br>')}</div>`;
+            return `<div style="font-size: 12px; color: #666; margin-top: 30px;">${footer.value}</div>`;
         }
     } catch (err) {
         console.error('[EmailService] Failed to load footer:', err);
@@ -89,7 +90,8 @@ async function sendSystemEmail({ to, subject, text, html }) {
 
         // Apply Global Footer
         const globalFooter = await getGlobalFooter();
-        const finalHtml = html ? (html + globalFooter) : (text ? (text.replace(/\n/g, '<br>') + globalFooter) : '');
+        // Do not use replace(/\n/g, '<br>') on HTML formatted text that already uses tags
+        const finalHtml = html ? (html + globalFooter) : (text ? (text + globalFooter) : '');
         const finalText = text ? (text + globalFooter.replace(/<[^>]*>/g, '')) : (html ? html.replace(/<[^>]*>/g, '') : '');
 
         const info = await transporter.sendMail({

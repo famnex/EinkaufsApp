@@ -112,18 +112,18 @@ class NewsletterService {
                 const mandatoryFooter = `
 <br><br>
 <hr>
-<p style="font-size: 11px; color: #666;">
-    Du erhältst diese E-Mail weil du dich für unseren Newsletter am ${signupDate} angemeldet hast.<br>
-    <a href="${unsubscribeUrl}">Klicke hier</a>, falls du keinen Newsletter mehr von uns erhalten willst.
+<p style="font-size: 8px; color: #666;">
+    Du erhältst diesen Newsletter, weil du am ${signupDate} unseren Newsletter abonniert hast.<br>
+    Du möchtest keine Newsletter mehr von uns erhalten? Dann klick <a href="${unsubscribeUrl}">auf diesen Link</a>.
 </p>`;
 
-                const fullBody = personalizedBody + (newsletter.footer ? `\n\n---\n${newsletter.footer}` : '') + mandatoryFooter;
+                const fullBody = personalizedBody + (newsletter.footer ? `<div style="margin-top: 30px;">${newsletter.footer}</div>` : '') + mandatoryFooter;
 
                 await transporter.sendMail({
                     from: fromAddress,
                     to: recipient.User.email,
                     subject: newsletter.subject,
-                    html: fullBody.replace(/\n/g, '<br>')
+                    html: fullBody
                 });
 
                 recipient.status = 'sent';

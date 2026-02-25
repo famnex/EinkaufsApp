@@ -4,6 +4,7 @@ const { Email, Settings, User } = require('../models');
 const { auth } = require('../middleware/auth');
 const nodemailer = require('nodemailer');
 const { fetchEmailsForUser } = require('../services/messagingService');
+const { getGlobalFooter } = require('../services/emailService');
 
 // Helper: Get SMTP settings (Global Admin)
 async function getSmtpSettings() {
@@ -212,14 +213,21 @@ router.post('/send', auth, async (req, res) => {
         });
 
         const fromAddress = smtp.smtpSenderName ? `"${smtp.smtpSenderName}" <${smtp.smtpFrom || smtp.smtpUser}>` : (smtp.smtpFrom || smtp.smtpUser);
+        const globalFooter = await getGlobalFooter();
+        const baseHtml = body || '';
+        const baseText = body ? body.replace(/<[^>]*>/g, '') : '';
+
+        const finalHtml = baseHtml + globalFooter;
+        const finalText = baseText + globalFooter.replace(/<[^>]*>/g, '');
+
         const mailOptions = {
             from: fromAddress,
             to,
             cc,
             bcc,
             subject: subject || '',
-            html: body || '',
-            text: body ? body.replace(/<[^>]*>/g, '') : ''
+            html: finalHtml,
+            text: finalText
         };
 
         if (inReplyTo) {
@@ -238,8 +246,8 @@ router.post('/send', auth, async (req, res) => {
             cc: cc || null,
             bcc: bcc || null,
             subject: subject || '',
-            body: body || '',
-            bodyText: body ? body.replace(/<[^>]*>/g, '') : '',
+            body: finalHtml,
+            bodyText: finalText,
             isRead: true,
             date: new Date(),
             inReplyTo: inReplyTo || null,
