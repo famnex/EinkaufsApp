@@ -10,6 +10,7 @@ import { motion } from 'framer-motion';
 // ThemeToggle removed as it's in PublicLayout
 import api from '../lib/axios';
 import PublicLayout from '../components/PublicLayout';
+import { cn } from '../lib/utils';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
@@ -154,9 +155,26 @@ export default function LoginPage() {
                                 <motion.div
                                     initial={{ opacity: 0, y: -10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive"
+                                    className={cn(
+                                        "p-4 rounded-xl border flex flex-col gap-2",
+                                        error === 'Unverifiziert'
+                                            ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-500"
+                                            : "bg-destructive/10 border-destructive/20 text-destructive text-xs"
+                                    )}
                                 >
-                                    {error}
+                                    {error === 'Unverifiziert' ? (
+                                        <>
+                                            <div className="flex items-center gap-2 font-bold text-sm">
+                                                <Mail size={16} /> E-Mail bestätigen
+                                            </div>
+                                            <p className="text-xs leading-relaxed">
+                                                Bitte bestätige zuerst deine E-Mail-Adresse. Wir haben dir einen Bestätigungslink gesendet.
+                                                Schau bitte auch in deinen <span className="font-bold underline">Spam-Ordner</span>.
+                                            </p>
+                                        </>
+                                    ) : (
+                                        error
+                                    )}
                                 </motion.div>
                             )}
 

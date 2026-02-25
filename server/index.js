@@ -22,8 +22,8 @@ app.use((req, res, next) => {
     if (req.originalUrl.includes('/webhook/stripe')) {
         next();
     } else {
-        // Für alle anderen Routen, nutze normales JSON
-        express.json()(req, res, next);
+        // Für alle anderen Routen, nutze normales JSON mit erhöhtem Limit
+        express.json({ limit: '2mb' })(req, res, next);
     }
 });
 
@@ -61,6 +61,7 @@ apiRouter.use('/alexa', require('./src/routes/alexa'));
 apiRouter.use('/messaging', require('./src/routes/messaging'));
 apiRouter.use('/compliance', require('./src/routes/compliance'));
 apiRouter.use('/subscription', require('./src/routes/subscription'));
+apiRouter.use('/newsletter', require('./src/routes/newsletter'));
 
 // Mount API
 app.use(`${BASE_PATH}/api`, apiRouter);
@@ -280,6 +281,10 @@ sequelize.sync({ alter: false }).then(() => {
     initEmailCron();
     initBanCron();
     initSubscriptionCron();
+
+    // Start Newsletter Worker
+    const newsletterService = require('./src/services/newsletterService');
+    newsletterService.startProcessing();
 
     app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);

@@ -29,6 +29,9 @@ Zentrales Benutzermodell.
 - `pendingTier` (ENUM): 'Silbergabel', 'none' - Scheduled downgrade [NEW v0.26.8].
 - `newsletterSignedUp` (BOOLEAN): Newsletter-Status [NEW v0.24.1].
 - `newsletterSignupDate` (DATE): Datum der Newsletter-Anmeldung [NEW v0.24.1].
+- `isEmailVerified` (BOOLEAN): Status der E-Mail-Bestätigung [NEW v0.29.0].
+- `emailVerificationToken` (STRING): Token für E-Mail-Aktivierung [NEW v0.29.0].
+- `pendingEmail` (STRING): Temporäre Speicherung bei E-Mail-Änderung [NEW v0.29.0].
 - `bannedAt` (DATETIME, NULLABLE): Wenn gesetzt, ist das öffentliche Kochbuch gesperrt.
 
 ### `CreditTransactions` [NEW]
@@ -161,6 +164,10 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 8.  **Logging Expansion (v0.26.9)**: `node server/migrations/migrate_v0.26.9_logging_expansion.js`
     - Neue Tabelle `SubscriptionLogs`.
     - Erweiterung der Log-Suche im Admin-Bereich (Login, Abo, Credits).
+
+9.  **Email Verification (v0.29.0)**: `node server/migrations/migrate_v0.29.0_email_verification.js`
+    - Fügt `isEmailVerified`, `emailVerificationToken` und `pendingEmail` Spalten zu `Users` hinzu.
+    - Setzt `isEmailVerified` für bestehende User standardmäßig auf `true`.
 
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*

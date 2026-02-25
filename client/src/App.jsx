@@ -29,6 +29,7 @@ import CommunityCookbooksContent from './components/CommunityCookbooksContent';
 import LegalPage from './pages/LegalPage';
 import CompliancePage from './pages/CompliancePage';
 import ShareTargetHandler from './pages/ShareTargetHandler';
+import VerifyEmail from './pages/VerifyEmail';
 
 import { PullToRefresh } from './components/PullToRefresh';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -216,6 +217,7 @@ function AppContent() {
               <Route path="/signup" element={<Signup />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/verify-email" element={<VerifyEmail />} />
 
               {/* Public Shared Routes */}
               <Route path="/shared/:sharingKey/recipe/:id" element={<PublicLayout><SharedRecipe /></PublicLayout>} />

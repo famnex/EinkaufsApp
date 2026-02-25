@@ -71,15 +71,30 @@ export default function SharedCookingMode({ recipe, onClose }) {
         return sortIngredientsBySteps(rawIngredients, steps);
     }, [rawIngredients, steps]);
 
+    // Precompute cumulative occurrence offsets per step so duplicate ingredients
+    // are mapped to the correct list entry (1st text occurrence -> 1st ingredient, etc.)
+    const occurrencesByStep = useMemo(() => {
+        const result = [{}]; // result[i] = occurrencesBefore for step i
+        for (let i = 0; i < steps.length; i++) {
+            const { localOccurrences } = findIngredientsInText(steps[i], ingredients, result[i]);
+            const next = { ...result[i] };
+            Object.entries(localOccurrences).forEach(([k, v]) => {
+                next[k] = (next[k] || 0) + v;
+            });
+            result.push(next);
+        }
+        return result;
+    }, [steps, ingredients]);
+
     // --- NEW: Parse Steps for Highlighting ---
     const stepFragments = useMemo(() => {
         const currentText = steps[step];
         if (!currentText) return [];
 
-        const matches = findIngredientsInText(currentText, ingredients);
+        const { matches } = findIngredientsInText(currentText, ingredients, occurrencesByStep[step] || {});
 
         // No matches -> return single text fragment
-        if (matches.length === 0) return [{ text: currentText, type: 'text' }];
+        if (!matches || matches.length === 0) return [{ text: currentText, type: 'text' }];
 
         const fragments = [];
         let lastIndex = 0;

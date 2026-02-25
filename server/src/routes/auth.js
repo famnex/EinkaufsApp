@@ -77,11 +77,37 @@ router.get('/public-cookbooks', async (req, res) => {
     }
 });
 
+// Check if email exists
+router.get('/check-email', async (req, res) => {
+    try {
+        const { email } = req.query;
+        if (!email) return res.status(400).json({ error: 'Email is required' });
+
+        const user = await User.findOne({ where: { email } });
+        res.json({ exists: !!user });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Check if username exists
+router.get('/check-username', async (req, res) => {
+    try {
+        const { username } = req.query;
+        if (!username) return res.status(400).json({ error: 'Username is required' });
+
+        const user = await User.findOne({ where: { username } });
+        res.json({ exists: !!user });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Get current user profile
 router.get('/me', auth, async (req, res) => {
     try {
         const user = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
+            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
         });
         if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -142,7 +168,7 @@ router.put('/profile', auth, upload.single('image'), async (req, res) => {
 
         await User.update(updates, { where: { id: req.user.id } });
         const updatedUser = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
+            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
         });
         res.json(updatedUser);
     } catch (err) {
@@ -189,14 +215,36 @@ router.put('/email', auth, async (req, res) => {
             return res.status(400).json({ error: 'Diese Email-Adresse wird bereits verwendet' });
         }
 
-        // Update email
-        await user.update({ email: newEmail });
+        // Generate Verification Token
+        const verificationToken = crypto.randomBytes(32).toString('hex');
 
-        const updatedUser = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
+        // Store in pendingEmail
+        await user.update({
+            pendingEmail: newEmail,
+            emailVerificationToken: verificationToken
         });
 
-        res.json({ success: true, user: updatedUser });
+        // Send Email to NEW address
+        const verifyLink = `${process.env.FRONTEND_URL || req.headers.origin}/verify-email?token=${verificationToken}`;
+        const html = `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                <h2 style="color: #4f46e5;">E-Mail-Adresse bestätigen</h2>
+                <p>Hallo <strong>${user.username}</strong>,</p>
+                <p>du hast angefordert, deine E-Mail-Adresse zu ändern. Bitte bestätige die neue Adresse, um die Änderung abzuschließen:</p>
+                <div style="margin: 30px 0; text-align: center;">
+                    <a href="${verifyLink}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">E-Mail bestätigen</a>
+                </div>
+                <p>Oder kopiere diesen Link in deinen Browser:</p>
+                <p style="font-size: 12px; color: #64748b;">${verifyLink}</p>
+                <p style="font-size: 11px; color: #94a3b8;">Falls du diese Änderung nicht angefordert hast, kannst du diese E-Mail einfach ignorieren. Die alte Adresse bleibt weiterhin aktiv.</p>
+            </div>
+        `;
+        await sendEmail(newEmail, 'Bestätige deine neue E-Mail-Adresse', html);
+
+        res.json({
+            success: true,
+            message: 'Wir haben eine Bestätigungs-E-Mail an deine neue Adresse gesendet. Bitte klicke auf den Link in der E-Mail, um die Änderung abzuschließen.'
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -236,7 +284,10 @@ router.put('/password', auth, async (req, res) => {
 
         // Hash and update password
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await user.update({ password: hashedPassword });
+        await user.update({
+            password: hashedPassword,
+            tokenVersion: user.tokenVersion + 1
+        });
 
         res.json({ success: true, message: 'Passwort erfolgreich geändert' });
     } catch (err) {
@@ -384,6 +435,24 @@ router.post('/household/join', auth, async (req, res) => {
             await req.user.update({ householdId: targetHouseholdId }, { transaction: t });
         });
 
+        // Fetch owner details for the email
+        const owner = await User.findByPk(targetHouseholdId);
+        if (owner && req.user.email) {
+            const tierName = owner.tier || 'Plastikgabel';
+            const html = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                    <h2 style="color: #4f46e5;">Willkommen im Haushalt!</h2>
+                    <p>Hallo <strong>${req.user.username}</strong>,</p>
+                    <p>du wurdest erfolgreich zum Haushalt von <strong>${owner.username}</strong> hinzugefügt.</p>
+                    <p>Da du nun Teil dieses Haushalts bist, bist du automatisch im <strong>${tierName}</strong> Abo von ${owner.username} inkludiert und kannst alle Premium-Vorteile mitnutzen.</p>
+                    <p>Viel Spaß beim gemeinsamen Planen und Kochen!</p>
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                    <p style="font-size: 12px; color: #64748b;">Diese Email wurde automatisch von Gabelguru versendet.</p>
+                </div>
+            `;
+            sendEmail(req.user.email, 'Willkommen im Haushalt!', html).catch(err => console.error('Failed to send join email:', err));
+        }
+
         const updatedUser = await User.findByPk(joiningUserId, {
             attributes: ['id', 'username', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId']
         });
@@ -405,6 +474,22 @@ router.post('/household/leave', auth, async (req, res) => {
         }
 
         await req.user.update({ householdId: null });
+
+        if (req.user.email) {
+            const html = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                    <h2 style="color: #4f46e5;">Haushalt verlassen</h2>
+                    <p>Hallo <strong>${req.user.username}</strong>,</p>
+                    <p>du hast den Haushalt erfolgreich verlassen.</p>
+                    <p>Wie angekündigt, ist dein Konto nun wieder eigenständig und "leer", da du keinen Zugriff mehr auf die geteilten Listen, Produkte und Rezepte des Haushalts hast.</p>
+                    <p>Du kannst jederzeit ein eigenes Abo abschließen oder einem anderen Haushalt beitreten.</p>
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                    <p style="font-size: 12px; color: #64748b;">Diese Email wurde automatisch von Gabelguru versendet.</p>
+                </div>
+            `;
+            sendEmail(req.user.email, 'Haushalt verlassen', html).catch(err => console.error('Failed to send leave email:', err));
+        }
+
         res.json({ message: 'Haushalt erfolgreich verlassen.', user: req.user });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -430,6 +515,21 @@ router.delete('/household/remove/:memberId', auth, async (req, res) => {
         }
 
         await member.update({ householdId: null });
+
+        if (member.email) {
+            const html = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                    <h2 style="color: #4f46e5;">Haushalt verlassen</h2>
+                    <p>Hallo <strong>${member.username}</strong>,</p>
+                    <p>du wurdest aus dem Haushalt von <strong>${req.user.username}</strong> entfernt.</p>
+                    <p>Wie angekündigt, ist dein Konto nun wieder eigenständig und "leer", da du keinen Zugriff mehr auf die geteilten Listen, Produkte und Rezepte des Haushalts hast.</p>
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                    <p style="font-size: 12px; color: #64748b;">Diese Email wurde automatisch von Gabelguru versendet.</p>
+                </div>
+            `;
+            sendEmail(member.email, 'Haushalt verlassen', html).catch(err => console.error('Failed to send remove email:', err));
+        }
+
         res.json({ message: `Mitglied ${member.username} wurde aus dem Haushalt entfernt.` });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -510,6 +610,14 @@ router.post('/login', async (req, res) => {
             }
         }
 
+        // Check Email Verification Status
+        if (!user.isEmailVerified) {
+            return res.status(401).json({
+                error: 'Unverifiziert',
+                message: 'Bitte bestätige zuerst deine E-Mail-Adresse. Wir haben dir einen Bestätigungslink gesendet.'
+            });
+        }
+
         // Success Login
         await LoginLog.create({
             username: user.username,
@@ -519,9 +627,9 @@ router.post('/login', async (req, res) => {
             userAgent: req.headers['user-agent']
         });
 
-        const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '30d' });
+        const token = jwt.sign({ id: user.id, role: user.role, version: user.tokenVersion }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-        res.json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId } });
+        res.json({ token, user: { id: user.id, username: user.username, email: user.email, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId } });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -549,21 +657,80 @@ router.post('/signup', async (req, res) => {
         if (existingEmail) return res.status(400).json({ error: 'Email already exists' });
 
         const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Generate Verification Token
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+
         const user = await User.create({
             username,
             password: hashedPassword,
             email,
             role: isFirstUser ? 'admin' : 'user', // First user is always admin
             newsletterSignedUp: !!newsletter,
-            newsletterSignupDate: newsletter ? new Date() : null
+            newsletterSignupDate: newsletter ? new Date() : null,
+            isEmailVerified: isFirstUser, // Admin (first user) is auto-verified
+            emailVerificationToken: isFirstUser ? null : verificationToken
         });
 
-        const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '30d' });
+        if (!isFirstUser) {
+            const verifyLink = `${process.env.FRONTEND_URL || req.headers.origin}/verify-email?token=${verificationToken}`;
+            const html = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                    <h2 style="color: #4f46e5;">Willkommen bei Gabelguru!</h2>
+                    <p>Hallo <strong>${username}</strong>,</p>
+                    <p>vielen Dank für deine Registrierung. Bitte bestätige deine E-Mail-Adresse, um dein Konto zu aktivieren:</p>
+                    <div style="margin: 30px 0; text-align: center;">
+                        <a href="${verifyLink}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">E-Mail bestätigen</a>
+                    </div>
+                    <p>Oder kopiere diesen Link in deinen Browser:</p>
+                    <p style="font-size: 12px; color: #64748b;">${verifyLink}</p>
+                    <p style="font-size: 11px; color: #94a3b8;">Falls du dich nicht bei Gabelguru registriert hast, kannst du diese E-Mail ignorieren.</p>
+                </div>
+            `;
+            await sendEmail(email, 'Aktiviere dein Gabelguru-Konto', html);
+
+            return res.status(201).json({
+                message: 'Bitte prüfe deine E-Mails, um dein Konto zu aktivieren.',
+                needsVerification: true
+            });
+        }
+
+        const token = jwt.sign({ id: user.id, role: user.role, version: user.tokenVersion }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
         res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId } });
     } catch (err) {
         console.error('Signup Error:', err); // Debug Log
         if (!process.env.JWT_SECRET) console.error('CRITICAL: JWT_SECRET is missing!');
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Verify Email
+router.post('/verify-email', async (req, res) => {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'Token ist erforderlich' });
+
+    try {
+        const user = await User.findOne({ where: { emailVerificationToken: token } });
+        if (!user) return res.status(400).json({ error: 'Ungültiger oder abgelaufener Token' });
+
+        const isEmailChange = !!user.pendingEmail;
+        const oldEmail = user.email;
+        const newEmail = user.pendingEmail;
+
+        await user.update({
+            isEmailVerified: true,
+            emailVerificationToken: null,
+            email: isEmailChange ? newEmail : user.email,
+            pendingEmail: null,
+            tokenVersion: user.tokenVersion + 1
+        });
+
+        res.json({
+            message: isEmailChange ? 'E-Mail-Adresse erfolgreich geändert' : 'Konto erfolgreich aktiviert',
+            email: user.email
+        });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
@@ -635,7 +802,8 @@ router.post('/reset-password', async (req, res) => {
         await user.update({
             password: hashedPassword,
             resetPasswordToken: null,
-            resetPasswordExpires: null
+            resetPasswordExpires: null,
+            tokenVersion: user.tokenVersion + 1
         });
 
         res.json({ message: 'Passwort erfolgreich geändert' });

@@ -45,7 +45,11 @@ const User = sequelize.define('User', {
     banExpiresAt: { type: DataTypes.DATE, allowNull: true },
     isPermanentlyBanned: { type: DataTypes.BOOLEAN, defaultValue: false },
     resetPasswordToken: { type: DataTypes.STRING, allowNull: true },
-    resetPasswordExpires: { type: DataTypes.DATE, allowNull: true }
+    resetPasswordExpires: { type: DataTypes.DATE, allowNull: true },
+    isEmailVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
+    emailVerificationToken: { type: DataTypes.STRING, allowNull: true },
+    pendingEmail: { type: DataTypes.STRING, allowNull: true },
+    tokenVersion: { type: DataTypes.INTEGER, defaultValue: 0 }
 });
 
 const Manufacturer = sequelize.define('Manufacturer', {
@@ -179,6 +183,8 @@ const Tag = require('./Tag')(sequelize);
 const LoginLog = require('./LoginLog')(sequelize);
 const SubscriptionLog = require('./SubscriptionLog')(sequelize);
 const ComplianceReport = require('./ComplianceReport')(sequelize);
+const Newsletter = require('./Newsletter')(sequelize);
+const NewsletterRecipient = require('./NewsletterRecipient')(sequelize);
 
 LoginLog.belongsTo(User);
 SubscriptionLog.belongsTo(User);
@@ -187,6 +193,11 @@ User.hasMany(SubscriptionLog);
 
 ComplianceReport.belongsTo(User, { as: 'accusedUser', foreignKey: 'accusedUserId' });
 User.hasMany(ComplianceReport, { as: 'strikes', foreignKey: 'accusedUserId' });
+
+Newsletter.hasMany(NewsletterRecipient, { foreignKey: 'NewsletterId', onDelete: 'CASCADE' });
+NewsletterRecipient.belongsTo(Newsletter, { foreignKey: 'NewsletterId' });
+NewsletterRecipient.belongsTo(User, { foreignKey: 'UserId' });
+User.hasMany(NewsletterRecipient, { foreignKey: 'UserId' });
 
 Recipe.hasMany(Menu);
 Menu.belongsTo(Recipe);
@@ -232,7 +243,8 @@ List.hasMany(ProductSubstitution, { foreignKey: 'ListId' });
 
 const Email = sequelize.define('Email', {
     messageId: { type: DataTypes.STRING, allowNull: true, unique: true },
-    folder: { type: DataTypes.ENUM('inbox', 'sent', 'trash'), defaultValue: 'inbox' },
+    folder: { type: DataTypes.ENUM('inbox', 'sent', 'sent_system', 'daemon', 'newsletter', 'trash'), defaultValue: 'inbox' },
+    previousFolder: { type: DataTypes.STRING, allowNull: true },
     fromAddress: { type: DataTypes.STRING, allowNull: false },
     toAddress: { type: DataTypes.STRING, allowNull: false },
     cc: { type: DataTypes.TEXT, allowNull: true },
@@ -242,7 +254,8 @@ const Email = sequelize.define('Email', {
     bodyText: { type: DataTypes.TEXT, allowNull: true },
     isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
     date: { type: DataTypes.DATE, allowNull: true },
-    inReplyTo: { type: DataTypes.STRING, allowNull: true }
+    inReplyTo: { type: DataTypes.STRING, allowNull: true },
+    flag: { type: DataTypes.ENUM('none', 'flagged', 'completed'), defaultValue: 'none' }
 });
 
 Email.belongsTo(User);
@@ -270,5 +283,7 @@ module.exports = {
     LoginLog,
     SubscriptionLog,
     Email,
-    ComplianceReport
+    ComplianceReport,
+    Newsletter,
+    NewsletterRecipient
 };

@@ -20,8 +20,14 @@ export const AuthProvider = ({ children }) => {
                     localStorage.setItem('user', JSON.stringify(data));
                 } catch (err) {
                     console.error('Failed to sync user profile', err);
-                    const userData = JSON.parse(localStorage.getItem('user'));
-                    setUser(userData);
+                    if (err.response?.status === 401) {
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('user');
+                        setUser(null);
+                    } else {
+                        const userData = JSON.parse(localStorage.getItem('user'));
+                        setUser(userData || null);
+                    }
                 }
             }
             setLoading(false);
@@ -51,6 +57,11 @@ export const AuthProvider = ({ children }) => {
 
     const signup = async (username, password, email, newsletter = false) => {
         const { data } = await api.post('/auth/signup', { username, password, email, newsletter });
+
+        if (data.needsVerification) {
+            return data;
+        }
+
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;

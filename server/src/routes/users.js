@@ -258,8 +258,6 @@ router.post('/:id/ban', async (req, res) => {
             <p>dein Konto wurde vorübergehend gesperrt.</p>
             <p><b>Dauer:</b> ${durationText}</p>
             <p><b>Grund:</b> ${reason || 'Verstoß gegen die Richtlinien'}</p>
-            <br>
-            <p>Falls du Fragen dazu hast, antworte bitte auf diese Email.</p>
         `;
         await sendEmail(user.email, 'Dein Konto wurde gesperrt', html);
 
@@ -288,8 +286,6 @@ router.post('/:id/unban', async (req, res) => {
             <h3>Konto reaktiviert</h3>
             <p>Hallo ${user.username},</p>
             <p>dein Konto wurde soeben wieder freigeschaltet. Du kannst dich nun wieder wie gewohnt anmelden.</p>
-            <br>
-            <p>Viel Spaß weiterhin mit GabelGuru!</p>
         `;
         await sendEmail(user.email, 'Dein Konto wurde wieder freigeschaltet', html);
 

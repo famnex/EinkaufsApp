@@ -3,6 +3,7 @@ const router = express.Router();
 const { auth } = require('../middleware/auth');
 const paymentService = require('../services/paymentService');
 const creditService = require('../services/creditService');
+const { sendEmail } = require('../services/messagingService');
 const { User, CreditTransaction, SubscriptionLog, sequelize } = require('../models');
 
 /**
@@ -112,7 +113,7 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
 
     try {
         switch (event.type) {
-            case 'checkout.session.completed':
+            case 'checkout.session.completed': {
                 const session = event.data.object;
                 const { userId, tier } = session.metadata;
 
@@ -143,9 +144,30 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                 // Add initial coins
                 const initialCoins = tier === 'Goldgabel' ? 1500 : 600;
                 await creditService.addCredits(userId, initialCoins, `Willkommens-Credits für ${tier}`);
-                break;
 
-            case 'customer.subscription.deleted':
+                // Send Upgrade Email
+                if (checkoutUser.email) {
+                    const benefits = tier === 'Goldgabel'
+                        ? 'Unbegrenzter KI-Text-Assistent, bevorzugte Bildgenerierung zum Sparpreis und monatlich 1.500 Coins'
+                        : 'Alle KI-Funktionen freigeschaltet und monatlich 600 Coins für deine kulinarischen Abenteuer';
+
+                    const html = `
+                        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                            <h2 style="color: #4f46e5;">Dein Gabelguru-Upgrade!</h2>
+                            <p>Hallo <strong>${checkoutUser.username}</strong>,</p>
+                            <p>vielen Dank für deine Bestellung! Dein Upgrade auf das <strong>${tier}</strong> Abo war erfolgreich.</p>
+                            <p>Dir stehen ab sofort folgende Vorteile zur Verfügung:</p>
+                            <ul style="color: #475569;"><li>${benefits}</li></ul>
+                            <p>Deine ersten <strong>${initialCoins} Coins</strong> wurden soeben gutgeschrieben.</p>
+                            <p>Viel Spaß beim Kochen mit KI-Unterstützung!</p>
+                        </div>
+                    `;
+                    sendEmail(checkoutUser.email, `Dein Upgrade auf ${tier}`, html).catch(err => console.error('Failed to send checkout email:', err));
+                }
+                break;
+            }
+
+            case 'customer.subscription.deleted': {
                 const subscription = event.data.object;
                 const userInstance = await User.findOne({ where: { stripeSubscriptionId: subscription.id } });
                 if (userInstance) {
@@ -167,8 +189,9 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                     });
                 }
                 break;
+            }
 
-            case 'customer.subscription.updated':
+            case 'customer.subscription.updated': {
                 const updatedSub = event.data.object;
                 const subUser = await User.findOne({ where: { stripeSubscriptionId: updatedSub.id } });
 
@@ -210,10 +233,30 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                         ipHash: 'webhook',
                         userAgent: 'Stripe-Webhook'
                     });
+
+                    // Send Upgrade Email
+                    if (subUser.email) {
+                        const benefits = newTier === 'Goldgabel'
+                            ? 'Unbegrenzter KI-Text-Assistent, bevorzugte Bildgenerierung zum Sparpreis und monatlich 1.500 Coins'
+                            : 'Alle KI-Funktionen freigeschaltet und monatlich 600 Coins';
+                        const newCoins = (subUser.aiCredits || 0) + 900;
+                        const html = `
+                            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                                <h2 style="color: #4f46e5;">Abo-Upgrade erfolgreich!</h2>
+                                <p>Hallo <strong>${subUser.username}</strong>,</p>
+                                <p>dein Wechsel von ${oldTier} auf <strong>${newTier}</strong> wurde erfolgreich durchgeführt.</p>
+                                <p>Deine neuen Vorteile:</p>
+                                <ul style="color: #475569;"><li>${benefits}</li></ul>
+                                <p>Dein Coin-Stand wurde um die Differenz erhöht und beträgt nun ca. <strong>${newCoins} Coins</strong>.</p>
+                            </div>
+                        `;
+                        sendEmail(subUser.email, `Upgrade auf ${newTier} bestätigt`, html).catch(err => console.error('Failed to send upgrade email:', err));
+                    }
                 }
 
                 await subUser.update(updateData);
                 break;
+            }
 
             case 'invoice.payment_succeeded': {
                 const invoice = event.data.object;
@@ -245,6 +288,21 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                         });
 
                         console.log(`[Subscription] Renewed for ${renewalUser.username}, +${monthlyCoins} credits`);
+
+                        // Send Renewal Email
+                        if (renewalUser.email) {
+                            const newTotal = (renewalUser.aiCredits || 0) + monthlyCoins;
+                            const html = `
+                                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                                    <h2 style="color: #4f46e5;">Dein Abo wurde verlängert!</h2>
+                                    <p>Hallo <strong>${renewalUser.username}</strong>,</p>
+                                    <p>dein <strong>${renewalUser.tier}</strong> Abo wurde erfolgreich um einen weiteren Monat verlängert. Vielen Dank für deine Treue!</p>
+                                    <p>Wir haben dir soeben deine monatlichen <strong>${monthlyCoins} Coins</strong> gutgeschrieben. Dein neuer Stand beträgt: <strong>${newTotal} Coins</strong>.</p>
+                                    <p>Viel Spaß beim Kochen!</p>
+                                </div>
+                            `;
+                            sendEmail(renewalUser.email, 'Abo verlängert & Coins erhalten', html).catch(err => console.error('Failed to send renewal email:', err));
+                        }
                     }
                 }
                 break;
@@ -305,6 +363,23 @@ router.post('/cancel', auth, async (req, res) => {
             ipHash: req.ip || 'unknown',
             userAgent: req.headers['user-agent'] || 'unknown'
         });
+
+        // Send Cancellation Email
+        if (user.email) {
+            const expiryDate = user.subscriptionExpiresAt ? new Date(user.subscriptionExpiresAt).toLocaleDateString('de-DE') : 'Ende der Laufzeit';
+            const html = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #fecaca; border-radius: 12px; background-color: #fef2f2;">
+                    <h2 style="color: #dc2626;">Kündigungsbestätigung</h2>
+                    <p>Hallo <strong>${user.username}</strong>,</p>
+                    <p>hiermit bestätigen wir deine Kündigung für das <strong>${user.tier}</strong> Abo.</p>
+                    <p>Deine Premium-Funktionen (wie KI-Kochassistent, automatische Resteverwertung und erweiterte Statistik) stehen dir noch bis zum <strong>${expiryDate}</strong> zur Verfügung.</p>
+                    <p><strong>Wichtiger Hinweis:</strong> Eventuelle Restcoins verfallen zum Ende der Laufzeit am ${expiryDate}.</p>
+                    <p>Wir hoffen, dich bald wieder als Abonnenten begrüßen zu dürfen!</p>                    
+                </div>
+            `;
+            sendEmail(user.email, 'Bestätigung deiner Kündigung', html).catch(err => console.error('Failed to send cancel email:', err));
+        }
+
         res.json({ message: 'Abo zum Ende der Laufzeit gekündigt.' });
     } catch (err) {
         res.status(500).json({ error: err.message });

@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Card } from '../components/Card';
+import { cn } from '../lib/utils';
 import PublicLayout from '../components/PublicLayout';
 import axios from '../lib/axios';
 
@@ -20,6 +21,62 @@ export default function SignupPage() {
     const [step, setStep] = useState('register'); // 'register' | 'legal'
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isEmailChecking, setIsEmailChecking] = useState(false);
+    const [emailExists, setEmailExists] = useState(false);
+    const [isUsernameChecking, setIsUsernameChecking] = useState(false);
+    const [usernameExists, setUsernameExists] = useState(false);
+    const [verificationSent, setVerificationSent] = useState(false);
+
+    // Email existence check with debounce
+    useEffect(() => {
+        setEmailExists(false); // Reset immediately on change
+        if (!email || step !== 'register') {
+            return;
+        }
+
+        // Validate basic email format before checking
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            setEmailExists(false);
+            return;
+        }
+
+        const timer = setTimeout(async () => {
+            setIsEmailChecking(true);
+            try {
+                const { data } = await axios.get(`/auth/check-email?email=${encodeURIComponent(email)}`);
+                setEmailExists(data.exists);
+            } catch (err) {
+                console.error("Failed to check email exists", err);
+            } finally {
+                setIsEmailChecking(false);
+            }
+        }, 500); // 500ms debounce
+
+        return () => clearTimeout(timer);
+    }, [email, step]);
+
+    // Username existence check with debounce
+    useEffect(() => {
+        setUsernameExists(false); // Reset immediately on change
+        if (!username || username.length < 2 || step !== 'register') {
+            return;
+        }
+
+        const timer = setTimeout(async () => {
+            setIsUsernameChecking(true);
+            try {
+                const { data } = await axios.get(`/auth/check-username?username=${encodeURIComponent(username)}`);
+                setUsernameExists(data.exists);
+            } catch (err) {
+                console.error("Failed to check username exists", err);
+            } finally {
+                setIsUsernameChecking(false);
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [username, step]);
 
     // Legal & Newsletter
     const [termsContent, setTermsContent] = useState('');
@@ -75,6 +132,16 @@ export default function SignupPage() {
             return;
         }
 
+        if (emailExists) {
+            setError('Diese E-Mail-Adresse wird bereits verwendet.');
+            return;
+        }
+
+        if (usernameExists) {
+            setError('Dieser Benutzername ist bereits vergeben.');
+            return;
+        }
+
         if (password.length < 6) {
             setError('Das Passwort muss mindestens 6 Zeichen lang sein.');
             return;
@@ -94,8 +161,13 @@ export default function SignupPage() {
         setIsLoading(true);
         try {
             // Pass newsletter flag to signup
-            await signup(username, password, email, subscribeNewsletter);
-            navigate(from, { replace: true });
+            const result = await signup(username, password, email, subscribeNewsletter);
+
+            if (result?.needsVerification) {
+                setVerificationSent(true);
+            } else {
+                navigate(from, { replace: true });
+            }
         } catch (err) {
             setError(err.response?.data?.error || 'Konto konnte nicht erstellt werden. Bitte versuchen Sie es erneut.');
         } finally {
@@ -138,7 +210,29 @@ export default function SignupPage() {
                         </div>
 
                         <AnimatePresence mode="wait">
-                            {step === 'register' ? (
+                            {verificationSent ? (
+                                <motion.div
+                                    key="verification-sent"
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="text-center py-6"
+                                >
+                                    <div className="mb-6 mx-auto w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                                        <Mail size={40} className="animate-bounce" />
+                                    </div>
+                                    <h2 className="text-2xl font-bold mb-4">Fast geschafft! 📧</h2>
+                                    <p className="text-muted-foreground mb-8">
+                                        Wir haben eine Bestätigungs-E-Mail an <span className="text-foreground font-semibold">{email}</span> gesendet.
+                                        Bitte klicke auf den Link in der E-Mail, um dein Konto zu aktivieren.
+                                    </p>
+                                    <Button as={Link} to="/login" variant="secondary" className="w-full">
+                                        Zur Anmeldung
+                                    </Button>
+                                    <p className="mt-6 text-xs text-muted-foreground">
+                                        Nichts erhalten? Schau auch in deinem Spam-Ordner nach.
+                                    </p>
+                                </motion.div>
+                            ) : step === 'register' ? (
                                 <motion.form
                                     key="register-form"
                                     initial={{ x: -20, opacity: 0 }}
@@ -155,9 +249,17 @@ export default function SignupPage() {
                                             onChange={(e) => setUsername(e.target.value)}
                                             placeholder="Dein eindeutiger Benutzername"
                                             required
-                                            className="bg-background/50 border-border h-12"
+                                            className={cn(
+                                                "bg-background/50 border-border h-12",
+                                                usernameExists && "border-destructive ring-destructive/20 focus-visible:ring-destructive"
+                                            )}
                                             autoFocus
                                         />
+                                        {usernameExists && (
+                                            <p className="text-[10px] text-destructive font-bold uppercase tracking-wider ml-1 mt-1">
+                                                Dieser Benutzername ist bereits vergeben.
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">E-Mail-Adresse</label>
@@ -167,8 +269,16 @@ export default function SignupPage() {
                                             onChange={(e) => setEmail(e.target.value)}
                                             placeholder="du@beispiel.de"
                                             required
-                                            className="bg-background/50 border-border h-12"
+                                            className={cn(
+                                                "bg-background/50 border-border h-12",
+                                                emailExists && "border-destructive ring-destructive/20 focus-visible:ring-destructive"
+                                            )}
                                         />
+                                        {emailExists && (
+                                            <p className="text-[10px] text-destructive font-bold uppercase tracking-wider ml-1 mt-1">
+                                                Diese E-Mail-Adresse wird bereits verwendet.
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Passwort</label>
@@ -182,8 +292,13 @@ export default function SignupPage() {
                                         />
                                     </div>
 
-                                    <Button type="submit" className="w-full mt-4 gap-2" size="lg">
-                                        Weiter <ArrowRight size={18} />
+                                    <Button
+                                        type="submit"
+                                        className="w-full mt-4 gap-2"
+                                        size="lg"
+                                        disabled={emailExists || isEmailChecking || usernameExists || isUsernameChecking}
+                                    >
+                                        {isEmailChecking || isUsernameChecking ? 'Prüfe Daten...' : 'Weiter'} <ArrowRight size={18} />
                                     </Button>
                                 </motion.form>
                             ) : (

@@ -20,6 +20,12 @@ const auth = async (req, res, next) => {
                 return res.status(401).json({ error: 'User no longer exists.' });
             }
 
+            // Check token version for invalidation (e.g. after email/password change)
+            if (decoded.version !== undefined && user.tokenVersion !== undefined && decoded.version !== user.tokenVersion) {
+                console.warn(`Auth failed: Token version mismatch for User ${user.id}. Token: ${decoded.version}, DB: ${user.tokenVersion}`);
+                return res.status(401).json({ error: 'Session expired due to account changes. Please log in again.' });
+            }
+
             req.user = user;
             // Use householdId if set, otherwise fallback to own id for data scoping
             req.user.effectiveId = user.householdId || user.id;

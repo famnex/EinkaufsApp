@@ -113,7 +113,9 @@
 ### Emails
 - id (Integer, Primary Key)
 - messageId (String, Nullable, Unique email Message-ID, Unique Index)
-- folder (Enum: 'inbox', 'sent', 'trash')
+- folder (Enum: 'inbox', 'sent', 'sent_system', 'daemon', 'newsletter', 'trash')
+- previousFolder (Enum, Nullable, stores folder before move to trash)
+- flag (Enum: 'none', 'flagged', 'completed')
 - fromAddress (String)
 - toAddress (String)
 - cc (Text, Nullable)
@@ -124,7 +126,7 @@
 - isRead (Boolean, default false)
 - date (DateTime)
 - inReplyTo (String, Nullable, for threading)
-- UserId (Integer, Foreign Key -> Users)
+- UserId (Integer, Nullable, Foreign Key -> Users. Null for system/newsletter admin mails)
 
 ## Relations
 - Users have many Recipes
@@ -152,5 +154,29 @@
 - internalNote (Text)
 - screenshotPath (String)
 - accusedUserId (Integer, Foreign Key -> Users)
+- createdAt (DateTime)
+- updatedAt (DateTime)
+
+### Newsletters
+- id (Integer, Primary Key)
+- subject (String)
+- body (Text)
+- status (Enum: 'draft', 'sending', 'completed', 'failed')
+- recipientsCount (Integer)
+- sentCount (Integer)
+- failedCount (Integer)
+- batchSize (Integer)
+- waitMinutes (Integer)
+- footer (Text, Nullable)
+- createdAt (DateTime)
+- updatedAt (DateTime)
+
+### NewsletterRecipients
+- id (Integer, Primary Key)
+- NewsletterId (Integer, Foreign Key -> Newsletters)
+- UserId (Integer, Foreign Key -> Users)
+- status (Enum: 'pending', 'sent', 'failed')
+- error (Text, Nullable)
+- sentAt (DateTime, Nullable)
 - createdAt (DateTime)
 - updatedAt (DateTime)

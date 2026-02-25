@@ -5,12 +5,12 @@ const { auth } = require('../middleware/auth');
 const nodemailer = require('nodemailer');
 const { fetchEmailsForUser } = require('../services/messagingService');
 
-// Helper: Get SMTP settings for user
-async function getSmtpSettings(userId) {
+// Helper: Get SMTP settings (Global Admin)
+async function getSmtpSettings() {
     const keys = ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_from', 'smtp_sender_name', 'smtp_secure'];
     const settings = {};
     for (const key of keys) {
-        const s = await Settings.findOne({ where: { key, UserId: userId } });
+        const s = await Settings.findOne({ where: { key, UserId: null } });
         const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
         settings[camelKey] = s ? s.value : '';
     }
@@ -26,17 +26,31 @@ router.get('/', auth, async (req, res) => {
         const folder = req.query.folder || 'inbox';
         const page = parseInt(req.query.page) || 0;
         const limit = parseInt(req.query.limit) || 50;
+        const search = req.query.search || '';
+
+        const { Op } = require('sequelize');
+        const where = { folder, UserId: null };
+
+        if (search) {
+            where[Op.or] = [
+                { fromAddress: { [Op.like]: `%${search}%` } },
+                { toAddress: { [Op.like]: `%${search}%` } },
+                { subject: { [Op.like]: `%${search}%` } },
+                { body: { [Op.like]: `%${search}%` } },
+                { bodyText: { [Op.like]: `%${search}%` } }
+            ];
+        }
 
         const { count, rows: emails } = await Email.findAndCountAll({
-            where: { folder, UserId: req.user.id },
+            where,
             order: [['date', 'DESC']],
             offset: page * limit,
             limit,
-            attributes: ['id', 'messageId', 'folder', 'fromAddress', 'toAddress', 'cc', 'bcc', 'subject', 'isRead', 'date', 'inReplyTo']
+            attributes: ['id', 'messageId', 'folder', 'fromAddress', 'toAddress', 'cc', 'bcc', 'subject', 'isRead', 'date', 'inReplyTo', 'previousFolder', 'flag']
         });
 
         // Count unread per folder
-        const unreadInbox = await Email.count({ where: { folder: 'inbox', isRead: false, UserId: req.user.id } });
+        const unreadInbox = await Email.count({ where: { folder: 'inbox', isRead: false, UserId: null } });
 
         res.json({ emails, total: count, unreadInbox });
     } catch (err) {
@@ -45,12 +59,122 @@ router.get('/', auth, async (req, res) => {
     }
 });
 
+
+// BULK ACTIONS
+
+// PUT /bulk/trash - Bulk move to trash
+router.put('/bulk/trash', auth, async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+
+    try {
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: 'IDs erforderlich' });
+
+        const { Op } = require('sequelize');
+
+        // Find them first to store current folder
+        const emails = await Email.findAll({ where: { id: { [Op.in]: ids }, UserId: null } });
+
+        for (const email of emails) {
+            await email.update({
+                previousFolder: email.folder,
+                folder: 'trash'
+            });
+        }
+
+        res.json({ success: true, count: emails.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PUT /bulk/restore - Bulk restore from trash
+router.put('/bulk/restore', auth, async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+
+    try {
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: 'IDs erforderlich' });
+
+        const { Op } = require('sequelize');
+        const emails = await Email.findAll({ where: { id: { [Op.in]: ids }, UserId: null } });
+
+        const smtp = await getSmtpSettings();
+
+        for (const email of emails) {
+            let targetFolder = email.previousFolder;
+            if (!targetFolder) {
+                const isOurs = email.fromAddress === smtp.smtpFrom || email.fromAddress === smtp.smtpUser;
+                targetFolder = isOurs ? 'sent' : 'inbox';
+            }
+            await email.update({
+                folder: targetFolder,
+                previousFolder: null
+            });
+        }
+
+        res.json({ success: true, count: emails.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /bulk/delete - Bulk permanent delete
+router.post('/bulk/delete', auth, async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+
+    try {
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: 'IDs erforderlich' });
+
+        const { Op } = require('sequelize');
+        const count = await Email.destroy({
+            where: {
+                id: { [Op.in]: ids },
+                UserId: null
+            }
+        });
+
+        res.json({ success: true, count });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PUT /bulk/read - Bulk mark as read
+router.put('/bulk/read', auth, async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+    try {
+        const { ids } = req.body;
+        const { Op } = require('sequelize');
+        await Email.update({ isRead: true }, { where: { id: { [Op.in]: ids }, UserId: null } });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PUT /bulk/unread - Bulk mark as unread
+router.put('/bulk/unread', auth, async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+    try {
+        const { ids } = req.body;
+        const { Op } = require('sequelize');
+        await Email.update({ isRead: false }, { where: { id: { [Op.in]: ids }, UserId: null } });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// SINGLE ACTIONS
+
 // GET /:id - Get single email
 router.get('/:id', auth, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
 
     try {
-        const email = await Email.findOne({ where: { id: req.params.id, UserId: req.user.id } });
+        const email = await Email.findOne({ where: { id: req.params.id, UserId: null } });
         if (!email) return res.status(404).json({ error: 'Email nicht gefunden' });
 
         // Mark as read
@@ -72,7 +196,7 @@ router.post('/send', auth, async (req, res) => {
         const { to, cc, bcc, subject, body, inReplyTo } = req.body;
         if (!to) return res.status(400).json({ error: 'Empfänger ist erforderlich' });
 
-        const smtp = await getSmtpSettings(req.user.id);
+        const smtp = await getSmtpSettings();
         if (!smtp.smtpHost || !smtp.smtpPassword) {
             return res.status(400).json({ error: 'SMTP nicht konfiguriert. Bitte zuerst unter System > E-Mail einrichten.' });
         }
@@ -119,7 +243,7 @@ router.post('/send', auth, async (req, res) => {
             isRead: true,
             date: new Date(),
             inReplyTo: inReplyTo || null,
-            UserId: req.user.id
+            UserId: null
         });
 
         res.json({ success: true, messageId: info.messageId });
@@ -134,7 +258,7 @@ router.post('/fetch', auth, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
 
     try {
-        const result = await fetchEmailsForUser(req.user.id);
+        const result = await fetchEmailsForUser(null);
         if (!result.success) {
             return res.status(400).json({ error: result.error });
         }
@@ -145,15 +269,59 @@ router.post('/fetch', auth, async (req, res) => {
     }
 });
 
+// PUT /:id/read - Mark single as read
+router.put('/:id/read', auth, async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+    try {
+        await Email.update({ isRead: true }, { where: { id: req.params.id, UserId: null } });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PUT /:id/unread - Mark single as unread
+router.put('/:id/unread', auth, async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+    try {
+        await Email.update({ isRead: false }, { where: { id: req.params.id, UserId: null } });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PUT /:id/flag - Toggle/Cycle flag (none -> flagged -> completed -> none)
+router.put('/:id/flag', auth, async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+    try {
+        const email = await Email.findOne({ where: { id: req.params.id, UserId: null } });
+        if (!email) return res.status(404).json({ error: 'Not found' });
+
+        let nextFlag = 'none';
+        if (email.flag === 'none') nextFlag = 'flagged';
+        else if (email.flag === 'flagged') nextFlag = 'completed';
+        else nextFlag = 'none';
+
+        await email.update({ flag: nextFlag });
+        res.json({ success: true, flag: nextFlag });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // PUT /:id/trash - Move to trash
 router.put('/:id/trash', auth, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
 
     try {
-        const email = await Email.findOne({ where: { id: req.params.id, UserId: req.user.id } });
+        const email = await Email.findOne({ where: { id: req.params.id, UserId: null } });
         if (!email) return res.status(404).json({ error: 'Email nicht gefunden' });
 
-        await email.update({ folder: 'trash' });
+        await email.update({
+            previousFolder: email.folder,
+            folder: 'trash'
+        });
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -165,13 +333,21 @@ router.put('/:id/restore', auth, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
 
     try {
-        const email = await Email.findOne({ where: { id: req.params.id, UserId: req.user.id } });
+        const email = await Email.findOne({ where: { id: req.params.id, UserId: null } });
         if (!email) return res.status(404).json({ error: 'Email nicht gefunden' });
 
-        // Restore to original folder based on whether we sent it
-        const smtp = await getSmtpSettings(req.user.id);
-        const isOurs = email.fromAddress === smtp.smtpFrom || email.fromAddress === smtp.smtpUser;
-        await email.update({ folder: isOurs ? 'sent' : 'inbox' });
+        // Restore to original folder based on whether we sent it, or use previousFolder
+        let targetFolder = email.previousFolder;
+        if (!targetFolder) {
+            const smtp = await getSmtpSettings();
+            const isOurs = email.fromAddress === smtp.smtpFrom || email.fromAddress === smtp.smtpUser;
+            targetFolder = isOurs ? 'sent' : 'inbox';
+        }
+
+        await email.update({
+            folder: targetFolder,
+            previousFolder: null
+        });
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -183,7 +359,7 @@ router.delete('/:id', auth, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
 
     try {
-        const email = await Email.findOne({ where: { id: req.params.id, UserId: req.user.id } });
+        const email = await Email.findOne({ where: { id: req.params.id, UserId: null } });
         if (!email) return res.status(404).json({ error: 'Email nicht gefunden' });
 
         await email.destroy();

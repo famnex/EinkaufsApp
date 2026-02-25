@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, UserMinus, LogOut, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen, AlertTriangle, Folder, Calendar, CalendarX, Info } from 'lucide-react';
+import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, UserMinus, LogOut, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen, AlertTriangle, Folder, Calendar, CalendarX, Info, ShieldAlert, Server, Star, CheckCircle2 } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -17,8 +17,7 @@ import SubscriptionCancelModal from '../components/SubscriptionCancelModal';
 import HouseholdConfirmModal from '../components/HouseholdConfirmModal';
 import api from '../lib/axios';
 import { Search } from 'lucide-react';
-import ReactQuill from 'react-quill-new';
-import 'react-quill-new/dist/quill.snow.css';
+import RichTextEditor from '../components/RichTextEditor';
 
 export default function SettingsPage() {
     const navigate = useNavigate();
@@ -83,7 +82,10 @@ export default function SettingsPage() {
         imapPort: '993',
         imapUser: '',
         imapPassword: '',
-        imapSecure: true
+        imapSecure: true,
+        newsletterBatchSize: 50,
+        newsletterWaitMinutes: 5,
+        newsletterFooter: ''
     });
     const [savingEmail, setSavingEmail] = useState(false);
     const [testingEmail, setTestingEmail] = useState(false);
@@ -413,7 +415,10 @@ export default function SettingsPage() {
                     imapPort: emailRes.data.imapPort || '993',
                     imapUser: emailRes.data.imapUser || '',
                     imapPassword: '', // Never populate password from server
-                    imapSecure: emailRes.data.imapSecure === true
+                    imapSecure: emailRes.data.imapSecure === true,
+                    newsletterBatchSize: parseInt(emailRes.data.newsletterBatchSize) || 50,
+                    newsletterWaitMinutes: parseInt(emailRes.data.newsletterWaitMinutes) || 5,
+                    newsletterFooter: emailRes.data.newsletterFooter || ''
                 });
             } else {
                 console.log('No email settings found or empty response');
@@ -709,9 +714,7 @@ export default function SettingsPage() {
         setChangingEmail(true);
         try {
             const { data } = await api.put('/auth/email', emailChangeData);
-            setUser(data.user);
-            localStorage.setItem('user', JSON.stringify(data.user));
-            alert('Email erfolgreich geändert');
+            alert(data.message || 'Wir haben eine Bestätigungs-E-Mail an deine neue Adresse gesendet.');
             setEmailChangeData({ currentPassword: '', newEmail: '' });
         } catch (err) {
             alert(err.response?.data?.error || 'Fehler beim Ändern der Email');
@@ -1022,18 +1025,40 @@ export default function SettingsPage() {
     const [showCcBcc, setShowCcBcc] = useState(false);
     const [sendingEmail, setSendingEmail] = useState(false);
     const [replyTo, setReplyTo] = useState(null);
+    const [messagingSearch, setMessagingSearch] = useState('');
+    const [selectedEmailIds, setSelectedEmailIds] = useState([]);
+    const [isNewsletter, setIsNewsletter] = useState(false);
+    const [newsletterRecipientCount, setNewsletterRecipientCount] = useState(0);
+    const [newsletterConfig, setNewsletterConfig] = useState({ batchSize: 50, waitMinutes: 5, footer: '' });
 
-    const fetchEmails = async (folder) => {
+    const fetchEmails = async (folder, search) => {
         setLoadingEmails(true);
         try {
-            const res = await api.get(`/messaging?folder=${folder || messagingFolder}`);
-            setEmails(res.data.emails || []);
-            setEmailsTotal(res.data.total || 0);
-            setUnreadInbox(res.data.unreadInbox || 0);
+            if (folder === 'newsletter') {
+                const res = await api.get('/newsletter');
+                setEmails(res.data || []);
+                setEmailsTotal(res.data.length || 0);
+            } else {
+                const currentSearch = search !== undefined ? search : messagingSearch;
+                const res = await api.get(`/messaging?folder=${folder || messagingFolder}&search=${encodeURIComponent(currentSearch)}`);
+                setEmails(res.data.emails || []);
+                setEmailsTotal(res.data.total || 0);
+                setUnreadInbox(res.data.unreadInbox || 0);
+            }
+            setSelectedEmailIds([]); // Reset selection on fetch
         } catch (err) {
             console.error('Failed to fetch emails:', err);
         } finally {
             setLoadingEmails(false);
+        }
+    };
+
+    const fetchNewsletterRecipientCount = async () => {
+        try {
+            const res = await api.get('/newsletter/recipient-count');
+            setNewsletterRecipientCount(res.data.count);
+        } catch (err) {
+            console.error('Failed to fetch recipient count:', err);
         }
     };
 
@@ -1071,23 +1096,35 @@ export default function SettingsPage() {
     };
 
     const handleSendEmail = async () => {
-        if (!composeData.to) return alert('Empfänger fehlt');
+        if (!isNewsletter && !composeData.to) return alert('Empfänger fehlt');
         setSendingEmail(true);
         try {
-            await api.post('/messaging/send', {
-                to: composeData.to,
-                cc: composeData.cc,
-                bcc: composeData.bcc,
-                subject: composeData.subject,
-                body: composeData.body,
-                inReplyTo: replyTo?.messageId || null
-            });
+            if (isNewsletter) {
+                await api.post('/newsletter/send', {
+                    subject: composeData.subject,
+                    body: composeData.body,
+                    batchSize: emailConfig.newsletterBatchSize,
+                    waitMinutes: emailConfig.newsletterWaitMinutes,
+                    footer: emailConfig.newsletterFooter
+                });
+                alert('Newsletter wurde gestartet!');
+            } else {
+                await api.post('/messaging/send', {
+                    to: composeData.to,
+                    cc: composeData.cc,
+                    bcc: composeData.bcc,
+                    subject: composeData.subject,
+                    body: composeData.body,
+                    inReplyTo: replyTo?.messageId || null
+                });
+                alert('E-Mail gesendet!');
+            }
             setComposeOpen(false);
             setComposeData({ to: '', cc: '', bcc: '', subject: '', body: '' });
             setShowCcBcc(false);
             setReplyTo(null);
+            setIsNewsletter(false);
             fetchEmails(messagingFolder);
-            alert('E-Mail gesendet!');
         } catch (err) {
             alert(err.response?.data?.error || 'Fehler beim Senden');
         } finally {
@@ -1120,6 +1157,103 @@ export default function SettingsPage() {
         try {
             await api.delete(`/messaging/${id}`);
             setSelectedEmail(null);
+            fetchEmails(messagingFolder);
+        } catch (err) {
+            alert('Fehler: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleBulkTrash = async () => {
+        if (selectedEmailIds.length === 0) return;
+        try {
+            await api.put('/messaging/bulk/trash', { ids: selectedEmailIds });
+            setSelectedEmailIds([]);
+            fetchEmails(messagingFolder);
+        } catch (err) {
+            alert('Fehler beim Verschieben: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleBulkRestore = async () => {
+        if (selectedEmailIds.length === 0) return;
+        try {
+            await api.put('/messaging/bulk/restore', { ids: selectedEmailIds });
+            setSelectedEmailIds([]);
+            fetchEmails(messagingFolder);
+        } catch (err) {
+            alert('Fehler beim Wiederherstellen: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (selectedEmailIds.length === 0) return;
+        if (!confirm(`${selectedEmailIds.length} Nachrichten endgültig löschen?`)) return;
+        try {
+            await api.post('/messaging/bulk/delete', { ids: selectedEmailIds });
+            setSelectedEmailIds([]);
+            fetchEmails(messagingFolder);
+        } catch (err) {
+            alert('Fehler beim Löschen: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const toggleEmailSelection = (id) => {
+        setSelectedEmailIds(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+
+    const toggleAllEmails = () => {
+        if (selectedEmailIds.length === emails.length) {
+            setSelectedEmailIds([]);
+        } else {
+            setSelectedEmailIds(emails.map(e => e.id));
+        }
+    };
+
+    const handleToggleRead = async (id, isRead) => {
+        try {
+            await api.put(`/messaging/${id}/${isRead ? 'unread' : 'read'}`);
+            setEmails(prev => prev.map(e => e.id === id ? { ...e, isRead: !isRead } : e));
+            if (selectedEmail?.id === id) {
+                setSelectedEmail(prev => ({ ...prev, isRead: !isRead }));
+            }
+            // Update unread count
+            if (messagingFolder === 'inbox') {
+                setUnreadInbox(prev => isRead ? prev + 1 : Math.max(0, prev - 1));
+            }
+        } catch (err) {
+            console.error('Failed to toggle read status:', err);
+        }
+    };
+
+    const handleToggleFlag = async (e, id, currentFlag) => {
+        e.stopPropagation();
+        try {
+            const res = await api.put(`/messaging/${id}/flag`);
+            setEmails(prev => prev.map(e => e.id === id ? { ...e, flag: res.data.flag } : e));
+            if (selectedEmail?.id === id) {
+                setSelectedEmail(prev => ({ ...prev, flag: res.data.flag }));
+            }
+        } catch (err) {
+            console.error('Failed to toggle flag:', err);
+        }
+    };
+
+    const handleBulkRead = async () => {
+        if (selectedEmailIds.length === 0) return;
+        try {
+            await api.put('/messaging/bulk/read', { ids: selectedEmailIds });
+            fetchEmails(messagingFolder);
+        } catch (err) {
+            alert('Fehler: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleBulkUnread = async () => {
+        if (selectedEmailIds.length === 0) return;
+        try {
+            await api.put('/messaging/bulk/unread', { ids: selectedEmailIds });
             fetchEmails(messagingFolder);
         } catch (err) {
             alert('Fehler: ' + (err.response?.data?.error || err.message));
@@ -1184,6 +1318,10 @@ export default function SettingsPage() {
                                 <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Angemeldet als</p>
                                 <p className="font-bold text-foreground text-lg">{user?.username || 'Gast'}</p>
                                 <p className="text-sm text-primary font-medium">{user?.role === 'admin' ? 'Administrator' : 'Standard-Benutzer'}</p>
+                                <div className="mt-2 text-xs flex items-center gap-1.5 text-muted-foreground">
+                                    <Mail size={12} className="text-primary/70" />
+                                    <span>{user?.email || 'Keine E-Mail hinterlegt'}</span>
+                                </div>
                             </div>
                             <Button
                                 variant="ghost"
@@ -1282,11 +1420,16 @@ export default function SettingsPage() {
                             </div>
                             <Button
                                 onClick={handleChangeEmail}
-                                disabled={changingEmail}
+                                disabled={changingEmail || emailChangeData.newEmail === user?.email}
                                 className="w-full"
                             >
                                 {changingEmail ? <Loader2 size={18} className="animate-spin" /> : "Email speichern"}
                             </Button>
+                            {emailChangeData.newEmail && emailChangeData.newEmail === user?.email && (
+                                <p className="text-[10px] text-amber-500 font-medium text-center">
+                                    Das ist schon deine aktuelle Adresse.
+                                </p>
+                            )}
                         </div>
                     </Card>
                 );
@@ -2582,6 +2725,45 @@ export default function SettingsPage() {
                                     </div>
                                 </div>
 
+                                {/* Newsletter Settings */}
+                                <div className="pt-6 border-t border-border">
+                                    <h3 className="text-lg font-bold text-foreground mb-4">E-Mail Newsletter & System-Fußzeile</h3>
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Batch-Größe (E-Mails pro Durchgang)</label>
+                                                <Input
+                                                    type="number"
+                                                    value={emailConfig.newsletterBatchSize}
+                                                    onChange={(e) => setEmailConfig({ ...emailConfig, newsletterBatchSize: parseInt(e.target.value) || 0 })}
+                                                    placeholder="50"
+                                                    className="bg-muted border-transparent focus:bg-background"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Wartezeit (Minuten zwischen Batches)</label>
+                                                <Input
+                                                    type="number"
+                                                    value={emailConfig.newsletterWaitMinutes}
+                                                    onChange={(e) => setEmailConfig({ ...emailConfig, newsletterWaitMinutes: parseInt(e.target.value) || 0 })}
+                                                    placeholder="5"
+                                                    className="bg-muted border-transparent focus:bg-background"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Standard E-Mail-Fußzeile (HTML erlaubt)</label>
+                                            <RichTextEditor
+                                                value={emailConfig.newsletterFooter}
+                                                onChange={(val) => setEmailConfig({ ...emailConfig, newsletterFooter: val })}
+                                                placeholder="Impressum, Abmeldelink, etc."
+                                                minHeight="100px"
+                                            />
+                                            <p className="text-[10px] text-muted-foreground mt-1 italic">Tipp: Nutzen Sie {`{abmeldelink}`} um den automatischen Abmeldelink einzufügen.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div className="flex gap-3 pt-4 border-t border-border">
                                     <Button
                                         onClick={handleSaveEmail}
@@ -2922,44 +3104,72 @@ export default function SettingsPage() {
 
     const messagingFolders = [
         { id: 'inbox', label: 'Posteingang', icon: Inbox },
+        { id: 'daemon', label: 'MAILER-DAEMON', icon: ShieldAlert },
         { id: 'sent', label: 'Gesendet', icon: Send },
+        { id: 'sent_system', label: 'Gesendet (System)', icon: Server },
+        { id: 'newsletter', label: 'Newsletter', icon: Mail },
         { id: 'trash', label: 'Papierkorb', icon: Trash2 }
     ];
 
     const MessagingSection = (
         <div className="space-y-4">
-            {/* Toolbar */}
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-2">
-                    {messagingFolders.map(f => {
-                        const FIcon = f.icon;
-                        return (
-                            <button
-                                key={f.id}
-                                onClick={() => switchFolder(f.id)}
-                                className={cn(
-                                    "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all",
-                                    messagingFolder === f.id
-                                        ? "bg-primary text-primary-foreground shadow-md"
-                                        : "bg-muted hover:bg-muted/80 text-muted-foreground"
-                                )}
-                            >
-                                <FIcon size={16} />
-                                {f.label}
-                                {f.id === 'inbox' && unreadInbox > 0 && (
-                                    <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center">{unreadInbox}</span>
-                                )}
-                            </button>
-                        );
-                    })}
+            {/* Folder Navigation */}
+            <div className="flex overflow-x-auto no-scrollbar gap-2 pb-1">
+                {messagingFolders.map(f => {
+                    const FIcon = f.icon;
+                    return (
+                        <button
+                            key={f.id}
+                            onClick={() => switchFolder(f.id)}
+                            className={cn(
+                                "flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
+                                messagingFolder === f.id
+                                    ? "bg-primary/10 text-primary border border-primary/20"
+                                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                            )}
+                        >
+                            <FIcon size={14} />
+                            {f.label}
+                            {f.id === 'inbox' && unreadInbox > 0 && (
+                                <span className="ml-1 bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center font-bold">{unreadInbox}</span>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Toolbar: Search and Global Actions */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                    <Input
+                        value={messagingSearch}
+                        onChange={(e) => {
+                            setMessagingSearch(e.target.value);
+                            // Debounce fetch would be better, but let's just use the current button or Enter
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') fetchEmails(messagingFolder, messagingSearch);
+                        }}
+                        placeholder="Absender, Empfänger, Betreff..."
+                        className="pl-10 h-10 bg-muted/50 border-transparent focus:bg-background h-9 text-sm"
+                    />
                 </div>
                 <div className="flex items-center gap-2">
+                    <Button
+                        onClick={() => fetchEmails(messagingFolder, messagingSearch)}
+                        variant="outline"
+                        size="sm"
+                        className="h-9 px-3"
+                    >
+                        Suchen
+                    </Button>
                     <Button
                         onClick={handleImapFetch}
                         disabled={fetchingEmails}
                         variant="outline"
                         size="sm"
-                        className="gap-1.5"
+                        className="h-9 px-3 gap-1.5"
                     >
                         {fetchingEmails ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
                         Abrufen
@@ -2972,13 +3182,54 @@ export default function SettingsPage() {
                             setComposeOpen(true);
                         }}
                         size="sm"
-                        className="gap-1.5"
+                        className="h-9 px-3 gap-1.5"
                     >
                         <Pen size={16} />
-                        Neue E-Mail
+                        Neu
                     </Button>
                 </div>
             </div>
+
+            {/* Bulk Actions Toolbar (Sticky if items selected) */}
+            {selectedEmailIds.length > 0 && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 px-6 py-3 bg-card border border-primary/20 shadow-2xl rounded-full backdrop-blur-md"
+                >
+                    <span className="text-sm font-bold text-primary">{selectedEmailIds.length} ausgewählt</span>
+                    <div className="h-4 w-px bg-border/50" />
+                    <div className="flex items-center gap-2">
+                        {(messagingFolder === 'inbox' || messagingFolder === 'daemon') && (
+                            <>
+                                <Button variant="ghost" size="sm" onClick={handleBulkRead} className="text-primary hover:bg-primary/10 h-8 px-3 text-xs font-bold gap-1.5" title="Als gelesen markieren">
+                                    <MailOpen size={14} /> Gelesen
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={handleBulkUnread} className="text-primary hover:bg-primary/10 h-8 px-3 text-xs font-bold gap-1.5" title="Als ungelesen markieren">
+                                    <Mail size={14} /> Ungelesen
+                                </Button>
+                            </>
+                        )}
+                        {messagingFolder !== 'trash' ? (
+                            <Button variant="ghost" size="sm" onClick={handleBulkTrash} className="text-red-500 hover:text-red-600 hover:bg-red-500/10 h-8 px-3 text-xs font-bold gap-1.5">
+                                <Trash2 size={14} /> Papierkorb
+                            </Button>
+                        ) : (
+                            <>
+                                <Button variant="ghost" size="sm" onClick={handleBulkRestore} className="text-primary hover:bg-primary/10 h-8 px-3 text-xs font-bold gap-1.5">
+                                    <ArrowLeft size={14} /> Wiederherstellen
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={handleBulkDelete} className="text-red-500 hover:text-red-600 hover:bg-red-500/10 h-8 px-3 text-xs font-bold gap-1.5">
+                                    <Trash2 size={14} /> Endgültig löschen
+                                </Button>
+                            </>
+                        )}
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedEmailIds([])} className="text-muted-foreground h-8 px-3 text-xs font-bold">
+                            Aufheben
+                        </Button>
+                    </div>
+                </motion.div>
+            )}
 
             {/* Email Detail View */}
             {selectedEmail ? (
@@ -2992,12 +3243,30 @@ export default function SettingsPage() {
                             Zurück
                         </button>
                         <div className="flex items-center gap-2">
+                            {selectedEmail.folder === 'newsletter' && (
+                                <div className="flex flex-col gap-1 pr-4">
+                                    <div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-primary transition-all duration-500"
+                                            style={{ width: `${Math.min(100, Math.round(((selectedEmail.sentCount + selectedEmail.failedCount) / (selectedEmail.recipientsCount || 1)) * 100))}%` }}
+                                        />
+                                    </div>
+                                    <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">
+                                        {selectedEmail.sentCount} / {selectedEmail.recipientsCount} versendet
+                                    </span>
+                                </div>
+                            )}
                             {selectedEmail.folder === 'inbox' && (
                                 <Button variant="outline" size="sm" onClick={() => openReply(selectedEmail)} className="gap-1">
                                     <Reply size={14} />
                                     Antworten
                                 </Button>
                             )}
+                            {selectedEmail.folder === 'inbox' || selectedEmail.folder === 'daemon' ? (
+                                <Button variant="outline" size="sm" onClick={() => handleToggleRead(selectedEmail.id, selectedEmail.isRead)} title={selectedEmail.isRead ? 'Als ungelesen markieren' : 'Als gelesen markieren'}>
+                                    {selectedEmail.isRead ? <Mail size={14} /> : <MailOpen size={14} />}
+                                </Button>
+                            ) : null}
                             {selectedEmail.folder !== 'trash' ? (
                                 <Button variant="outline" size="sm" onClick={() => handleTrashEmail(selectedEmail.id)} className="gap-1 text-red-500 hover:text-red-600">
                                     <Trash2 size={14} />
@@ -3024,6 +3293,20 @@ export default function SettingsPage() {
                         {selectedEmail.cc && <span><strong>CC:</strong> {selectedEmail.cc}</span>}
                         {selectedEmail.bcc && <span><strong>BCC:</strong> {selectedEmail.bcc}</span>}
                         <span><strong>Datum:</strong> {new Date(selectedEmail.date).toLocaleString('de-DE')}</span>
+                        {(selectedEmail.folder === 'inbox' || selectedEmail.folder === 'daemon') && (
+                            <button
+                                onClick={(e) => handleToggleFlag(e, selectedEmail.id, selectedEmail.flag)}
+                                className={cn(
+                                    "p-1 rounded-md transition-all hover:bg-muted inline-flex items-center",
+                                    selectedEmail.flag === 'flagged' && "text-amber-500 bg-amber-500/10",
+                                    selectedEmail.flag === 'completed' && "text-green-500 bg-green-500/10",
+                                    selectedEmail.flag === 'none' && "text-muted-foreground/30 hover:text-muted-foreground"
+                                )}
+                                title="Status ändern"
+                            >
+                                {selectedEmail.flag === 'completed' ? <CheckCircle2 size={16} /> : (selectedEmail.flag === 'flagged' ? <Star size={16} fill="currentColor" /> : <Star size={16} />)}
+                            </button>
+                        )}
                     </div>
                     <div className="border-t border-border pt-4">
                         {selectedEmail.body ? (
@@ -3053,46 +3336,105 @@ export default function SettingsPage() {
                         </div>
                     ) : (
                         <div className="divide-y divide-border">
+                            {/* Select All Checkbox */}
+                            <div className="px-4 py-2 bg-muted/20 flex items-center gap-3">
+                                <input
+                                    type="checkbox"
+                                    checked={emails.length > 0 && selectedEmailIds.length === emails.length}
+                                    onChange={toggleAllEmails}
+                                    className="rounded border-border bg-background text-primary focus:ring-primary h-4 w-4 transition-all"
+                                />
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Alle auswählen</span>
+                            </div>
+
                             {emails.map(email => (
-                                <button
-                                    key={email.id}
-                                    onClick={() => openEmail(email.id)}
-                                    className={cn(
-                                        "w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors flex items-start gap-3",
-                                        !email.isRead && "bg-primary/5"
-                                    )}
-                                >
-                                    <div className="mt-1 shrink-0">
-                                        {email.isRead ? (
-                                            <MailOpen size={16} className="text-muted-foreground" />
-                                        ) : (
-                                            <Mail size={16} className="text-primary" />
-                                        )}
+                                <div key={email.id} className="flex items-center gap-0 group">
+                                    <div className="pl-4 py-3 bg-transparent shrink-0">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedEmailIds.includes(email.id)}
+                                            onChange={() => toggleEmailSelection(email.id)}
+                                            className="rounded border-border bg-background text-primary focus:ring-primary h-4 w-4 transition-all"
+                                        />
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between gap-2">
+                                    <button
+                                        onClick={() => openEmail(email.id)}
+                                        className={cn(
+                                            "flex-1 text-left px-4 py-3 hover:bg-muted/50 transition-colors flex items-start gap-3",
+                                            !email.isRead && "bg-primary/5"
+                                        )}
+                                    >
+                                        <div className="mt-1 shrink-0">
+                                            {messagingFolder === 'trash' ? (
+                                                <div className="text-muted-foreground/60">
+                                                    {email.previousFolder === 'inbox' && <Inbox size={18} />}
+                                                    {email.previousFolder === 'sent' && <Send size={18} />}
+                                                    {email.previousFolder === 'daemon' && <ShieldAlert size={18} />}
+                                                    {email.previousFolder === 'sent_system' && <Server size={18} />}
+                                                    {!email.previousFolder && <MailOpen size={18} />}
+                                                </div>
+                                            ) : (
+                                                email.isRead ? (
+                                                    <MailOpen size={16} className="text-muted-foreground" />
+                                                ) : (
+                                                    <Mail size={16} className="text-primary" />
+                                                )
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className={cn(
+                                                    "text-sm truncate",
+                                                    email.isRead ? "text-muted-foreground" : "text-foreground font-bold"
+                                                )}>
+                                                    {(messagingFolder === 'sent' || messagingFolder === 'sent_system') ? email.toAddress : email.fromAddress}
+                                                </p>
+                                                <div className="flex items-center gap-3">
+                                                    {email.folder === 'newsletter' ? (
+                                                        <div className="flex flex-col items-end gap-1 min-w-[100px]">
+                                                            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                                                                <div
+                                                                    className="h-full bg-primary transition-all duration-300"
+                                                                    style={{ width: `${Math.min(100, Math.round(((email.sentCount + email.failedCount) / (email.recipientsCount || 1)) * 100))}%` }}
+                                                                />
+                                                            </div>
+                                                            <span className="text-[10px] text-muted-foreground font-bold">
+                                                                {email.sentCount}/{email.recipientsCount}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                                            {new Date(email.date).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
+                                                    )}
+                                                    {(messagingFolder === 'inbox' || messagingFolder === 'daemon') && (
+                                                        <button
+                                                            onClick={(e) => handleToggleFlag(e, email.id, email.flag)}
+                                                            className={cn(
+                                                                "p-1 rounded-full transition-all hover:bg-muted",
+                                                                email.flag === 'flagged' && "text-amber-500",
+                                                                email.flag === 'completed' && "text-green-500",
+                                                                email.flag === 'none' && "text-muted-foreground/30"
+                                                            )}
+                                                        >
+                                                            {email.flag === 'completed' ? <CheckCircle2 size={18} /> : (email.flag === 'flagged' ? <Star size={18} fill="currentColor" /> : <Star size={18} />)}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
                                             <p className={cn(
                                                 "text-sm truncate",
-                                                email.isRead ? "text-muted-foreground" : "text-foreground font-bold"
+                                                email.isRead ? "text-muted-foreground" : "text-foreground font-medium"
                                             )}>
-                                                {messagingFolder === 'sent' ? email.toAddress : email.fromAddress}
+                                                {email.subject || '(Kein Betreff)'}
                                             </p>
-                                            <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                                {new Date(email.date).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                                            </span>
                                         </div>
-                                        <p className={cn(
-                                            "text-sm truncate",
-                                            email.isRead ? "text-muted-foreground" : "text-foreground font-medium"
-                                        )}>
-                                            {email.subject || '(Kein Betreff)'}
-                                        </p>
-                                    </div>
-                                </button>
+                                    </button>
+                                </div>
                             ))}
                         </div>
                     )}
-                </Card>
+                </Card >
             )}
 
             {/* Compose Modal */}
@@ -3123,21 +3465,58 @@ export default function SettingsPage() {
                                 </div>
                                 <div className="space-y-3">
                                     <div className="relative">
-                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block flex justify-between items-center">
-                                            An
-                                            <button
-                                                onClick={() => setShowCcBcc(!showCcBcc)}
-                                                className="text-[10px] text-primary hover:underline font-bold"
-                                            >
-                                                {showCcBcc ? '- CC/BCC ausblenden' : '+ CC/BCC hinzufügen'}
-                                            </button>
-                                        </label>
-                                        <Input
-                                            value={composeData.to}
-                                            onChange={e => setComposeData({ ...composeData, to: e.target.value })}
-                                            placeholder="empfaenger@example.com"
-                                            className="bg-muted border-transparent"
-                                        />
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">An</label>
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() => {
+                                                        const next = !isNewsletter;
+                                                        setIsNewsletter(next);
+                                                        if (next) {
+                                                            fetchNewsletterRecipientCount();
+                                                            if (!composeData.body) {
+                                                                setComposeData(prev => ({
+                                                                    ...prev,
+                                                                    body: `Lieber {benutzername},<br><br>...<br><br>Mit herzhaften Grüßen<br>Forky von GabelGuru`
+                                                                }));
+                                                            }
+                                                        }
+                                                    }}
+                                                    className={cn(
+                                                        "text-[10px] font-bold px-2 py-0.5 rounded-full transition-all",
+                                                        isNewsletter ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                                    )}
+                                                >
+                                                    {isNewsletter ? 'Newsletter aktiv' : 'Als Newsletter senden?'}
+                                                </button>
+                                                {!isNewsletter && (
+                                                    <button
+                                                        onClick={() => setShowCcBcc(!showCcBcc)}
+                                                        className="text-[10px] text-primary hover:underline font-bold"
+                                                    >
+                                                        {showCcBcc ? '- CC/BCC ausblenden' : '+ CC/BCC hinzufügen'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {isNewsletter ? (
+                                            <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg flex items-center justify-between">
+                                                <div className="flex items-center gap-2 text-primary">
+                                                    <Users size={16} />
+                                                    <span className="text-sm font-bold">Newsletter-Abonnenten</span>
+                                                </div>
+                                                <span className="text-xs font-bold bg-primary/10 px-2 py-1 rounded-md text-primary">
+                                                    {newsletterRecipientCount} Empfänger
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <Input
+                                                value={composeData.to}
+                                                onChange={e => setComposeData({ ...composeData, to: e.target.value })}
+                                                placeholder="empfaenger@example.com"
+                                                className="bg-muted border-transparent"
+                                            />
+                                        )}
                                     </div>
 
                                     <AnimatePresence>
@@ -3180,16 +3559,32 @@ export default function SettingsPage() {
                                         />
                                     </div>
                                     <div className="min-h-[300px] flex flex-col">
-                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Nachricht</label>
-                                        <div className="flex-1 bg-muted rounded-lg overflow-hidden border-transparent focus-within:ring-2 focus-within:ring-primary/20">
-                                            <ReactQuill
-                                                theme="snow"
-                                                value={composeData.body}
-                                                onChange={val => setComposeData({ ...composeData, body: val })}
-                                                placeholder="Nachricht eingeben..."
-                                                className="h-full border-none [&_.ql-toolbar]:bg-muted/50 [&_.ql-toolbar]:border-none [&_.ql-container]:border-none [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-foreground [&_.ql-editor]:text-sm"
-                                            />
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground block">Nachricht</label>
+                                            {isNewsletter && (
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => setComposeData(prev => ({ ...prev, body: prev.body + '{benutzername}' }))}
+                                                        className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded border border-primary/20 hover:bg-primary/20 transition-all font-bold"
+                                                    >
+                                                        + Name
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setComposeData(prev => ({ ...prev, body: prev.body + '{abmeldelink}' }))}
+                                                        className="text-[10px] bg-orange-500/10 text-orange-600 px-2 py-0.5 rounded border border-orange-500/20 hover:bg-orange-500/20 transition-all font-bold"
+                                                    >
+                                                        + Abmeldelink
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
+                                        <RichTextEditor
+                                            value={composeData.body}
+                                            onChange={val => setComposeData({ ...composeData, body: val })}
+                                            placeholder="Nachricht eingeben..."
+                                            minHeight="250px"
+                                            className="flex-1"
+                                        />
                                     </div>
                                     <div className="flex justify-end gap-2 pt-2">
                                         <Button variant="outline" onClick={() => setComposeOpen(false)}>Abbrechen</Button>
@@ -3204,7 +3599,7 @@ export default function SettingsPage() {
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div>
+        </div >
     );
 
     // Compliance UI State

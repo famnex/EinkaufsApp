@@ -138,7 +138,7 @@ router.post('/', async (req, res) => {
 
         // Send Confirmation Email
         const emailSubject = `Eingangsbestätigung: Ihre Meldung [${report.id}]`;
-        const emailText = `Guten Tag ${reporterName},\n\nIhre Meldung wurde erfolgreich eingereicht.\n\nDetails:\nID: ${report.id}\nKategorie: ${reasonCategory}\nAnmerkung: ${reasonDescription}\n\nWir werden Ihre Meldung prüfen.\n\nMit freundlichen Grüßen,\nIhr GabelGuru Compliance Team`;
+        const emailText = `Guten Tag ${reporterName},\n\nIhre Meldung wurde erfolgreich eingereicht.\n\nDetails:\nID: ${report.id}\nKategorie: ${reasonCategory}\nAnmerkung: ${reasonDescription}\n\nWir werden Ihre Meldung prüfen.`;
 
         const emailHtml = `
             <div style="font-family: Arial, sans-serif;">
@@ -153,9 +153,7 @@ router.post('/', async (req, res) => {
                     <li><strong>Anmerkung:</strong> ${reasonDescription}</li>
                     <li><strong>URL:</strong> <a href="${contentUrl}">${contentUrl}</a></li>
                 </ul>
-                <hr>
-                <p>Wir werden den Sachverhalt schnellstmöglich prüfen.</p>
-                <p>Mit freundlichen Grüßen,<br>Ihr GabelGuru Compliance Team</p>
+                <p>Wir werden Ihre Meldung sorgfältig prüfen und Sie über das Ergebnis informieren.</p>
             </div>
         `;
 
@@ -383,8 +381,7 @@ router.put('/:id', auth, async (req, res) => {
                             `Grund: ${resolutionNote || 'Verstoß gegen Nutzungsbedingungen'}\n\n` +
                             `Dies ist eine formelle Verwarnung. Wir bitten Sie, zukünftig genau auf die Einhaltung unserer Regeln zu achten. ` +
                             `Bitte beachten Sie, dass bei wiederholten Verstößen Ihr Benutzerkonto temporär oder dauerhaft gesperrt werden kann.\n\n` +
-                            `Wir schätzen Sie als Teil unserer Community und hoffen auf Ihr Verständnis.\n\n` +
-                            `Mit freundlichen Grüßen,\nIhr GabelGuru Compliance Team`;
+                            `Bitte prüfen Sie den Inhalt Ihres Rezeptes. Falls Sie der Meinung sind, dass dies ein Fehler war, kontaktieren Sie uns bitte.`;
 
                         const warningHtml = `
                             <div style="font-family: Arial, sans-serif;">
@@ -400,8 +397,7 @@ router.put('/:id', auth, async (req, res) => {
                                 <hr>
                                 <p><strong>Dies ist eine formelle Verwarnung.</strong></p>
                                 <p>Wir bitten Sie, zukünftig genau auf die Einhaltung unserer Regeln zu achten. Bitte beachten Sie, dass bei wiederholten Verstößen Ihr Benutzerkonto temporär oder dauerhaft gesperrt werden kann.</p>
-                                <p>Wir schätzen Sie als Teil unserer Community und hoffen auf Ihr Verständnis.</p>
-                                <p>Mit freundlichen Grüßen,<br>Ihr GabelGuru Compliance Team</p>
+                                <p>Bitte prüfen Sie den Inhalt Ihres Rezeptes. Falls Sie der Meinung sind, dass dies ein Fehler war, kontaktieren Sie uns bitte.</p>
                             </div>
                         `;
 
@@ -419,7 +415,7 @@ router.put('/:id', auth, async (req, res) => {
                     console.error('[Compliance] Failed to process warning email:', warnErr);
                 }
             }
-            const emailText = `Guten Tag ${report.reporterName},\n\nDer Status Ihrer Meldung hat sich geändert: ${status === 'resolved' ? 'Gelöst' : 'Abgeschlossen'}\n\nErgebnis: ${actionText}\n\nBegründung: ${resolutionNote || 'Keine Begründung angegeben.'}\n\nMit freundlichen Grüßen,\nIhr GabelGuru Compliance Team`;
+            const emailText = `Guten Tag ${report.reporterName},\n\nDer Status Ihrer Meldung hat sich geändert: ${status === 'resolved' ? 'Gelöst' : 'Abgeschlossen'}\n\nErgebnis: ${actionText}\n\nBegründung: ${resolutionNote || 'Keine Begründung angegeben.'}`;
 
             const emailHtml = `
                 <div style="font-family: Arial, sans-serif;">
@@ -435,8 +431,6 @@ router.put('/:id', auth, async (req, res) => {
                     <p style="background-color: #f5f5f5; padding: 10px; border-left: 4px solid #ccc;">
                         ${(resolutionNote || 'Keine Begründung angegeben.').replace(/\n/g, '<br>')}
                     </p>
-                    <hr>
-                    <p>Mit freundlichen Grüßen,<br>Ihr GabelGuru Compliance Team</p>
                 </div>
             `;
 

@@ -143,7 +143,7 @@ router.get('/email', auth, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
 
     try {
-        const fields = ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_from', 'smtp_sender_name', 'smtp_secure', 'imap_host', 'imap_port', 'imap_user', 'imap_secure'];
+        const fields = ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_from', 'smtp_sender_name', 'smtp_secure', 'imap_host', 'imap_port', 'imap_user', 'imap_secure', 'newsletter_batch_size', 'newsletter_wait_minutes', 'newsletter_footer'];
         const settings = {};
 
         for (const field of fields) {
@@ -168,7 +168,7 @@ router.post('/email', auth, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
 
     try {
-        const { smtpHost, smtpPort, smtpUser, smtpPassword, smtpFrom, smtpSenderName, smtpSecure, imapHost, imapPort, imapUser, imapPassword, imapSecure } = req.body;
+        const { smtpHost, smtpPort, smtpUser, smtpPassword, smtpFrom, smtpSenderName, smtpSecure, imapHost, imapPort, imapUser, imapPassword, imapSecure, newsletterBatchSize, newsletterWaitMinutes, newsletterFooter } = req.body;
 
         const fieldMap = {
             smtp_host: smtpHost,
@@ -180,7 +180,10 @@ router.post('/email', auth, async (req, res) => {
             imap_host: imapHost,
             imap_port: imapPort,
             imap_user: imapUser,
-            imap_secure: imapSecure ? 'true' : 'false'
+            imap_secure: imapSecure ? 'true' : 'false',
+            newsletter_batch_size: String(newsletterBatchSize || 50),
+            newsletter_wait_minutes: String(newsletterWaitMinutes || 5),
+            newsletter_footer: newsletterFooter || ''
         };
 
         // Only save passwords if provided

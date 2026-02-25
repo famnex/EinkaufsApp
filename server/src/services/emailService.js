@@ -1,5 +1,4 @@
-const nodemailer = require('nodemailer');
-const { Settings, User } = require('../models');
+const { Settings, User, Email } = require('../models');
 
 /**
  * Loads the system email configuration from the database.
@@ -47,6 +46,22 @@ async function loadSystemEmailConfig() {
 }
 
 /**
+ * Loads the global email footer from settings.
+ * @returns {Promise<string>} HTML formatted footer.
+ */
+async function getGlobalFooter() {
+    try {
+        const footer = await Settings.findOne({ where: { key: 'newsletter_footer', UserId: null } });
+        if (footer && footer.value) {
+            return `<br><br>--<br><div style="font-size: 12px; color: #666;">${footer.value.replace(/\n/g, '<br>')}</div>`;
+        }
+    } catch (err) {
+        console.error('[EmailService] Failed to load footer:', err);
+    }
+    return '';
+}
+
+/**
  * Sends a system email using the configured SMTP settings.
  * @param {Object} options - Email options
  * @param {string} options.to - Recipient email
@@ -72,15 +87,39 @@ async function sendSystemEmail({ to, subject, text, html }) {
 
         const fromAddress = config.senderName ? `"${config.senderName}" <${config.from}>` : config.from;
 
+        // Apply Global Footer
+        const globalFooter = await getGlobalFooter();
+        const finalHtml = html ? (html + globalFooter) : (text ? (text.replace(/\n/g, '<br>') + globalFooter) : '');
+        const finalText = text ? (text + globalFooter.replace(/<[^>]*>/g, '')) : (html ? html.replace(/<[^>]*>/g, '') : '');
+
         const info = await transporter.sendMail({
             from: fromAddress,
             to,
             subject,
-            text,
-            html
+            text: finalText,
+            html: finalHtml
         });
 
         console.log('[EmailService] Email sent:', info.messageId);
+
+        // Log to DB
+        try {
+            await Email.create({
+                messageId: info.messageId,
+                folder: 'sent_system',
+                fromAddress: fromAddress,
+                toAddress: Array.isArray(to) ? to.join(', ') : to,
+                subject: subject || '',
+                body: html || text || '',
+                bodyText: text || (html ? html.replace(/<[^>]*>/g, '') : ''),
+                isRead: true,
+                date: new Date(),
+                UserId: null // Shared admin folder
+            });
+        } catch (logError) {
+            console.error('[EmailService] Failed to log to DB:', logError.message);
+        }
+
         return true;
 
     } catch (error) {
@@ -124,5 +163,6 @@ async function notifyAdmins({ subject, text, html }) {
 module.exports = {
     sendSystemEmail,
     notifyAdmins,
+    getGlobalFooter,
     loadSystemEmailConfig // Exported for testing/debugging if needed
 };

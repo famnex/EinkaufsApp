@@ -3,7 +3,7 @@ const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 const cron = require('node-cron');
 const nodemailer = require('nodemailer');
-const { notifyAdmins } = require('./emailService');
+const { notifyAdmins, getGlobalFooter } = require('./emailService');
 
 /**
  * Helper: Get SMTP settings
@@ -53,14 +53,37 @@ async function sendEmail(to, subject, html) {
 
         const from = smtpSenderName ? `"${smtpSenderName}" <${smtpFrom}>` : smtpFrom || process.env.SMTP_FROM || 'noreply@gabelguru.local';
 
+        // Apply Global Footer
+        const globalFooter = await getGlobalFooter();
+        const finalHtml = html ? (html + globalFooter) : '';
+
         const info = await transporter.sendMail({
             from: from,
             to: to,
             subject: subject,
-            html: html,
+            html: finalHtml,
         });
 
         console.log('Message sent: %s', info.messageId);
+
+        // Log to DB if it's a system email
+        try {
+            await Email.create({
+                messageId: info.messageId,
+                folder: 'sent_system',
+                fromAddress: from,
+                toAddress: Array.isArray(to) ? to.join(', ') : to,
+                subject: subject || '',
+                body: html || '',
+                bodyText: html ? html.replace(/<[^>]*>/g, '') : '',
+                isRead: true,
+                date: new Date(),
+                UserId: null // Shared admin folder (All admins see the same)
+            });
+        } catch (logError) {
+            console.error('Failed to log system email to DB:', logError.message);
+        }
+
         return { success: true, messageId: info.messageId };
     } catch (error) {
         console.error('Error sending email:', error);
@@ -84,7 +107,7 @@ async function getImapSettings(userId) {
 }
 
 /**
- * Fetch emails for a specific user
+ * Fetch emails for a specific user (or global admin if userId is null)
  */
 async function fetchEmailsForUser(userId) {
     const imap = await getImapSettings(userId);
@@ -105,6 +128,21 @@ async function fetchEmailsForUser(userId) {
 
     try {
         await client.connect();
+
+        // 1. Retroactive Cleanup: Move existing MAILER-DAEMON emails from inbox to daemon
+        try {
+            const { Op } = require('sequelize');
+            await Email.update({ folder: 'daemon' }, {
+                where: {
+                    UserId: userId,
+                    folder: 'inbox',
+                    fromAddress: { [Op.like]: '%MAILER-DAEMON%' }
+                }
+            });
+        } catch (cleanupErr) {
+            console.error(`[MessagingService] Cleanup error for user ${userId}:`, cleanupErr.message);
+        }
+
         const lock = await client.getMailboxLock('INBOX');
         let fetched = 0;
 
@@ -120,17 +158,21 @@ async function fetchEmailsForUser(userId) {
                 const msgId = message.envelope?.messageId;
                 if (!msgId) continue;
 
-                // Unique check (MessageId is unique in DB now, so findOne is fast)
+                // Unique check
                 const exists = await Email.findOne({ where: { messageId: msgId, UserId: userId } });
                 if (exists) continue;
 
                 try {
                     const parsed = await simpleParser(message.source);
+                    const fromAddr = parsed.from?.text || message.envelope?.from?.[0]?.address || 'Unbekannt';
+
+                    // 2. Auto-routing: Check for MAILER-DAEMON
+                    const targetFolder = fromAddr.toUpperCase().includes('MAILER-DAEMON') ? 'daemon' : 'inbox';
 
                     await Email.create({
                         messageId: msgId,
-                        folder: 'inbox',
-                        fromAddress: parsed.from?.text || message.envelope?.from?.[0]?.address || 'Unbekannt',
+                        folder: targetFolder,
+                        fromAddress: fromAddr,
                         toAddress: parsed.to?.text || message.envelope?.to?.[0]?.address || '',
                         cc: parsed.cc?.text || null,
                         bcc: parsed.bcc?.text || null,
@@ -155,13 +197,13 @@ async function fetchEmailsForUser(userId) {
         if (fetched > 0) {
             notifyAdmins({
                 subject: `📧 Neue Emails empfangen (${fetched})`,
-                text: `Hallo Admin,\n\nes wurden ${fetched} neue E-Mails für dein Konto (${imap.imapUser}) abgerufen.`,
+                text: `Hallo Admin,\n\nes wurden ${fetched} neue E-Mails abgerufen.`,
                 html: `
                     <div style="font-family: Arial, sans-serif; border: 1px solid #4f46e5; padding: 20px; border-radius: 10px;">
                         <h2 style="color: #4f46e5;">📧 Neue E-Mails abgerufen</h2>
                         <p>Hallo Admin,</p>
-                        <p>der Hintergrund-Dienst hat soeben <b>${fetched} neue E-Mails</b> für dein Konto (${imap.imapUser}) erfolgreich in die Datenbank importiert.</p>
-                        <p>Du kannst diese nun in der Verwaltung unter "Messaging" einsehen.</p>
+                        <p>der Hintergrund-Dienst hat soeben <b>${fetched} neue E-Mails</b> erfolgreich in die Datenbank importiert.</p>
+                        <p>Alle Administratoren können diese nun in der Verwaltung unter "Messaging" einsehen.</p>
                     </div>
                 `
             });
@@ -175,20 +217,17 @@ async function fetchEmailsForUser(userId) {
 }
 
 /**
- * Initialize background fetch cron job
+ * Initialize background fetch cron job (Global Admin only)
  */
 function initEmailCron() {
     // Run every minute
     cron.schedule('* * * * *', async () => {
-        console.log('[MessagingService] Running background email fetch...');
+        console.log('[MessagingService] Running background email fetch (Global)...');
         try {
-            // Find all admin users
-            const admins = await User.findAll({ where: { role: 'admin' } });
-            for (const admin of admins) {
-                const result = await fetchEmailsForUser(admin.id);
-                if (result.success && result.fetched > 0) {
-                    console.log(`[MessagingService] Fetched ${result.fetched} emails for admin ${admin.username}`);
-                }
+            // Since all admins share the same config, we just fetch once using the global SMTP/IMAP settings (UserId: null)
+            const result = await fetchEmailsForUser(null);
+            if (result.success && result.fetched > 0) {
+                console.log(`[MessagingService] Fetched ${result.fetched} emails into shared admin folder`);
             }
         } catch (err) {
             console.error('[MessagingService] Cron error:', err.message);
@@ -196,8 +235,11 @@ function initEmailCron() {
     });
 }
 
+function sendEmailHelper(to, subject, html) {
+    return sendEmail(to, subject, html);
+}
+
 module.exports = {
-    fetchEmailsForUser,
     fetchEmailsForUser,
     initEmailCron,
     sendEmail
