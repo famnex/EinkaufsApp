@@ -63,7 +63,9 @@ export default function SharedCookbook() {
             } catch (err) {
                 console.error("Failed to load recipes", err);
                 if (err.response?.status === 403 || err.response?.status === 404) {
-                    setError('Ungültiger Link');
+                    setError('Ungültiger Link oder Kochbuch nicht gefunden');
+                } else {
+                    setError('Fehler beim Laden der Rezepte. Bitte versuche es später erneut.');
                 }
             } finally {
                 setLoading(false);

@@ -127,6 +127,7 @@ router.get('/public/:sharingKey/:id', async (req, res) => {
 
         const recipe = await Recipe.findOne({
             where: { id: id, UserId: user.id },
+            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'instructions'],
             include: [
                 {
                     model: RecipeIngredient,
@@ -225,7 +226,7 @@ router.get('/public/:sharingKey', checkOptionalAuth, async (req, res) => {
                 UserId: listOwner.id,
                 bannedAt: null // Exclude banned recipes from list
             },
-            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'isFavorite'],
+            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource'],
             include: includeArr,
             order: [['title', 'ASC']]
         });
