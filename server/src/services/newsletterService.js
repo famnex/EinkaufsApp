@@ -98,8 +98,8 @@ class NewsletterService {
             try {
                 // Generate Unsubscribe Link
                 const token = jwt.sign({ id: recipient.User.id, action: 'unsubscribe' }, process.env.JWT_SECRET || 'gabelguru-secret', { expiresIn: '30d' });
-                const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000'; // Fallback
-                const unsubscribeUrl = `${baseUrl}/api/newsletter/unsubscribe?token=${token}`;
+                const baseUrl = process.env.FRONTEND_URL || 'https://cloud.mso-hef.de/gabelguru'; // Fallback
+                const unsubscribeUrl = `${baseUrl}/newsletter/unsubscribe?token=${token}`;
 
                 // Format Signup Date
                 const signupDate = recipient.User.newsletterSignupDate ? new Date(recipient.User.newsletterSignupDate).toLocaleDateString('de-DE') : 'unbekanntem Datum';

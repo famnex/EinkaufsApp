@@ -1153,7 +1153,11 @@ export default function SettingsPage() {
 
     const handleTrashEmail = async (id) => {
         try {
-            await api.put(`/messaging/${id}/trash`);
+            if (messagingFolder === 'newsletter') {
+                await api.put(`/newsletter/${id}/trash`);
+            } else {
+                await api.put(`/messaging/${id}/trash`);
+            }
             setSelectedEmail(null);
             fetchEmails(messagingFolder);
         } catch (err) {
@@ -1185,11 +1189,17 @@ export default function SettingsPage() {
     const handleBulkTrash = async () => {
         if (selectedEmailIds.length === 0) return;
         try {
+            if (messagingFolder === 'newsletter') {
+                await api.put('/newsletter/bulk/trash', { ids: selectedEmailIds });
+                setSelectedEmailIds([]);
+                fetchEmails(messagingFolder);
+                return;
+            }
             await api.put('/messaging/bulk/trash', { ids: selectedEmailIds });
             setSelectedEmailIds([]);
             fetchEmails(messagingFolder);
         } catch (err) {
-            alert('Fehler beim Verschieben: ' + (err.response?.data?.error || err.message));
+            alert('Fehler beim Verschieben/Löschen: ' + (err.response?.data?.error || err.message));
         }
     };
 
@@ -3493,10 +3503,10 @@ export default function SettingsPage() {
                                                         setIsNewsletter(next);
                                                         if (next) {
                                                             fetchNewsletterRecipientCount();
-                                                            if (!composeData.body) {
+                                                            if (!composeData.body || composeData.body.includes('Lieber {benutzername}')) {
                                                                 setComposeData(prev => ({
                                                                     ...prev,
-                                                                    body: `Lieber {benutzername},<br><br>...<br><br>Mit herzhaften Grüßen<br>Forky von GabelGuru`
+                                                                    body: `Hallo {benutzername},<br><br>`
                                                                 }));
                                                             }
                                                         }

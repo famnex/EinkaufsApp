@@ -30,6 +30,7 @@ import LegalPage from './pages/LegalPage';
 import CompliancePage from './pages/CompliancePage';
 import ShareTargetHandler from './pages/ShareTargetHandler';
 import VerifyEmail from './pages/VerifyEmail';
+import UnsubscribeNewsletter from './pages/UnsubscribeNewsletter';
 
 import { PullToRefresh } from './components/PullToRefresh';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -218,6 +219,7 @@ function AppContent() {
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/verify-email" element={<VerifyEmail />} />
+              <Route path="/newsletter/unsubscribe" element={<UnsubscribeNewsletter />} />
 
               {/* Public Shared Routes */}
               <Route path="/shared/:sharingKey/recipe/:id" element={<PublicLayout><SharedRecipe /></PublicLayout>} />

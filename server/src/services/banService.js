@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const { User } = require('../models');
-const { sendEmail } = require('./messagingService');
+const { sendSystemEmail } = require('./emailService');
 const { Op } = require('sequelize');
 
 const checkAndUnbanUsers = async () => {
@@ -35,8 +35,10 @@ const checkAndUnbanUsers = async () => {
                 <h3>Konto reaktiviert</h3>
                 <p>Hallo ${user.username},</p>
                 <p>dein Konto wurde automatisch wieder freigeschaltet, da die Sperrfrist abgelaufen ist. Du kannst dich nun wieder anmelden.</p>
+                <br>
+                <p>Viel Spaß weiterhin mit GabelGuru!</p>
             `;
-            await sendEmail(user.email, 'Dein Konto wurde wieder freigeschaltet', html);
+            await sendSystemEmail({ to: user.email, subject: 'Dein Konto wurde wieder freigeschaltet', html });
             console.log(`[BanService] User ${user.username} (ID: ${user.id}) unbanned.`);
         }
     } catch (err) {

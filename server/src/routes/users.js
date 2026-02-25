@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
-const { User, CreditTransaction, Settings, SubscriptionLog } = require('../models');
+const { User, CreditTransaction, Settings, SubscriptionLog, sequelize } = require('../models');
 const { auth: verifyToken } = require('../middleware/auth');
 const isAdmin = require('../middleware/admin');
 
@@ -220,6 +220,9 @@ router.delete('/:id', async (req, res) => {
             return res.status(400).json({ error: 'Cannot delete yourself' });
         }
 
+        // Dissolve household: if others have this user's id as their householdId, set it back to their own
+        await User.update({ householdId: sequelize.col('id') }, { where: { householdId: user.id } });
+
         await user.destroy();
         res.json({ message: 'User deleted' });
     } catch (err) {
@@ -250,7 +253,7 @@ router.post('/:id/ban', async (req, res) => {
         });
 
         // Send Email
-        const { sendEmail } = require('../services/messagingService');
+        const { sendSystemEmail } = require('../services/emailService');
         const durationText = permanent ? 'unbefristet' : `bis zum ${expiresAt.toLocaleDateString('de-DE')}`;
         const html = `
             <h3>Konto gesperrt</h3>
@@ -258,8 +261,10 @@ router.post('/:id/ban', async (req, res) => {
             <p>dein Konto wurde vorübergehend gesperrt.</p>
             <p><b>Dauer:</b> ${durationText}</p>
             <p><b>Grund:</b> ${reason || 'Verstoß gegen die Richtlinien'}</p>
+            <br>
+            <p>Falls du Fragen dazu hast, antworte bitte auf diese Email.</p>
         `;
-        await sendEmail(user.email, 'Dein Konto wurde gesperrt', html);
+        await sendSystemEmail({ to: user.email, subject: 'Dein Konto wurde gesperrt', html });
 
         res.json({ message: 'User banned successfully', user });
     } catch (err) {
@@ -281,13 +286,15 @@ router.post('/:id/unban', async (req, res) => {
         });
 
         // Send Email
-        const { sendEmail } = require('../services/messagingService');
+        const { sendSystemEmail } = require('../services/emailService');
         const html = `
             <h3>Konto reaktiviert</h3>
             <p>Hallo ${user.username},</p>
             <p>dein Konto wurde soeben wieder freigeschaltet. Du kannst dich nun wieder wie gewohnt anmelden.</p>
+            <br>
+            <p>Viel Spaß weiterhin mit GabelGuru!</p>
         `;
-        await sendEmail(user.email, 'Dein Konto wurde wieder freigeschaltet', html);
+        await sendSystemEmail({ to: user.email, subject: 'Dein Konto wurde wieder freigeschaltet', html });
 
         res.json({ message: 'User unbanned successfully', user });
     } catch (err) {

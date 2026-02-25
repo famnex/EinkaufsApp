@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { User, Settings, LoginLog, Recipe } = require('../models');
 const { auth } = require('../middleware/auth');
-const { sendEmail } = require('../services/messagingService');
+const { sendSystemEmail } = require('../services/emailService');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
@@ -239,7 +239,7 @@ router.put('/email', auth, async (req, res) => {
                 <p style="font-size: 11px; color: #94a3b8;">Falls du diese Änderung nicht angefordert hast, kannst du diese E-Mail einfach ignorieren. Die alte Adresse bleibt weiterhin aktiv.</p>
             </div>
         `;
-        await sendEmail(newEmail, 'Bestätige deine neue E-Mail-Adresse', html);
+        await sendSystemEmail({ to: newEmail, subject: 'Bestätige deine neue E-Mail-Adresse', html });
 
         res.json({
             success: true,
@@ -450,7 +450,7 @@ router.post('/household/join', auth, async (req, res) => {
                     <p style="font-size: 12px; color: #64748b;">Diese Email wurde automatisch von Gabelguru versendet.</p>
                 </div>
             `;
-            sendEmail(req.user.email, 'Willkommen im Haushalt!', html).catch(err => console.error('Failed to send join email:', err));
+            sendSystemEmail({ to: req.user.email, subject: 'Willkommen im Haushalt!', html }).catch(err => console.error('Failed to send join email:', err));
         }
 
         const updatedUser = await User.findByPk(joiningUserId, {
@@ -487,7 +487,7 @@ router.post('/household/leave', auth, async (req, res) => {
                     <p style="font-size: 12px; color: #64748b;">Diese Email wurde automatisch von Gabelguru versendet.</p>
                 </div>
             `;
-            sendEmail(req.user.email, 'Haushalt verlassen', html).catch(err => console.error('Failed to send leave email:', err));
+            sendSystemEmail({ to: req.user.email, subject: 'Haushalt verlassen', html }).catch(err => console.error('Failed to send leave email:', err));
         }
 
         res.json({ message: 'Haushalt erfolgreich verlassen.', user: req.user });
@@ -527,7 +527,7 @@ router.delete('/household/remove/:memberId', auth, async (req, res) => {
                     <p style="font-size: 12px; color: #64748b;">Diese Email wurde automatisch von Gabelguru versendet.</p>
                 </div>
             `;
-            sendEmail(member.email, 'Haushalt verlassen', html).catch(err => console.error('Failed to send remove email:', err));
+            sendSystemEmail({ to: member.email, subject: 'Haushalt verlassen', html }).catch(err => console.error('Failed to send remove email:', err));
         }
 
         res.json({ message: `Mitglied ${member.username} wurde aus dem Haushalt entfernt.` });
@@ -687,7 +687,7 @@ router.post('/signup', async (req, res) => {
                     <p style="font-size: 11px; color: #94a3b8;">Falls du dich nicht bei Gabelguru registriert hast, kannst du diese E-Mail ignorieren.</p>
                 </div>
             `;
-            await sendEmail(email, 'Aktiviere dein Gabelguru-Konto', html);
+            await sendSystemEmail({ to: email, subject: 'Aktiviere dein Gabelguru-Konto', html });
 
             return res.status(201).json({
                 message: 'Bitte prüfe deine E-Mails, um dein Konto zu aktivieren.',
@@ -765,7 +765,7 @@ router.post('/forgot-password', async (req, res) => {
             <p>Falls du das nicht warst, ignoriere diese Email einfach.</p>
         `;
 
-        const result = await sendEmail(email, 'Passwort zurücksetzen', html);
+        const result = await sendSystemEmail({ to: email, subject: 'Passwort zurücksetzen', html });
 
         if (!result.success) {
             console.warn('Failed to send reset email via SMTP, logging link:', resetLink);

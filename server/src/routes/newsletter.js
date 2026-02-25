@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const newsletterService = require('../services/newsletterService');
-const { Newsletter, NewsletterRecipient, User } = require('../models');
+const { Newsletter, NewsletterRecipient, User, Email } = require('../models');
 const { auth } = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
@@ -37,35 +37,28 @@ const adminOnly = (req, res, next) => {
 };
 
 /**
- * Public Unsubscribe Endpoint
+ * Public Unsubscribe Endpoint (Frontend calls this)
  */
-router.get('/unsubscribe', async (req, res) => {
+router.post('/unsubscribe', async (req, res) => {
     try {
-        const { token } = req.query;
-        if (!token) return res.status(400).send('<h1>Fehler</h1><p>Ungültiger Token.</p>');
+        const { token } = req.body;
+        if (!token) return res.status(400).json({ error: 'Ungültiger Token.' });
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'gabelguru-secret');
         if (decoded.action !== 'unsubscribe') {
-            return res.status(400).send('<h1>Fehler</h1><p>Ungültige Aktion.</p>');
+            return res.status(400).json({ error: 'Ungültige Aktion.' });
         }
 
         const user = await User.findByPk(decoded.id);
-        if (!user) return res.status(404).send('<h1>Fehler</h1><p>Benutzer nicht gefunden.</p>');
+        if (!user) return res.status(404).json({ error: 'Benutzer nicht gefunden.' });
 
         user.newsletterSignedUp = false;
         await user.save();
 
-        res.send(`
-            <div style="font-family: sans-serif; text-align: center; margin-top: 50px;">
-                <h1>Abmeldung erfolgreich</h1>
-                <p>Du wurdest erfolgreich vom Newsletter abgemeldet.</p>
-                <p>Du kannst dieses Fenster nun schließen.</p>
-                <a href="${process.env.FRONTEND_URL || '/'}" style="color: #4f46e5;">Zurück zur App</a>
-            </div>
-        `);
+        res.json({ success: true, message: 'Erfolgreich abgemeldet.' });
     } catch (err) {
         console.error('[Newsletter] Unsubscribe Error:', err.message);
-        res.status(400).send('<h1>Fehler</h1><p>Der Link ist ungültig oder abgelaufen.</p>');
+        res.status(400).json({ error: 'Der Link ist ungültig oder abgelaufen.' });
     }
 });
 
@@ -97,7 +90,25 @@ router.post('/upload-image', auth, adminOnly, upload.single('image'), async (req
  */
 router.get('/', auth, adminOnly, async (req, res) => {
     try {
+        const { Op } = require('sequelize');
+
+        // Nur Newsletter zurückgeben, deren entsprechendes Email-Objekt sich noch im "newsletter" Ordner befindet
+        const emails = await Email.findAll({
+            where: {
+                folder: 'newsletter',
+                messageId: { [Op.like]: 'newsletter-%' },
+                UserId: null
+            },
+            attributes: ['messageId']
+        });
+
+        // Extrahiere die Newsletter IDs aus den messageIds
+        const validIds = emails
+            .map(e => parseInt(e.messageId.replace('newsletter-', ''), 10))
+            .filter(id => !isNaN(id));
+
         const newsletters = await Newsletter.findAll({
+            where: { id: { [Op.in]: validIds } },
             order: [['createdAt', 'DESC']]
         });
         res.json(newsletters);
@@ -166,6 +177,62 @@ router.post('/:id/resume', auth, adminOnly, async (req, res) => {
     try {
         const newsletter = await newsletterService.startSending(req.params.id);
         res.json({ message: 'Versand fortgesetzt.', newsletter });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * Delete a newsletter
+ */
+router.delete('/:id', auth, adminOnly, async (req, res) => {
+    try {
+        const newsletter = await Newsletter.findByPk(req.params.id);
+        if (!newsletter) return res.status(404).json({ error: 'Newsletter nicht gefunden.' });
+
+        await NewsletterRecipient.destroy({ where: { NewsletterId: req.params.id } });
+        await newsletter.destroy();
+
+        res.json({ message: 'Newsletter gelöscht.' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * Bulk move newsletters to trash
+ */
+router.put('/bulk/trash', auth, adminOnly, async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: 'IDs erforderlich' });
+
+        const { Op } = require('sequelize');
+        const messageIds = ids.map(id => `newsletter-${id}`);
+
+        await Email.update(
+            { previousFolder: 'newsletter', folder: 'trash' },
+            { where: { messageId: { [Op.in]: messageIds }, UserId: null } }
+        );
+
+        res.json({ success: true, message: 'In den Papierkorb verschoben.' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * Move a newsletter to trash
+ */
+router.put('/:id/trash', auth, adminOnly, async (req, res) => {
+    try {
+        const email = await Email.findOne({
+            where: { messageId: `newsletter-${req.params.id}`, UserId: null }
+        });
+        if (email) {
+            await email.update({ previousFolder: 'newsletter', folder: 'trash' });
+        }
+        res.json({ success: true, message: 'In den Papierkorb verschoben.' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
