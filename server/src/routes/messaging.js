@@ -4,7 +4,8 @@ const { Email, Settings, User } = require('../models');
 const { auth } = require('../middleware/auth');
 const nodemailer = require('nodemailer');
 const { fetchEmailsForUser } = require('../services/messagingService');
-const { logSystem, logError, getGlobalFooter } = require('../services/emailService');
+const { getGlobalFooter } = require('../services/emailService');
+const { logSystem, logError } = require('../utils/logger');
 
 // Helper: Get SMTP settings (Global Admin)
 async function getSmtpSettings() {

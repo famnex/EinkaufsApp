@@ -176,6 +176,9 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*
 
+### v0.30.3 - Logger Import Fix (Februar 2026)
+1. **Fix**: In mehreren Routen (`messaging`, `compliance`, `newsletter`) wurden die Logger-Funktionen (`logError`, `logSystem`) falsch importiert, was zu `TypeError: logError is not a function` Fehlern führte. Diese werden nun korrekt aus dem `utils/logger` Modul geladen.
+
 ### v0.30.2 - Performance & Loading Fix (Februar 2026)
 1. **Fix**: Das Logging-System wurde so optimiert, dass es den Anfragen-Strom nicht mehr blockiert. Zuvor konnte eine Datenbankabfrage im Logger-Middleware dazu führen, dass die Seite endlos lädt.
 2. **Optimierung**: Die Prüfung auf den Debug-Modus geschieht nun asynchron im Hintergrund.

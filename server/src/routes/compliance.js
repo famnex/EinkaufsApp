@@ -3,6 +3,7 @@ const router = express.Router();
 const { ComplianceReport } = require('../models');
 const { auth } = require('../middleware/auth');
 const { sendSystemEmail, notifyAdmins } = require('../services/emailService');
+const { logError } = require('../utils/logger');
 const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
@@ -192,9 +193,9 @@ router.post('/', async (req, res) => {
         });
 
         res.status(201).json({ success: true, message: 'Meldung erfolgreich eingereicht.', reportId: report.id });
-    } catch (err) {
-        console.error('Compliance Report Error:', err);
-        res.status(500).json({ error: 'Interner Serverfehler beim Speichern der Meldung.' });
+    } catch (error) {
+        logError('Compliance report error:', error);
+        res.status(500).json({ error: 'Bericht konnte nicht eingereicht werden.' });
     }
 });
 

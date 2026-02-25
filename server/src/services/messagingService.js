@@ -3,7 +3,8 @@ const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 const cron = require('node-cron');
 const nodemailer = require('nodemailer');
-const { logSystem, logError, notifyAdmins, getGlobalFooter } = require('./emailService');
+const { notifyAdmins, getGlobalFooter } = require('./emailService');
+const { logSystem, logError } = require('../utils/logger');
 
 /**
  * Helper: Get SMTP settings

@@ -3,6 +3,7 @@ const router = express.Router();
 const newsletterService = require('../services/newsletterService');
 const { Newsletter, NewsletterRecipient, User, Email } = require('../models');
 const { auth } = require('../middleware/auth');
+const { logError } = require('../utils/logger');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
