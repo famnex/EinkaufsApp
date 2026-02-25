@@ -781,11 +781,11 @@ router.post('/forgot-password', async (req, res) => {
 
         const result = await sendSystemEmail({ to: email, subject: 'Passwort zurücksetzen', html });
 
-        if (!result.success) {
-            console.warn('Failed to send reset email via SMTP, logging link:', resetLink);
-            // In dev/debug, we might return the link, but strictly speaking specifically for security we shouldn't. 
-            // However, for this user context, logging it is enough as fallback.
-            if (result.error === 'SMTP Configuration missing') {
+        if (!result) {
+            logger.logWarn('Failed to send reset email via SMTP, logging link:', resetLink);
+            // Fallback for missing config
+            const config = await require('../services/emailService').loadSystemEmailConfig();
+            if (!config) {
                 return res.json({ message: 'Email-Versand nicht konfiguriert. Check Server Logs for Link (Dev Mode).', devLink: resetLink });
             }
             return res.status(500).json({ error: 'Fehler beim Senden der Email' });

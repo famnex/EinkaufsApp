@@ -176,6 +176,11 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*
 
+### v0.30.5 - Email Service & Auth Stability (Februar 2026)
+1. **Fix (Sequelize)**: Behebung eines `SequelizeValidationError` in der Messaging-Route, bei dem Absender-Objekte fälschlicherweise direkt in die Datenbank geschrieben wurden.
+2. **Fix (Auth)**: Korrektur der Erfolgsprüfung beim Passwort-Reset (Boolean vs. Object).
+3. **Verbesserung**: Einführung eines Standard-Absendernamens ("Gabelguru") und Umstellung des `emailService` auf lazy logging für höhere Stabilität.
+
 ### v0.30.4 - Circular Dependency Fix (Februar 2026)
 1. **Fix**: Umstellung aller Routen auf lazy loading des Loggers. Dies behebt Probleme mit zirkulären Abhängigkeiten, die dazu führen konnten, dass `logError` beim Laden der Module noch `undefined` war.
 

@@ -1,5 +1,5 @@
 const nodemailer = require('nodemailer');
-const { logSystem, logError } = require('../utils/logger');
+const logger = require('../utils/logger');
 const { Settings, User, Email } = require('../models');
 
 /**
@@ -13,7 +13,7 @@ async function loadSystemEmailConfig() {
         const smtphost = await Settings.findOne({ where: { key: 'smtp_host', UserId: null } });
 
         if (!smtphost || !smtphost.value) {
-            logSystem('DEBUG', '[EmailService] No global Admin SMTP configuration found.');
+            logger.logSystem('DEBUG', '[EmailService] No global Admin SMTP configuration found.');
             return null;
         }
 
@@ -36,7 +36,7 @@ async function loadSystemEmailConfig() {
                 pass: settings.smtp_password
             },
             from: settings.smtp_from || settings.smtp_user,
-            senderName: settings.smtp_sender_name || null
+            senderName: settings.smtp_sender_name || 'Gabelguru'
         };
 
         logSystem('DEBUG', '[EmailService] SMTP Config loaded:', {
@@ -65,12 +65,13 @@ async function loadSystemEmailConfig() {
  */
 async function getGlobalFooter() {
     try {
+        logger.logSystem('DEBUG', '[EmailService] Loading global footer...');
         const footer = await Settings.findOne({ where: { key: 'newsletter_footer', UserId: null } });
         if (footer && footer.value) {
             return `<div style="font-size: 12px; color: #666; margin-top: 30px;">${footer.value}</div>`;
         }
     } catch (err) {
-        logError('[EmailService] Failed to load footer:', err);
+        logger.logError('[EmailService] Failed to load footer:', err);
     }
     return '';
 }
@@ -88,7 +89,7 @@ async function sendSystemEmail({ to, subject, text, html }) {
     try {
         const config = await loadSystemEmailConfig();
         if (!config) {
-            logSystem('ERROR', '[EmailService] Cannot send email: Configuration missing.');
+            logger.logSystem('ERROR', '[EmailService] Cannot send email: Configuration missing.');
             return false;
         }
 
@@ -100,7 +101,7 @@ async function sendSystemEmail({ to, subject, text, html }) {
         });
 
         const fromAddress = config.senderName ? { name: config.senderName, address: config.from } : config.from;
-        logSystem('DEBUG', `[EmailService] Preparing to send email to ${to} from:`, { fromAddress });
+        logger.logSystem('DEBUG', `[EmailService] Preparing to send email to ${to} from:`, { fromAddress });
 
         // Apply Global Footer
         const globalFooter = await getGlobalFooter();
@@ -108,7 +109,7 @@ async function sendSystemEmail({ to, subject, text, html }) {
         const finalHtml = html ? (html + globalFooter) : (text ? (text + globalFooter) : '');
         const finalText = text ? (text + globalFooter.replace(/<[^>]*>/g, '')) : (html ? html.replace(/<[^>]*>/g, '') : '');
 
-        logSystem('DEBUG', `[EmailService] Sending email to ${to} with subject: "${subject}"`);
+        logger.logSystem('DEBUG', `[EmailService] Sending email to ${to} with subject: "${subject}"`);
         const info = await transporter.sendMail({
             from: fromAddress,
             to,
@@ -117,7 +118,7 @@ async function sendSystemEmail({ to, subject, text, html }) {
             html: finalHtml
         });
 
-        logSystem('INFO', `System email sent to ${to}`, {
+        logger.logSystem('INFO', `System email sent to ${to}`, {
             subject,
             from: typeof fromAddress === 'object' ? `${fromAddress.name} <${fromAddress.address}>` : fromAddress,
             messageId: info.messageId
@@ -140,13 +141,13 @@ async function sendSystemEmail({ to, subject, text, html }) {
                 UserId: null // Shared admin folder
             });
         } catch (logError) {
-            console.error('[EmailService] Failed to log to DB:', logError.message);
+            logger.logError('[EmailService] Failed to log to DB:', logError.message);
         }
 
         return true;
 
     } catch (error) {
-        console.error('[EmailService] Error sending email:', error);
+        logger.logError('[EmailService] Error sending email:', error);
         return false;
     }
 }
