@@ -5,7 +5,7 @@ const { auth } = require('../middleware/auth');
 const nodemailer = require('nodemailer');
 const { fetchEmailsForUser } = require('../services/messagingService');
 const { getGlobalFooter } = require('../services/emailService');
-const { logSystem, logError } = require('../utils/logger');
+const logger = require('../utils/logger');
 
 // Helper: Get SMTP settings (Global Admin)
 async function getSmtpSettings() {
@@ -214,7 +214,7 @@ router.post('/send', auth, async (req, res) => {
         });
 
         const fromAddress = smtp.smtpSenderName ? { name: smtp.smtpSenderName, address: smtp.smtpFrom || smtp.smtpUser } : (smtp.smtpFrom || smtp.smtpUser);
-        logSystem('DEBUG', `[MessagingRoute] Preparing to send email to ${to} from:`, { fromAddress });
+        logger.logSystem('DEBUG', `[MessagingRoute] Preparing to send email to ${to} from:`, { fromAddress });
 
         const globalFooter = await getGlobalFooter();
         const baseHtml = body || '';
@@ -223,7 +223,7 @@ router.post('/send', auth, async (req, res) => {
         const finalHtml = baseHtml + globalFooter;
         const finalText = baseText + globalFooter.replace(/<[^>]*>/g, '');
 
-        logSystem('DEBUG', `[MessagingRoute] Sending email to ${to} with subject: "${subject}"`);
+        logger.logSystem('DEBUG', `[MessagingRoute] Sending email to ${to} with subject: "${subject}"`);
         const mailOptions = {
             from: fromAddress,
             to,
@@ -260,7 +260,7 @@ router.post('/send', auth, async (req, res) => {
 
         res.json({ success: true, messageId: info.messageId });
     } catch (err) {
-        logError('[Messaging send] Error:', err);
+        logger.logError('[Messaging send] Error:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -276,7 +276,7 @@ router.post('/fetch', auth, async (req, res) => {
         }
         res.json({ success: true, fetched: result.fetched, message: `${result.fetched} neue E-Mail(s) abgerufen` });
     } catch (err) {
-        logError('[Messaging fetch] Error:', err);
+        logger.logError('[Messaging fetch] Error:', err);
         res.status(500).json({ error: err.message });
     }
 });

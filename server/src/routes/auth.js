@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { User, Settings, LoginLog, Recipe } = require('../models');
 const { auth } = require('../middleware/auth');
-const { logSystem, logError, logWarn } = require('../utils/logger');
+const logger = require('../utils/logger');
 const { sendSystemEmail } = require('../services/emailService');
 const multer = require('multer');
 const fs = require('fs');
@@ -36,7 +36,7 @@ const upload = multer({ storage: storage });
 // Get Public Cookbooks
 router.get('/public-cookbooks', async (req, res) => {
     try {
-        logSystem('DEBUG', 'Fetching public cookbooks...');
+        logger.logSystem('DEBUG', 'Fetching public cookbooks...');
         const users = await User.findAll({
             where: { isPublicCookbook: true, bannedAt: null },
             attributes: ['id', 'username', 'cookbookTitle', 'cookbookImage', 'sharingKey'],
@@ -46,7 +46,7 @@ router.get('/public-cookbooks', async (req, res) => {
             }]
         });
 
-        logSystem('DEBUG', `Found ${users.length} public users.`);
+        logger.logSystem('DEBUG', `Found ${users.length} public users.`);
 
         // Format data — tileImage = random recipe image, cookbookImage = user avatar
         const result = users.map(user => {
@@ -73,7 +73,7 @@ router.get('/public-cookbooks', async (req, res) => {
 
         res.json(result);
     } catch (err) {
-        logError('Fetch public cookbooks failed:', err);
+        logger.logError('Fetch public cookbooks failed:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -100,7 +100,7 @@ router.get('/check-username', async (req, res) => {
         const user = await User.findOne({ where: { username } });
         res.json({ exists: !!user });
     } catch (err) {
-        logError('Error in auth route:', err);
+        logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -130,7 +130,7 @@ router.get('/me', auth, async (req, res) => {
 
         res.json(user);
     } catch (err) {
-        logError('Error in auth route:', err);
+        logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -148,7 +148,7 @@ router.get('/credits', auth, async (req, res) => {
         });
         res.json(history);
     } catch (err) {
-        logError('Error in auth route:', err);
+        logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -176,7 +176,7 @@ router.put('/profile', auth, upload.single('image'), async (req, res) => {
         });
         res.json(updatedUser);
     } catch (err) {
-        logError('Error in auth route:', err);
+        logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -188,7 +188,7 @@ router.post('/regenerate-sharing-key', auth, async (req, res) => {
         await User.update({ sharingKey: newKey }, { where: { id: req.user.id } });
         res.json({ sharingKey: newKey });
     } catch (err) {
-        logError('Error in auth route:', err);
+        logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -252,7 +252,7 @@ router.put('/email', auth, async (req, res) => {
             message: 'Wir haben eine Bestätigungs-E-Mail an deine neue Adresse gesendet. Bitte klicke auf den Link in der E-Mail, um die Änderung abzuschließen.'
         });
     } catch (err) {
-        logError('Error in auth route:', err);
+        logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -298,7 +298,7 @@ router.put('/password', auth, async (req, res) => {
 
         res.json({ success: true, message: 'Passwort erfolgreich geändert' });
     } catch (err) {
-        logError('Error in auth route:', err);
+        logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -319,7 +319,7 @@ router.get('/household/invite', auth, async (req, res) => {
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '2d' });
         res.json({ token, inviterName: req.user.username });
     } catch (err) {
-        logError('Error in auth route:', err);
+        logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -339,7 +339,7 @@ router.get('/household/members', auth, async (req, res) => {
         });
         res.json(members);
     } catch (err) {
-        logError('Error in auth route:', err);
+        logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -502,7 +502,7 @@ router.post('/household/leave', auth, async (req, res) => {
 
         res.json({ message: 'Haushalt erfolgreich verlassen.', user: req.user });
     } catch (err) {
-        logError('Error in auth route:', err);
+        logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -543,7 +543,7 @@ router.delete('/household/remove/:memberId', auth, async (req, res) => {
 
         res.json({ message: `Mitglied ${member.username} wurde aus dem Haushalt entfernt.` });
     } catch (err) {
-        logError('Error in auth route:', err);
+        logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -643,7 +643,7 @@ router.post('/login', async (req, res) => {
 
         res.json({ token, user: { id: user.id, username: user.username, email: user.email, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId } });
     } catch (err) {
-        logError('Error in auth route:', err);
+        logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -744,7 +744,7 @@ router.post('/verify-email', async (req, res) => {
             email: user.email
         });
     } catch (err) {
-        logError('Error in auth route:', err);
+        logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -793,7 +793,7 @@ router.post('/forgot-password', async (req, res) => {
 
         res.json({ message: 'Email wurde gesendet' });
     } catch (err) {
-        logError('Error in auth route:', err);
+        logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -823,7 +823,7 @@ router.post('/reset-password', async (req, res) => {
 
         res.json({ message: 'Passwort erfolgreich geändert' });
     } catch (err) {
-        logError('Error in auth route:', err);
+        logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });

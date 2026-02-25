@@ -176,6 +176,9 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*
 
+### v0.30.4 - Circular Dependency Fix (Februar 2026)
+1. **Fix**: Umstellung aller Routen auf lazy loading des Loggers. Dies behebt Probleme mit zirkulären Abhängigkeiten, die dazu führen konnten, dass `logError` beim Laden der Module noch `undefined` war.
+
 ### v0.30.3 - Logger Import Fix (Februar 2026)
 1. **Fix**: In mehreren Routen (`messaging`, `compliance`, `newsletter`) wurden die Logger-Funktionen (`logError`, `logSystem`) falsch importiert, was zu `TypeError: logError is not a function` Fehlern führte. Diese werden nun korrekt aus dem `utils/logger` Modul geladen.
 

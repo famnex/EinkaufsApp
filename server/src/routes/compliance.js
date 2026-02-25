@@ -3,7 +3,7 @@ const router = express.Router();
 const { ComplianceReport } = require('../models');
 const { auth } = require('../middleware/auth');
 const { sendSystemEmail, notifyAdmins } = require('../services/emailService');
-const { logError } = require('../utils/logger');
+const logger = require('../utils/logger');
 const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
@@ -66,7 +66,7 @@ router.post('/', async (req, res) => {
 
                 screenshotPath = `/uploads/compliance/${filename}`;
             } catch (err) {
-                console.error('Screenshot capture failed:', err.message);
+                logger.logError('Screenshot capture failed:', err.message);
             }
 
             // 2. Auto-Banning Logic & User Linking
@@ -92,7 +92,7 @@ router.post('/', async (req, res) => {
                     if (recipeMatch) {
                         const sharingKey = recipeMatch[1];
                         const recipeId = recipeMatch[2];
-                        console.log(`[Compliance] Detected reported recipe ${recipeId} with key ${sharingKey}. Banning...`);
+                        logger.logSystem(`[Compliance] Detected reported recipe ${recipeId} with key ${sharingKey}. Banning...`);
 
                         const user = await User.findOne({ where: { sharingKey } });
                         if (user) {
@@ -101,24 +101,24 @@ router.post('/', async (req, res) => {
                             if (recipe) {
                                 recipe.bannedAt = new Date();
                                 await recipe.save();
-                                console.log(`[Compliance] Recipe ${recipe.id} banned.`);
+                                logger.logSystem(`[Compliance] Recipe ${recipe.id} banned.`);
                             }
                         }
                     } else if (cookbookMatch) {
                         const sharingKey = cookbookMatch[1];
-                        console.log(`[Compliance] Detected reported cookbook with key: ${sharingKey}. Banning...`);
+                        logger.logSystem(`[Compliance] Detected reported cookbook with key: ${sharingKey}. Banning...`);
                         const user = await User.findOne({ where: { sharingKey } });
                         if (user) {
                             accusedUserId = user.id; // Capture for report
                             user.bannedAt = new Date();
                             user.isPublicCookbook = false; // Immediate offline
                             await user.save();
-                            console.log(`[Compliance] User ${user.id} cookbook banned.`);
+                            logger.logSystem(`[Compliance] User ${user.id} cookbook banned.`);
                         }
                     }
                 }
             } catch (banErr) {
-                console.error('[Compliance] Auto-ban failed:', banErr);
+                logger.logError('[Compliance] Auto-ban failed:', banErr);
                 // Continue execution, don't fail report
             }
         }
@@ -165,8 +165,8 @@ router.post('/', async (req, res) => {
             text: emailText,
             html: emailHtml
         }).then(success => {
-            if (success) console.log(`[Compliance] Confirmation email sent to ${reporterEmail}`);
-            else console.warn(`[Compliance] Failed to send confirmation email to ${reporterEmail}`);
+            if (success) logger.logSystem(`[Compliance] Confirmation email sent to ${reporterEmail}`);
+            else logger.logError(`[Compliance] Failed to send confirmation email to ${reporterEmail}`);
         });
 
         // Notify Admins
@@ -194,7 +194,7 @@ router.post('/', async (req, res) => {
 
         res.status(201).json({ success: true, message: 'Meldung erfolgreich eingereicht.', reportId: report.id });
     } catch (error) {
-        logError('Compliance report error:', error);
+        logger.logError('Compliance report error:', error);
         res.status(500).json({ error: 'Bericht konnte nicht eingereicht werden.' });
     }
 });
@@ -211,6 +211,7 @@ router.get('/stats', auth, async (req, res) => {
         });
         res.json({ open: openCount });
     } catch (err) {
+        logger.logError('Error getting compliance stats:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -247,6 +248,7 @@ router.get('/', auth, async (req, res) => {
 
         res.json(enrichedReports);
     } catch (err) {
+        logger.logError('Error listing compliance reports:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -301,12 +303,12 @@ router.put('/:id', auth, async (req, res) => {
                                 if (status === 'resolved') {
                                     // DELETE Recipe
                                     await recipe.destroy();
-                                    console.log(`[Compliance] Recipe ${recipe.id} DELETED (Report Resolved).`);
+                                    logger.logSystem(`[Compliance] Recipe ${recipe.id} DELETED (Report Resolved).`);
                                 } else if (status === 'dismissed') {
                                     // UNBAN Recipe
                                     recipe.bannedAt = null;
                                     await recipe.save();
-                                    console.log(`[Compliance] Recipe ${recipe.id} UNBANNED (Report Dismissed).`);
+                                    logger.logSystem(`[Compliance] Recipe ${recipe.id} UNBANNED (Report Dismissed).`);
                                 }
                             }
                         }
@@ -320,18 +322,18 @@ router.put('/:id', auth, async (req, res) => {
                                 user.bannedAt = null;
                                 user.isPublicCookbook = true; // Restore public status? Or just let user decide? Assuming restore.
                                 await user.save();
-                                console.log(`[Compliance] Cookbook (User ${user.id}) UNBANNED (Report Resolved - Content Cleaned).`);
+                                logger.logSystem(`[Compliance] Cookbook (User ${user.id}) UNBANNED (Report Resolved - Content Cleaned).`);
                             } else if (status === 'dismissed') {
                                 // UNBAN Cookbook
                                 user.bannedAt = null;
                                 user.isPublicCookbook = true;
                                 await user.save();
-                                console.log(`[Compliance] Cookbook (User ${user.id}) UNBANNED (Report Dismissed).`);
+                                logger.logSystem(`[Compliance] Cookbook (User ${user.id}) UNBANNED (Report Dismissed).`);
                             }
                         }
                     }
                 } catch (actionErr) {
-                    console.error('[Compliance] Action handler error:', actionErr);
+                    logger.logError('[Compliance] Action handler error:', actionErr);
                     // Don't fail the request, just log
                 }
             }
@@ -369,9 +371,9 @@ router.put('/:id', auth, async (req, res) => {
                         if (!report.accusedUserId) {
                             try {
                                 await report.update({ accusedUserId: targetUser.id });
-                                console.log(`[Compliance] Linked report ${report.id} to user ${targetUser.id}.`);
+                                logger.logSystem(`[Compliance] Linked report ${report.id} to user ${targetUser.id}.`);
                             } catch (linkErr) {
-                                console.error('[Compliance] Failed to auto-link accused user:', linkErr);
+                                logger.logError('[Compliance] Failed to auto-link accused user:', linkErr);
                             }
                         }
 
@@ -408,12 +410,12 @@ router.put('/:id', auth, async (req, res) => {
                             text: warningText,
                             html: warningHtml
                         }).then(success => {
-                            if (success) console.log(`[Compliance] Warning email sent to Creator (${targetUser.email})`);
-                            else console.warn(`[Compliance] Failed to send warning email to Creator (${targetUser.email})`);
+                            if (success) logger.logSystem(`[Compliance] Warning email sent to Creator (${targetUser.email})`);
+                            else logger.logError(`[Compliance] Failed to send warning email to Creator (${targetUser.email})`);
                         });
                     }
                 } catch (warnErr) {
-                    console.error('[Compliance] Failed to process warning email:', warnErr);
+                    logger.logError('[Compliance] Failed to process warning email:', warnErr);
                 }
             }
             const emailText = `Guten Tag ${report.reporterName},\n\nDer Status Ihrer Meldung hat sich geändert: ${status === 'resolved' ? 'Gelöst' : 'Abgeschlossen'}\n\nErgebnis: ${actionText}\n\nBegründung: ${resolutionNote || 'Keine Begründung angegeben.'}`;
@@ -441,13 +443,14 @@ router.put('/:id', auth, async (req, res) => {
                 text: emailText,
                 html: emailHtml
             }).then(success => {
-                if (success) console.log(`[Compliance] Resolution email sent to ${report.reporterEmail}`);
-                else console.warn(`[Compliance] Failed to send resolution email to ${report.reporterEmail}`);
+                if (success) logger.logSystem(`[Compliance] Resolution email sent to ${report.reporterEmail}`);
+                else logger.logError(`[Compliance] Failed to send resolution email to ${report.reporterEmail}`);
             });
         }
 
         res.json(report);
     } catch (err) {
+        logger.logError('Error updating compliance report:', err);
         res.status(500).json({ error: err.message });
     }
 });

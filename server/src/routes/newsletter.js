@@ -3,7 +3,7 @@ const router = express.Router();
 const newsletterService = require('../services/newsletterService');
 const { Newsletter, NewsletterRecipient, User, Email } = require('../models');
 const { auth } = require('../middleware/auth');
-const { logError } = require('../utils/logger');
+const logger = require('../utils/logger');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
@@ -113,8 +113,9 @@ router.get('/', auth, adminOnly, async (req, res) => {
             order: [['createdAt', 'DESC']]
         });
         res.json(newsletters);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+    } catch (err) {
+        logger.logError('Error in newsletter route:', err);
+        res.status(500).json({ error: err.message });
     }
 });
 

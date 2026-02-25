@@ -4,7 +4,7 @@ const { Settings, User, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { auth } = require('../middleware/auth');
 const nodemailer = require('nodemailer');
-const { logSystem, logError, logWarn } = require('../utils/logger');
+const logger = require('../utils/logger');
 
 const { exec } = require('child_process');
 
@@ -12,7 +12,7 @@ const { exec } = require('child_process');
 router.get('/system/version', auth, (req, res) => {
     exec('git describe --tags --always', (error, stdout, stderr) => {
         if (error) {
-            logWarn('Git describe failed:', error);
+            logger.logWarn('Git describe failed:', error);
             return res.json({ version: require('../../package.json').version });
         }
         res.json({ version: stdout.trim() });
@@ -81,7 +81,7 @@ router.get('/logs', auth, async (req, res) => {
 
         res.json({ logs, total });
     } catch (err) {
-        logError('Error fetching logs:', err);
+        logger.logError('Error fetching logs:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -106,7 +106,7 @@ router.post('/legal', auth, async (req, res) => {
         await setting.update({ value });
         res.json({ success: true });
     } catch (err) {
-        logError('Error in settings route:', err);
+        logger.logError('Error in settings route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -135,7 +135,7 @@ router.get('/legal/:type', async (req, res) => {
 
         res.json({ value: setting ? setting.value : '' });
     } catch (err) {
-        logError('Error in settings route:', err);
+        logger.logError('Error in settings route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -162,7 +162,7 @@ router.get('/email', auth, async (req, res) => {
 
         res.json(settings);
     } catch (err) {
-        logError('Error in settings route:', err);
+        logger.logError('Error in settings route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -198,7 +198,7 @@ router.post('/email', auth, async (req, res) => {
             fieldMap.imap_password = imapPassword;
         }
 
-        logSystem('DEBUG', '[SettingsRoute] Saving email settings:', {
+        logger.logSystem('DEBUG', '[SettingsRoute] Saving email settings:', {
             settings: Object.keys(fieldMap).reduce((acc, key) => {
                 if (key.includes('password')) acc[key] = '***';
                 else acc[key] = fieldMap[key];
@@ -216,7 +216,7 @@ router.post('/email', auth, async (req, res) => {
 
         res.json({ success: true });
     } catch (err) {
-        logError('Error in settings route:', err);
+        logger.logError('Error in settings route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -281,7 +281,7 @@ router.get('/:key', auth, async (req, res) => {
         const setting = await Settings.findOne({ where: { key: req.params.key, UserId: req.user.effectiveId } });
         res.json({ value: setting ? setting.value : '' });
     } catch (err) {
-        logError('Error in settings route:', err);
+        logger.logError('Error in settings route:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -303,7 +303,7 @@ router.post('/', auth, async (req, res) => {
 
         res.json(setting);
     } catch (err) {
-        logError('Error in settings route:', err);
+        logger.logError('Error in settings route:', err);
         res.status(500).json({ error: err.message });
     }
 });
