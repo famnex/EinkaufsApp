@@ -217,8 +217,19 @@ router.post('/send', auth, async (req, res) => {
         logger.logSystem('DEBUG', `[MessagingRoute] Preparing to send email to ${to} from:`, { fromAddress });
 
         const globalFooter = await getGlobalFooter();
-        const baseHtml = body || '';
-        const baseText = body ? body.replace(/<[^>]*>/g, '') : '';
+        let baseHtml = body || '';
+        let baseText = body ? body.replace(/<[^>]*>/g, '') : '';
+
+        // Check for personalization placeholder
+        if (baseHtml.toLowerCase().includes('{benutzername}') || baseText.toLowerCase().includes('{benutzername}')) {
+            const userMatch = await User.findOne({ where: { email: to } });
+            if (!userMatch || !userMatch.username) {
+                return res.status(400).json({ error: 'Empfänger ist kein registrierter Benutzer. Der Platzhalter {benutzername} kann nicht ersetzt werden.' });
+            }
+            // Global, case-insensitive replacement
+            baseHtml = baseHtml.replace(/{benutzername}/ig, userMatch.username);
+            baseText = baseText.replace(/{benutzername}/ig, userMatch.username);
+        }
 
         const finalHtml = baseHtml + globalFooter;
         const finalText = baseText + globalFooter.replace(/<[^>]*>/g, '');

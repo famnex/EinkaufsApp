@@ -1016,7 +1016,7 @@ export default function SettingsPage() {
     const [selectedEmail, setSelectedEmail] = useState(null);
     const [loadingEmail, setLoadingEmail] = useState(false);
     const [composeOpen, setComposeOpen] = useState(false);
-    const [composeData, setComposeData] = useState({ to: '', cc: '', bcc: '', subject: '', body: '' });
+    const [composeData, setComposeData] = useState({ to: '', cc: '', bcc: '', subject: '', body: 'Hallo {benutzername},<br><br>' });
     const [showCcBcc, setShowCcBcc] = useState(false);
     const [sendingEmail, setSendingEmail] = useState(false);
     const [replyTo, setReplyTo] = useState(null);
@@ -3213,7 +3213,7 @@ export default function SettingsPage() {
                     <Button
                         onClick={() => {
                             setReplyTo(null);
-                            setComposeData({ to: '', cc: '', bcc: '', subject: '', body: '' });
+                            setComposeData({ to: '', cc: '', bcc: '', subject: '', body: 'Hallo {benutzername},<br><br>' });
                             setShowCcBcc(false);
                             setComposeOpen(true);
                         }}
@@ -3597,22 +3597,6 @@ export default function SettingsPage() {
                                     <div className="min-h-[300px] flex flex-col">
                                         <div className="flex items-center justify-between mb-1">
                                             <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground block">Nachricht</label>
-                                            {isNewsletter && (
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => setComposeData(prev => ({ ...prev, body: prev.body + '{benutzername}' }))}
-                                                        className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded border border-primary/20 hover:bg-primary/20 transition-all font-bold"
-                                                    >
-                                                        + Name
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setComposeData(prev => ({ ...prev, body: prev.body + '{abmeldelink}' }))}
-                                                        className="text-[10px] bg-orange-500/10 text-orange-600 px-2 py-0.5 rounded border border-orange-500/20 hover:bg-orange-500/20 transition-all font-bold"
-                                                    >
-                                                        + Abmeldelink
-                                                    </button>
-                                                </div>
-                                            )}
                                         </div>
                                         <RichTextEditor
                                             value={composeData.body}

@@ -176,6 +176,13 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*
 
+### v0.30.7 - Email Personalization (Februar 2026)
+1. **Frontend Editor**: Neue Mails starten standardmäßig mit der Anrede `Hallo {benutzername},`. Die veralteten Buttons `+ Name` und `+ Abmeldelink` wurden entfernt, um das UI aufzuräumen.
+2. **Backend Messaging**: Die Versandroute analysiert nun automatisch, ob der Platzhalter `{benutzername}` im Text/HTML vorhanden ist. Ist dies der Fall, wird der Benutzername anhand der Empfänger-E-Mail aus der Datenbank geladen und ersetzt. Wird die Adresse nicht gefunden, wird der Versand abgewiesen.
+
+### v0.30.6 - Sender Address Hardening (Februar 2026)
+1. **Sicherheit & Typisierung**: Extrem robuste Extraktion des `fromAddress`-Strings für den E-Mail-Versand, um `SequelizeValidationError` bei asynchroner Mail-Log-Speicherung endgültig zu eliminieren.
+
 ### v0.30.5 - Email Service & Auth Stability (Februar 2026)
 1. **Fix (Sequelize)**: Behebung eines `SequelizeValidationError` in der Messaging-Route, bei dem Absender-Objekte fälschlicherweise direkt in die Datenbank geschrieben wurden.
 2. **Fix (Auth)**: Korrektur der Erfolgsprüfung beim Passwort-Reset (Boolean vs. Object).
