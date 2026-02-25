@@ -3,7 +3,7 @@ const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 const cron = require('node-cron');
 const nodemailer = require('nodemailer');
-const { notifyAdmins, getGlobalFooter } = require('./emailService');
+const { logSystem, logError, notifyAdmins, getGlobalFooter } = require('./emailService');
 
 /**
  * Helper: Get SMTP settings
@@ -16,7 +16,7 @@ async function getSmtpSettings(userId) {
         const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
         settings[camelKey] = s ? s.value : '';
     }
-    console.log(`[MessagingService] Loaded SMTP settings for UserId: ${userId}`, {
+    logSystem('DEBUG', `[MessagingService] Loaded SMTP settings for UserId: ${userId}`, {
         host: settings.smtpHost,
         user: settings.smtpUser,
         from: settings.smtpFrom,
@@ -46,7 +46,7 @@ async function sendEmail(to, subject, html) {
         const { smtpHost, smtpPort, smtpUser, smtpPassword, smtpSecure, smtpFrom, smtpSenderName } = await getSmtpSettings(settingsUser);
 
         if (!smtpHost || !smtpUser || !smtpPassword) {
-            console.log('SMTP Config missing. Would send:', { to, subject });
+            logSystem('DEBUG', 'SMTP Config missing. Would send:', { to, subject });
             return { success: false, error: 'SMTP Configuration missing' };
         }
 
@@ -58,13 +58,13 @@ async function sendEmail(to, subject, html) {
         });
 
         const from = smtpSenderName ? { name: smtpSenderName, address: smtpFrom } : (smtpFrom || process.env.SMTP_FROM || 'noreply@gabelguru.local');
-        console.log(`[MessagingService] Preparing to send email to ${to} from:`, from);
+        logSystem('DEBUG', `[MessagingService] Preparing to send email to ${to} from:`, { from });
 
         // Apply Global Footer
         const globalFooter = await getGlobalFooter();
         const finalHtml = html ? (html + globalFooter) : '';
 
-        console.log(`[MessagingService] Sending email to ${to} with subject: "${subject}"`);
+        logSystem('DEBUG', `[MessagingService] Sending email to ${to} with subject: "${subject}"`);
         const info = await transporter.sendMail({
             from: from,
             to: to,

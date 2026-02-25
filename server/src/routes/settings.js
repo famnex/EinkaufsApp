@@ -4,6 +4,7 @@ const { Settings, User, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { auth } = require('../middleware/auth');
 const nodemailer = require('nodemailer');
+const { logSystem, logError } = require('../utils/logger');
 
 const { exec } = require('child_process');
 
@@ -194,11 +195,13 @@ router.post('/email', auth, async (req, res) => {
             fieldMap.imap_password = imapPassword;
         }
 
-        console.log('[SettingsRoute] Saving email settings:', Object.keys(fieldMap).reduce((acc, key) => {
-            if (key.includes('password')) acc[key] = '***';
-            else acc[key] = fieldMap[key];
-            return acc;
-        }, {}));
+        logSystem('DEBUG', '[SettingsRoute] Saving email settings:', {
+            settings: Object.keys(fieldMap).reduce((acc, key) => {
+                if (key.includes('password')) acc[key] = '***';
+                else acc[key] = fieldMap[key];
+                return acc;
+            }, {})
+        });
 
         for (const [key, value] of Object.entries(fieldMap)) {
             const [setting] = await Settings.findOrCreate({

@@ -1,7 +1,6 @@
-const { Newsletter, NewsletterRecipient, User, Email, sequelize, Settings } = require('../models');
-const { Op } = require('sequelize');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
+const { logSystem, logError } = require('../utils/logger');
 
 /**
  * Service to handle newsletter related logic
@@ -18,7 +17,7 @@ class NewsletterService {
         if (this.isProcessing) return;
         this.isProcessing = true;
 
-        console.log('[NewsletterService] Background worker started.');
+        logSystem('INFO', '[NewsletterService] Background worker started.');
         this._runCycle();
     }
 
@@ -38,7 +37,7 @@ class NewsletterService {
 
             if (!newsletter) {
                 this.isProcessing = false;
-                console.log('[NewsletterService] No newsletters to send. Worker going to sleep.');
+                logSystem('DEBUG', '[NewsletterService] No newsletters to send. Worker going to sleep.');
                 return;
             }
 
@@ -51,14 +50,14 @@ class NewsletterService {
             if (newsletter.sentCount + newsletter.failedCount >= newsletter.recipientsCount) {
                 newsletter.status = 'completed';
                 await newsletter.save();
-                console.log(`[NewsletterService] Newsletter "${newsletter.subject}" completed.`);
+                logSystem('INFO', `[NewsletterService] Newsletter "${newsletter.subject}" completed.`);
 
                 // Continue with next newsletter if any (no wait time between different newsletters)
                 return this._runCycle();
             } else {
                 // Wait for Y minutes before the NEXT batch
                 const waitMs = (newsletter.waitMinutes || 5) * 60 * 1000;
-                console.log(`[NewsletterService] Batch finished for "${newsletter.subject}". Waiting ${newsletter.waitMinutes} minutes until next batch...`);
+                logSystem('INFO', `[NewsletterService] Batch finished for "${newsletter.subject}". Waiting ${newsletter.waitMinutes} minutes until next batch...`);
                 setTimeout(() => this._runCycle(), waitMs);
             }
 
@@ -83,7 +82,7 @@ class NewsletterService {
 
         if (recipients.length === 0) return;
 
-        console.log(`[NewsletterService] Sending batch of ${recipients.length} for "${newsletter.subject}"`);
+        logSystem('INFO', `[NewsletterService] Sending batch of ${recipients.length} for "${newsletter.subject}"`);
 
         const smtpConfig = await this._getGlobalSmtpConfig();
         if (!smtpConfig) {
@@ -119,7 +118,7 @@ class NewsletterService {
 
                 const fullBody = personalizedBody + (newsletter.footer ? `<div style="margin-top: 30px;">${newsletter.footer}</div>` : '') + mandatoryFooter;
 
-                console.log(`[NewsletterService] Sending e-mail to ${recipient.User.email} from:`, fromAddress);
+                logSystem('DEBUG', `[NewsletterService] Sending e-mail to ${recipient.User.email} from:`, { fromAddress });
                 await transporter.sendMail({
                     from: fromAddress,
                     to: recipient.User.email,
@@ -176,7 +175,7 @@ class NewsletterService {
             senderName: config.sender_name
         };
 
-        console.log('[NewsletterService] Loaded Global SMTP Config:', {
+        logSystem('DEBUG', '[NewsletterService] Loaded Global SMTP Config:', {
             host: smtpConfig.host,
             user: smtpConfig.auth.user,
             from: smtpConfig.from,

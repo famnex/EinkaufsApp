@@ -176,6 +176,6 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*
 
-### v0.29.8 - Extended Email Debugging (Februar 2026)
-1. **Debug Logging**: Implementierung umfassender Konsolen-Logs in allen E-Mail-Diensten (`emailService`, `messagingService`, `newsletterService`) und Routen.
-2. **Details**: Protokollierung von SMTP-Konfigurations-Ladevorgängen, Absender/Empfänger-Details, Betreffzeilen und Verarbeitungsstatus zur besseren Fehlerdiagnose.
+### v0.29.9 - Unified Debug Logging (Februar 2026)
+1. **Unifizierung**: Umstellung aller `console.log` Debug-Nachrichten in den E-Mail- und System-Diensten auf das zentrale `logSystem`-Modul.
+2. **Vorteil**: Alle erweiterten Debug-Infos (SMTP-Config, Versand-Details) werden nun auch in die Datei `logs/system.log` geschrieben, sofern der Debug-Modus aktiv ist.

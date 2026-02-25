@@ -1,5 +1,6 @@
-const { Settings, User, Email } = require('../models');
 const nodemailer = require('nodemailer');
+const { logSystem, logError } = require('../utils/logger');
+const { Settings, User, Email } = require('../models');
 
 /**
  * Loads the system email configuration from the database.
@@ -12,7 +13,7 @@ async function loadSystemEmailConfig() {
         const smtphost = await Settings.findOne({ where: { key: 'smtp_host', UserId: null } });
 
         if (!smtphost || !smtphost.value) {
-            console.warn('[EmailService] No global Admin SMTP configuration found.');
+            logSystem('DEBUG', '[EmailService] No global Admin SMTP configuration found.');
             return null;
         }
 
@@ -38,7 +39,7 @@ async function loadSystemEmailConfig() {
             senderName: settings.smtp_sender_name || null
         };
 
-        console.log('[EmailService] SMTP Config loaded:', {
+        logSystem('DEBUG', '[EmailService] SMTP Config loaded:', {
             host: config.host,
             user: config.auth.user,
             from: config.from,
@@ -47,7 +48,7 @@ async function loadSystemEmailConfig() {
         });
 
         if (!config.from) {
-            console.warn('[EmailService] SMTP From/User missing.');
+            logSystem('DEBUG', '[EmailService] SMTP From/User missing.');
             return null;
         }
 
@@ -69,7 +70,7 @@ async function getGlobalFooter() {
             return `<div style="font-size: 12px; color: #666; margin-top: 30px;">${footer.value}</div>`;
         }
     } catch (err) {
-        console.error('[EmailService] Failed to load footer:', err);
+        logError('[EmailService] Failed to load footer:', err);
     }
     return '';
 }
@@ -87,7 +88,7 @@ async function sendSystemEmail({ to, subject, text, html }) {
     try {
         const config = await loadSystemEmailConfig();
         if (!config) {
-            console.error('[EmailService] Cannot send email: Configuration missing.');
+            logSystem('ERROR', '[EmailService] Cannot send email: Configuration missing.');
             return false;
         }
 
@@ -99,7 +100,7 @@ async function sendSystemEmail({ to, subject, text, html }) {
         });
 
         const fromAddress = config.senderName ? { name: config.senderName, address: config.from } : config.from;
-        console.log(`[EmailService] Preparing to send email to ${to} from:`, fromAddress);
+        logSystem('DEBUG', `[EmailService] Preparing to send email to ${to} from:`, { fromAddress });
 
         // Apply Global Footer
         const globalFooter = await getGlobalFooter();
@@ -107,7 +108,7 @@ async function sendSystemEmail({ to, subject, text, html }) {
         const finalHtml = html ? (html + globalFooter) : (text ? (text + globalFooter) : '');
         const finalText = text ? (text + globalFooter.replace(/<[^>]*>/g, '')) : (html ? html.replace(/<[^>]*>/g, '') : '');
 
-        console.log(`[EmailService] Sending email to ${to} with subject: "${subject}"`);
+        logSystem('DEBUG', `[EmailService] Sending email to ${to} with subject: "${subject}"`);
         const info = await transporter.sendMail({
             from: fromAddress,
             to,
@@ -116,8 +117,6 @@ async function sendSystemEmail({ to, subject, text, html }) {
             html: finalHtml
         });
 
-        // Use the new logSystem if available (or console log)
-        const { logSystem } = require('../utils/logger');
         logSystem('INFO', `System email sent to ${to}`, {
             subject,
             from: typeof fromAddress === 'object' ? `${fromAddress.name} <${fromAddress.address}>` : fromAddress,

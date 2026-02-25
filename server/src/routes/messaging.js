@@ -4,7 +4,7 @@ const { Email, Settings, User } = require('../models');
 const { auth } = require('../middleware/auth');
 const nodemailer = require('nodemailer');
 const { fetchEmailsForUser } = require('../services/messagingService');
-const { getGlobalFooter } = require('../services/emailService');
+const { logSystem, logError, getGlobalFooter } = require('../services/emailService');
 
 // Helper: Get SMTP settings (Global Admin)
 async function getSmtpSettings() {
@@ -213,7 +213,7 @@ router.post('/send', auth, async (req, res) => {
         });
 
         const fromAddress = smtp.smtpSenderName ? { name: smtp.smtpSenderName, address: smtp.smtpFrom || smtp.smtpUser } : (smtp.smtpFrom || smtp.smtpUser);
-        console.log(`[MessagingRoute] Preparing to send email to ${to} from:`, fromAddress);
+        logSystem('DEBUG', `[MessagingRoute] Preparing to send email to ${to} from:`, { fromAddress });
 
         const globalFooter = await getGlobalFooter();
         const baseHtml = body || '';
@@ -222,7 +222,7 @@ router.post('/send', auth, async (req, res) => {
         const finalHtml = baseHtml + globalFooter;
         const finalText = baseText + globalFooter.replace(/<[^>]*>/g, '');
 
-        console.log(`[MessagingRoute] Sending email to ${to} with subject: "${subject}"`);
+        logSystem('DEBUG', `[MessagingRoute] Sending email to ${to} with subject: "${subject}"`);
         const mailOptions = {
             from: fromAddress,
             to,
