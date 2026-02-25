@@ -39,7 +39,7 @@ async function loadSystemEmailConfig() {
             senderName: settings.smtp_sender_name || 'Gabelguru'
         };
 
-        logSystem('DEBUG', '[EmailService] SMTP Config loaded:', {
+        logger.logSystem('DEBUG', '[EmailService] SMTP Config loaded:', {
             host: config.host,
             user: config.auth.user,
             from: config.from,
@@ -48,13 +48,13 @@ async function loadSystemEmailConfig() {
         });
 
         if (!config.from) {
-            logSystem('DEBUG', '[EmailService] SMTP From/User missing.');
+            logger.logSystem('DEBUG', '[EmailService] SMTP From/User missing.');
             return null;
         }
 
         return config;
     } catch (error) {
-        console.error('[EmailService] Error loading configuration:', error);
+        logger.logError('[EmailService] Error loading configuration:', error);
         return null;
     }
 }

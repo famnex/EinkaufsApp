@@ -786,7 +786,7 @@ router.post('/forgot-password', async (req, res) => {
             // Fallback for missing config
             const config = await require('../services/emailService').loadSystemEmailConfig();
             if (!config) {
-                return res.json({ message: 'Email-Versand nicht konfiguriert. Check Server Logs for Link (Dev Mode).', devLink: resetLink });
+                return res.json({ message: 'Email-Versand nicht konfiguriert. Bitte Administrator kontaktieren.' });
             }
             return res.status(500).json({ error: 'Fehler beim Senden der Email' });
         }
@@ -794,7 +794,7 @@ router.post('/forgot-password', async (req, res) => {
         res.json({ message: 'Email wurde gesendet' });
     } catch (err) {
         logger.logError('Error in auth route:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Ein unerwarteter Fehler ist aufgetreten' });
     }
 });
 

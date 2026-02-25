@@ -176,6 +176,10 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*
 
+### v0.30.8 - Auth Security & Logger Fix (Februar 2026)
+1. **Sicherheit (Auth)**: Der Passwort-Reset-Link (DevLink) wird bei fehlgeschlagenem SMTP-Versand nun strikt nicht mehr als Fallback an die Frontend-API zurückgegeben, sondern ausschließlich serverseitig geloggt. Eine potenzielle Sicherheitslücke wurde geschlossen.
+2. **Crash Fix (`emailService.js`)**: Behebung eines `ReferenceError: logSystem is not defined` beim initialen Laden der E-Mail-Konfiguration.
+
 ### v0.30.7 - Email Personalization (Februar 2026)
 1. **Frontend Editor**: Neue Mails starten standardmäßig mit der Anrede `Hallo {benutzername},`. Die veralteten Buttons `+ Name` und `+ Abmeldelink` wurden entfernt, um das UI aufzuräumen.
 2. **Backend Messaging**: Die Versandroute analysiert nun automatisch, ob der Platzhalter `{benutzername}` im Text/HTML vorhanden ist. Ist dies der Fall, wird der Benutzername anhand der Empfänger-E-Mail aus der Datenbank geladen und ersetzt. Wird die Adresse nicht gefunden, wird der Versand abgewiesen.
