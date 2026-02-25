@@ -176,6 +176,10 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*
 
+### v0.30.10 - AI Credit Deduction Adjustments (Februar 2026)
+1. **Faires Abrechnungsmodell**: Credits für fast alle AI-Funktionen (Rezeptparser, Aufräumassistent, Lookup, Duplikatsuche, Bildgenerierung, Bildvariationen und Kochassistent) werden ab sofort **erst dann** vom Konto des Nutzers abgezogen, wenn die KI-Operation erfolgreich abgeschlossen wurde (und nicht mehr direkt bei Aufruf).
+2. **Kostenlose AI-Funktionen**: Der Austauschassistent (Zutatensubstitution) und die Einkaufslisten-Extraktion aus Freitext/URL verbrauchen nun keine Credits mehr und sind für alle Nutzer absolut kostenlos.
+
 ### v0.30.9 - User Management Enhancements (Februar 2026)
 1. **Benutzerverwaltung**: Im Reiter "Allgemein" der Benutzerdetails lässt sich nun der Newsletter-Status eines Nutzers per Schalter (Toggle) anzeigen und ändern.
 2. **Direktnachrichten**: Im Kopfbereich des Benutzer-Detail-Modals gibt es jetzt einen E-Mail-Button. Ein Klick darauf schließt das Modal, wechselt in den Messaging-Tab und öffnet den E-Mail-Composer, wobei die Adresse des Nutzers sowie die "Hallo {benutzername}"-Anrede direkt vorausgefüllt werden.

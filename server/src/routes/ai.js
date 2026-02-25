@@ -44,9 +44,6 @@ router.post('/parse', auth, async (req, res) => {
             return res.status(400).json({ error: 'OpenAI API Key not configured in Settings' });
         }
 
-        // Deduct Credits
-        await creditService.deductCredits(req.user.effectiveId, 'TEXT', 'Rezept parsen');
-
         // Fetch existing categories and tags to guide the AI
         const existingCategories = await Recipe.findAll({
             attributes: ['category'],
@@ -127,6 +124,10 @@ router.post('/parse', auth, async (req, res) => {
 
         const result = JSON.parse(completion.choices[0].message.content);
         console.log('DEBUG: AI Result Image URL:', result.image_url);
+
+        // Deduct Credits on Success
+        await creditService.deductCredits(req.user.effectiveId, 'TEXT', 'Rezept parsen');
+
         res.json(result);
 
     } catch (err) {
@@ -147,9 +148,6 @@ router.post('/cleanup', auth, async (req, res) => {
         if (!setting || !setting.value) {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
         }
-
-        // Deduct Credits (per batch or per product? simple TEXT deduction for now)
-        await creditService.deductCredits(req.user.effectiveId, 'TEXT', `KI Cleanup: ${type}`);
 
         const openai = new OpenAI({ apiKey: setting.value });
 
@@ -252,6 +250,9 @@ router.post('/cleanup', auth, async (req, res) => {
             };
         });
 
+        // Deduct Credits on Success
+        await creditService.deductCredits(req.user.effectiveId, 'TEXT', `KI Cleanup: ${type}`);
+
         res.json(mappedResults);
 
     } catch (err) {
@@ -284,9 +285,6 @@ router.post('/lookup', auth, async (req, res) => {
         if (!setting || !setting.value) {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
         }
-
-        // Deduct Credits
-        await creditService.deductCredits(req.user.effectiveId, 'TEXT', `KI Lookup: ${name}`);
 
         const openai = new OpenAI({ apiKey: setting.value });
 
@@ -332,6 +330,10 @@ router.post('/lookup', auth, async (req, res) => {
         });
 
         const result = JSON.parse(completion.choices[0].message.content);
+
+        // Deduct Credits on Success
+        await creditService.deductCredits(req.user.effectiveId, 'TEXT', `KI Lookup: ${name}`);
+
         res.json(result);
 
     } catch (err) {
@@ -353,9 +355,6 @@ router.post('/suggest-substitute', auth, async (req, res) => {
         if (!setting || !setting.value) {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
         }
-
-        // Deduct Credits
-        await creditService.deductCredits(req.user.effectiveId, 'TEXT', `KI Ersatzvorschlag: ${productName}`);
 
         const openai = new OpenAI({ apiKey: setting.value });
 
@@ -412,9 +411,6 @@ router.post('/find-duplicates', auth, async (req, res) => {
             return res.status(400).json({ error: 'OpenAI API Key ist nicht konfiguriert' });
         }
 
-        // Deduct Credits
-        await creditService.deductCredits(req.user.effectiveId, 'TEXT', 'KI Duplikatsuche');
-
         const openai = new OpenAI({ apiKey: setting.value });
 
         // Create prompt for duplicate detection
@@ -470,6 +466,9 @@ Beispiel Output:
             .filter(s => s.sourceId && s.targetId && s.confidence >= 90)
             .slice(0, 20); // Limit to 20 suggestions
 
+        // Deduct Credits on Success
+        await creditService.deductCredits(req.user.effectiveId, 'TEXT', 'KI Duplikatsuche');
+
         res.json({ suggestions });
 
     } catch (err) {
@@ -491,9 +490,6 @@ router.post('/generate-image', auth, async (req, res) => {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
         }
 
-        // Deduct Credits
-        await creditService.deductCredits(req.user.effectiveId, 'IMAGE', 'KI Bild generieren');
-
         const openai = new OpenAI({ apiKey: setting.value });
 
         const response = await openai.images.generate({
@@ -505,6 +501,9 @@ router.post('/generate-image', auth, async (req, res) => {
         });
 
         const imageUrl = response.data[0].url;
+
+        // Deduct Credits AFTER successful API response, before image processing/download
+        await creditService.deductCredits(req.user.effectiveId, 'IMAGE', 'KI Bild generieren');
 
         // Download and Optimize
         const imageResponse = await axios({
@@ -552,9 +551,6 @@ router.post('/regenerate-image', auth, async (req, res) => {
         if (!setting || !setting.value) {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
         }
-
-        // Deduct Credits
-        await creditService.deductCredits(req.user.effectiveId, 'IMAGE_VAR', 'KI Bild variieren');
 
         console.log('Regenerating image via GPT-Image-1-Mini from:', imageUrl);
 
@@ -688,6 +684,9 @@ router.post('/regenerate-image', auth, async (req, res) => {
             const b64 = apiData.data?.[0]?.b64_json;
             if (!b64) throw new Error("No b64_json image data in response");
 
+            // Deduct Credits AFTER successful API response
+            await creditService.deductCredits(req.user.effectiveId, 'IMAGE_VAR', 'KI Bild variieren');
+
             // 4. Save Result
             const uploadDir = path.join(__dirname, `../../public/uploads/users/${req.user.effectiveId}/recipes`);
             if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -731,9 +730,6 @@ router.post('/chat', auth, async (req, res) => {
         if (!setting || !setting.value) {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
         }
-
-        // Deduct Credits
-        await creditService.deductCredits(req.user.effectiveId, 'COOKING_CHAT', 'KI Kochassistent Chat');
 
         const openai = new OpenAI({ apiKey: setting.value });
 
@@ -801,6 +797,10 @@ router.post('/chat', auth, async (req, res) => {
         });
 
         const result = JSON.parse(completion.choices[0].message.content);
+
+        // Deduct Credits on Success
+        await creditService.deductCredits(req.user.effectiveId, 'COOKING_CHAT', 'KI Kochassistent Chat');
+
         res.json({ reply: result.reply, action: result.action });
 
     } catch (err) {
@@ -819,9 +819,6 @@ router.post('/extract-list-ingredients', auth, async (req, res) => {
         if (!setting || !setting.value) {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
         }
-
-        // Deduct Credits
-        await creditService.deductCredits(req.user.effectiveId, 'TEXT', 'KI Einkaufslisten-Extraktion');
 
         // 1. Check for URL
         const urlRegex = /(https?:\/\/[^\s]+)/g;
