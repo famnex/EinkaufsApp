@@ -176,6 +176,10 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*
 
+### v0.30.2 - Performance & Loading Fix (Februar 2026)
+1. **Fix**: Das Logging-System wurde so optimiert, dass es den Anfragen-Strom nicht mehr blockiert. Zuvor konnte eine Datenbankabfrage im Logger-Middleware dazu führen, dass die Seite endlos lädt.
+2. **Optimierung**: Die Prüfung auf den Debug-Modus geschieht nun asynchron im Hintergrund.
+
 ### v0.30.1 - Newsletter Service Hotfix (Februar 2026)
 1. **Fix**: In `newsletterService.js` wurden die Model-Imports wiederhergestellt, die bei der Umstellung auf das neue Logging-System versehentlich entfernt wurden (`ReferenceError: Newsletter is not defined`).
 

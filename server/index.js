@@ -4,7 +4,7 @@ const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
 const { sequelize, User, Recipe } = require('./src/models');
-const { logSystem, logError, shouldLogDebug } = require('./src/utils/logger');
+const { logSystem, logError, shouldLogDebug, isDebugEnabledSync, updateDebugModeCache } = require('./src/utils/logger');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
@@ -38,9 +38,12 @@ app.use((req, res, next) => {
     next();
 });
 
-// Detailed Debug Logger
-app.use(async (req, res, next) => {
-    if (await shouldLogDebug()) {
+// Detailed Debug Logger (Non-blocking)
+app.use((req, res, next) => {
+    // Trigger cache update in background
+    updateDebugModeCache().catch(() => { });
+
+    if (isDebugEnabledSync()) {
         const meta = {
             ip: req.ip,
             query: req.query,

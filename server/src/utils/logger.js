@@ -15,25 +15,36 @@ let isDebugModeEnabled = null;
 let lastCheck = 0;
 
 /**
- * Check if system debug mode is enabled
+ * Check if system debug mode is enabled (Sync version using cache)
  */
-const shouldLogDebug = async () => {
+const isDebugEnabledSync = () => {
+    return !!isDebugModeEnabled;
+};
+
+/**
+ * Update debug mode cache (Async)
+ */
+const updateDebugModeCache = async () => {
     const now = Date.now();
-    // Cache for 10 seconds
-    if (isDebugModeEnabled !== null && (now - lastCheck < 10000)) {
-        return isDebugModeEnabled;
-    }
+    if (now - lastCheck < 10000) return isDebugModeEnabled;
 
     try {
         const { Settings } = require('../models');
         const setting = await Settings.findOne({ where: { key: 'system_debug_mode', UserId: null } });
         isDebugModeEnabled = setting ? setting.value === 'true' : false;
         lastCheck = now;
-        return isDebugModeEnabled;
     } catch (err) {
-        console.error('Failed to check debug mode setting:', err);
-        return false;
+        // Fallback or silent fail during init
+        if (isDebugModeEnabled === null) isDebugModeEnabled = false;
     }
+    return isDebugModeEnabled;
+};
+
+/**
+ * Check if system debug mode is enabled
+ */
+const shouldLogDebug = async () => {
+    return await updateDebugModeCache();
 };
 
 /**
@@ -60,10 +71,9 @@ const logAlexa = (level, type, message, meta = {}) => {
  */
 const logSystem = async (level, message, meta = null) => {
     const isDebug = level === 'DEBUG';
-    const debugOn = await shouldLogDebug();
 
-    // If it's a debug message and debug is off, don't log to file or console
-    if (isDebug && !debugOn) return;
+    // Non-blocking filter check
+    if (isDebug && !isDebugEnabledSync()) return;
 
     const timestamp = new Date().toISOString();
     let logMessage = `[${timestamp}] [${level}] ${message}`;
@@ -78,6 +88,7 @@ const logSystem = async (level, message, meta = null) => {
     logMessage += '\n';
 
     // Output to stdout/stderr as requested
+    const isError = level === 'ERROR' || level === 'FATAL';
     if (isError) {
         process.stderr.write(logMessage);
     } else {
@@ -156,5 +167,7 @@ module.exports = {
     logSystem,
     logError,
     logWarn,
-    shouldLogDebug
+    shouldLogDebug,
+    isDebugEnabledSync,
+    updateDebugModeCache
 };
