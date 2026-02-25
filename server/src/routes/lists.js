@@ -843,6 +843,7 @@ router.get('/:id/planning-data', auth, async (req, res) => {
             include: [
                 {
                     model: require('../models').Recipe,
+                    attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'instructions', 'imageSource', 'bannedAt', 'UserId'],
                     required: false,
                     include: [{
                         model: require('../models').RecipeIngredient,

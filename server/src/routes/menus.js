@@ -21,6 +21,7 @@ router.get('/', auth, async (req, res) => {
             include: [
                 {
                     model: Recipe,
+                    attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'instructions', 'imageSource', 'bannedAt', 'UserId'],
                     required: false,
                     include: [{
                         model: RecipeIngredient,
@@ -57,7 +58,12 @@ router.post('/', auth, async (req, res) => {
         // Fetch fresh to return with associations if needed
         const fresh = await Menu.findOne({
             where: { id: menu.id, UserId: req.user.effectiveId },
-            include: [{ model: Recipe, where: { UserId: req.user.effectiveId }, required: false }]
+            include: [{
+                model: Recipe,
+                attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'bannedAt', 'UserId'],
+                where: { UserId: req.user.effectiveId },
+                required: false
+            }]
         });
         res.status(201).json(fresh);
     } catch (err) {
@@ -74,7 +80,12 @@ router.put('/:id', auth, async (req, res) => {
         await menu.update(req.body);
         const fresh = await Menu.findOne({
             where: { id: menu.id, UserId: req.user.effectiveId },
-            include: [{ model: Recipe, where: { UserId: req.user.effectiveId }, required: false }]
+            include: [{
+                model: Recipe,
+                attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'bannedAt', 'UserId'],
+                where: { UserId: req.user.effectiveId },
+                required: false
+            }]
         });
         res.json(fresh);
     } catch (err) {
