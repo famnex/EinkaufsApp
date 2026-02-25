@@ -68,6 +68,7 @@ export default function SettingsPage() {
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [userSearchQuery, setUserSearchQuery] = useState('');
     const [userRoleFilter, setUserRoleFilter] = useState('all');
+    const [systemDebugMode, setSystemDebugMode] = useState(false);
 
     // Email Configuration State
     const [emailConfig, setEmailConfig] = useState({
@@ -388,6 +389,9 @@ export default function SettingsPage() {
             if (systemSettingsRes.data.system_secondary_color) {
                 setSecondaryColor(systemSettingsRes.data.system_secondary_color);
             }
+            if (systemSettingsRes.data.system_debug_mode) {
+                setSystemDebugMode(systemSettingsRes.data.system_debug_mode === 'true');
+            }
 
             // Load Payment settings
             if (systemSettingsRes.data) {
@@ -556,6 +560,21 @@ export default function SettingsPage() {
         } catch (err) {
             console.error('Failed to save setting', err);
             setRegistrationEnabled(!newValue); // Revert
+            alert('Fehler beim Speichern');
+        }
+    };
+
+    const handleToggleDebugMode = async (e) => {
+        const newValue = e.target.checked;
+        setSystemDebugMode(newValue);
+        try {
+            await api.post('/system/settings', {
+                key: 'system_debug_mode',
+                value: String(newValue)
+            });
+        } catch (err) {
+            console.error('Failed to save debug mode', err);
+            setSystemDebugMode(!newValue);
             alert('Fehler beim Speichern');
         }
     };
@@ -741,30 +760,6 @@ export default function SettingsPage() {
         }
     };
 
-    const handleClearCache = () => {
-        if (confirm('Bist du sicher? Alle lokalen Daten der App werden gelöscht und die Seite neu geladen.')) {
-            // Unregister all service workers
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(registrations => {
-                    for (let registration of registrations) {
-                        registration.unregister();
-                    }
-                });
-            }
-            // Clear all caches
-            if ('caches' in window) {
-                caches.keys().then(names => {
-                    for (let name of names) {
-                        caches.delete(name);
-                    }
-                });
-            }
-            // Clear local storage
-            localStorage.clear();
-            // Reload
-            window.location.reload(true);
-        }
-    };
 
     const handleSaveEmail = async () => {
         setSavingEmail(true);
@@ -2494,6 +2489,33 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
+                <div className="pt-6 border-t border-border mb-6">
+                    <label className="flex items-center justify-between cursor-pointer group">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-primary/10 rounded-xl text-primary group-hover:bg-primary/20 transition-colors">
+                                <FileText size={18} />
+                            </div>
+                            <div>
+                                <span className="font-bold text-foreground block">Erweiterter Debug-Modus</span>
+                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Umfassendes Logging aktivieren</span>
+                            </div>
+                        </div>
+                        <div className="relative">
+                            <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={systemDebugMode}
+                                onChange={handleToggleDebugMode}
+                            />
+                            <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                        </div>
+                    </label>
+                    <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
+                        Aktiviert detailliertes Logging von Anfragen, Fehlern und System-Ereignissen direkt in das Dateisystem (`logs/system.log`). Empfohlen zur Fehleranalyse im Produktivsystem.
+                        <strong> Hinweis:</strong> Die Logs sind via SSH oder über den Server-Prozess (stdout/stderr) auslesbar.
+                    </p>
+                </div>
+
                 <div className="pt-6 border-t border-border">
                     <div className="flex items-center justify-between">
                         <div>
@@ -2548,22 +2570,7 @@ export default function SettingsPage() {
                         </div>
                     </div>
                 </div>
-            </Card>
-            <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm border-destructive/20">
-                <h2 className="text-xl font-bold text-destructive mb-4 flex items-center gap-2">
-                    <Trash2 size={20} />
-                    Cache & Daten
-                </h2>
-                <div className="flex items-center justify-between">
-                    <div>
-                        <p className="font-bold text-foreground">Lokalen Cache leeren</p>
-                        <p className="text-xs text-muted-foreground">Behebt oft Anzeigefehler nach Updates.</p>
-                    </div>
-                    <Button variant="destructive" size="sm" onClick={handleClearCache}>
-                        Cache leeren
-                    </Button>
-                </div>
-            </Card>
+            </Card >
 
             {/* Email Configuration - Collapsible */}
             <div className="border border-border/50 rounded-2xl overflow-hidden bg-card/30 shadow-sm">
@@ -2921,7 +2928,7 @@ export default function SettingsPage() {
                     )}
                 </AnimatePresence>
             </div>
-        </div>
+        </div >
     );
 
 

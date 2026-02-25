@@ -169,5 +169,9 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
     - Fügt `isEmailVerified`, `emailVerificationToken` und `pendingEmail` Spalten zu `Users` hinzu.
     - Setzt `isEmailVerified` für bestehende User standardmäßig auf `true`.
 
+10. **Debug Logging (v0.29.6)**:
+    - Einführung der globalen Einstellung `system_debug_mode` in der `Settings` Tabelle.
+    - Implementierung einer umfassenden Request- und Fehler-Protokollierung in `logs/system.log`.
+
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*

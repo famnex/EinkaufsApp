@@ -2,19 +2,42 @@ const fs = require('fs');
 const path = require('path');
 
 const LOG_DIR = path.join(__dirname, '../../logs');
-const LOG_FILE = path.join(LOG_DIR, 'alexa.jsonl');
+const ALEXA_LOG_FILE = path.join(LOG_DIR, 'alexa.jsonl');
+const SYSTEM_LOG_FILE = path.join(LOG_DIR, 'system.log');
 
 // Ensure log directory exists
 if (!fs.existsSync(LOG_DIR)) {
     fs.mkdirSync(LOG_DIR, { recursive: true });
 }
 
+// Local cache for debug mode to avoid excessive DB queries
+let isDebugModeEnabled = null;
+let lastCheck = 0;
+
+/**
+ * Check if system debug mode is enabled
+ */
+const shouldLogDebug = async () => {
+    const now = Date.now();
+    // Cache for 10 seconds
+    if (isDebugModeEnabled !== null && (now - lastCheck < 10000)) {
+        return isDebugModeEnabled;
+    }
+
+    try {
+        const { Settings } = require('../models');
+        const setting = await Settings.findOne({ where: { key: 'system_debug_mode', UserId: null } });
+        isDebugModeEnabled = setting ? setting.value === 'true' : false;
+        lastCheck = now;
+        return isDebugModeEnabled;
+    } catch (err) {
+        console.error('Failed to check debug mode setting:', err);
+        return false;
+    }
+};
+
 /**
  * Log an Alexa event
- * @param {string} level 'INFO', 'WARN', 'ERROR'
- * @param {string} type 'AUTH', 'REQUEST', 'ITEM_ADDED', 'ITEM_UPDATED', 'PRODUCT_CREATED'
- * @param {string} message Human readable message
- * @param {object} meta Additional data (e.g., product name, quantity)
  */
 const logAlexa = (level, type, message, meta = {}) => {
     const entry = {
@@ -27,33 +50,84 @@ const logAlexa = (level, type, message, meta = {}) => {
 
     const line = JSON.stringify(entry) + '\n';
 
-    fs.appendFile(LOG_FILE, line, (err) => {
+    fs.appendFile(ALEXA_LOG_FILE, line, (err) => {
         if (err) console.error('Failed to write to alexa log:', err);
     });
 };
 
 /**
- * Read the last N lines of the log file
- * @param {number} limit Number of lines to return
- * @returns {Promise<Array>} Array of log entries (newest first)
+ * Log a system message or error
  */
-const readAlexaLogs = (limit = 100) => {
+const logSystem = async (level, message, meta = null) => {
+    const isError = level === 'ERROR' || level === 'FATAL';
+    const debugOn = await shouldLogDebug();
+
+    // If it's not an error and debug is off, don't log to file
+    if (!isError && !debugOn) return;
+
+    const timestamp = new Date().toISOString();
+    let logMessage = `[${timestamp}] [${level}] ${message}`;
+
+    if (meta) {
+        if (meta instanceof Error) {
+            logMessage += `\nStack: ${meta.stack}`;
+        } else {
+            logMessage += `\nMeta: ${JSON.stringify(meta, null, 2)}`;
+        }
+    }
+    logMessage += '\n';
+
+    // Output to stdout/stderr as requested
+    if (isError) {
+        process.stderr.write(logMessage);
+    } else {
+        process.stdout.write(logMessage);
+    }
+
+    // Append to file
+    fs.appendFile(SYSTEM_LOG_FILE, logMessage, (err) => {
+        if (err) console.error('Failed to write to system log:', err);
+    });
+};
+
+/**
+ * Convenience wrapper for logging errors
+ */
+const logError = (message, err) => {
+    logSystem('ERROR', message, err);
+};
+
+/**
+ * Read the last N lines of a log file
+ */
+const readLogs = (file, limit = 100) => {
     return new Promise((resolve, reject) => {
-        if (!fs.existsSync(LOG_FILE)) {
+        if (!fs.existsSync(file)) {
             return resolve([]);
         }
 
-        // Reading the whole file is inefficient for very large files, 
-        // but for this scale (jsonl), it's acceptable. 
-        // A better approach for huge files would be reading backwards chunk by chunk.
-        // Given typically < 1MB log file, reading all is fine.
+        fs.readFile(file, 'utf8', (err, data) => {
+            if (err) return reject(err);
 
-        fs.readFile(LOG_FILE, 'utf8', (err, data) => {
+            const lines = data.trim().split('\n');
+            const entries = lines.slice(-limit).reverse();
+            resolve(entries);
+        });
+    });
+};
+
+const readAlexaLogs = (limit = 100) => {
+    return new Promise((resolve, reject) => {
+        if (!fs.existsSync(ALEXA_LOG_FILE)) {
+            return resolve([]);
+        }
+
+        fs.readFile(ALEXA_LOG_FILE, 'utf8', (err, data) => {
             if (err) return reject(err);
 
             const lines = data.trim().split('\n');
             const entries = lines
-                .slice(-limit) // Take last N
+                .slice(-limit)
                 .map(line => {
                     try {
                         return JSON.parse(line);
@@ -62,7 +136,7 @@ const readAlexaLogs = (limit = 100) => {
                     }
                 })
                 .filter(e => e !== null)
-                .reverse(); // Newest first
+                .reverse();
 
             resolve(entries);
         });
@@ -71,5 +145,8 @@ const readAlexaLogs = (limit = 100) => {
 
 module.exports = {
     logAlexa,
-    readAlexaLogs
+    readAlexaLogs,
+    logSystem,
+    logError,
+    shouldLogDebug
 };

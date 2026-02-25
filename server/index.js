@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
 const { sequelize, User, Recipe } = require('./src/models');
+const { logSystem, logError, shouldLogDebug } = require('./src/utils/logger');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
@@ -25,6 +26,29 @@ app.use((req, res, next) => {
         // Für alle anderen Routen, nutze normales JSON mit erhöhtem Limit
         express.json({ limit: '2mb' })(req, res, next);
     }
+});
+
+// Debug Request Logger
+app.use(async (req, res, next) => {
+    if (await shouldLogDebug()) {
+        const meta = {
+            ip: req.ip,
+            query: req.query,
+            headers: {
+                'user-agent': req.headers['user-agent'],
+                'content-type': req.headers['content-type']
+            }
+        };
+        if (req.method !== 'GET' && req.body) {
+            // Avoid logging passwords or sensitive data if possible, but for full debug:
+            meta.body = { ...req.body };
+            if (meta.body.password) meta.body.password = '***';
+            if (meta.body.currentPassword) meta.body.currentPassword = '***';
+            if (meta.body.newPassword) meta.body.newPassword = '***';
+        }
+        logSystem('DEBUG', `${req.method} ${req.originalUrl}`, meta);
+    }
+    next();
 });
 
 
@@ -265,6 +289,15 @@ if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging')
         res.sendFile(path.join(__dirname, '../client/dist/index.html'));
     });
 }
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    logError(`Unhandled Error: ${req.method} ${req.originalUrl}`, err);
+    res.status(500).json({
+        error: 'Ein interner Serverfehler ist aufgetreten.',
+        details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+});
 
 const { initEmailCron } = require('./src/services/messagingService');
 const { initBanCron } = require('./src/services/banService');

@@ -186,6 +186,18 @@ router.get('/alexa-logs', auth, admin, async (req, res) => {
     }
 });
 
+// Get System Logs
+router.get('/logs', auth, admin, async (req, res) => {
+    try {
+        const { readLogs } = require('../utils/logger');
+        const logs = await readLogs(path.join(__dirname, '../../logs/system.log'), 200);
+        res.json(logs);
+    } catch (err) {
+        console.error('Failed to read system logs:', err);
+        res.status(500).json({ error: 'Failed to read system logs' });
+    }
+});
+
 // Stream update process
 router.get('/stream-update', auth, admin, (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
