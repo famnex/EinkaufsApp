@@ -176,6 +176,10 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*
 
+### v0.30.11 - AI Tier Limits & Fair Use (Februar 2026)
+1. **Frontend-Limitierung**: Der Button "AI Lookup" in der Produktbearbeitung ist jetzt für Nutzer mit `Plastikgabel`-Abo komplett ausgeblendet. Für Nutzer mit `Silbergabel` werden dort transparent die Kosten `(5 Coins)` eingeblendet.
+2. **Fair Use Counter**: Kostenlose AI-Funktionen (Einkaufslisten-Extraktion und Austauschassistent) sind nun serverseitig mit einem Fair-Use-Limit von maximal 10 Anfragen pro Stunde für Nutzer mit `Plastikgabel`-Abo versehen, um Serverkosten und Missbrauch vorzubeugen.
+
 ### v0.30.10 - AI Credit Deduction Adjustments (Februar 2026)
 1. **Faires Abrechnungsmodell**: Credits für fast alle AI-Funktionen (Rezeptparser, Aufräumassistent, Lookup, Duplikatsuche, Bildgenerierung, Bildvariationen und Kochassistent) werden ab sofort **erst dann** vom Konto des Nutzers abgezogen, wenn die KI-Operation erfolgreich abgeschlossen wurde (und nicht mehr direkt bei Aufruf).
 2. **Kostenlose AI-Funktionen**: Der Austauschassistent (Zutatensubstitution) und die Einkaufslisten-Extraktion aus Freitext/URL verbrauchen nun keine Credits mehr und sind für alle Nutzer absolut kostenlos.

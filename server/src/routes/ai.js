@@ -9,6 +9,23 @@ const path = require('path');
 const fs = require('fs');
 const { optimizeImage } = require('../utils/imageOptimizer');
 
+// In-Memory Fair Use Tracking for free AI endpoints (Plastikgabel)
+const fairUseLog = new Map();
+
+function checkFairUse(userId) {
+    const now = Date.now();
+    const windowMs = 60 * 60 * 1000; // 1 hour
+    let userLog = fairUseLog.get(userId) || [];
+    userLog = userLog.filter(ts => (now - ts) < windowMs);
+    if (userLog.length >= 10) {
+        fairUseLog.set(userId, userLog);
+        return false;
+    }
+    userLog.push(now);
+    fairUseLog.set(userId, userLog);
+    return true;
+}
+
 router.post('/cleanup/toggle-hidden', auth, async (req, res) => {
     try {
         const { productId, context } = req.body;
@@ -354,6 +371,13 @@ router.post('/suggest-substitute', auth, async (req, res) => {
         const setting = await Settings.findOne({ where: { key: 'openai_key' } });
         if (!setting || !setting.value) {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
+        }
+
+        // Fair-Use Rate Limit for Plastikgabel
+        if (req.user.tier === 'Plastikgabel') {
+            if (!checkFairUse(req.user.effectiveId)) {
+                return res.status(429).json({ error: 'Fair-Use Limit erreicht: Bitte warte ein wenig, bevor du diese kostenlose Funktion erneut nutzt (Maximal 10 Anfragen pro Stunde).' });
+            }
         }
 
         const openai = new OpenAI({ apiKey: setting.value });
@@ -818,6 +842,13 @@ router.post('/extract-list-ingredients', auth, async (req, res) => {
         const setting = await Settings.findOne({ where: { key: 'openai_key' } });
         if (!setting || !setting.value) {
             return res.status(400).json({ error: 'OpenAI API Key not configured' });
+        }
+
+        // Fair-Use Rate Limit for Plastikgabel
+        if (req.user.tier === 'Plastikgabel') {
+            if (!checkFairUse(req.user.effectiveId)) {
+                return res.status(429).json({ error: 'Fair-Use Limit erreicht: Bitte warte ein wenig, bevor du diese kostenlose Funktion erneut nutzt (Maximal 10 Anfragen pro Stunde).' });
+            }
         }
 
         // 1. Check for URL

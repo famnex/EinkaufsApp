@@ -6,6 +6,7 @@ import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
 import api from '../lib/axios';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function ProductModal({ isOpen, onClose, product, onSave }) {
     const [categories, setCategories] = useState([]);
@@ -24,6 +25,7 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
     const [aiManufacturers, setAiManufacturers] = useState([]);
 
     const [synonymInput, setSynonymInput] = useState('');
+    const { user } = useAuth(); // ADDED for Tier checks
 
     useLockBodyScroll(isOpen);
 
@@ -328,15 +330,20 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
 
                                     <div className="flex-1" /> {/* Spacer */}
 
-                                    <Button
-                                        type="button"
-                                        onClick={handleAiLookup}
-                                        disabled={loadingAi || !formData.name}
-                                        className="h-12 gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 px-4 sm:px-6"
-                                    >
-                                        {loadingAi ? <Sparkles size={18} className="animate-spin" /> : <Sparkles size={18} />}
-                                        <span className="hidden sm:inline">{loadingAi ? 'AI sucht...' : 'AI Lookup'}</span>
-                                    </Button>
+                                    {user?.tier !== 'Plastikgabel' && (
+                                        <Button
+                                            type="button"
+                                            onClick={handleAiLookup}
+                                            disabled={loadingAi || !formData.name}
+                                            className="h-12 gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 px-4 sm:px-6 flex items-center justify-center whitespace-nowrap"
+                                        >
+                                            {loadingAi ? <Sparkles size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                                            <span className="hidden sm:inline">
+                                                {loadingAi ? 'AI sucht...' : 'AI Lookup'}
+                                                {user?.tier === 'Silbergabel' && !loadingAi && <span className="ml-1 text-xs opacity-80">(5 Coins)</span>}
+                                            </span>
+                                        </Button>
+                                    )}
 
                                     <Button
                                         type="submit"
