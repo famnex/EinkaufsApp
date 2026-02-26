@@ -37,13 +37,10 @@ npm run build
 cd ..
 ```
 
-### 4. Verify Environment Variables
-Ensure your `server/.env` is up to date based on `server/.env.example`.
+### 4. Database Migration
+Run the automatic update script to apply database migrations and create a backup.
 ```bash
-# Check if new variables are needed
-cat server/.env.example
-# Edit your .env if necessary
-nano server/.env
+node update.js
 ```
 
 ### 5. Restart Server
@@ -51,8 +48,6 @@ Restart your Node processes.
 ```bash
 # If using PM2
 pm2 restart all
-
-# Or if running manually, kill and restart
 ```
 
 ## Uberspace Specifics (Permanent Service)
