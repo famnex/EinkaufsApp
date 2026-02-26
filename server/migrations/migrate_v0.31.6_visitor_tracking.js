@@ -50,11 +50,15 @@ async function migrate() {
         });
 
         // Add index for throttling
-        await queryInterface.addIndex('PublicVisits', ['identifierHash', 'targetType', 'targetId'], {
-            unique: true,
-            name: 'public_visits_unique_throttle'
-        });
-        console.log('=> Created PublicVisits table and index.');
+        try {
+            await queryInterface.addIndex('PublicVisits', ['identifierHash', 'targetType', 'targetId'], {
+                unique: true,
+                name: 'public_visits_unique_throttle'
+            });
+            console.log('=> Created PublicVisits unique index.');
+        } catch (e) {
+            console.log('=> Index public_visits_unique_throttle already exists or could not be created:', e.message);
+        }
 
         // 2. Add cookbookClicks to Users (Ensuring it exists)
         const userTable = await queryInterface.describeTable('Users');
