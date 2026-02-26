@@ -14,7 +14,7 @@ import SubscriptionModal from './SubscriptionModal';
 import CookingExitModal from './CookingExitModal';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 
-export default function CookingMode({ recipe, onClose }) {
+export default function CookingMode({ recipe, conflicts = [], onClose }) {
     const [step, setStep] = useState(0);
     const [checkedIngredients, setCheckedIngredients] = useState(new Set());
     const [textSize, setTextSize] = useState(1); // 0: Small, 1: Normal, 2: Large
@@ -193,8 +193,30 @@ export default function CookingMode({ recipe, onClose }) {
         return fragments;
     }, [step, steps, ingredients, occurrencesByStep]);
 
+    const getConflictForProduct = useCallback((productId) => {
+        if (!productId || !conflicts || conflicts.length === 0) return null;
 
-    // Fetch future usage
+        // Filter conflicts for this product (handle Number vs String)
+        const productConflicts = conflicts.filter(c => Number(c.productId) === Number(productId));
+        if (productConflicts.length === 0) return null;
+
+        const messages = [];
+        productConflicts.forEach(pc => {
+            if (pc.warnings && Array.isArray(pc.warnings)) {
+                pc.warnings.forEach(w => {
+                    const householdName = (pc.username && pc.username !== user?.username) ? ` (${pc.username})` : '';
+                    messages.push(`🛑 Unverträglichkeit: ${w.message}${householdName}`);
+                });
+            }
+        });
+
+        const uniqueMessages = [...new Set(messages)];
+        if (uniqueMessages.length > 0) {
+            console.log(`[CookingMode] Found ${uniqueMessages.length} conflicts for product ${productId}`);
+        }
+        return uniqueMessages.length > 0 ? uniqueMessages : null;
+    }, [conflicts, user]);
+
     useEffect(() => {
         const checkFutureUsage = async () => {
             try {
@@ -389,7 +411,8 @@ export default function CookingMode({ recipe, onClose }) {
         setIngredientTooltip({
             x: rect.left + (rect.width / 2),
             y: rect.top - 10, // Above
-            ingredient: ing
+            ingredient: ing,
+            conflicts: ing.productId ? getConflictForProduct(ing.productId) : null
         });
     };
 
@@ -675,7 +698,7 @@ export default function CookingMode({ recipe, onClose }) {
                                         {/* Future Usage Warning */}
                                         {futureUsage[ing.productId] && (
                                             <div
-                                                className="relative z-10 p-2 -m-2"
+                                                className="z-10 p-2 -m-2 shrink-0"
                                                 onMouseEnter={(e) => handleTooltipShow(e, futureUsage[ing.productId])}
                                                 onMouseLeave={handleTooltipHide}
                                                 onTouchStart={(e) => {
@@ -689,6 +712,28 @@ export default function CookingMode({ recipe, onClose }) {
                                                 onClick={(e) => e.stopPropagation()} // Prevent card check
                                             >
                                                 <div className="w-8 h-8 flex items-center justify-center text-amber-500 bg-amber-500/10 rounded-full animate-pulse ring-1 ring-amber-500/20">
+                                                    <AlertTriangle size={18} />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Intolerance Warning */}
+                                        {getConflictForProduct(ing.productId) && (
+                                            <div
+                                                className="z-10 p-2 -m-2 shrink-0"
+                                                onMouseEnter={(e) => handleTooltipShow(e, getConflictForProduct(ing.productId))}
+                                                onMouseLeave={handleTooltipHide}
+                                                onTouchStart={(e) => {
+                                                    e.stopPropagation();
+                                                    handleTooltipShow(e, getConflictForProduct(ing.productId));
+                                                }}
+                                                onTouchEnd={(e) => {
+                                                    e.stopPropagation();
+                                                    handleTooltipHide();
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <div className="w-8 h-8 flex items-center justify-center text-destructive bg-destructive/10 rounded-full animate-pulse ring-1 ring-destructive/20">
                                                     <AlertTriangle size={18} />
                                                 </div>
                                             </div>
@@ -906,21 +951,39 @@ export default function CookingMode({ recipe, onClose }) {
                                 ...(tooltipData.y + 200 > window.innerHeight ? { top: 'auto', bottom: 20 } : {})
                             }}
                         >
-                            <div className="font-bold mb-2 text-amber-500 flex items-center gap-2">
-                                <AlertTriangle size={16} /> Aufgepasst!
-                            </div>
-                            <div className="text-muted-foreground mb-2">Wird bis zum nächsten Einkauf nochmal gebraucht:</div>
-                            <ul className="space-y-1">
-                                {tooltipData.items.map((u, idx) => (
-                                    <li key={idx} className="flex flex-col gap-0.5 text-xs font-medium bg-muted/50 p-2 rounded-lg">
-                                        <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase tracking-widest">
-                                            <span>{new Date(u.date).toLocaleDateString('de-DE', { weekday: 'short' })}</span>
-                                            <span className="text-amber-500 font-bold">{u.quantity} {u.unit}</span>
-                                        </div>
-                                        <span className="truncate text-foreground font-semibold">{u.recipeName}</span>
-                                    </li>
-                                ))}
-                            </ul>
+                            {tooltipData.items[0]?.recipeName ? (
+                                <>
+                                    <div className="font-bold mb-2 text-amber-500 flex items-center gap-2">
+                                        <AlertTriangle size={16} /> Aufgepasst!
+                                    </div>
+                                    <div className="text-muted-foreground mb-2 text-xs">Wird bis zum nächsten Einkauf nochmal gebraucht:</div>
+                                    <ul className="space-y-1">
+                                        {tooltipData.items.map((u, idx) => (
+                                            <li key={idx} className="flex flex-col gap-0.5 text-xs font-medium bg-muted/50 p-2 rounded-lg">
+                                                <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase tracking-widest">
+                                                    <span>{new Date(u.date).toLocaleDateString('de-DE', { weekday: 'short' })}</span>
+                                                    <span className="text-amber-500 font-bold">{u.quantity} {u.unit}</span>
+                                                </div>
+                                                <span className="truncate text-foreground font-semibold">{u.recipeName}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="font-bold mb-2 text-destructive flex items-center gap-2">
+                                        <AlertTriangle size={16} /> Achtung!
+                                    </div>
+                                    <div className="text-muted-foreground mb-2 text-xs">Unverträglichkeiten in diesem Haushalt:</div>
+                                    <ul className="space-y-1">
+                                        {tooltipData.items.map((msg, idx) => (
+                                            <li key={idx} className="flex items-start gap-2 text-xs font-semibold bg-destructive/5 p-2 rounded-lg text-destructive border border-destructive/10">
+                                                <span>{msg}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </>
+                            )}
                         </motion.div>
                     )}
 
@@ -948,6 +1011,21 @@ export default function CookingMode({ recipe, onClose }) {
                                     {ingredientTooltip.ingredient.name}
                                 </div>
                             </div>
+
+                            {ingredientTooltip.conflicts && (
+                                <div className="mt-2 pt-2 border-t border-border/50 min-w-[200px]">
+                                    <div className="font-bold text-[10px] text-destructive flex items-center gap-1 mb-1">
+                                        <AlertTriangle size={12} /> Achtung!
+                                    </div>
+                                    <div className="space-y-1">
+                                        {ingredientTooltip.conflicts.map((msg, i) => (
+                                            <div key={i} className="text-[10px] text-destructive/80 font-medium leading-tight">
+                                                {msg}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             <Button
                                 size="icon"

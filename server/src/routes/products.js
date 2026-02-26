@@ -5,8 +5,18 @@ const { auth, admin } = require('../middleware/auth');
 
 router.get('/', auth, async (req, res) => {
     try {
+        const { search, limit } = req.query;
+        let where = { UserId: req.user.effectiveId };
+
+        if (search) {
+            where[sequelize.Sequelize.Op.or] = [
+                { name: { [sequelize.Sequelize.Op.like]: `%${search}%` } },
+                { category: { [sequelize.Sequelize.Op.like]: `%${search}%` } }
+            ];
+        }
+
         const products = await Product.findAll({
-            where: { UserId: req.user.effectiveId },
+            where,
             include: [
                 { model: Store, where: { UserId: req.user.effectiveId }, required: false },
                 { model: HiddenCleanup, where: { UserId: req.user.effectiveId }, required: false },
@@ -18,7 +28,8 @@ router.get('/', auth, async (req, res) => {
                 },
                 { model: Intolerance, through: { attributes: [] } }
             ],
-            order: [[sequelize.fn('lower', sequelize.col('Product.name')), 'ASC']]
+            order: [[sequelize.fn('lower', sequelize.col('Product.name')), 'ASC']],
+            limit: limit ? parseInt(limit) : undefined
         });
         res.json(products);
     } catch (err) {

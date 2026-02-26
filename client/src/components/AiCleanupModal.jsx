@@ -1,311 +1,97 @@
 import { useState, useMemo, useEffect } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, Tag, Scale, Factory, AlertCircle, CheckCircle2, Loader2, Save, ChevronRight, ArrowRight, Eye, EyeOff, Copy } from 'lucide-react';
+import { X, Sparkles, Loader2, Play, Eye, EyeOff, CheckCircle2, ChevronRight, LayoutGrid } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import AiActionConfirmModal from './AiActionConfirmModal';
-import SubscriptionModal from './SubscriptionModal';
 import { Button } from './Button';
 import { Card } from './Card';
 import { cn } from '../lib/utils';
-import { Input } from './Input';
 import api from '../lib/axios';
+import AiCleanupCard from './AiCleanupCard';
 
 export default function AiCleanupModal({ isOpen, onClose, products = [], onRefresh }) {
-    const [selectedType, setSelectedType] = useState('category'); // 'category', 'unit', 'duplicates'
-    const [selectedIds, setSelectedIds] = useState(new Set());
-    const [step, setStep] = useState('selection'); // 'selection', 'loading', 'review'
-    const [results, setResults] = useState([]); // [{ id, name, original, suggestion, accepted: true, value: '' }]
-    const [saving, setSaving] = useState(false);
+    const [step, setStep] = useState('selection'); // 'selection' | 'pipeline'
     const [showHidden, setShowHidden] = useState(false);
+    const [queue, setQueue] = useState([]);
+    const [activeIds, setActiveIds] = useState([]); // Up to 6
+    const [allIntolerances, setAllIntolerances] = useState([]);
+    const [allVariants, setAllVariants] = useState([]);
+    const { user } = useAuth();
 
-    // Context & Modals
-    const { user, refreshUser } = useAuth();
-    const [aiConfirmModalOpen, setAiConfirmModalOpen] = useState(false);
-    const [aiActionData, setAiActionData] = useState(null);
-    const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
-
-    // Duplicate Detection State
-    const [duplicateSuggestions, setDuplicateSuggestions] = useState([]);
-    const [duplicateLoading, setDuplicateLoading] = useState(false);
-    const [duplicateAnalyzed, setDuplicateAnalyzed] = useState(false);
-
-    const handleToggleHidden = async (productId) => {
-        try {
-            // Optimistic Update can be tricky with parent state props.
-            // Ideally we call API then refresh. But for speed we might want to update local "products" clone?
-            // Since "products" prop comes from parent, robust way is to trigger parent refresh.
-            // But we can also force a re-render or update a local cache of hidden states if we had one.
-            // For now: Call API then onRefresh (which refetches all products).
-            const { data } = await api.post('/ai/cleanup/toggle-hidden', { productId, context: selectedType });
-            // Trigger refresh to get updated product list with new hidden status
-            if (onRefresh) onRefresh();
-        } catch (e) {
-            console.error(e);
-            alert('Fehler beim Ändern des Status');
-        }
-    };
+    useEffect(() => {
+        const fetchMetadata = async () => {
+            try {
+                const [intolRes, varRes] = await Promise.all([
+                    api.get('/intolerances'),
+                    api.get('/variants')
+                ]);
+                setAllIntolerances(intolRes.data);
+                setAllVariants(varRes.data);
+            } catch (err) {
+                console.error('Failed to fetch metadata:', err);
+            }
+        };
+        fetchMetadata();
+    }, [isOpen]);
 
     useLockBodyScroll(isOpen);
 
-    // Reset state on close or open
+    // Reset state on open
     useEffect(() => {
         if (isOpen) {
             setStep('selection');
-            setResults([]);
-            setSaving(false);
+            setActiveIds([]);
+            setQueue([]);
         }
     }, [isOpen]);
 
-    const stats = useMemo(() => {
-        return {
-            category: products.filter(p => !p.category && !p.HiddenCleanups?.some(h => h.context === 'category')).length,
-            // For unit, usually we check everyone. If hidden for unit, exclude.
-            unit: products.filter(p => !p.HiddenCleanups?.some(h => h.context === 'unit')).length
-        };
+    // Cleanup Pipeline Context Name
+    const CONTEXT = 'pipeline';
+
+    const visibleProducts = useMemo(() => {
+        return products.filter(p => !p.HiddenCleanups?.some(h => h.context === CONTEXT));
     }, [products]);
 
-    const filteredProducts = useMemo(() => {
-        switch (selectedType) {
-            case 'category':
-                return products.filter(p => !p.category);
-            case 'unit':
-                return products; // All products for unit cleanup
-            default:
-                return [];
-        }
-    }, [products, selectedType]);
+    const hiddenProducts = useMemo(() => {
+        return products.filter(p => p.HiddenCleanups?.some(h => h.context === CONTEXT));
+    }, [products]);
 
-    // Helper to check if product is hidden in current context
-    const isProductHidden = (p) => p.HiddenCleanups?.some(h => h.context === selectedType);
-
-    // Handle default selections when tab changes
-    useEffect(() => {
-        if (!isOpen || step !== 'selection') return;
-
-        const newSelected = new Set();
-        if (selectedType === 'unit') {
-            // Default: All deselected for unit
-        } else {
-            // Default: All selected for category, EXCEPT hidden ones
-            filteredProducts.forEach(p => {
-                if (!isProductHidden(p)) {
-                    newSelected.add(p.id);
-                }
-            });
-        }
-        setSelectedIds(newSelected);
-    }, [selectedType, filteredProducts, isOpen, step]);
-
-    const toggleSelection = (id) => {
-        const newSelected = new Set(selectedIds);
-        if (newSelected.has(id)) {
-            newSelected.delete(id);
-        } else {
-            newSelected.add(id);
-        }
-        setSelectedIds(newSelected);
-    };
-
-    const toggleAll = () => {
-        // Count selectable products (not hidden)
-        const selectable = filteredProducts.filter(p => !isProductHidden(p));
-        const allSelectableSelected = selectable.every(p => selectedIds.has(p.id));
-
-        if (allSelectableSelected && selectable.length > 0) {
-            // Deselect all
-            setSelectedIds(new Set());
-        } else {
-            // Select all NOT HIDDEN
-            const newSelected = new Set();
-            selectable.forEach(p => newSelected.add(p.id));
-            setSelectedIds(newSelected);
-        }
-    };
-
-    const handleHideAll = async () => {
-        const toHide = filteredProducts.filter(p => !isProductHidden(p));
-        if (toHide.length === 0) return;
-
-        if (!confirm(`Möchtest du wirklich alle ${toHide.length} Produkte für "${selectedType}" ausblenden? Dies speichert sie als 'ignoriert'.`)) return;
-
-        setStep('loading');
+    const handleToggleHidden = async (productId) => {
         try {
-            // Parallel requests might be heavy, but usually okay for <50-100 items suitable here.
-            // A dedicated bulk endpoint would be better, but this works for now.
-            await Promise.all(toHide.map(p =>
-                api.post('/ai/cleanup/toggle-hidden', { productId: p.id, context: selectedType })
-            ));
-
+            await api.post('/ai/cleanup/toggle-hidden', { productId, context: CONTEXT });
             if (onRefresh) onRefresh();
         } catch (e) {
             console.error(e);
-            alert('Fehler beim Ausblenden');
-        } finally {
-            setStep('selection');
         }
     };
 
-    const handleStartCleanup = async () => {
-        // 1. Tier Check - Handled by trigger
-        if (user?.tier === 'Plastikgabel') return;
-
-        // 2. Credit Confirmation (Silbergabel: 5 coins, Goldgabel: 0 coins)
-        if (user?.tier === 'Silbergabel') {
-            setAiActionData({
-                type: 'TEXT',
-                title: 'Produkte bereinigen',
-                description: `KI-Vorschläge für ${selectedIds.size} Produkte generieren (${selectedType}).`,
-                cost: 5,
-                onConfirm: () => executeCleanup()
-            });
-            setAiConfirmModalOpen(true);
-            return;
-        }
-
-        // 3. Free for Goldgabel (bypass prompt)
-        executeCleanup();
+    const startPipeline = () => {
+        if (visibleProducts.length === 0) return;
+        const initialQueue = [...visibleProducts];
+        const initialActive = initialQueue.splice(0, 6);
+        setQueue(initialQueue);
+        setActiveIds(initialActive.map(p => p.id));
+        setStep('pipeline');
     };
 
-    const executeCleanup = async () => {
-        setStep('loading');
-        try {
-            const productsToClean = filteredProducts
-                .filter(p => selectedIds.has(p.id))
-                .map(p => ({ id: p.id, name: p.name }));
-
-            const { data } = await api.post('/ai/cleanup', {
-                type: selectedType,
-                products: productsToClean
-            });
-
-            // Format results for review
-            const formattedResults = data.map(r => ({
-                id: r.id,
-                suggestion: r.category || r.unit || '',
-                options: [],
-                unitAmount: r.amount || 1, // For unit
-                value: r.category || r.unit || '',
-                accepted: true,
-                isCustom: false
-            }));
-
-            setResults(formattedResults);
-            setStep('review');
-            // Refresh user credits
-            refreshUser();
-        } catch (err) {
-            console.error(err);
-            alert('Fehler bei der AI-Anfrage: ' + (err.response?.data?.error || err.message));
-            setStep('selection');
-        }
-    };
-
-    const handleSave = async () => {
-        setSaving(true);
-        try {
-            const updates = results
-                .filter(r => r.accepted)
-                .map(r => {
-                    if (selectedType === 'category') return { id: r.id, category: r.value };
-                    if (selectedType === 'unit') return { id: r.id, unit: r.value };
-                    return { id: r.id };
-                });
-
-            for (const update of updates) {
-                await api.put(`/products/${update.id}`, update);
-            }
-
-            onRefresh && onRefresh();
-            onClose();
-        } catch (err) {
-            console.error(err);
-            alert('Fehler beim Speichern');
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const handleStartDuplicateAnalysis = async () => {
-        // 1. Tier Check
-        if (user?.tier === 'Plastikgabel') {
-            if (window.confirm('Duplikatserkennung ist ein Smart Feature der Silbergabel. Upgrade jetzt?')) {
-                setIsSubscriptionModalOpen(true);
-            }
-            return;
-        }
-
-        // 2. Credit Confirmation (if not Goldgabel)
-        if (user?.tier !== 'Goldgabel') {
-            setAiActionData({
-                type: 'TEXT',
-                title: 'Duplikate finden',
-                description: 'KI-Analyse aller Produkte zur Erkennung von Mehrfacheinträgen.',
-                cost: 5,
-                onConfirm: () => executeDuplicateAnalysis()
-            });
-            setAiConfirmModalOpen(true);
-            return;
-        }
-
-        // 3. Free for Goldgabel
-        executeDuplicateAnalysis();
-    };
-
-    const executeDuplicateAnalysis = async () => {
-        setDuplicateLoading(true);
-        setDuplicateAnalyzed(false);
-        try {
-            const productList = products.map(p => ({ id: p.id, name: p.name }));
-            const { data } = await api.post('/ai/find-duplicates', { products: productList });
-            setDuplicateSuggestions(data.suggestions || []);
-            setDuplicateAnalyzed(true);
-            // Refresh user credits
-            refreshUser();
-        } catch (err) {
-            console.error(err);
-            alert('Fehler bei der Duplikatserkennung: ' + (err.response?.data?.error || err.message));
-        } finally {
-            setDuplicateLoading(false);
-        }
-    };
-
-    const handleMergeDuplicate = async (suggestion) => {
-        const sourceProduct = products.find(p => p.id === suggestion.sourceId);
-        const targetProduct = products.find(p => p.id === suggestion.targetId);
-
-        if (!sourceProduct || !targetProduct) {
-            alert('Produkte nicht gefunden');
-            return;
-        }
-
-        if (!confirm(`"${sourceProduct.name}" mit "${targetProduct.name}" zusammenführen?\n\n${suggestion.reason}`)) {
-            return;
-        }
-
-        try {
-            await api.post('/products/merge', {
-                sourceId: sourceProduct.id,
-                targetId: targetProduct.id,
-                newName: targetProduct.name
-            });
-
-            // Remove merged suggestion from list
-            setDuplicateSuggestions(prev => prev.filter(s => s.sourceId !== suggestion.sourceId));
-
-            // Refresh products
+    const handleCardComplete = (productId, action) => {
+        // If the product was saved or rejected, it's now hidden in the DB.
+        // We call onRefresh to update the products list in the parent.
+        if (action === 'ok' || action === 'rejected') {
             if (onRefresh) onRefresh();
-        } catch (err) {
-            console.error(err);
-            alert('Fehler beim Zusammenführen: ' + (err.response?.data?.error || err.message));
         }
-    };
 
-    const tabs = [
-        { id: 'category', label: 'Fehlende Kategorien', icon: Tag, count: stats.category, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-        { id: 'unit', label: 'Normalisieren', icon: Scale, count: stats.unit, color: 'text-green-500', bg: 'bg-green-500/10' },
-        { id: 'duplicates', label: 'Doppeleinträge', icon: Copy, count: products.length, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-    ];
+        setActiveIds(prev => {
+            const nextIds = prev.filter(id => id !== productId);
+            // If we have items in queue, pick the next one
+            if (queue.length > 0) {
+                const nextInQueue = queue[0];
+                setQueue(prevQueue => prevQueue.slice(1));
+                return [...nextIds, nextInQueue.id];
+            }
+            return nextIds;
+        });
+    };
 
     if (!isOpen) return null;
 
@@ -317,396 +103,181 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        onClick={step === 'loading' ? undefined : onClose}
+                        onClick={onClose}
                         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
                     />
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="w-full max-w-5xl h-[85vh] relative z-10 flex flex-col pointer-events-auto"
+                        className="w-full max-w-6xl h-[90vh] relative z-10 flex flex-col pointer-events-auto"
                     >
                         <Card className="flex-1 flex flex-col overflow-hidden border-border shadow-2xl bg-card">
                             {/* Header */}
-                            <div className="p-4 md:p-6 border-b border-border flex items-center justify-between shrink-0 bg-background/50 backdrop-blur">
+                            <div className="p-6 border-b border-border flex items-center justify-between shrink-0 bg-background/50 backdrop-blur">
                                 <div>
-                                    <h2 className="text-lg md:text-2xl font-bold flex items-center gap-2 md:gap-3">
-                                        <div className="p-1.5 md:p-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg text-white shadow-lg shadow-indigo-500/20">
-                                            {step === 'loading' ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} className="md:w-6 md:h-6" />}
+                                    <h2 className="text-2xl font-bold flex items-center gap-3">
+                                        <div className="p-2 bg-gradient-to-r from-teal-500 to-emerald-600 rounded-xl text-white shadow-lg shadow-teal-500/20">
+                                            <Sparkles size={20} />
                                         </div>
-                                        AI Cleanup
+                                        AI Product Cleanup
                                     </h2>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        {step === 'selection'
+                                            ? 'Wähle Produkte aus, die du bereinigen möchtest. Verstecke Produkte, die bereits korrekt sind.'
+                                            : `Pipeline: ${queue.length + activeIds.length} Produkte verbleibend.`}
+                                    </p>
                                 </div>
-                                <button onClick={onClose} disabled={step === 'loading'} className="p-2 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50">
+                                <button onClick={onClose} className="p-2 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-foreground">
                                     <X size={24} />
                                 </button>
                             </div>
 
-                            {/* Main Content Layout */}
-                            <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative min-h-0">
-                                {step === 'loading' && (
-                                    <div className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm flex items-center justify-center flex-col gap-4">
-                                        <Loader2 className="animate-spin text-primary" size={48} />
-                                        <p className="text-lg font-medium text-muted-foreground animate-pulse">Analysiere Daten...</p>
-                                    </div>
-                                )}
-
-                                {/* Sidebar / Tabs */}
-                                <div className={cn(
-                                    "w-full md:w-72 bg-muted/30 border-b md:border-b-0 md:border-r border-border p-2 md:p-4 grid grid-cols-3 md:flex md:flex-col gap-2 md:gap-3 shrink-0 transition-opacity",
-                                    step !== 'selection' && "opacity-50 pointer-events-none"
-                                )}>
-                                    <div className="hidden md:block text-xs font-bold text-muted-foreground uppercase tracking-widest pl-2 mb-2">Bereinigen</div>
-                                    {tabs.map((tab) => (
-                                        <button
-                                            key={tab.id}
-                                            onClick={() => setSelectedType(tab.id)}
-                                            className={cn(
-                                                "flex flex-col md:flex-row items-center md:gap-3 p-2 md:p-4 rounded-xl text-center md:text-left transition-all border",
-                                                selectedType === tab.id
-                                                    ? `bg-background shadow-md border-border ring-1 ring-primary/20`
-                                                    : "hover:bg-background/50 border-transparent text-muted-foreground hover:text-foreground"
-                                            )}
-                                        >
-                                            <div className={cn("p-1.5 md:p-2 rounded-lg shrink-0 mb-1 md:mb-0", tab.bg, tab.color)}>
-                                                <tab.icon size={16} className="md:w-5 md:h-5" />
-                                            </div>
-                                            <div className="flex-1 min-w-0 flex flex-col items-center md:items-start">
-                                                <div className="text-xs md:text-sm font-semibold leading-tight">{tab.label.split(' ')[1] || tab.label}</div>
-                                                <div className="hidden md:block text-xs opacity-70 mt-0.5 whitespace-nowrap">{tab.count} Produkte</div>
-                                                <div className="md:hidden text-[10px] opacity-70">{tab.count}</div>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-
-                                {/* Content Area */}
-                                <div className="flex-1 flex flex-col bg-background/50 min-h-0 overflow-x-hidden">
-                                    {selectedType === 'duplicates' ? (
-                                        /* Duplicates Tab */
-                                        <div className="flex-1 flex flex-col min-h-0">
-                                            {!duplicateAnalyzed ? (
-                                                /* Empty State */
-                                                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-                                                    <div className="w-20 h-20 bg-purple-500/10 text-purple-500 rounded-full flex items-center justify-center mb-6">
-                                                        <Copy size={40} />
-                                                    </div>
-                                                    <h3 className="text-2xl font-bold mb-3">Doppelte Einträge finden</h3>
-                                                    <p className="text-muted-foreground mb-6 max-w-md">
-                                                        Lass die KI deine Produktliste analysieren und potenzielle Duplikate identifizieren, die zusammengeführt werden können.
-                                                    </p>
-                                                    <Button
-                                                        onClick={handleStartDuplicateAnalysis}
-                                                        disabled={duplicateLoading || products.length === 0}
-                                                        className="h-12 px-8 gap-2 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white shadow-lg shadow-purple-500/20"
-                                                    >
-                                                        {duplicateLoading ? (
-                                                            <>
-                                                                <Loader2 className="animate-spin" size={18} />
-                                                                KI analysiert...
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Sparkles size={18} />
-                                                                Analyse starten ({products.length} Produkte)
-                                                            </>
-                                                        )}
-                                                    </Button>
+                            {/* Main Context */}
+                            <div className="flex-1 overflow-hidden relative flex flex-col">
+                                {step === 'selection' ? (
+                                    <div className="flex-1 flex flex-col min-h-0">
+                                        <div className="p-4 border-b border-border bg-muted/20 flex items-center justify-between sticky top-0 z-10">
+                                            <div className="flex items-center gap-4">
+                                                <div className="flex items-center gap-2 px-3 py-1.5 bg-background border border-border rounded-xl shadow-sm">
+                                                    <LayoutGrid size={16} className="text-primary" />
+                                                    <span className="font-bold">{visibleProducts.length}</span>
+                                                    <span className="text-muted-foreground text-sm">Produkte zu prüfen</span>
                                                 </div>
-                                            ) : duplicateSuggestions.length === 0 ? (
-                                                /* No Results */
-                                                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-                                                    <div className="w-16 h-16 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mb-4">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => setShowHidden(!showHidden)}
+                                                    className={cn("gap-2", showHidden && "bg-primary/10 text-primary")}
+                                                >
+                                                    {showHidden ? <Eye size={16} /> : <EyeOff size={16} />}
+                                                    {showHidden ? 'Versteckte ausblenden' : 'Versteckte zeigen'}
+                                                </Button>
+                                            </div>
+
+                                            <Button
+                                                onClick={startPipeline}
+                                                disabled={visibleProducts.length === 0}
+                                                className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 px-6 h-11 rounded-xl shadow-lg shadow-primary/20"
+                                            >
+                                                Start AI Cleanup
+                                                <ChevronRight size={18} />
+                                            </Button>
+                                        </div>
+
+                                        <div className="flex-1 overflow-y-auto p-6">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                                {(showHidden ? products : visibleProducts).map(product => {
+                                                    const isHidden = product.HiddenCleanups?.some(h => h.context === CONTEXT);
+                                                    return (
+                                                        <div
+                                                            key={product.id}
+                                                            className={cn(
+                                                                "p-4 rounded-2xl border transition-all flex items-center justify-between group",
+                                                                isHidden
+                                                                    ? "bg-muted/30 border-transparent opacity-60 grayscale"
+                                                                    : "bg-card border-border hover:border-primary/40 hover:shadow-md"
+                                                            )}
+                                                        >
+                                                            <div className="flex flex-col min-w-0">
+                                                                <span className="font-semibold truncate">{product.name}</span>
+                                                                <span className="text-xs text-muted-foreground truncate">
+                                                                    {product.category || 'Keine Kategorie'} • {product.unit || 'Keine Einheit'}
+                                                                </span>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => handleToggleHidden(product.id)}
+                                                                className={cn(
+                                                                    "p-2 rounded-xl transition-colors shrink-0",
+                                                                    isHidden
+                                                                        ? "bg-primary/10 text-primary"
+                                                                        : "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                                                                )}
+                                                                title={isHidden ? "Wieder einblenden" : "Für Pipeline verstecken"}
+                                                            >
+                                                                {isHidden ? <Eye size={18} /> : <EyeOff size={18} />}
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {(showHidden ? products : visibleProducts).length === 0 && (
+                                                <div className="h-full flex flex-col items-center justify-center p-20 text-center text-muted-foreground">
+                                                    <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
                                                         <CheckCircle2 size={32} />
                                                     </div>
-                                                    <h4 className="text-xl font-semibold text-foreground mb-2">Keine Duplikate gefunden!</h4>
-                                                    <p className="text-muted-foreground mb-4">Alle Produkte sind einzigartig.</p>
-                                                    <Button
-                                                        variant="outline"
-                                                        onClick={() => setDuplicateAnalyzed(false)}
-                                                        className="gap-2"
-                                                    >
-                                                        Erneut analysieren
-                                                    </Button>
+                                                    <p className="text-lg font-medium">Alles erledigt!</p>
+                                                    <p className="text-sm">Es gibt keine weiteren Produkte zum Bereinigen.</p>
                                                 </div>
-                                            ) : (
-                                                /* Results */
-                                                <>
-                                                    <div className="p-4 border-b border-border flex items-center justify-between bg-background/50 sticky top-0 z-10 backdrop-blur-sm">
-                                                        <h3 className="font-bold text-lg flex items-center gap-2">
-                                                            {duplicateSuggestions.length} Vorschläge gefunden
-                                                        </h3>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => setDuplicateAnalyzed(false)}
-                                                            className="gap-2"
-                                                        >
-                                                            Erneut analysieren
-                                                        </Button>
-                                                    </div>
-                                                    <div className="flex-1 overflow-y-auto p-4">
-                                                        <div className="grid grid-cols-1 gap-3">
-                                                            {duplicateSuggestions.map((suggestion, idx) => {
-                                                                const sourceProduct = products.find(p => p.id === suggestion.sourceId);
-                                                                const targetProduct = products.find(p => p.id === suggestion.targetId);
-
-                                                                if (!sourceProduct || !targetProduct) return null;
-
-                                                                return (
-                                                                    <motion.div
-                                                                        key={`${suggestion.sourceId}-${suggestion.targetId}`}
-                                                                        initial={{ opacity: 0, y: 10 }}
-                                                                        animate={{ opacity: 1, y: 0 }}
-                                                                        transition={{ delay: idx * 0.05 }}
-                                                                        onClick={() => handleMergeDuplicate(suggestion)}
-                                                                        className="p-4 rounded-xl border bg-card hover:bg-muted/50 transition-all cursor-pointer group hover:shadow-md"
-                                                                    >
-                                                                        <div className="flex items-center gap-4 mb-3">
-                                                                            <div className="flex-1 min-w-0">
-                                                                                <div className="text-sm text-muted-foreground mb-1">Wird gelöscht</div>
-                                                                                <div className="font-bold truncate text-destructive">{sourceProduct.name}</div>
-                                                                            </div>
-                                                                            <ArrowRight className="text-muted-foreground shrink-0 group-hover:translate-x-1 transition-transform" size={20} />
-                                                                            <div className="flex-1 min-w-0">
-                                                                                <div className="text-sm text-muted-foreground mb-1">Bleibt erhalten</div>
-                                                                                <div className="font-bold truncate text-primary">{targetProduct.name}</div>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="flex items-center justify-between text-xs">
-                                                                            <div className="text-muted-foreground italic">{suggestion.reason}</div>
-                                                                            <div className={cn(
-                                                                                "px-2 py-1 rounded-full font-medium",
-                                                                                suggestion.confidence >= 95 ? "bg-green-500/10 text-green-500" :
-                                                                                    suggestion.confidence >= 90 ? "bg-yellow-500/10 text-yellow-500" :
-                                                                                        "bg-orange-500/10 text-orange-500"
-                                                                            )}>
-                                                                                {suggestion.confidence}% sicher
-                                                                            </div>
-                                                                        </div>
-                                                                    </motion.div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                </>
                                             )}
                                         </div>
-                                    ) : step === 'selection' ? (
-                                        <>
-                                            <div className="p-3 md:p-4 border-b border-border flex items-center justify-between bg-background/50 sticky top-0 z-10 backdrop-blur-sm shrink-0">
-                                                <div className="flex items-center gap-2 overflow-hidden">
-                                                    <span className="px-2 py-0.5 bg-muted rounded-full text-xs font-medium text-muted-foreground whitespace-nowrap">
-                                                        {selectedIds.size} / {filteredProducts.filter(p => !p.isHidden).length}
-                                                    </span>
-                                                    <button
-                                                        onClick={toggleAll}
-                                                        className="text-xs md:text-sm font-medium text-primary hover:underline whitespace-nowrap truncate"
-                                                    >
-                                                        {selectedIds.size === filteredProducts.length && selectedIds.size > 0 ? 'Keine' : 'Alle'}
-                                                    </button>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    {selectedType === 'unit' && (
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={handleHideAll}
-                                                            className="text-red-500 hover:text-red-600 hover:bg-red-50 h-8 px-2 gap-1.5"
-                                                            title="Alle sichtbaren Produkte ignorieren"
+                                    </div>
+                                ) : (
+                                    /* Pipeline Step */
+                                    <div className="flex-1 overflow-y-auto p-6 bg-muted/20">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            <AnimatePresence mode="popLayout">
+                                                {activeIds.map(productId => {
+                                                    const product = products.find(p => p.id === productId);
+                                                    if (!product) return null;
+                                                    return (
+                                                        <motion.div
+                                                            key={productId}
+                                                            layout
+                                                            initial={{ opacity: 0, scale: 0.9 }}
+                                                            animate={{ opacity: 1, scale: 1 }}
+                                                            exit={{ opacity: 0, scale: 0.9, y: -20 }}
+                                                            className="h-[480px]"
                                                         >
-                                                            <EyeOff size={14} />
-                                                            <span className="text-xs">Alle ignorieren</span>
-                                                        </Button>
-                                                    )}
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => setShowHidden(!showHidden)}
-                                                        className={cn("h-8 px-2 gap-1.5", showHidden ? "text-primary bg-primary/10" : "text-muted-foreground")}
-                                                    >
-                                                        {showHidden ? <Eye size={14} /> : <EyeOff size={14} />}
-                                                        <span className="text-xs">{showHidden ? 'Verstecken' : 'Zeigen'}</span>
-                                                    </Button>
-                                                </div>
+                                                            <AiCleanupCard
+                                                                product={product}
+                                                                onComplete={(id, action) => handleCardComplete(id, action)}
+                                                                context={CONTEXT}
+                                                                allIntolerances={allIntolerances}
+                                                                allVariants={allVariants}
+                                                            />
+                                                        </motion.div>
+                                                    );
+                                                })}
+                                            </AnimatePresence>
+                                        </div>
+
+                                        {activeIds.length === 0 && (
+                                            <div className="h-full flex flex-col items-center justify-center p-20 text-center">
+                                                <motion.div
+                                                    initial={{ scale: 0 }}
+                                                    animate={{ scale: 1 }}
+                                                    className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center text-white mb-6 shadow-xl shadow-green-500/20"
+                                                >
+                                                    <CheckCircle2 size={40} />
+                                                </motion.div>
+                                                <h3 className="text-2xl font-bold mb-2">Fertig!</h3>
+                                                <p className="text-muted-foreground mb-8">Alle ausgewählten Produkte wurden verarbeitet.</p>
+                                                <Button size="lg" className="rounded-xl px-10 h-14 font-bold" onClick={onClose}>
+                                                    Schließen
+                                                </Button>
                                             </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
 
-                                            <div className="flex-1 overflow-y-auto p-4 min-h-0">
-                                                {filteredProducts.length > 0 ? (
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                                                        {filteredProducts.map(product => {
-                                                            const isSelected = selectedIds.has(product.id);
-                                                            const isHidden = product.HiddenCleanups?.some(h => h.context === selectedType);
-
-                                                            if (!showHidden && isHidden) return null;
-
-                                                            return (
-                                                                <div
-                                                                    key={product.id}
-                                                                    className={cn(
-                                                                        "p-3 rounded-xl border transition-all flex items-start justify-between group relative overflow-hidden",
-                                                                        isSelected
-                                                                            ? "bg-primary/5 border-primary/40 shadow-sm"
-                                                                            : "bg-card border-border hover:border-primary/20 hover:bg-muted/50",
-                                                                        isHidden && "opacity-60 bg-muted/50 grayscale shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] border-transparent"
-                                                                    )}
-                                                                >
-                                                                    {/* Click target for selection */}
-                                                                    <div
-                                                                        className="absolute inset-0 z-0"
-                                                                        onClick={() => toggleSelection(product.id)}
-                                                                    />
-
-                                                                    <div className="flex items-start gap-3 relative z-10 pointer-events-none">
-                                                                        <div className={cn(
-                                                                            "w-5 h-5 rounded-md border flex items-center justify-center shrink-0 mt-0.5 transition-colors",
-                                                                            isSelected
-                                                                                ? "bg-primary border-primary text-primary-foreground"
-                                                                                : "border-muted-foreground/30 bg-background"
-                                                                        )}>
-                                                                            {isSelected && <CheckCircle2 size={14} />}
-                                                                        </div>
-                                                                        <div>
-                                                                            <div className={cn("font-medium transition-colors line-clamp-1", isSelected ? "text-primary" : "text-foreground")}>
-                                                                                {product.name}
-                                                                            </div>
-                                                                            <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                                                                                {selectedType !== 'unit' && <AlertCircle size={12} className="text-amber-500" />}
-                                                                                {selectedType === 'category' ? 'Keine Kategorie' :
-                                                                                    `Aktuell: ${product.unit || 'Keine Einheit'}`}
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Hide Toggle Button */}
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            handleToggleHidden(product.id);
-                                                                        }}
-                                                                        className={cn(
-                                                                            "absolute top-1 right-1 z-30 p-2 rounded-lg hover:bg-muted/80 transition-all focus:opacity-100",
-                                                                            isHidden ? "text-primary bg-primary/10" : "text-muted-foreground bg-background/50 backdrop-blur-sm"
-                                                                        )}
-                                                                        title={isHidden ? "Wieder einblenden" : "Ausblenden"}
-                                                                    >
-                                                                        {isHidden ? <Eye size={16} /> : <EyeOff size={16} />}
-                                                                    </button>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                ) : (
-                                                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
-                                                        <div className="w-16 h-16 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mb-4">
-                                                            <CheckCircle2 size={32} />
-                                                        </div>
-                                                        <h4 className="text-xl font-semibold text-foreground mb-2">Alles sauber!</h4>
-                                                        <p>Für diesen Bereich wurden keine unvollständigen Produkte gefunden.</p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </>
-                                    ) : (
-                                        /* Review Step */
-                                        <>
-                                            <div className="p-4 border-b border-border flex items-center justify-between bg-background/50 sticky top-0 z-10 backdrop-blur-sm">
-                                                <h3 className="font-bold text-lg flex items-center gap-2">Vorschläge überprüfen</h3>
-                                                <div className="text-sm text-muted-foreground">{results.filter(r => r.accepted).length} Änderungen übernehmen</div>
-                                            </div>
-                                            <div className="flex-1 overflow-y-auto p-4">
-                                                <div className="grid grid-cols-1 gap-3">
-                                                    {results.map((result, idx) => (
-                                                        <div key={result.id} className={cn("p-4 rounded-xl border bg-card transition-all flex items-center gap-4", !result.accepted && "opacity-50 grayscale")}>
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="text-sm text-muted-foreground mb-1">Produkt</div>
-                                                                <div className="font-bold truncate">{result.name}</div>
-                                                            </div>
-                                                            <ArrowRight className="text-muted-foreground shrink-0" size={16} />
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="text-sm text-muted-foreground mb-1">Vorschlag ({selectedType})</div>
-                                                                <Input
-                                                                    value={result.value}
-                                                                    onChange={(e) => {
-                                                                        const newRes = [...results];
-                                                                        newRes[idx].value = e.target.value;
-                                                                        newRes[idx].accepted = true;
-                                                                        setResults(newRes);
-                                                                    }}
-                                                                    className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-medium"
-                                                                />
-                                                            </div>
-                                                            <div className="flex items-center gap-2 shrink-0">
-                                                                <button
-                                                                    onClick={() => {
-                                                                        const newRes = [...results];
-                                                                        newRes[idx].accepted = !newRes[idx].accepted;
-                                                                        setResults(newRes);
-                                                                    }}
-                                                                    className={cn("w-10 h-10 rounded-lg flex items-center justify-center transition-colors", result.accepted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")}
-                                                                >
-                                                                    <CheckCircle2 size={20} />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
+                            {/* Global Footer (only for selection maybe?) */}
+                            {step === 'selection' && (
+                                <div className="p-4 md:p-6 border-t border-border bg-muted/10 flex justify-between items-center shrink-0">
+                                    <div className="text-sm text-muted-foreground italic">
+                                        Versteckte Produkte werden nicht in der Pipeline angezeigt.
+                                    </div>
+                                    <Button variant="ghost" onClick={onClose}>
+                                        Schließen
+                                    </Button>
                                 </div>
-                            </div>
-
-                            {/* Footer */}
-                            <div className="p-4 border-t border-border bg-muted/30 flex justify-end gap-3 shrink-0">
-                                <Button
-                                    variant="outline"
-                                    onClick={onClose}
-                                    disabled={saving}
-                                    className="h-12 px-6"
-                                >
-                                    {step === 'review' ? 'Abbrechen' : 'Schließen'}
-                                </Button>
-                                {step === 'selection' && (
-                                    <Button
-                                        onClick={handleStartCleanup}
-                                        disabled={filteredProducts.length === 0 || selectedIds.size === 0}
-                                        className="h-12 px-8 gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20"
-                                    >
-                                        <Sparkles size={18} />
-                                        AI Cleanup Starten ({selectedIds.size})
-                                    </Button>
-                                )}
-                                {step === 'review' && (
-                                    <Button onClick={handleSave} disabled={saving || results.filter(r => r.accepted).length === 0} className="h-12 px-8 gap-2 bg-primary text-primary-foreground">
-                                        {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                                        {saving ? 'Speichere...' : `Änderungen übernehmen (${results.filter(r => r.accepted).length})`}
-                                    </Button>
-                                )}
-                            </div>
+                            )}
                         </Card>
                     </motion.div>
                 </div>
             )}
-
-            <AiActionConfirmModal
-                isOpen={aiConfirmModalOpen}
-                onClose={() => setAiConfirmModalOpen(false)}
-                onConfirm={() => {
-                    aiActionData?.onConfirm();
-                    setAiConfirmModalOpen(false);
-                }}
-                actionTitle={aiActionData?.title}
-                actionDescription={aiActionData?.description}
-                cost={aiActionData?.cost}
-                balance={user?.aiCredits}
-            />
-
-            <SubscriptionModal
-                isOpen={isSubscriptionModalOpen}
-                onClose={() => setIsSubscriptionModalOpen(false)}
-                currentTier={user?.tier}
-            />
         </AnimatePresence>
     );
 }

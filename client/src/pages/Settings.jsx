@@ -121,6 +121,13 @@ export default function SettingsPage() {
     const [savingPayment, setSavingPayment] = useState(false);
     const [isPaymentConfigOpen, setIsPaymentConfigOpen] = useState(false);
 
+    // Personal Product Intolerances State
+    const [personalIntolerances, setPersonalIntolerances] = useState([]);
+    const [loadingPersonalIntolerances, setLoadingPersonalIntolerances] = useState(false);
+    const [productSearchQuery, setProductSearchQuery] = useState('');
+    const [productSearchResults, setProductSearchResults] = useState([]);
+    const [searchingProducts, setSearchingProducts] = useState(false);
+
     // Design State
     const primaryColors = [
         { name: 'Teal', value: '#14b8a6' },
@@ -199,6 +206,7 @@ export default function SettingsPage() {
     useEffect(() => {
         fetchStores();
         fetchIntolerances();
+        fetchPersonalIntolerances();
         if (user) {
             fetchHouseholdMembers();
         }
@@ -450,6 +458,64 @@ export default function SettingsPage() {
             await fetchIntolerances();
         } catch (err) {
             alert('Fehler beim Löschen: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const fetchPersonalIntolerances = async () => {
+        if (!user) return;
+        setLoadingPersonalIntolerances(true);
+        try {
+            const { data } = await api.get('/intolerances/personal-products');
+            setPersonalIntolerances(data);
+        } catch (err) {
+            console.error('Failed to fetch personal intolerances', err);
+        } finally {
+            setLoadingPersonalIntolerances(false);
+        }
+    };
+
+    const searchProducts = async (query) => {
+        if (!query || query.length < 2) {
+            setProductSearchResults([]);
+            return;
+        }
+        setSearchingProducts(true);
+        try {
+            const { data } = await api.get(`/products?search=${encodeURIComponent(query)}&limit=10`);
+            setProductSearchResults(data || []);
+        } catch (err) {
+            console.error('Search failed', err);
+        } finally {
+            setSearchingProducts(false);
+        }
+    };
+
+    // Debounce search
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (productSearchQuery) searchProducts(productSearchQuery);
+            else setProductSearchResults([]);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [productSearchQuery]);
+
+    const handleAddPersonalIntolerance = async (productId) => {
+        try {
+            await api.post('/intolerances/personal-products', { productId });
+            setProductSearchQuery('');
+            setProductSearchResults([]);
+            fetchPersonalIntolerances();
+        } catch (err) {
+            alert('Fehler beim Hinzufügen: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleRemovePersonalIntolerance = async (productId) => {
+        try {
+            await api.delete(`/intolerances/personal-products/${productId}`);
+            fetchPersonalIntolerances();
+        } catch (err) {
+            alert('Fehler beim Entfernen: ' + (err.response?.data?.error || err.message));
         }
     };
 
@@ -2431,6 +2497,114 @@ export default function SettingsPage() {
                         </div>
                     )}
                 </AnimatePresence>
+
+                {/* Personal Product Exclusions Section */}
+                <div className="pt-8 border-t border-border/50 mt-8">
+                    <h3 className="text-lg font-bold text-foreground mb-1 px-2 flex items-center gap-2">
+                        <Package size={18} className="text-primary" />
+                        Persönliche Produkt-Ausschlüsse
+                    </h3>
+                    <p className="text-xs text-muted-foreground mb-4 px-2">
+                        Markiere spezifische Produkte aus dem Stamm als unverträglich für dich.
+                    </p>
+
+                    <div className="space-y-4 px-2">
+                        {/* Search Input for Products */}
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                            <Input
+                                placeholder="Produkt suchen (z.B. Milka Schokolade)..."
+                                className="pl-10 bg-card/30 border-border"
+                                value={productSearchQuery}
+                                onChange={(e) => setProductSearchQuery(e.target.value)}
+                            />
+                            {searchingProducts && (
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                    <Loader2 size={16} className="animate-spin text-primary/50" />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Search Results Dropdown */}
+                        <AnimatePresence>
+                            {productSearchResults.length > 0 && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    className="bg-card border border-border rounded-2xl shadow-xl overflow-hidden z-10"
+                                >
+                                    <div className="max-h-60 overflow-y-auto">
+                                        {productSearchResults.map(product => {
+                                            const isAlreadyExcluded = personalIntolerances.some(p => p.id === product.id);
+                                            return (
+                                                <div
+                                                    key={product.id}
+                                                    className={cn(
+                                                        "p-3 flex items-center justify-between border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors",
+                                                        isAlreadyExcluded && "opacity-50 pointer-events-none"
+                                                    )}
+                                                >
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="font-bold truncate text-sm">{product.name}</span>
+                                                        <span className="text-[10px] text-muted-foreground truncate">{product.category} | {product.unit}</span>
+                                                    </div>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-8 w-8 p-0 rounded-full"
+                                                        onClick={() => handleAddPersonalIntolerance(product.id)}
+                                                    >
+                                                        <Plus size={16} />
+                                                    </Button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {/* List of Personally Excluded Products */}
+                        <div className="space-y-2 mt-4">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Deine Ausschlüsse</p>
+                            {loadingPersonalIntolerances ? (
+                                <div className="flex justify-center p-4"><Loader2 className="animate-spin text-primary/50" /></div>
+                            ) : personalIntolerances.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {personalIntolerances.map(product => (
+                                        <div
+                                            key={product.id}
+                                            className="p-3 bg-red-500/5 dark:bg-red-500/10 border border-red-500/20 rounded-xl flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-bottom-2"
+                                        >
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="h-8 w-8 rounded-lg bg-red-500/20 flex items-center justify-center shrink-0">
+                                                    <Package size={16} className="text-red-600 dark:text-red-400" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-sm truncate">{product.name}</p>
+                                                    <p className="text-[10px] text-red-500/60 dark:text-red-400/60 truncate">{product.category}</p>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 hover:text-destructive hover:bg-destructive/10"
+                                                onClick={() => handleRemovePersonalIntolerance(product.id)}
+                                            >
+                                                <X size={14} />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-6 bg-muted/10 border border-dashed border-border rounded-2xl text-muted-foreground text-[10px] italic">
+                                    Keine spezifischen Produkte ausgeschlossen.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );

@@ -946,7 +946,17 @@ router.get('/:id/planning-data', auth, async (req, res) => {
                 const origProductId = ing.ProductId;
 
                 if (!productCache.has(origProductId)) {
-                    productCache.set(origProductId, await resolveProductForUser(origProductId, req.user.effectiveId));
+                    productCache.set(origProductId, await Product.findByPk(await resolveProductForUser(origProductId, req.user.effectiveId).then(p => p.id), {
+                        include: [{
+                            model: ProductVariation,
+                            required: false,
+                            include: [{ model: ProductVariant }]
+                        }, {
+                            model: Store,
+                            where: { UserId: req.user.effectiveId },
+                            required: false
+                        }]
+                    }));
                 }
                 const resolvedProduct = productCache.get(origProductId);
                 if (!resolvedProduct) continue;

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Check, Save } from 'lucide-react';
+import { AlertTriangle, X, Check, Save } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
+import api from '../lib/axios';
 
-export default function QuantityModal({ isOpen, onClose, productName, defaultUnit = 'Stück', productNote = '', variations = [], onConfirm }) {
+export default function QuantityModal({ isOpen, onClose, productName, defaultUnit = 'Stück', productNote = '', variations = [], onConfirm, intoleranceMessages = [] }) {
     const [quantity, setQuantity] = useState('1');
     const [unit, setUnit] = useState(defaultUnit);
     const [note, setNote] = useState('');
@@ -73,6 +74,23 @@ export default function QuantityModal({ isOpen, onClose, productName, defaultUni
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-4">
+                            {intoleranceMessages.length > 0 && (
+                                <div className="bg-destructive/10 border border-destructive/20 rounded-2xl p-4 animate-pulse-subtle">
+                                    <div className="flex items-center gap-2 text-destructive font-bold text-sm mb-2">
+                                        <AlertTriangle size={18} />
+                                        <span>Achtung! Unverträglichkeit</span>
+                                    </div>
+                                    <ul className="space-y-1">
+                                        {intoleranceMessages.map((msg, idx) => (
+                                            <li key={idx} className="text-xs text-destructive/90 font-medium flex items-start gap-2">
+                                                <span className="shrink-0">🛑</span>
+                                                <span>{msg.replace('🛑 Unverträglichkeit: ', '')}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
                             {variations.length > 0 && (
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Variante auswählen</label>

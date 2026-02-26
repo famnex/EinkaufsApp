@@ -298,14 +298,47 @@ router.post('/suggest-substitute', auth, async (req, res) => {
 
         const openai = new OpenAI({ apiKey: setting.value });
 
+        // Fetch household intolerances to avoid suggesting forbidden items
+        const { Intolerance, User: UserModel, Product: ProductModel } = require('../models');
+        const { Op } = require('sequelize');
+
+        const currentUser = await UserModel.findByPk(req.user.effectiveId);
+        const householdMembers = await UserModel.findAll({
+            where: {
+                [Op.or]: [
+                    { id: currentUser.householdId || req.user.effectiveId },
+                    { householdId: currentUser.householdId || req.user.effectiveId }
+                ]
+            },
+            include: [
+                { model: Intolerance, through: { attributes: [] } },
+                { model: ProductModel, as: 'IntolerantProducts', through: { attributes: [] } }
+            ]
+        });
+
+        const forbiddenItems = new Set();
+        householdMembers.forEach(m => {
+            m.Intolerances?.forEach(i => {
+                // Use warningText if available, it's more specific (e.g., "Enthält Ei")
+                forbiddenItems.add(i.warningText || i.name);
+            });
+            m.IntolerantProducts?.forEach(p => forbiddenItems.add(p.name));
+        });
+
+        const forbiddenList = Array.from(forbiddenItems).join(', ');
+
         const prompt = `
 Du bist ein Experte für deutsche Lebensmittel und Zutaten.
 Ich brauche einen Ersatz für "${productName}" ${context ? `für ${context}` : ''}.
+
+${forbiddenList ? `WICHTIG: Schlage KEINE Produkte vor, die folgende Inhaltsstoffe enthalten oder damit verwandt sind oder gegen diese Regeln verstoßen (Unverträglichkeiten im Haushalt): [${forbiddenList}]` : ''}
 
 Gib mir 5 gute Alternativen, die:
 - In deutschen Supermärkten verfügbar sind
 - Ähnliche Eigenschaften haben
 - Praktisch austauschbar sind
+- Sicher für jemanden mit den oben genannten Unverträglichkeiten sind
+- Einzelprodukte sind und keine Produktgruppen
 
 WICHTIG: Antworte nur mit gültigem JSON in diesem exakten Format:
 {
@@ -992,10 +1025,21 @@ Bitte passe deine neue Analyse zwingend an dieses Feedback an (!).` : ''}
 
 Bitte beantworte diese drei Hauptfragen und formatiere die Antwort EXAKT wie unten gefordert als JSON:
 1. Kommt das Produkt typischerweise in mehr als einer dieser DB-Varianten vor? 
-   - Wenn NEIN: ordne eine Kategorie und eine Standardverkaufseinheit [also wie verpackt wird es verkauft] (z.B. Stück, Packung, Korb, Netz, Dose (bei Gewürzen), etc. - nutze g (nicht kg) nur wenn nichts anderes passt!) zu.
-   - Wenn JA: nenne die passenden DB-Varianten-IDs und ordne pro Variante eine passende Kategorie und Einheit zu.
+   - Wenn NEIN: ordne eine Kategorie und eine Standardverkaufseinheit zu. 
+     WICHTIG: Denke zwingend an das **Verkaufsgebinde** (wie steht es im Regal?). 
+     Nutze Einheiten wie: Stück, Packung, Glas, Dose, Flasche, Beutel, Kiste, Netz, Korb, Bund, etc.
+     VERMEIDE generische Einheiten wie g, kg, ml oder l!
+   - Wenn JA: nenne die passenden DB-Varianten-IDs und ordne pro Variante eine passende Kategorie und Einheit (Verkaufsgebinde!) zu.
 2. In welche existierende Kategorie (siehe Liste) passt das Produkt am besten? Falls keine passt, schlage eine neue sinnvolle vor.
-3. Welche der exakt vorgegebenen DB-Unverträglichkeiten (IDs) treffen typischerweise auf dieses Produkt zu? Recherchiere genau! Avocados sind z.B. keine Schalenfrüchte! Eier und Butter sind vegetarisch aber nicht vegan! Beachte den feinen unterschied: Fleisch vom Tier: nicht vegetarisch - Produkt vom Tier: nicht vegan.
+3. Welche der exakt vorgegebenen DB-Unverträglichkeiten (IDs) treffen typischerweise auf dieses Produkt zu?
+   RECHERCHIERE EXTREM GENAU UND KRITISCH:
+   - **Fleisch (Meat):** Falls das Produkt Fleisch enthält (Schinken, Salami, Rind, Huhn, etc.), ist es weder vegan noch vegetarisch! Kennzeichne dies korrekt, falls es dafür IDs gibt.
+   - **Vegan vs. Vegetarisch:** 
+     - Vegan bedeutet: Keinerlei tierische Produkte (kein Fleisch, keine Milch, keine Eier, kein Honig, kein Fisch, kein Gelatine).
+     - Vegetarisch bedeutet: Kein Fleisch und kein Fisch (Milch und Eier sind okay).
+   - **Allergene:** Beachte versteckte Allergene (z.B. Gluten in Sojasauce, Laktose in Wurst, etc.).
+   - Avocados sind KEINE Schalenfrüchte.
+   - Butter/Milch/Eier sind NICHT vegan.
 
 Erforderliches JSON-Format:
 {
@@ -1013,6 +1057,8 @@ WICHTIG:
 - Fülle "category" und "unit" für das Basis-Objekt immer aus, als Fallback.
 - "variants" kann leer sein, wenn "hasVariants" false ist.
 - Nutze unter 'intoleranceIds' nur IDs, die tatsächlichen Unverträglichkeiten aus der Liste zugeordnet sind.
+- Priorisiere bei 'unit' IMMER das Verkaufsgebinde. Ein Apfel ist 1 Stück, nicht 150g. Milch ist 1 Flasche/Packung, nicht 1l.
+- Wenn Fleisch enthalten ist, MUSS "Vegetarisch" und "Vegan" explizit AUSGEKLAMMERT werden (falls sie in der Liste sind, wähle sie NICHT aus).
 `;
 
         const completion = await openai.chat.completions.create({

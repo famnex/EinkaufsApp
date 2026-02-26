@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ChefHat, Clock, Play, User, Users, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { ChefHat, Clock, Play, User, Users, ShieldCheck, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { Card } from '../components/Card';
 import SharedCookingMode from '../components/SharedCookingMode';
 import SharedNotFound from '../components/SharedNotFound';
-import { getImageUrl } from '../lib/utils';
+import { cn, getImageUrl } from '../lib/utils';
+import api from '../lib/axios';
 
 
 export default function SharedRecipe() {
@@ -15,6 +16,8 @@ export default function SharedRecipe() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isCooking, setIsCooking] = useState(false);
+    const [conflicts, setConflicts] = useState([]);
+    const [activeTooltip, setActiveTooltip] = useState(null); // productId or nulll
 
     // Determine API URL based on environment and base path
     const baseURL = import.meta.env.BASE_URL === '/'
@@ -29,6 +32,24 @@ export default function SharedRecipe() {
                 const url = `${API_URL.replace(/\/$/, '')}/recipes/public/${sharingKey}/${id}`;
                 const { data } = await axios.get(url);
                 setRecipe(data);
+
+                // Check for intolerances if logged in
+                const token = localStorage.getItem('token');
+                if (token && data.RecipeIngredients?.length > 0) {
+                    const productIds = data.RecipeIngredients
+                        .map(ri => ri.ProductId)
+                        .filter(Boolean);
+
+                    if (productIds.length > 0) {
+                        try {
+                            const checkUrl = `${API_URL.replace(/\/$/, '')}/intolerances/check`;
+                            const { data: conflictData } = await api.post('/intolerances/check', { productIds });
+                            setConflicts(conflictData);
+                        } catch (err) {
+                            console.error('Intolerance check failed', err);
+                        }
+                    }
+                }
             } catch (err) {
                 console.error(err);
                 setError('Rezept nicht gefunden oder fehlerhaft.');
@@ -37,7 +58,14 @@ export default function SharedRecipe() {
             }
         };
         fetchRecipe();
-    }, [id, API_URL]);
+    }, [id, API_URL, sharingKey]);
+
+    useEffect(() => {
+        if (!activeTooltip) return;
+        const closeTooltip = () => setActiveTooltip(null);
+        document.addEventListener('click', closeTooltip);
+        return () => document.removeEventListener('click', closeTooltip);
+    }, [activeTooltip]);
 
     if (loading) {
         return (
@@ -64,6 +92,21 @@ export default function SharedRecipe() {
         const cleanBase = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
 
         return `${cleanBase}/${cleanUrl}`;
+    };
+
+    const getConflictForProduct = (productId) => {
+        const productConflicts = conflicts.filter(c => c.productId === productId);
+        if (productConflicts.length === 0) return null;
+
+        // Group by warning type/message to avoid duplicate text for the same user
+        const messages = [];
+        productConflicts.forEach(pc => {
+            pc.warnings.forEach(w => {
+                const householdLabel = pc.username ? ` (${pc.username})` : '';
+                messages.push(`🛑 ${w.message}${householdLabel}`);
+            });
+        });
+        return [...new Set(messages)]; // Unique messages
     };
 
     return (
@@ -166,6 +209,7 @@ export default function SharedRecipe() {
                 {isCooking && (
                     <SharedCookingMode
                         recipe={recipe}
+                        conflicts={conflicts}
                         onClose={() => setIsCooking(false)}
                     />
                 )}
@@ -196,18 +240,62 @@ export default function SharedRecipe() {
                             <span className="w-8 h-8 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center text-sm">1</span>
                             Zutaten
                         </h2>
-                        <Card className="divide-y divide-border overflow-hidden">
+                        <Card className="divide-y divide-border">
                             {recipe.RecipeIngredients && recipe.RecipeIngredients.length > 0 ? (
-                                recipe.RecipeIngredients.map((ri) => (
-                                    <div key={ri.id} className="p-3 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                                        <span className="font-medium">
-                                            {ri.Product?.name || 'Unbekanntes Produkt'}
-                                        </span>
-                                        <span className="text-sm text-muted-foreground font-semibold bg-muted px-2 py-0.5 rounded-md">
-                                            {ri.quantity} {ri.unit}
-                                        </span>
-                                    </div>
-                                ))
+                                recipe.RecipeIngredients.map((ri) => {
+                                    const productConflicts = getConflictForProduct(ri.ProductId);
+                                    return (
+                                        <div
+                                            key={ri.id}
+                                            className={cn(
+                                                "p-3 flex items-center justify-between hover:bg-muted/30 transition-colors relative",
+                                                activeTooltip === ri.id ? "z-40" : "z-0"
+                                            )}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-medium">
+                                                    {ri.Product?.name || 'Unbekanntes Produkt'}
+                                                </span>
+                                                {productConflicts && (
+                                                    <div className="z-50 shrink-0">
+                                                        <div
+                                                            className="w-8 h-8 flex items-center justify-center text-destructive bg-destructive/10 rounded-full animate-pulse ring-1 ring-destructive/20 cursor-pointer"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setActiveTooltip(activeTooltip === ri.id ? null : ri.id);
+                                                            }}
+                                                        >
+                                                            <AlertTriangle size={18} />
+                                                        </div>
+
+                                                        {activeTooltip === ri.id && (
+                                                            <div
+                                                                className="absolute right-0 bottom-full mb-3 w-64 p-4 bg-popover text-popover-foreground rounded-2xl shadow-2xl border border-border z-50 animate-in fade-in slide-in-from-bottom-2 duration-200"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            >
+                                                                <div className="font-bold mb-2 text-destructive flex items-center gap-2">
+                                                                    <AlertTriangle size={16} /> Achtung!
+                                                                </div>
+                                                                <div className="text-muted-foreground mb-2 text-xs">Unverträglichkeit erkannt:</div>
+                                                                <div className="space-y-1">
+                                                                    {productConflicts.map((msg, i) => (
+                                                                        <div key={i} className="text-xs font-semibold bg-destructive/5 p-2 rounded-lg text-destructive border border-destructive/10">
+                                                                            {msg}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                                <div className="absolute top-full right-4 w-3 h-3 bg-popover border-r border-b border-border rotate-45 -translate-y-1/2" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <span className="text-sm text-muted-foreground font-semibold bg-muted px-2 py-0.5 rounded-md">
+                                                {ri.quantity} {ri.unit}
+                                            </span>
+                                        </div>
+                                    );
+                                })
                             ) : (
                                 <div className="p-4 text-center text-muted-foreground text-sm italic">
                                     Keine Zutaten gelistet.
@@ -255,16 +343,26 @@ export default function SharedRecipe() {
                                 </h2>
                                 <div className="border border-gray-200 rounded-xl overflow-visible">
                                     {recipe.RecipeIngredients && recipe.RecipeIngredients.length > 0 ? (
-                                        recipe.RecipeIngredients.map((ri) => (
-                                            <div key={ri.id} className="p-3 flex items-center justify-between border-b border-gray-100 last:border-0">
-                                                <span className="font-medium text-black">
-                                                    {ri.Product?.name || 'Unbekanntes Produkt'}
-                                                </span>
-                                                <span className="text-xs font-semibold text-black border border-gray-200 px-2 py-0.5 rounded-md">
-                                                    {ri.quantity} {ri.unit}
-                                                </span>
-                                            </div>
-                                        ))
+                                        recipe.RecipeIngredients.map((ri) => {
+                                            const productConflicts = getConflictForProduct(ri.ProductId);
+                                            return (
+                                                <div key={ri.id} className="p-3 border-b border-gray-100 last:border-0">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <span className="font-medium text-black">
+                                                            {ri.Product?.name || 'Unbekanntes Produkt'}
+                                                        </span>
+                                                        <span className="text-xs font-semibold text-black border border-gray-200 px-2 py-0.5 rounded-md">
+                                                            {ri.quantity} {ri.unit}
+                                                        </span>
+                                                    </div>
+                                                    {productConflicts && (
+                                                        <div className="text-[10px] text-red-600 font-bold leading-tight">
+                                                            {productConflicts.join(' | ')}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })
                                     ) : (
                                         <div className="p-4 text-center text-gray-400 text-sm italic">
                                             Keine Zutaten.

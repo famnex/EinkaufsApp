@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, RefreshCw, Sparkles } from 'lucide-react';
+import { X, RefreshCw, Sparkles, AlertCircle } from 'lucide-react';
 import { Button } from './Button';
-import { cn } from '../lib/utils';
+import { cn, getImageUrl } from '../lib/utils';
 
 export default function ProductSubstituteModal({
     isOpen,
@@ -9,7 +9,9 @@ export default function ProductSubstituteModal({
     originalProduct,
     suggestions,
     loading,
-    onSelect
+    onSelect,
+    conflicts = [],
+    allProducts = []
 }) {
     if (!isOpen) return null;
 
@@ -73,8 +75,17 @@ export default function ProductSubstituteModal({
                                     >
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="flex-1 min-w-0">
-                                                <div className="font-bold text-base text-foreground truncate">
-                                                    {suggestion.name}
+                                                <div className="flex items-center gap-2">
+                                                    <div className="font-bold text-base text-foreground truncate">
+                                                        {suggestion.name}
+                                                    </div>
+                                                    {(() => {
+                                                        const p = allProducts.find(ap => ap.name.toLowerCase() === suggestion.name.toLowerCase());
+                                                        if (p && conflicts.some(c => c.productId === p.id && c.warnings?.length > 0)) {
+                                                            return <AlertCircle size={16} className="text-destructive animate-pulse" />;
+                                                        }
+                                                        return null;
+                                                    })()}
                                                 </div>
                                                 <div className="text-xs text-muted-foreground mt-1">
                                                     {suggestion.reason}

@@ -68,6 +68,7 @@ export default function Recipes() {
     const [selectedRecipe, setSelectedRecipe] = useState(null);
 
     const [cookingRecipe, setCookingRecipe] = useState(null);
+    const [cookingConflicts, setCookingConflicts] = useState([]);
     const [schedulingRecipe, setSchedulingRecipe] = useState(null);
 
     // Track which menu is open (by recipe ID)
@@ -127,10 +128,25 @@ export default function Recipes() {
             // Fetch full recipe details with ingredients
             const { data } = await api.get(`/recipes/${recipe.id}`);
             setCookingRecipe(data);
+
+            // Fetch intolerance conflicts
+            const productIds = [...new Set(data.RecipeIngredients?.map(ri => ri.ProductId).filter(Boolean))];
+            if (productIds.length > 0) {
+                try {
+                    const { data: conflictData } = await api.post('/intolerances/check', { productIds });
+                    setCookingConflicts(conflictData);
+                } catch (err) {
+                    console.error('Failed to check intolerances', err);
+                    setCookingConflicts([]);
+                }
+            } else {
+                setCookingConflicts([]);
+            }
         } catch (err) {
             console.error('Failed to load recipe details', err);
             // Fallback to basic data if fetch fails
             setCookingRecipe(recipe);
+            setCookingConflicts([]);
         }
     };
 
@@ -721,7 +737,11 @@ export default function Recipes() {
                     cookingRecipe && (
                         <CookingMode
                             recipe={cookingRecipe}
-                            onClose={() => setCookingRecipe(null)}
+                            conflicts={cookingConflicts}
+                            onClose={() => {
+                                setCookingRecipe(null);
+                                setCookingConflicts([]);
+                            }}
                         />
                     )
                 }

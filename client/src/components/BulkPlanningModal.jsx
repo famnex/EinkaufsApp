@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { X, Check, ShoppingCart, ChevronDown, ChevronUp, AlertCircle, Plus, Trash2, ArrowRight, RefreshCw, Search } from 'lucide-react';
 import { Button } from './Button';
@@ -7,11 +7,106 @@ import { UnitCombobox } from './UnitCombobox';
 import api from '../lib/axios';
 import { cn } from '../lib/utils';
 import { Input } from './Input';
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 // Helper to safely get adjustment value
 const getAdj = (prodId, adjustments) => adjustments[prodId] || { quantity: '', unit: '', note: '' };
 
-import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+function Tooltip({ children, items = [], onToggle }) {
+    const [isVisible, setIsVisible] = useState(false);
+    const triggerRef = useRef(null);
+    const [pos, setPos] = useState({ top: 0, left: 0 });
+
+    // Safety check: ensure items is an array
+    const safeItems = Array.isArray(items) ? items : [];
+    if (safeItems.length === 0) return children;
+
+    // Correctly extract messages from conflict objects if necessary
+    const displayMessages = safeItems.map(item => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object') {
+            return item.message || item.warningText || item.intoleranceName || 'Unverträglichkeit';
+        }
+        return String(item);
+    });
+
+    const toggle = (e) => {
+        e.stopPropagation();
+        const next = !isVisible;
+
+        if (next && triggerRef.current) {
+            const rect = triggerRef.current.getBoundingClientRect();
+            // Calculate center of icon
+            setPos({
+                top: rect.bottom + 12,
+                left: rect.left + rect.width / 2
+            });
+        }
+
+        setIsVisible(next);
+        if (onToggle) onToggle(next);
+    };
+
+    // Close on click outside
+    useEffect(() => {
+        if (!isVisible) return;
+        const close = () => {
+            setIsVisible(false);
+            if (onToggle) onToggle(false);
+        };
+        document.addEventListener('click', close);
+        window.addEventListener('resize', close);
+        return () => {
+            document.removeEventListener('click', close);
+            window.removeEventListener('resize', close);
+        };
+    }, [isVisible, onToggle]);
+
+    return (
+        <div
+            ref={triggerRef}
+            className="inline-flex cursor-pointer"
+            onClick={toggle}
+        >
+            {children}
+            {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                    {isVisible && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: -10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                            className="fixed p-4 bg-card border-2 border-destructive shadow-2xl rounded-2xl z-[9999] min-w-[220px]"
+                            style={{
+                                top: pos.top,
+                                left: pos.left,
+                                transform: 'translateX(-50%)'
+                            }}
+                            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside tooltip
+                        >
+                            <div className="flex items-center gap-2 text-destructive font-black text-xs mb-3 border-b border-destructive/10 pb-2">
+                                <AlertCircle size={14} />
+                                <span>Achtung! Unverträglichkeit</span>
+                            </div>
+                            <ul className="space-y-2">
+                                {displayMessages.map((msg, idx) => (
+                                    <li key={idx} className="text-xs text-destructive font-bold flex items-start gap-2 leading-tight bg-red-500/5 p-2 rounded-lg">
+                                        <span className="shrink-0">⚠️</span>
+                                        <span>{msg.replace('🛑 Unverträglichkeit: ', '')}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                            {/* Arrow pointing up */}
+                            <div className="absolute bottom-full left-1/2 -ml-2 border-8 border-transparent border-b-destructive" />
+                            <div className="absolute bottom-full left-1/2 -ml-[7px] border-[7px] border-transparent border-b-card mt-[1px]" />
+                        </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
+        </div>
+    );
+}
 
 export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }) {
     useLockBodyScroll(isOpen);
@@ -25,6 +120,7 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
     const [allProducts, setAllProducts] = useState([]);
     const [searchingFor, setSearchingFor] = useState(null); // ProductId being swapped
     const [searchTerm, setSearchTerm] = useState('');
+    const [conflicts, setConflicts] = useState([]);
 
     useEffect(() => {
         if (isOpen && listId) {
@@ -44,6 +140,11 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
             const res = await api.get(`/lists/${listId}/planning-data`);
             setData(res.data);
 
+            if (res.data.ingredients?.length > 0) {
+                const productIds = res.data.ingredients.map(ing => ing.product.id);
+                fetchConflicts(productIds);
+            }
+
             // Auto-fill logic? User seems to want manual control or "One Click" copy.
             // Let's NOT auto-fill `adjustments`. Keep it clean.
             // User can click "Add" to copy.
@@ -52,6 +153,15 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
             console.error(err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchConflicts = async (productIds) => {
+        try {
+            const res = await api.post('/intolerances/check', { productIds });
+            setConflicts(res.data);
+        } catch (err) {
+            console.error('Failed to fetch intolerance conflicts:', err);
         }
     };
 
@@ -100,7 +210,8 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
                         ProductId: effectiveProductId,
                         quantity: parseFloat(val.quantity),
                         unit: val.unit,
-                        note: val.note || null
+                        note: val.note || null,
+                        ProductVariationId: val.variantId || null
                     };
                 });
 
@@ -128,10 +239,10 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
         }
     };
 
-    const handleQuickAdd = (prodId, amount, unit, note = '') => {
+    const handleQuickAdd = (prodId, amount, unit, variantId = null, note = '') => {
         setAdjustments(prev => ({
             ...prev,
-            [prodId]: { quantity: amount, unit: unit, note: note }
+            [prodId]: { quantity: amount, unit: unit, note: note, variantId: variantId }
         }));
     };
 
@@ -300,6 +411,7 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
                                                     onSetSearchingFor={setSearchingFor}
                                                     onSetSearchTerm={setSearchTerm}
                                                     onDeleteItem={handleDeleteItem}
+                                                    conflicts={conflicts}
                                                 />
                                             ))}
                                     </div>
@@ -353,11 +465,16 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
 function PlanningRow({
     item, adjustments, substitutions, searchingFor, searchTerm, allProducts,
     onHide, onQuickAdd, onManualChange, getAdj, availableUnits, noteSuggestions,
-    onClearAdjustment, onSubstitute, onClearSubstitution, onSetSearchingFor, onSetSearchTerm, onDeleteItem
+    onClearAdjustment, onSubstitute, onClearSubstitution, onSetSearchingFor, onSetSearchTerm, onDeleteItem,
+    conflicts
 }) {
     const adj = getAdj(item.product.id, adjustments);
     const isSelected = !!adjustments[item.product.id];
     const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
+    const [showingVariantPicker, setShowingVariantPicker] = useState(false);
+    const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+
+    const hasConflict = conflicts?.some(c => c.productId === item.product.id && c.warnings?.length > 0);
 
     // Primary need (single unit) support
     const primaryNeed = item.primaryNeed;
@@ -390,6 +507,23 @@ function PlanningRow({
         }
     };
 
+    const variations = item.product.ProductVariations || [];
+    const hasVariations = variations.length > 0;
+
+    const handleQuickAddClick = (amount, unit) => {
+        if (hasVariations) {
+            setShowingVariantPicker({ amount, unit });
+        } else {
+            onQuickAdd(item.product.id, amount, unit);
+        }
+    };
+
+    const handleSelectVariant = (variantId) => {
+        const { amount, unit } = showingVariantPicker;
+        onQuickAdd(item.product.id, amount, unit, variantId);
+        setShowingVariantPicker(false);
+    };
+
     return (
         <motion.div
             layout
@@ -417,7 +551,7 @@ function PlanningRow({
                 className={cn(
                     "group relative flex flex-col md:grid md:grid-cols-12 gap-4 md:gap-4 items-stretch md:items-center p-4 md:p-3 rounded-3xl border border-border transition-colors duration-300 bg-card touch-pan-y",
                     isSelected ? "bg-primary/[0.03] border-primary/30 shadow-md ring-1 ring-primary/10" : "hover:bg-muted/30",
-                    isUnitDropdownOpen ? "z-40" : "z-10"
+                    (isUnitDropdownOpen || searchingFor === item.product.id || isTooltipOpen) ? "z-40" : "z-10"
                 )}
             >
                 {/* Desktop 'X' Button Overlay - Positioned relative to this card to be clickable */}
@@ -471,8 +605,16 @@ function PlanningRow({
                                 </div>
                             ) : (
                                 <>
-                                    <div className={cn("font-bold truncate text-base md:text-sm leading-tight", substitutions[item.product.id] && "line-through opacity-50")}>
+                                    <div className={cn("font-bold truncate text-base md:text-sm leading-tight flex items-center gap-2", substitutions[item.product.id] && "line-through opacity-50")}>
                                         {item.product.name}
+                                        {hasConflict && (
+                                            <Tooltip
+                                                items={conflicts?.find(c => c.productId === item.product.id)?.warnings || []}
+                                                onToggle={setIsTooltipOpen}
+                                            >
+                                                <AlertCircle size={14} className="text-destructive animate-pulse shrink-0 cursor-help" />
+                                            </Tooltip>
+                                        )}
                                     </div>
                                     {substitutions[item.product.id] && (
                                         <div className="font-bold text-primary truncate text-sm flex items-center gap-1 mt-0.5 animate-in fade-in slide-in-from-left-2">
@@ -544,11 +686,11 @@ function PlanningRow({
                     <span className="md:hidden text-[10px] uppercase font-bold text-muted-foreground">Hinzufügen</span>
                     <div className="flex items-center gap-2">
                         {/* Quick Add Pills */}
-                        {!isLockedUnit && !isSelected && (
+                        {!isLockedUnit && !isSelected && !showingVariantPicker && (
                             <div className="flex items-center gap-2 w-full">
                                 {primaryNeed && (
                                     <button
-                                        onClick={() => onQuickAdd(item.product.id, primaryNeed.amount, primaryNeed.unit)}
+                                        onClick={() => handleQuickAddClick(primaryNeed.amount, primaryNeed.unit)}
                                         className="flex-1 h-10 px-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-2xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all"
                                     >
                                         <Plus size={14} /> {primaryNeed.amount} {primaryNeed.unit}
@@ -556,12 +698,36 @@ function PlanningRow({
                                 )}
                                 {!(primaryNeed && primaryNeed.amount === 1 && primaryNeed.unit === defaultUnit) && (
                                     <button
-                                        onClick={() => onQuickAdd(item.product.id, 1, defaultUnit)}
+                                        onClick={() => handleQuickAddClick(1, defaultUnit)}
                                         className="flex-1 h-10 px-3 bg-muted hover:bg-muted/80 text-foreground rounded-2xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all"
                                     >
                                         <Plus size={14} /> 1 {defaultUnit}
                                     </button>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Variant Picker */}
+                        {showingVariantPicker && (
+                            <div className="flex flex-col gap-2 w-full bg-primary/5 p-2 rounded-2xl border border-primary/20 animate-in fade-in zoom-in-95">
+                                <div className="flex items-center justify-between px-1">
+                                    <span className="text-[10px] font-black uppercase text-primary tracking-wider">Variante wählen</span>
+                                    <button onClick={() => setShowingVariantPicker(false)} className="text-muted-foreground hover:text-foreground">
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-1 gap-1">
+                                    {variations.map(v => (
+                                        <button
+                                            key={v.id}
+                                            onClick={() => handleSelectVariant(v.id)}
+                                            className="w-full text-left px-3 py-2 bg-card hover:bg-primary/10 border border-border rounded-xl text-[11px] font-bold transition-all flex items-center justify-between group"
+                                        >
+                                            <span className="truncate">{v.ProductVariant?.title || 'Standard'}</span>
+                                            <Plus size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         )}
 

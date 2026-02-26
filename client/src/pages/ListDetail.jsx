@@ -40,6 +40,8 @@ export default function ListDetail() {
     const [pendingProduct, setPendingProduct] = useState(null);
     const [stores, setStores] = useState([]);
     const [activeStoreId, setActiveStoreId] = useState('');
+    const [intoleranceMessages, setIntoleranceMessages] = useState([]);
+    const [conflicts, setConflicts] = useState([]);
 
     // UI State
     const [settingsItem, setSettingsItem] = useState(null);
@@ -160,11 +162,53 @@ export default function ListDetail() {
         return () => document.removeEventListener('click', handleGlobalClick);
     }, [activeNoteId]);
 
-    const handleAddItem = (product) => {
+    const fetchIntoleranceConflicts = useCallback(async (productId) => {
+        if (!productId) return [];
+        try {
+            const { data: conflicts } = await api.post('/intolerances/check', { productIds: [productId] });
+            if (conflicts && conflicts.length > 0) {
+                const messages = [];
+                conflicts.forEach(pc => {
+                    if (pc.warnings) {
+                        pc.warnings.forEach(w => {
+                            const householdName = (pc.username && pc.username !== user?.username) ? ` (${pc.username})` : '';
+                            messages.push(`🛑 Unverträglichkeit: ${w.message}${householdName}`);
+                        });
+                    }
+                });
+                return [...new Set(messages)];
+            }
+        } catch (err) {
+            console.error('Failed to check intolerances', err);
+        }
+        return [];
+    }, [user?.username]);
+
+    useEffect(() => {
+        if (selectedItem?.Product?.id && isSettingsOpen) {
+            fetchIntoleranceConflicts(selectedItem.Product.id).then(setIntoleranceMessages);
+        } else if (!isQuantityModalOpen) {
+            // Keep messages if quantity modal is open (since it uses them too)
+            // But reset if everything is closed
+            if (!isSettingsOpen && !isQuantityModalOpen) {
+                setIntoleranceMessages([]);
+            }
+        }
+    }, [selectedItem, isSettingsOpen, isQuantityModalOpen, fetchIntoleranceConflicts]);
+
+    const handleAddItem = async (product) => {
         setPendingProduct(product);
-        setIsQuantityModalOpen(true);
         setSearchTerm('');
         setSuggestions([]);
+
+        if (product && typeof product === 'object' && product.id) {
+            const messages = await fetchIntoleranceConflicts(product.id);
+            setIntoleranceMessages(messages);
+        } else {
+            setIntoleranceMessages([]);
+        }
+
+        setIsQuantityModalOpen(true);
     };
 
     const onConfirmQuantity = async (quantity, unit, note, variationId) => {
@@ -227,7 +271,24 @@ export default function ListDetail() {
                 context: 'Einkaufen'
             });
 
-            setSubstituteSuggestions(data.suggestions || []);
+            const suggestedProducts = data.suggestions || [];
+            setSubstituteSuggestions(suggestedProducts);
+
+            // Fetch intolerance conflicts for suggestions
+            if (suggestedProducts.length > 0) {
+                // We need names to check against intolerances, but the check endpoint usually wants IDs.
+                // However, let's see if we can find existing products for these names.
+                const productNames = suggestedProducts.map(s => s.name.toLowerCase());
+                const matchingProducts = allProducts.filter(p => productNames.includes(p.name.toLowerCase()));
+
+                if (matchingProducts.length > 0) {
+                    const productIds = matchingProducts.map(p => p.id);
+                    api.post('/intolerances/check', { productIds })
+                        .then(res => setConflicts(res.data))
+                        .catch(err => console.error("Failed to check substitute intolerances", err));
+                }
+            }
+
             // Refresh user credits
             refreshUser();
         } catch (err) {
@@ -861,6 +922,7 @@ export default function ListDetail() {
                 item={selectedItem}
                 onSave={handleUpdateItem}
                 onDelete={deleteItem}
+                intoleranceMessages={intoleranceMessages}
             />
 
             <QuantityModal
@@ -871,6 +933,7 @@ export default function ListDetail() {
                 productNote={typeof pendingProduct === 'object' ? pendingProduct?.note : ''}
                 variations={pendingProduct?.ProductVariations || []}
                 onConfirm={onConfirmQuantity}
+                intoleranceMessages={intoleranceMessages}
             />
 
             <ProductSubstituteModal
@@ -878,11 +941,14 @@ export default function ListDetail() {
                 onClose={() => {
                     setSubstituteModalOpen(false);
                     setSubstituteTarget(null);
+                    setConflicts([]);
                 }}
                 originalProduct={substituteTarget?.Product}
                 suggestions={substituteSuggestions}
                 loading={substituteLoading}
                 onSelect={handleSelectSubstitute}
+                conflicts={conflicts}
+                allProducts={allProducts}
             />
 
 

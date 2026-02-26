@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Trash2, Plus, Minus } from 'lucide-react';
+import { X, Save, Trash2, Plus, Minus, AlertTriangle } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
 import { UnitCombobox } from './UnitCombobox';
 import api from '../lib/axios';
 
-export default function ItemSettingsModal({ isOpen, onClose, item, onSave, onDelete }) {
+export default function ItemSettingsModal({ isOpen, onClose, item, onSave, onDelete, intoleranceMessages = [] }) {
     const [quantity, setQuantity] = useState(1);
     const [unit, setUnit] = useState('');
     const [note, setNote] = useState('');
@@ -80,6 +80,23 @@ export default function ItemSettingsModal({ isOpen, onClose, item, onSave, onDel
                             </div>
 
                             <div className="space-y-6">
+                                {intoleranceMessages.length > 0 && (
+                                    <div className="bg-destructive/10 border border-destructive/20 rounded-2xl p-4 animate-pulse-subtle">
+                                        <div className="flex items-center gap-2 text-destructive font-bold text-sm mb-2">
+                                            <AlertTriangle size={18} />
+                                            <span>Achtung! Unverträglichkeit</span>
+                                        </div>
+                                        <ul className="space-y-1">
+                                            {intoleranceMessages.map((msg, idx) => (
+                                                <li key={idx} className="text-xs text-destructive/90 font-medium flex items-start gap-2">
+                                                    <span className="shrink-0">🛑</span>
+                                                    <span>{msg.replace('🛑 Unverträglichkeit: ', '')}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
                                 {/* Quantity Stepper & Input */}
                                 <div className="space-y-3">
                                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Menge & Einheit</label>

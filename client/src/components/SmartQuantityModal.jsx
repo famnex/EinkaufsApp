@@ -10,11 +10,13 @@ export default function SmartQuantityModal({ isOpen, onClose, recipe, menuId, li
     useLockBodyScroll(isOpen);
     const [selection, setSelection] = useState({});
     const [loading, setLoading] = useState(false);
+    const [conflicts, setConflicts] = useState([]);
 
     useEffect(() => {
         if (isOpen && recipe) {
             const initial = {};
             const hasExisting = existingItems.length > 0;
+            const productIds = recipe.RecipeIngredients.map(ri => ri.Product.id);
 
             recipe.RecipeIngredients.forEach(ri => {
                 if (hasExisting) {
@@ -25,6 +27,11 @@ export default function SmartQuantityModal({ isOpen, onClose, recipe, menuId, li
                 }
             });
             setSelection(initial);
+
+            // Fetch intolerance conflicts
+            api.post('/intolerances/check', { productIds })
+                .then(res => setConflicts(res.data))
+                .catch(err => console.error("Failed to check intolerances in planner", err));
         }
     }, [isOpen, recipe, existingItems]);
 
@@ -116,7 +123,12 @@ export default function SmartQuantityModal({ isOpen, onClose, recipe, menuId, li
                                         <Check size={14} strokeWidth={3} />
                                     </div>
                                     <div className="flex-1">
-                                        <div className="font-bold text-sm text-foreground">{ri.Product.name}</div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="font-bold text-sm text-foreground">{ri.Product.name}</div>
+                                            {conflicts.some(c => c.productId === ri.Product.id && c.warnings?.length > 0) && (
+                                                <AlertCircle size={14} className="text-destructive animate-pulse" />
+                                            )}
+                                        </div>
                                         <div className="text-xs text-muted-foreground">{ri.amount} {ri.unit}</div>
                                     </div>
                                 </div>

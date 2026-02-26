@@ -7,7 +7,7 @@ import { cn, getImageUrl } from '../lib/utils';
 import { sortIngredientsBySteps, findIngredientsInText } from '../lib/recipe-parser';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 
-export default function SharedCookingMode({ recipe, onClose }) {
+export default function SharedCookingMode({ recipe, conflicts = [], onClose }) {
     const [step, setStep] = useState(0);
     const [checkedIngredients, setCheckedIngredients] = useState(new Set());
     const [textSize, setTextSize] = useState(1); // 0: Small, 1: Normal, 2: Large
@@ -189,6 +189,20 @@ export default function SharedCookingMode({ recipe, onClose }) {
         };
     }, []);
 
+    const getConflictForProduct = (productId) => {
+        const productConflicts = conflicts.filter(c => c.productId === productId);
+        if (productConflicts.length === 0) return null;
+
+        const messages = [];
+        productConflicts.forEach(pc => {
+            pc.warnings.forEach(w => {
+                const householdLabel = pc.username ? ` (${pc.username})` : '';
+                messages.push(`🛑 ${w.message}${householdLabel}`);
+            });
+        });
+        return [...new Set(messages)];
+    };
+
     const getTextSizeClass = () => {
         switch (textSize) {
             case 0: return 'text-base';
@@ -199,20 +213,36 @@ export default function SharedCookingMode({ recipe, onClose }) {
     };
 
 
-    // NEW: Tooltip for Ingredient details in Steps
+    // Tooltip for Ingredient details in Steps
     const [ingredientTooltip, setIngredientTooltip] = useState(null); // { x, y, ingredient }
+    // Portal Tooltip for List warnings (matching CookingMode design)
+    const [tooltipData, setTooltipData] = useState(null); // { x, y, items: [] }
 
-    const handleIngredientHover = (e, ing) => {
+    const handleIngredientHover = (e, ing, productId) => {
         const rect = e.currentTarget.getBoundingClientRect();
         setIngredientTooltip({
             x: rect.left + (rect.width / 2),
             y: rect.top - 10, // Above
-            ingredient: ing
+            ingredient: ing,
+            conflicts: productId ? getConflictForProduct(productId) : null
         });
     };
 
     const handleIngredientLeave = () => {
         setIngredientTooltip(null);
+    };
+
+    const handleTooltipShow = (e, items) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setTooltipData({
+            x: rect.right + 10,
+            y: rect.top,
+            items: items
+        });
+    };
+
+    const handleTooltipHide = () => {
+        setTooltipData(null);
     };
 
     return (
@@ -315,6 +345,29 @@ export default function SharedCookingMode({ recipe, onClose }) {
                                             {ing.amount > 0 && <span className="font-bold mr-1">{ing.amount} {ing.unit}</span>}
                                             {ing.name}
                                         </span>
+                                        {(() => {
+                                            const conflictsForProduct = getConflictForProduct(recipe.RecipeIngredients?.find(ri => ri.id === ing.id)?.ProductId);
+                                            return conflictsForProduct ? (
+                                                <div
+                                                    className="z-10 p-2 -m-2 shrink-0"
+                                                    onMouseEnter={(e) => handleTooltipShow(e, conflictsForProduct)}
+                                                    onMouseLeave={handleTooltipHide}
+                                                    onTouchStart={(e) => {
+                                                        e.stopPropagation();
+                                                        handleTooltipShow(e, conflictsForProduct);
+                                                    }}
+                                                    onTouchEnd={(e) => {
+                                                        e.stopPropagation();
+                                                        handleTooltipHide();
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <div className="w-8 h-8 flex items-center justify-center text-destructive bg-destructive/10 rounded-full animate-pulse ring-1 ring-destructive/20">
+                                                        <AlertTriangle size={18} />
+                                                    </div>
+                                                </div>
+                                            ) : null;
+                                        })()}
                                     </div>
                                 ))}
                             </div>
@@ -358,9 +411,9 @@ export default function SharedCookingMode({ recipe, onClose }) {
                                                 <span
                                                     key={idx}
                                                     onClick={() => toggleIngredient(frag.id)}
-                                                    onMouseEnter={(e) => handleIngredientHover(e, frag.ingredient)}
+                                                    onMouseEnter={(e) => handleIngredientHover(e, frag.ingredient, recipe.RecipeIngredients?.find(ri => ri.id === frag.id)?.ProductId)}
                                                     onMouseLeave={handleIngredientLeave}
-                                                    onTouchStart={(e) => handleIngredientHover(e, frag.ingredient)}
+                                                    onTouchStart={(e) => handleIngredientHover(e, frag.ingredient, recipe.RecipeIngredients?.find(ri => ri.id === frag.id)?.ProductId)}
                                                     className={cn(
                                                         "px-1.5 py-0.5 rounded-md cursor-pointer transition-colors mx-0.5 border-b-2 border-primary/30 hover:border-primary",
                                                         checkedIngredients.has(frag.id)
@@ -421,7 +474,7 @@ export default function SharedCookingMode({ recipe, onClose }) {
                             initial={{ opacity: 0, y: 10, scale: 0.9 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
-                            className="fixed z-[300] p-3 bg-card/90 backdrop-blur-md text-card-foreground text-sm rounded-xl shadow-xl border border-border pointer-events-none transform -translate-x-1/2 -translate-y-full"
+                            className="fixed z-[300] p-3 bg-card/90 backdrop-blur-md text-card-foreground text-sm rounded-xl shadow-xl border border-border pointer-events-none transform -translate-x-1/2 -translate-y-full min-w-[150px]"
                             style={{
                                 top: ingredientTooltip.y,
                                 left: ingredientTooltip.x,
@@ -430,9 +483,48 @@ export default function SharedCookingMode({ recipe, onClose }) {
                             <div className="font-bold text-lg whitespace-nowrap">
                                 {Number(ingredientTooltip.ingredient.amount.toFixed(2)).toLocaleString('de-DE')} {ingredientTooltip.ingredient.unit}
                             </div>
-                            <div className="text-xs text-muted-foreground whitespace-nowrap opacity-80">
+                            <div className="text-xs text-muted-foreground whitespace-nowrap opacity-80 mb-1">
                                 {ingredientTooltip.ingredient.name}
                             </div>
+                            {ingredientTooltip.conflicts && (
+                                <div className="mt-2 pt-2 border-t border-border/50 space-y-1">
+                                    <div className="font-bold text-[10px] text-destructive flex items-center gap-1 mb-1">
+                                        <AlertTriangle size={12} /> Achtung!
+                                    </div>
+                                    {ingredientTooltip.conflicts.map((msg, i) => (
+                                        <div key={i} className="text-[10px] text-destructive/80 font-medium leading-tight">
+                                            {msg}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+
+                    {/* List Hover Tooltip (Intolerances) */}
+                    {tooltipData && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="fixed z-[300] w-64 p-4 bg-popover text-popover-foreground text-sm rounded-2xl shadow-2xl border border-border pointer-events-none"
+                            style={{
+                                top: tooltipData.y,
+                                left: (tooltipData.x + 256 > window.innerWidth) ? (window.innerWidth - 270) : tooltipData.x,
+                                ...(tooltipData.y + 200 > window.innerHeight ? { top: 'auto', bottom: 20 } : {})
+                            }}
+                        >
+                            <div className="font-bold mb-2 text-destructive flex items-center gap-2">
+                                <AlertTriangle size={16} /> Achtung!
+                            </div>
+                            <div className="text-muted-foreground mb-2 text-xs">Unverträglichkeiten in diesem Haushalt:</div>
+                            <ul className="space-y-1">
+                                {tooltipData.items.map((msg, idx) => (
+                                    <li key={idx} className="flex items-start gap-2 text-xs font-semibold bg-destructive/5 p-2 rounded-lg text-destructive border border-destructive/10">
+                                        <span>{msg}</span>
+                                    </li>
+                                ))}
+                            </ul>
                         </motion.div>
                     )}
                 </AnimatePresence>

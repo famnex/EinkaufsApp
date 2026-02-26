@@ -67,7 +67,7 @@
 - name (String)
 - category (String)
 - price_hint (Decimal)
-- unit (Enum)
+- unit (String)
 - isNew (Boolean)
 - source (String)
 - synonyms (JSON)
@@ -207,7 +207,27 @@
 - createdAt (DateTime)
 - updatedAt (DateTime)
 
+### Intolerances (Global)
+- id (Integer, Primary Key)
+- name (String, Unique)
+- warningText (String, Nullable)
+
+### UserIntolerances (M:N User <-> Intolerance)
+- UserId (Integer)
+- IntoleranceId (Integer)
+
+### ProductIntolerances (M:N Product <-> Intolerance)
+- ProductId (Integer)
+- IntoleranceId (Integer)
+
+### UserProductIntolerances (M:N User <-> Product, Personal Exclusions)
+- UserId (Integer)
+- ProductId (Integer)
+
 ## Changes
 - **v0.31.7**: Removed Manufacturer attribute from Products and dropped Manufacturers table.
 - **v0.31.8**: Moved 'note' from Product to ListItem (Notes are now list-specific).
 - **v0.31.9**: Added ProductVariants table (simple titles for product variations).
+- **v0.32.1**: Changed `Product.unit` from ENUM to STRING to support retail units (Verkaufsgebinde).
+- **v0.32.2**: Added `ProductVariation` and `ProductVariant` for better variant management in AI Cleanup.
+- **v0.32.3**: Added `UserProductIntolerance` and global `Intolerance` system to support personal product exclusions and allergen warnings.

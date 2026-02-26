@@ -66,7 +66,7 @@ const Product = sequelize.define('Product', {
     name: { type: DataTypes.STRING, allowNull: false },
     category: { type: DataTypes.STRING },
     price_hint: { type: DataTypes.DECIMAL(10, 2) },
-    unit: { type: DataTypes.ENUM('Stück', 'g', 'kg', 'ml', 'l'), defaultValue: 'Stück' },
+    unit: { type: DataTypes.STRING, defaultValue: 'Stück' },
     isNew: { type: DataTypes.BOOLEAN, defaultValue: false },
     source: { type: DataTypes.STRING, defaultValue: 'manual' }, // 'manual', 'alexa', 'ai'
     synonyms: { type: DataTypes.JSON, defaultValue: [] }
@@ -298,6 +298,11 @@ const ProductIntolerance = sequelize.define('ProductIntolerance', {
     IntoleranceId: { type: DataTypes.INTEGER, references: { model: 'Intolerances', key: 'id' } }
 });
 
+const UserProductIntolerance = sequelize.define('UserProductIntolerance', {
+    UserId: { type: DataTypes.INTEGER, references: { model: 'Users', key: 'id' } },
+    ProductId: { type: DataTypes.INTEGER, references: { model: 'Products', key: 'id' } }
+});
+
 Email.belongsTo(User);
 User.hasMany(Email);
 
@@ -308,6 +313,10 @@ Intolerance.belongsToMany(User, { through: UserIntolerance });
 // Product <-> Intolerance (Many-to-Many)
 Product.belongsToMany(Intolerance, { through: ProductIntolerance });
 Intolerance.belongsToMany(Product, { through: ProductIntolerance });
+
+// User <-> Product (Personal Intolerance, Many-to-Many)
+User.belongsToMany(Product, { through: UserProductIntolerance, as: 'IntolerantProducts' });
+Product.belongsToMany(User, { through: UserProductIntolerance, as: 'IntolerantByUsers' });
 
 module.exports = {
     sequelize,
