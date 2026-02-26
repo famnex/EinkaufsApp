@@ -1035,7 +1035,7 @@ Bitte beantworte diese drei Hauptfragen und formatiere die Antwort EXAKT wie unt
    RECHERCHIERE EXTREM GENAU UND KRITISCH:
    - **Fleisch (Meat):** Falls das Produkt Fleisch enthält (Schinken, Salami, Rind, Huhn, etc.), ist es weder vegan noch vegetarisch! Kennzeichne dies korrekt, falls es dafür IDs gibt.
    - **Vegan vs. Vegetarisch:** 
-     - Vegan bedeutet: Keinerlei tierische Produkte (kein Fleisch, keine Milch, keine Eier, kein Honig, kein Fisch, kein Gelatine).
+     - Vegan bedeutet: Keinerlei tierische Produkte (kein Fleisch, keine Milch, keine Eier, kein Honig, kein Fisch, kein Gelatine). Gehe bei deinen Überlegungen von einem normalen Produkt aus. Eventualitäten, welche vielleicht tierische Produkte enhalten könnten markierst du dennoch als vegan.
      - Vegetarisch bedeutet: Kein Fleisch und kein Fisch (Milch und Eier sind okay).
    - **Allergene:** Beachte versteckte Allergene (z.B. Gluten in Sojasauce, Laktose in Wurst, etc.).
    - Avocados sind KEINE Schalenfrüchte.
