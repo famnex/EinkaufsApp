@@ -112,6 +112,12 @@ export default function SettingsPage() {
     const [pendingIntoleranceToggle, setPendingIntoleranceToggle] = useState(null);
     const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
 
+    // Intolerances Add/Edit State
+    const [newIntoleranceName, setNewIntoleranceName] = useState('');
+    const [newIntoleranceWarning, setNewIntoleranceWarning] = useState('');
+    const [editIntoleranceName, setEditIntoleranceName] = useState('');
+    const [editIntoleranceWarning, setEditIntoleranceWarning] = useState('');
+
     const [savingPayment, setSavingPayment] = useState(false);
     const [isPaymentConfigOpen, setIsPaymentConfigOpen] = useState(false);
 
@@ -402,13 +408,21 @@ export default function SettingsPage() {
 
         try {
             await api.post('/auth/accept-disclaimer');
-            setUser(prev => ({ ...prev, intoleranceDisclaimerAccepted: true }));
-            setIsDisclaimerModalOpen(false);
 
             if (pendingIntoleranceToggle) {
-                handleToggleIntolerance(pendingIntoleranceToggle);
+                try {
+                    const res = await api.post(`/intolerances/${pendingIntoleranceToggle}/toggle`);
+                    setIntolerances(prev => prev.map(item =>
+                        item.id === pendingIntoleranceToggle ? { ...item, selected: res.data.selected } : item
+                    ));
+                } catch (err) {
+                    console.error('Failed to toggle intolerance after disclaimer:', err);
+                }
                 setPendingIntoleranceToggle(null);
             }
+
+            setUser(prev => ({ ...prev, intoleranceDisclaimerAccepted: true }));
+            setIsDisclaimerModalOpen(false);
         } catch (err) {
             console.error('Failed to accept disclaimer:', err);
             alert('Fehler beim Speichern: ' + (err.response?.data?.error || err.message));
@@ -2244,7 +2258,7 @@ export default function SettingsPage() {
                         variant={editMode === 'edit' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setEditMode(editMode === 'edit' ? 'add' : 'edit')}
-                        className="gap-2 rounded-xl"
+                        className={cn("gap-2 rounded-xl", editMode === 'edit' && "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2")}
                     >
                         <SettingsIcon size={14} /> Verwalten
                     </Button>
@@ -2252,7 +2266,7 @@ export default function SettingsPage() {
                         variant={editMode === 'delete' ? 'destructive' : 'outline'}
                         size="sm"
                         onClick={() => setEditMode(editMode === 'delete' ? 'add' : 'delete')}
-                        className="gap-2 rounded-xl"
+                        className={cn("gap-2 rounded-xl", editMode === 'delete' && "bg-destructive text-destructive-foreground ring-2 ring-destructive ring-offset-2")}
                     >
                         <Trash2 size={14} /> Löschen
                     </Button>
@@ -2267,24 +2281,24 @@ export default function SettingsPage() {
                             <Input
                                 placeholder="Name (z.B. Eier)"
                                 className="bg-transparent border-transparent focus:bg-background flex-1"
-                                id="new-intolerance-name"
+                                value={newIntoleranceName}
+                                onChange={(e) => setNewIntoleranceName(e.target.value)}
                             />
                             <Input
                                 placeholder="Warnung (z.B. enthält Eier)"
                                 className="bg-transparent border-transparent focus:bg-background flex-1"
-                                id="new-intolerance-warning"
+                                value={newIntoleranceWarning}
+                                onChange={(e) => setNewIntoleranceWarning(e.target.value)}
                             />
                         </div>
                         <Button
                             size="sm"
                             className="w-full"
                             onClick={() => {
-                                const nameInput = document.getElementById('new-intolerance-name');
-                                const warningInput = document.getElementById('new-intolerance-warning');
-                                if (nameInput && nameInput.value.trim()) {
-                                    handleAdminSaveIntolerance(nameInput.value.trim(), warningInput?.value.trim());
-                                    nameInput.value = '';
-                                    if (warningInput) warningInput.value = '';
+                                if (newIntoleranceName.trim()) {
+                                    handleAdminSaveIntolerance(newIntoleranceName.trim(), newIntoleranceWarning.trim());
+                                    setNewIntoleranceName('');
+                                    setNewIntoleranceWarning('');
                                 }
                             }}
                         >
@@ -2330,26 +2344,24 @@ export default function SettingsPage() {
                                                 {selectedIntolerance?.id === item.id ? (
                                                     <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
                                                         <Input
-                                                            defaultValue={item.name}
+                                                            value={editIntoleranceName}
+                                                            onChange={(e) => setEditIntoleranceName(e.target.value)}
                                                             autoFocus
                                                             placeholder="Name"
                                                             className="h-8"
-                                                            id={`edit-name-${item.id}`}
                                                         />
                                                         <div className="flex gap-2">
                                                             <Input
-                                                                defaultValue={item.warningText}
+                                                                value={editIntoleranceWarning}
+                                                                onChange={(e) => setEditIntoleranceWarning(e.target.value)}
                                                                 placeholder="Warntext"
                                                                 className="h-8 flex-1"
-                                                                id={`edit-warning-${item.id}`}
                                                             />
                                                             <Button
                                                                 size="sm"
                                                                 className="h-8 px-2"
                                                                 onClick={() => {
-                                                                    const name = document.getElementById(`edit-name-${item.id}`)?.value;
-                                                                    const warning = document.getElementById(`edit-warning-${item.id}`)?.value;
-                                                                    handleAdminSaveIntolerance(name, warning);
+                                                                    handleAdminSaveIntolerance(editIntoleranceName.trim(), editIntoleranceWarning.trim());
                                                                 }}
                                                             >
                                                                 <Check size={14} />
@@ -2388,6 +2400,8 @@ export default function SettingsPage() {
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     setSelectedIntolerance(item);
+                                                    setEditIntoleranceName(item.name);
+                                                    setEditIntoleranceWarning(item.warningText || '');
                                                 }}
                                             >
                                                 <Pen size={14} />
@@ -2432,7 +2446,7 @@ export default function SettingsPage() {
                     variant={editMode === 'edit' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setEditMode(editMode === 'edit' ? 'add' : 'edit')}
-                    className="gap-2 rounded-xl"
+                    className={cn("gap-2 rounded-xl", editMode === 'edit' && "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2")}
                 >
                     <SettingsIcon size={14} /> Bearbeiten
                 </Button>
@@ -2440,7 +2454,7 @@ export default function SettingsPage() {
                     variant={editMode === 'delete' ? 'destructive' : 'outline'}
                     size="sm"
                     onClick={() => setEditMode(editMode === 'delete' ? 'add' : 'delete')}
-                    className="gap-2 rounded-xl"
+                    className={cn("gap-2 rounded-xl", editMode === 'delete' && "bg-destructive text-destructive-foreground ring-2 ring-destructive ring-offset-2")}
                 >
                     <Trash2 size={14} /> Löschen
                 </Button>

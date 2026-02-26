@@ -989,7 +989,7 @@ Unverträglichkeiten: ${JSON.stringify(intoleranceList)}
 
 Bitte beantworte diese drei Hauptfragen und formatiere die Antwort EXAKT wie unten gefordert als JSON:
 1. Kommt das Produkt typischerweise in mehr als einer dieser DB-Varianten vor? 
-   - Wenn NEIN: ordne eine Kategorie und eine Standardeinheit (z.B. Stück, Packung, Korb, Netz, g (nicht kg), etc.) zu.
+   - Wenn NEIN: ordne eine Kategorie und eine Standardeinheit (z.B. Stück, Packung, Korb, Netz, g (nicht kg), Dose (bei Gewürzen), etc.) zu.
    - Wenn JA: nenne die passenden DB-Varianten-IDs und ordne pro Variante eine passende Kategorie und Einheit zu.
 2. In welche existierende Kategorie (siehe Liste) passt das Produkt am besten? Falls keine passt, schlage eine neue sinnvolle vor.
 3. Welche der exakt vorgegebenen DB-Unverträglichkeiten (IDs) treffen typischerweise auf dieses Produkt zu?
