@@ -107,9 +107,10 @@ export default function SettingsPage() {
     // Intolerances State
     const [intolerances, setIntolerances] = useState([]);
     const [loadingIntolerances, setLoadingIntolerances] = useState(false);
-    const [intoleranceEditMode, setIntoleranceEditMode] = useState('add'); // 'add' | 'edit' | 'delete'
-    const [isIntoleranceModalOpen, setIsIntoleranceModalOpen] = useState(false);
     const [selectedIntolerance, setSelectedIntolerance] = useState(null);
+    const [isDisclaimerModalOpen, setIsDisclaimerModalOpen] = useState(false);
+    const [pendingIntoleranceToggle, setPendingIntoleranceToggle] = useState(null);
+    const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
 
     const [savingPayment, setSavingPayment] = useState(false);
     const [isPaymentConfigOpen, setIsPaymentConfigOpen] = useState(false);
@@ -378,21 +379,58 @@ export default function SettingsPage() {
         }
     };
 
-    const handleSaveIntolerance = async (name) => {
+    const handleToggleIntolerance = async (id) => {
+        if (!user?.intoleranceDisclaimerAccepted) {
+            setPendingIntoleranceToggle(id);
+            setDisclaimerAccepted(false);
+            setIsDisclaimerModalOpen(true);
+            return;
+        }
+
+        try {
+            const res = await api.post(`/intolerances/${id}/toggle`);
+            setIntolerances(prev => prev.map(item =>
+                item.id === id ? { ...item, selected: res.data.selected } : item
+            ));
+        } catch (err) {
+            console.error('Failed to toggle intolerance:', err);
+        }
+    };
+
+    const handleAcceptDisclaimer = async () => {
+        if (!disclaimerAccepted) return;
+
+        try {
+            await api.post('/auth/accept-disclaimer');
+            setUser(prev => ({ ...prev, intoleranceDisclaimerAccepted: true }));
+            setIsDisclaimerModalOpen(false);
+
+            if (pendingIntoleranceToggle) {
+                handleToggleIntolerance(pendingIntoleranceToggle);
+                setPendingIntoleranceToggle(null);
+            }
+        } catch (err) {
+            console.error('Failed to accept disclaimer:', err);
+            alert('Fehler beim Speichern: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleAdminSaveIntolerance = async (name, warningText) => {
         try {
             if (selectedIntolerance) {
-                await api.put(`/intolerances/${selectedIntolerance.id}`, { name });
+                await api.put(`/intolerances/${selectedIntolerance.id}`, { name, warningText });
             } else {
-                await api.post('/intolerances', { name });
+                await api.post('/intolerances', { name, warningText });
             }
             await fetchIntolerances();
+            setSelectedIntolerance(null);
         } catch (err) {
             alert('Fehler beim Speichern: ' + (err.response?.data?.error || err.message));
         }
     };
 
-    const handleDeleteIntolerance = async (id) => {
-        if (!confirm('Diesen Eintrag wirklich löschen?')) return;
+    const handleAdminDeleteIntolerance = async (id) => {
+        if (!confirm('Diese globale Unverträglichkeit wirklich löschen?')) return;
         try {
             await api.delete(`/intolerances/${id}`);
             await fetchIntolerances();
@@ -2195,114 +2233,184 @@ export default function SettingsPage() {
 
     const IntolerancesSection = (
         <div className="space-y-4">
-            <div className="flex items-center justify-between mb-2 px-2">
-                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                    <ShieldAlert size={20} className="text-primary" />
-                    Unverträglichkeiten
-                </h2>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIntoleranceEditMode(intoleranceEditMode === 'edit' ? 'add' : 'edit')}
-                    className={cn(
-                        "p-2 rounded-lg transition-colors",
-                        intoleranceEditMode === 'edit' ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
-                    )}
-                    title="Verwalten"
-                >
-                    <SettingsIcon size={20} />
-                </Button>
-            </div>
+            <h2 className="text-xl font-bold text-foreground mb-2 px-2 flex items-center gap-2">
+                <ShieldAlert size={20} className="text-primary" />
+                Unverträglichkeiten
+            </h2>
+
+            {user?.role === 'admin' && (
+                <div className="flex flex-wrap gap-2 mb-6 px-2">
+                    <Button
+                        variant={editMode === 'edit' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setEditMode(editMode === 'edit' ? 'add' : 'edit')}
+                        className="gap-2 rounded-xl"
+                    >
+                        <SettingsIcon size={14} /> Verwalten
+                    </Button>
+                    <Button
+                        variant={editMode === 'delete' ? 'destructive' : 'outline'}
+                        size="sm"
+                        onClick={() => setEditMode(editMode === 'delete' ? 'add' : 'delete')}
+                        className="gap-2 rounded-xl"
+                    >
+                        <Trash2 size={14} /> Löschen
+                    </Button>
+                </div>
+            )}
 
             <div className="space-y-3">
-                {/* Add New Input */}
-                <Card className="p-4 border-dashed border-border bg-card/30 flex gap-2">
-                    <Input
-                        placeholder="Neue Unverträglichkeit..."
-                        className="bg-transparent border-transparent focus:bg-background"
-                        id="new-intolerance-input"
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && e.target.value.trim()) {
-                                handleSaveIntolerance(e.target.value.trim());
-                                e.target.value = '';
-                            }
-                        }}
-                    />
-                    <Button
-                        size="sm"
-                        onClick={() => {
-                            const input = document.getElementById('new-intolerance-input');
-                            if (input && input.value.trim()) {
-                                handleSaveIntolerance(input.value.trim());
-                                input.value = '';
-                            }
-                        }}
-                    >
-                        <Plus size={16} />
-                    </Button>
-                </Card>
+                {/* Admin Add New Input */}
+                {user?.role === 'admin' && (
+                    <Card className="p-4 border-dashed border-border bg-card/30 flex flex-col gap-3">
+                        <div className="flex gap-2">
+                            <Input
+                                placeholder="Name (z.B. Eier)"
+                                className="bg-transparent border-transparent focus:bg-background flex-1"
+                                id="new-intolerance-name"
+                            />
+                            <Input
+                                placeholder="Warnung (z.B. enthält Eier)"
+                                className="bg-transparent border-transparent focus:bg-background flex-1"
+                                id="new-intolerance-warning"
+                            />
+                        </div>
+                        <Button
+                            size="sm"
+                            className="w-full"
+                            onClick={() => {
+                                const nameInput = document.getElementById('new-intolerance-name');
+                                const warningInput = document.getElementById('new-intolerance-warning');
+                                if (nameInput && nameInput.value.trim()) {
+                                    handleAdminSaveIntolerance(nameInput.value.trim(), warningInput?.value.trim());
+                                    nameInput.value = '';
+                                    if (warningInput) warningInput.value = '';
+                                }
+                            }}
+                        >
+                            <Plus size={16} className="mr-2" /> Global hinzufügen
+                        </Button>
+                    </Card>
+                )}
 
                 <AnimatePresence mode="popLayout">
                     {loadingIntolerances ? (
                         <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary/50" /></div>
                     ) : intolerances.length > 0 ? (
-                        intolerances.map((item, index) => (
-                            <motion.div
-                                key={item.id}
-                                initial={{ opacity: 0, y: 5 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                transition={{ delay: index * 0.03 }}
-                            >
-                                <Card className="p-4 flex items-center justify-between group border-border bg-card/50 shadow-sm">
-                                    <div className="flex-1">
-                                        {selectedIntolerance?.id === item.id ? (
-                                            <div className="flex gap-2">
-                                                <Input
-                                                    defaultValue={item.name}
-                                                    autoFocus
-                                                    className="h-8"
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') {
-                                                            handleSaveIntolerance(e.target.value);
-                                                            setSelectedIntolerance(null);
-                                                        } else if (e.key === 'Escape') {
-                                                            setSelectedIntolerance(null);
-                                                        }
-                                                    }}
-                                                />
-                                                <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => setSelectedIntolerance(null)}>
-                                                    <X size={14} />
-                                                </Button>
-                                            </div>
-                                        ) : (
-                                            <span className="font-bold text-foreground text-lg">{item.name}</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {intolerances.map((item, index) => (
+                                <motion.div
+                                    key={item.id}
+                                    initial={{ opacity: 0, y: 5 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    transition={{ delay: index * 0.03 }}
+                                >
+                                    <Card
+                                        onClick={() => (editMode !== 'edit' && editMode !== 'delete') ? handleToggleIntolerance(item.id) : null}
+                                        className={cn(
+                                            "p-4 flex items-center justify-between group border shadow-sm transition-all duration-200 cursor-pointer active:scale-[0.98]",
+                                            item.selected
+                                                ? "bg-red-500/10 border-red-500/50 dark:bg-red-500/20"
+                                                : "bg-card/50 border-border opacity-60 hover:opacity-100"
                                         )}
-                                    </div>
+                                    >
+                                        <div className="flex items-center gap-3 flex-1 overflow-hidden">
+                                            {item.selected ? (
+                                                <div className="h-8 w-8 rounded-full bg-red-500 flex items-center justify-center shrink-0 shadow-lg shadow-red-500/20">
+                                                    <AlertTriangle size={16} className="text-white" />
+                                                </div>
+                                            ) : (
+                                                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                                                    <ShieldAlert size={16} className="text-muted-foreground" />
+                                                </div>
+                                            )}
 
-                                    {intoleranceEditMode === 'edit' && !selectedIntolerance && (
-                                        <div className="flex gap-1">
+                                            <div className="flex-1 min-w-0">
+                                                {selectedIntolerance?.id === item.id ? (
+                                                    <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                                                        <Input
+                                                            defaultValue={item.name}
+                                                            autoFocus
+                                                            placeholder="Name"
+                                                            className="h-8"
+                                                            id={`edit-name-${item.id}`}
+                                                        />
+                                                        <div className="flex gap-2">
+                                                            <Input
+                                                                defaultValue={item.warningText}
+                                                                placeholder="Warntext"
+                                                                className="h-8 flex-1"
+                                                                id={`edit-warning-${item.id}`}
+                                                            />
+                                                            <Button
+                                                                size="sm"
+                                                                className="h-8 px-2"
+                                                                onClick={() => {
+                                                                    const name = document.getElementById(`edit-name-${item.id}`)?.value;
+                                                                    const warning = document.getElementById(`edit-warning-${item.id}`)?.value;
+                                                                    handleAdminSaveIntolerance(name, warning);
+                                                                }}
+                                                            >
+                                                                <Check size={14} />
+                                                            </Button>
+                                                            <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => setSelectedIntolerance(null)}>
+                                                                <X size={14} />
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col">
+                                                        <span className={cn(
+                                                            "font-bold truncate text-base",
+                                                            item.selected ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
+                                                        )}>
+                                                            {item.name}
+                                                        </span>
+                                                        {user?.role === 'admin' && item.warningText && (
+                                                            <span className={cn(
+                                                                "text-xs truncate",
+                                                                item.selected ? "text-red-500/80 dark:text-red-400/80" : "text-muted-foreground/60"
+                                                            )}>
+                                                                {item.warningText}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {user?.role === 'admin' && editMode === 'edit' && !selectedIntolerance && (
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
                                                 className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
-                                                onClick={() => setSelectedIntolerance(item)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedIntolerance(item);
+                                                }}
                                             >
                                                 <Pen size={14} />
                                             </Button>
+                                        )}
+
+                                        {user?.role === 'admin' && editMode === 'delete' && (
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
                                                 className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                                onClick={() => handleDeleteIntolerance(item.id)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleAdminDeleteIntolerance(item.id);
+                                                }}
                                             >
                                                 <Trash2 size={14} />
                                             </Button>
-                                        </div>
-                                    )}
-                                </Card>
-                            </motion.div>
-                        ))
+                                        )}
+                                    </Card>
+                                </motion.div>
+                            ))}
+                        </div>
                     ) : (
                         <div className="text-center py-10 bg-muted/20 border border-dashed border-border rounded-3xl text-muted-foreground italic">
                             Noch keine Unverträglichkeiten hinterlegt.
@@ -4733,6 +4841,68 @@ export default function SettingsPage() {
                 type={householdModalType}
                 memberName={selectedMember?.username}
             />
+
+            {/* Intolerance Disclaimer Modal */}
+            <AnimatePresence>
+                {isDisclaimerModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+                            onClick={() => setIsDisclaimerModalOpen(false)}
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="relative bg-card text-card-foreground shadow-xl rounded-2xl p-6 w-full max-w-md border border-border"
+                        >
+                            <div className="absolute top-4 right-4 text-muted-foreground hover:text-foreground cursor-pointer" onClick={() => setIsDisclaimerModalOpen(false)}>
+                                <X size={20} />
+                            </div>
+                            <div className="flex flex-col gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 shrink-0 rounded-full bg-orange-100 flex items-center justify-center">
+                                        <ShieldAlert size={20} className="text-orange-600" />
+                                    </div>
+                                    <h2 className="text-xl font-bold">Wichtiger Hinweis</h2>
+                                </div>
+                                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+                                    Die Angaben in Gabelguru werden teilweise automatisiert und unter Einsatz von KI generiert. Trotz sorgfältiger Prüfung kann keine Gewähr für Vollständigkeit oder Richtigkeit übernommen werden. Die Verantwortung für die individuelle Verträglichkeit und Eignung von Zutaten und Rezepten liegt beim Nutzer.
+                                </p>
+
+                                <div className="flex items-start gap-3 mt-2 p-3 bg-muted/50 rounded-xl border border-border">
+                                    <input
+                                        type="checkbox"
+                                        id="disclaimer-checkbox"
+                                        className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer shrink-0"
+                                        checked={disclaimerAccepted}
+                                        onChange={(e) => setDisclaimerAccepted(e.target.checked)}
+                                    />
+                                    <label htmlFor="disclaimer-checkbox" className="text-sm cursor-pointer select-none">
+                                        Ich habe den Hinweis gelesen und verstanden.
+                                    </label>
+                                </div>
+
+                                <div className="flex justify-end gap-3 mt-2">
+                                    <Button variant="ghost" onClick={() => setIsDisclaimerModalOpen(false)}>
+                                        Abbrechen
+                                    </Button>
+                                    <Button
+                                        onClick={handleAcceptDisclaimer}
+                                        disabled={!disclaimerAccepted}
+                                        className="bg-primary hover:bg-primary/90"
+                                    >
+                                        Verstanden & Fortfahren
+                                    </Button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

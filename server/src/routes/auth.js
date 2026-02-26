@@ -151,6 +151,20 @@ router.get('/me', auth, async (req, res) => {
     }
 });
 
+// Accept Intolerance Disclaimer
+router.post('/accept-disclaimer', auth, async (req, res) => {
+    try {
+        await User.update(
+            { intoleranceDisclaimerAccepted: true },
+            { where: { id: req.user.id } }
+        );
+        res.json({ success: true });
+    } catch (err) {
+        logger.logError('Error accepting disclaimer:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Get Credit History
 router.get('/credits', auth, async (req, res) => {
     try {

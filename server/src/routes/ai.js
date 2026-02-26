@@ -944,4 +944,91 @@ router.get('/speak', auth, async (req, res) => {
     }
 });
 
+// Analyze Product for Admin Modal
+router.post('/analyze-product', auth, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Only admins can use this feature.' });
+        }
+
+        const { productName } = req.body;
+        if (!productName) return res.status(400).json({ error: 'Product name is required' });
+
+        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
+        if (!setting || !setting.value) {
+            return res.status(400).json({ error: 'OpenAI API Key not configured' });
+        }
+
+        // Fetch context data
+        const { ProductVariant, Intolerance, Product } = require('../models');
+
+        const existingCategories = await Product.findAll({
+            attributes: ['category'],
+            group: ['category'],
+            where: { category: { [require('sequelize').Op.ne]: null } },
+            raw: true
+        });
+        const categoryList = existingCategories.map(c => c.category).filter(Boolean);
+
+        const variants = await ProductVariant.findAll({ raw: true });
+        const variantList = variants.map(v => ({ id: v.id, title: v.title }));
+
+        const intolerances = await Intolerance.findAll({ raw: true });
+        const intoleranceList = intolerances.map(i => ({ id: i.id, name: i.name, warningText: i.warningText }));
+
+        const openai = new OpenAI({ apiKey: setting.value });
+
+        const prompt = `
+Du bist ein Ernährungs- und Supermarktexperte.
+Analysiere das folgende Produkt: "${productName}"
+
+Hier sind die in der Datenbank vorhandenen Optionen:
+Kategorien: ${JSON.stringify(categoryList)}
+Varianten: ${JSON.stringify(variantList)}
+Unverträglichkeiten: ${JSON.stringify(intoleranceList)}
+
+Bitte beantworte diese drei Hauptfragen und formatiere die Antwort EXAKT wie unten gefordert als JSON:
+1. Kommt das Produkt typischerweise in mehr als einer dieser DB-Varianten vor? 
+   - Wenn NEIN: ordne eine Kategorie und eine Standardeinheit (z.B. Stück, Packung, Korb, Netz, g (nicht kg), etc.) zu.
+   - Wenn JA: nenne die passenden DB-Varianten-IDs und ordne pro Variante eine passende Kategorie und Einheit zu.
+2. In welche existierende Kategorie (siehe Liste) passt das Produkt am besten? Falls keine passt, schlage eine neue sinnvolle vor.
+3. Welche der exakt vorgegebenen DB-Unverträglichkeiten (IDs) treffen typischerweise auf dieses Produkt zu?
+
+Erforderliches JSON-Format:
+{
+  "hasVariants": true/false,
+  "variants": [
+    { "ProductVariantId": 1, "category": "KategorieName", "unit": "Einheit" }
+  ],
+  "category": "KategorieName", 
+  "unit": "Einheit",
+  "intoleranceIds": [3, 4]
+}
+
+WICHTIG:
+- Nutze unter 'variants' nur "ProductVariantId"s, die in der DB existieren.
+- Fülle "category" und "unit" für das Basis-Objekt immer aus, als Fallback.
+- "variants" kann leer sein, wenn "hasVariants" false ist.
+- Nutze unter 'intoleranceIds' nur IDs, die tatsächlichen Unverträglichkeiten aus der Liste zugeordnet sind.
+`;
+
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" }
+        });
+
+        const result = JSON.parse(completion.choices[0].message.content);
+
+        // Deduct logical credits internally without charging the admin specifically for their own usage if desired, 
+        // but since AI costs real money, let's track it softly or just use the system credit record.
+        await creditService.deductCredits(req.user.effectiveId, 'TEXT', 'KI Produktdaten Analyse');
+
+        res.json(result);
+    } catch (err) {
+        console.error('AI Product Analyze Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

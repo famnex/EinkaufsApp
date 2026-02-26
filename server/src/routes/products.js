@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Product, Store, ListItem, RecipeIngredient, sequelize, HiddenCleanup, ProductVariation, ProductVariant } = require('../models');
+const { Product, Store, ListItem, RecipeIngredient, sequelize, HiddenCleanup, ProductVariation, ProductVariant, Intolerance } = require('../models');
 const { auth, admin } = require('../middleware/auth');
 
 router.get('/', auth, async (req, res) => {
@@ -15,7 +15,8 @@ router.get('/', auth, async (req, res) => {
                     where: { UserId: req.user.effectiveId },
                     required: false,
                     include: [{ model: ProductVariant }]
-                }
+                },
+                { model: Intolerance, through: { attributes: [] } }
             ],
             order: [[sequelize.fn('lower', sequelize.col('Product.name')), 'ASC']]
         });
@@ -47,7 +48,7 @@ router.get('/units', auth, async (req, res) => {
 router.post('/', auth, async (req, res) => {
     const t = await sequelize.transaction();
     try {
-        const { variations, ...productData } = req.body;
+        const { variations, intoleranceIds, ...productData } = req.body;
         const product = await Product.create({ ...productData, UserId: req.user.effectiveId }, { transaction: t });
 
         if (variations && Array.isArray(variations)) {
@@ -58,6 +59,10 @@ router.post('/', auth, async (req, res) => {
                     UserId: req.user.effectiveId
                 }, { transaction: t });
             }
+        }
+
+        if (intoleranceIds && Array.isArray(intoleranceIds)) {
+            await product.setIntolerances(intoleranceIds, { transaction: t });
         }
 
         await t.commit();
@@ -71,7 +76,7 @@ router.post('/', auth, async (req, res) => {
 router.put('/:id', auth, async (req, res) => {
     const t = await sequelize.transaction();
     try {
-        const { variations, ...productData } = req.body;
+        const { variations, intoleranceIds, ...productData } = req.body;
         const product = await Product.findOne({ where: { id: req.params.id, UserId: req.user.effectiveId } });
         if (!product) {
             await t.rollback();
@@ -93,6 +98,10 @@ router.put('/:id', auth, async (req, res) => {
         } else if (variations === null) {
             // Null explicitly passed means delete all variations
             await ProductVariation.destroy({ where: { ProductId: product.id, UserId: req.user.effectiveId }, transaction: t });
+        }
+
+        if (intoleranceIds !== undefined) {
+            await product.setIntolerances(intoleranceIds || [], { transaction: t });
         }
 
         await t.commit();

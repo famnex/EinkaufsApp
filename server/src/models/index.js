@@ -51,10 +51,9 @@ const User = sequelize.define('User', {
     emailVerificationToken: { type: DataTypes.STRING, allowNull: true },
     pendingEmail: { type: DataTypes.STRING, allowNull: true },
     tokenVersion: { type: DataTypes.INTEGER, defaultValue: 0 },
-    cookbookClicks: { type: DataTypes.INTEGER, defaultValue: 0 }
+    cookbookClicks: { type: DataTypes.INTEGER, defaultValue: 0 },
+    intoleranceDisclaimerAccepted: { type: DataTypes.BOOLEAN, defaultValue: false }
 });
-
-
 
 const Store = sequelize.define('Store', {
     name: { type: DataTypes.STRING, allowNull: false },
@@ -285,14 +284,30 @@ const Email = sequelize.define('Email', {
 });
 
 const Intolerance = sequelize.define('Intolerance', {
-    name: { type: DataTypes.STRING, allowNull: false }
+    name: { type: DataTypes.STRING, allowNull: false, unique: true },
+    warningText: { type: DataTypes.STRING, allowNull: true }
+});
+
+const UserIntolerance = sequelize.define('UserIntolerance', {
+    UserId: { type: DataTypes.INTEGER, references: { model: 'Users', key: 'id' } },
+    IntoleranceId: { type: DataTypes.INTEGER, references: { model: 'Intolerances', key: 'id' } }
+});
+
+const ProductIntolerance = sequelize.define('ProductIntolerance', {
+    ProductId: { type: DataTypes.INTEGER, references: { model: 'Products', key: 'id' } },
+    IntoleranceId: { type: DataTypes.INTEGER, references: { model: 'Intolerances', key: 'id' } }
 });
 
 Email.belongsTo(User);
 User.hasMany(Email);
 
-Intolerance.belongsTo(User);
-User.hasMany(Intolerance);
+// User <-> Intolerance (Many-to-Many)
+User.belongsToMany(Intolerance, { through: UserIntolerance });
+Intolerance.belongsToMany(User, { through: UserIntolerance });
+
+// Product <-> Intolerance (Many-to-Many)
+Product.belongsToMany(Intolerance, { through: ProductIntolerance });
+Intolerance.belongsToMany(Product, { through: ProductIntolerance });
 
 module.exports = {
     sequelize,

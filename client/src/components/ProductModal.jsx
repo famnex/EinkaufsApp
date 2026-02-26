@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Package, Plus, Trash2 } from 'lucide-react';
+import { X, Save, Package, Plus, Trash2, ShieldAlert, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
 import api from '../lib/axios';
+import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function ProductModal({ isOpen, onClose, product, onSave }) {
@@ -17,10 +18,13 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
         unit: 'Stück'
     });
     const [loading, setLoading] = useState(false);
+    const [analyzing, setAnalyzing] = useState(false);
 
     const [synonymInput, setSynonymInput] = useState('');
     const [availableVariants, setAvailableVariants] = useState([]);
     const [variations, setVariations] = useState([]);
+    const [allIntolerances, setAllIntolerances] = useState([]);
+    const [selectedIntoleranceIds, setSelectedIntoleranceIds] = useState([]);
     const { user } = useAuth();
 
     useLockBodyScroll(isOpen);
@@ -35,14 +39,17 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                 synonyms: (typeof product.synonyms === 'string' ? JSON.parse(product.synonyms || '[]') : product.synonyms) || []
             });
             setVariations(product.ProductVariations || []);
+            setSelectedIntoleranceIds((product.Intolerances || []).map(i => i.id));
         } else {
             setFormData({ name: '', category: '', price_hint: '', unit: 'Stück', synonyms: [] });
             setVariations([]);
+            setSelectedIntoleranceIds([]);
         }
 
         if (isOpen) {
             fetchMetadata();
             fetchAvailableVariants();
+            fetchIntolerances();
         }
     }, [product, isOpen]);
 
@@ -62,6 +69,15 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
             setAvailableVariants(data);
         } catch (err) {
             console.error('Failed to fetch variants', err);
+        }
+    };
+
+    const fetchIntolerances = async () => {
+        try {
+            const { data } = await api.get('/intolerances');
+            setAllIntolerances(data);
+        } catch (err) {
+            console.error('Failed to fetch intolerances', err);
         }
     };
 
@@ -95,7 +111,8 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                 price_hint: formData.price_hint || null,
                 synonyms: formData.synonyms || [],
                 isNew: false,
-                variations: variations.length > 0 ? variations : null
+                variations: variations.length > 0 ? variations : null,
+                intoleranceIds: selectedIntoleranceIds
             };
             if (product?.id) {
                 await api.put(`/products/${product.id}`, dataToSave);
@@ -141,6 +158,44 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
         setVariations(variations.filter((_, i) => i !== index));
     };
 
+    const handleAnalyzeProduct = async () => {
+        if (!formData.name) return;
+        setAnalyzing(true);
+        try {
+            const { data } = await api.post('/ai/analyze-product', { productName: formData.name });
+
+            if (data.hasVariants && data.variants && data.variants.length > 1) {
+                setVariations(data.variants);
+                setFormData(prev => ({ ...prev, category: '', unit: '' }));
+            } else {
+                setVariations([]);
+
+                let fallbackCat = data.category;
+                let fallbackUnit = data.unit;
+
+                if (data.variants && data.variants.length === 1) {
+                    fallbackCat = data.variants[0].category || fallbackCat;
+                    fallbackUnit = data.variants[0].unit || fallbackUnit;
+                }
+
+                setFormData(prev => ({
+                    ...prev,
+                    category: fallbackCat || prev.category,
+                    unit: fallbackUnit || prev.unit
+                }));
+            }
+
+            if (data.intoleranceIds) {
+                setSelectedIntoleranceIds(data.intoleranceIds);
+            }
+        } catch (err) {
+            console.error('AI Analyze Error:', err);
+            alert('Fehler bei der KI-Analyse: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setAnalyzing(false);
+        }
+    };
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -173,7 +228,20 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
 
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Produktname</label>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Produktname</label>
+                                        {user?.role === 'admin' && (
+                                            <button
+                                                type="button"
+                                                onClick={handleAnalyzeProduct}
+                                                disabled={analyzing || !formData.name}
+                                                className="text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                                            >
+                                                {analyzing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                                                KI ausfüllen
+                                            </button>
+                                        )}
+                                    </div>
                                     <Input
                                         value={formData.name}
                                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -289,6 +357,62 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                         </div>
                                     </div>
                                 )}
+
+                                <div className="space-y-3">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1 flex items-center gap-2">
+                                        <ShieldAlert size={14} className="text-primary" />
+                                        Unverträglichkeiten
+                                    </label>
+
+                                    <div className="bg-muted/30 border border-border rounded-xl p-3 space-y-3">
+                                        <div className="flex flex-wrap gap-2">
+                                            {selectedIntoleranceIds.map(id => {
+                                                const intol = allIntolerances.find(i => i.id === id);
+                                                if (!intol) return null;
+                                                return (
+                                                    <span
+                                                        key={id}
+                                                        className="bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 px-2 py-1 rounded-lg text-sm flex items-center gap-1.5 animate-in fade-in zoom-in duration-200"
+                                                    >
+                                                        <span className="font-medium">{intol.warningText || intol.name}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSelectedIntoleranceIds(prev => prev.filter(i => i !== id))}
+                                                            className="hover:bg-red-500/20 rounded-full p-0.5 transition-colors"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </span>
+                                                );
+                                            })}
+                                            {selectedIntoleranceIds.length === 0 && (
+                                                <span className="text-xs text-muted-foreground italic p-1">Keine Unverträglichkeiten ausgewählt</span>
+                                            )}
+                                        </div>
+
+                                        <select
+                                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer hover:border-primary/30 transition-colors"
+                                            onChange={(e) => {
+                                                const val = Number(e.target.value);
+                                                if (val && !selectedIntoleranceIds.includes(val)) {
+                                                    setSelectedIntoleranceIds(prev => [...prev, val]);
+                                                }
+                                                e.target.value = "";
+                                            }}
+                                            value=""
+                                        >
+                                            <option value="" disabled>Unverträglichkeit hinzufügen...</option>
+                                            {allIntolerances
+                                                .filter(i => !selectedIntoleranceIds.includes(i.id))
+                                                .map(i => (
+                                                    <option key={i.id} value={i.id}>
+                                                        {i.warningText || i.name}
+                                                    </option>
+                                                ))
+                                            }
+                                        </select>
+                                    </div>
+                                </div>
 
                                 <div className="flex justify-center">
                                     <Button

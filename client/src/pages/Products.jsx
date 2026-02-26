@@ -165,41 +165,48 @@ export default function Products() {
             <div className="space-y-6">
                 {/* Header Section */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div className="flex bg-muted p-1 rounded-2xl gap-1 w-full sm:w-auto">
-                        <button
-                            onClick={() => setViewTab('eigene')}
-                            className={cn(
-                                "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2",
-                                viewTab === 'eigene' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:bg-card/50"
-                            )}
-                        >
-                            <Package size={18} />
-                            Eigene
-                        </button>
-                        <button
-                            onClick={() => setViewTab('global')}
-                            className={cn(
-                                "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2",
-                                viewTab === 'global' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:bg-card/50"
-                            )}
-                        >
-                            <Globe size={18} />
-                            Global
-                        </button>
-                        <button
-                            onClick={() => {
-                                setViewTab('variants');
-                                fetchVariants();
-                            }}
-                            className={cn(
-                                "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2",
-                                viewTab === 'variants' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:bg-card/50"
-                            )}
-                        >
-                            <Layers size={18} />
-                            Varianten
-                        </button>
-                    </div>
+                    {user?.role === 'admin' ? (
+                        <div className="flex bg-muted p-1 rounded-2xl gap-1 w-full sm:w-auto">
+                            <button
+                                onClick={() => setViewTab('eigene')}
+                                className={cn(
+                                    "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2",
+                                    viewTab === 'eigene' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:bg-card/50"
+                                )}
+                            >
+                                <Package size={18} />
+                                Eigene
+                            </button>
+                            <button
+                                onClick={() => setViewTab('global')}
+                                className={cn(
+                                    "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2",
+                                    viewTab === 'global' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:bg-card/50"
+                                )}
+                            >
+                                <Globe size={18} />
+                                Global
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setViewTab('variants');
+                                    fetchVariants();
+                                }}
+                                className={cn(
+                                    "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2",
+                                    viewTab === 'variants' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:bg-card/50"
+                                )}
+                            >
+                                <Layers size={18} />
+                                Varianten
+                            </button>
+                        </div>
+                    ) : (
+                        <h1 className="text-2xl font-bold flex items-center gap-2">
+                            <Package size={24} className="text-primary" />
+                            Produkte
+                        </h1>
+                    )}
 
                     <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                         {user?.tier !== 'Plastikgabel' && (

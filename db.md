@@ -136,11 +136,25 @@ Spezifische Ausprägung eines Produkts für eine Variante.
 ### `ListItems` (Erweiterung)
 - `ProductVariationId` (INT, FK, NULL): Referenz auf die gewählte Variation beim Hinzufügen zur Liste.
 
-### `Intolerances` [NEW v0.31.9]
-Benutzerspezifische Unverträglichkeiten (z.B. "Laktose", "Gluten").
+### `Intolerances` [UPDATED v0.32.1]
+Globale Liste von Unverträglichkeiten (vom Admin verwaltet).
 - `id` (INT, PK)
-- `name` (STRING): Name der Unverträglichkeit.
+- `name` (STRING, Unique): Name der Unverträglichkeit (z.B. "Eier").
+- `warningText` (STRING): Detaillierter Warntext (z.B. "enthält Eier") [NEW v0.32.1].
+- `createdAt` / `updatedAt` (DATE)
+
+### `UserIntolerances` [NEW v0.32.1]
+Join-Tabelle für die Zuordnung von Benutzern zu globalen Unverträglichkeiten (Many-to-Many).
+- `id` (INT, PK)
 - `UserId` (INT, FK)
+- `IntoleranceId` (INT, FK)
+- `createdAt` / `updatedAt` (DATE)
+
+### `ProductIntolerances` [NEW v0.32.2]
+Join-Tabelle zur Kennzeichnung von Produkten mit Unverträglichkeiten (Many-to-Many).
+- `id` (INT, PK)
+- `ProductId` (INT, FK)
+- `IntoleranceId` (INT, FK)
 - `createdAt` / `updatedAt` (DATE)
 
 ### `Menus` / `Expenses` / `Tags` / `Settings`
@@ -155,9 +169,18 @@ Benutzerspezifische Unverträglichkeiten (z.B. "Laktose", "Gluten").
 2. **Einkaufslisten-Integration**: Erweiterung der `ListItems` um `ProductVariationId`, um die gewählte Variante auf der Liste zu speichern und die sortierung/einheit entsprechend anzupassen.
 3. **Smart Sorting Update**: Das Sorting-System nutzt nun prioritär die Kategorie der gewählten Variation. Erweiterung der `ProductRelations` Tabelle um `PredecessorVariationId` und `SuccessorVariationId`.
 
-### v0.31.9 - Unverträglichkeiten (Februar 2026)
-1. **Unverträglichkeiten-System**: Einführung der Tabelle `Intolerances` zur Verwaltung benutzerspezifischer Unverträglichkeiten.
-2. **Settings-Integration**: Neuer Reiter "Unverträglichkeiten" in den Einstellungen zum Verwalten der Einträge.
+### v0.32.2 - Produkte & Unverträglichkeiten (Februar 2026)
+1. **Produkt-Zuordnung**: Einführung der Tabelle `ProductIntolerances` zur Verknüpfung von Produkten mit globalen Unverträglichkeiten.
+2. **ProductModal UI**: Multi-Select Dropdown zur Auswahl von Unverträglichkeiten (Anzeige von `warningText`) mit Badge-Liste.
+
+### v0.32.1 - Unverträglichkeiten Erweiterung (Februar 2026)
+1. **Warntexte**: Einführung der Spalte `warningText` in `Intolerances` für detaillierte Hinweise (z.B. "Eier" -> "enthält Eier").
+2. **UI-Update**: Admins können Warntexte bearbeiten; Nutzer sehen diese in den Kacheln.
+
+### v0.32.0 - Globales Unverträglichkeiten-System (Februar 2026)
+1. **Zentralisierung**: Umstellung von benutzerspezifischen auf globale Unverträglichkeiten (vom Admin verwaltet).
+2. **N:M Beziehung**: Einführung von `UserIntolerances` zur Speicherung individueller Nutzer-Auswahlen.
+3. **Interactive UI**: Neue Kachel-Ansicht mit "Signal-Farben" (Rot) für aktive Unverträglichkeiten.
 
 ### v0.31.8 - Fixing Production Migration (Februar 2026)
 ... (vorherige Einträge)
