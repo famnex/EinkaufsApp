@@ -54,11 +54,7 @@ const User = sequelize.define('User', {
     cookbookClicks: { type: DataTypes.INTEGER, defaultValue: 0 }
 });
 
-const Manufacturer = sequelize.define('Manufacturer', {
-    name: { type: DataTypes.STRING, allowNull: false }
-}, {
-    indexes: [{ unique: true, fields: ['name', 'UserId'] }]
-});
+
 
 const Store = sequelize.define('Store', {
     name: { type: DataTypes.STRING, allowNull: false },
@@ -72,20 +68,16 @@ const Product = sequelize.define('Product', {
     category: { type: DataTypes.STRING },
     price_hint: { type: DataTypes.DECIMAL(10, 2) },
     unit: { type: DataTypes.ENUM('Stück', 'g', 'kg', 'ml', 'l'), defaultValue: 'Stück' },
-    note: { type: DataTypes.TEXT, allowNull: true },
     isNew: { type: DataTypes.BOOLEAN, defaultValue: false },
     source: { type: DataTypes.STRING, defaultValue: 'manual' }, // 'manual', 'alexa', 'ai'
     synonyms: { type: DataTypes.JSON, defaultValue: [] }
 });
 
-Product.belongsTo(Manufacturer);
 Product.belongsTo(Store);
 
 // User associations
-Manufacturer.belongsTo(User);
 Store.belongsTo(User);
 Product.belongsTo(User);
-User.hasMany(Manufacturer);
 User.hasMany(Store);
 User.hasMany(Product);
 
@@ -117,7 +109,9 @@ const ListItem = sequelize.define('ListItem', {
     sort_store_id: { type: DataTypes.INTEGER, allowNull: true }, // Store context for sort_order
     bought_at: { type: DataTypes.DATE }, // Track when item was bought
     price_actual: { type: DataTypes.DECIMAL(10, 2) },
-    MenuId: { type: DataTypes.INTEGER, allowNull: true } // Track origin menu
+    note: { type: DataTypes.TEXT, allowNull: true }, // Added note to ListItem
+    MenuId: { type: DataTypes.INTEGER, allowNull: true }, // Track origin menu
+    ProductVariationId: { type: DataTypes.INTEGER, allowNull: true } // Link to specific variation if selected
 });
 
 ListItem.belongsTo(List);
@@ -129,7 +123,9 @@ User.hasMany(ListItem);
 const ProductRelation = sequelize.define('ProductRelation', {
     StoreId: { type: DataTypes.INTEGER, allowNull: false }, // Context
     PredecessorId: { type: DataTypes.INTEGER, allowNull: false },
+    PredecessorVariationId: { type: DataTypes.INTEGER, allowNull: true },
     SuccessorId: { type: DataTypes.INTEGER, allowNull: false },
+    SuccessorVariationId: { type: DataTypes.INTEGER, allowNull: true },
     weight: { type: DataTypes.INTEGER, defaultValue: 1 }
 });
 
@@ -233,13 +229,37 @@ Tag.belongsTo(User);
 User.hasMany(Tag);
 
 const HiddenCleanup = sequelize.define('HiddenCleanup', {
-    context: { type: DataTypes.ENUM('category', 'manufacturer', 'unit'), allowNull: false }
+    context: { type: DataTypes.ENUM('category', 'unit'), allowNull: false }
 });
 
 HiddenCleanup.belongsTo(Product);
 HiddenCleanup.belongsTo(User);
 User.hasMany(HiddenCleanup);
 Product.hasMany(HiddenCleanup);
+
+const ProductVariant = sequelize.define('ProductVariant', {
+    title: { type: DataTypes.STRING, allowNull: false }
+});
+
+const ProductVariation = sequelize.define('ProductVariation', {
+    category: { type: DataTypes.STRING },
+    unit: { type: DataTypes.STRING, defaultValue: 'Stück' }
+});
+
+ProductVariant.belongsTo(User);
+User.hasMany(ProductVariant);
+
+ProductVariation.belongsTo(Product);
+Product.hasMany(ProductVariation, { onDelete: 'CASCADE' });
+
+ProductVariation.belongsTo(ProductVariant);
+ProductVariant.hasMany(ProductVariation);
+
+ProductVariation.belongsTo(User);
+User.hasMany(ProductVariation);
+
+ListItem.belongsTo(ProductVariation);
+ProductVariation.hasMany(ListItem);
 
 // ProductSubstitution associations
 ProductSubstitution.belongsTo(List, { foreignKey: 'ListId' });
@@ -270,7 +290,6 @@ User.hasMany(Email);
 module.exports = {
     sequelize,
     User,
-    Manufacturer,
     Store,
     Product,
     List,
@@ -292,5 +311,7 @@ module.exports = {
     ComplianceReport,
     Newsletter,
     NewsletterRecipient,
-    PublicVisit
+    PublicVisit,
+    ProductVariant,
+    ProductVariation
 };

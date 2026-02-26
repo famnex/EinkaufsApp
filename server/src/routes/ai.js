@@ -203,23 +203,6 @@ router.post('/cleanup', auth, async (req, res) => {
             }
             `;
 
-        } else if (type === 'manufacturer') {
-            prompt = `
-            You are a grocery expert for the German market. I have a list of products missing manufacturer/brand information.
-            
-            Products:
-            [${productNames}]
-
-            For each product, suggest a list of 3-5 common manufacturers/brands typically found in German supermarkets (e.g. Rewe, Edeka, Aldi brands or major brands like Dr. Oetker, Nestle, etc.).
-            
-            Return a JSON object:
-            {
-                "results": [
-                    { "name": "Product Name", "manufacturers": ["Brand A", "Brand B", "Brand C"] }
-                ]
-            }
-            `;
-
         } else if (type === 'unit') {
             prompt = `
             You are a grocery expert. I have a list of products that need standardized sales units.
@@ -288,73 +271,6 @@ router.post('/deduct', auth, async (req, res) => {
         res.json({ success: true });
     } catch (err) {
         console.error('AI Deduction Error:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Single Product Lookup Endpoint
-router.post('/lookup', auth, async (req, res) => {
-    try {
-        const { name } = req.body;
-        if (!name) return res.status(400).json({ error: 'Name is required' });
-
-        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
-        if (!setting || !setting.value) {
-            return res.status(400).json({ error: 'OpenAI API Key not configured' });
-        }
-
-        const openai = new OpenAI({ apiKey: setting.value });
-
-        // Get existing categories for context
-        const existingCategories = await Product.findAll({
-            attributes: ['category'],
-            group: ['category'],
-            where: {
-                category: { [require('sequelize').Op.ne]: null },
-                UserId: req.user.effectiveId
-            },
-            raw: true
-        });
-        const categoryList = existingCategories.map(c => c.category).filter(Boolean).join(', ');
-
-        const prompt = `
-        You are a grocery expert for the German market.
-        Product to analyze: "${name}"
-
-        Existing Categories: [${categoryList}]
-
-        1. Assign the best fitting category from the existing list, or suggest a new sensible German category.
-        2. Suggest the most common sales unit (e.g. Stück, Packung, Flasche, Dose, kg, g, Liter).
-        3. Suggest a numeric amount for the unit (e.g. 1).
-        4. Suggest a list of 3-5 common manufacturers/brands for this product in Germany.
-
-        Return a JSON object:
-        {
-            "category": "Category Name",
-            "unit": "Unit Name (WITHOUT amount!)",
-            "amount": 1,
-            "manufacturers": ["Brand A", "Brand B", "Brand C"]
-        }
-        `;
-
-        const completion = await openai.chat.completions.create({
-            messages: [
-                { role: "system", content: "You are a helpful assistant that outputs strictly JSON." },
-                { role: "user", content: prompt }
-            ],
-            model: "gpt-4o",
-            response_format: { type: "json_object" },
-        });
-
-        const result = JSON.parse(completion.choices[0].message.content);
-
-        // Deduct Credits on Success
-        await creditService.deductCredits(req.user.effectiveId, 'TEXT', `KI Lookup: ${name}`);
-
-        res.json(result);
-
-    } catch (err) {
-        console.error('AI Lookup Error:', err);
         res.status(500).json({ error: err.message });
     }
 });

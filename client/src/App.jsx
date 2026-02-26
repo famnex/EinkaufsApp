@@ -15,7 +15,6 @@ import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Lists from './pages/Lists';
 import ListDetail from './pages/ListDetail';
-import Products from './pages/Products';
 import SettingsPage from './pages/Settings';
 import MenuPlan from './pages/MenuPlan';
 import Recipes from './pages/Recipes';
@@ -251,7 +250,7 @@ function AppContent() {
                 <Route path="/recipes" element={<Recipes />} />
                 <Route path="/lists" element={<Lists />} />
                 <Route path="/lists/:id" element={<ListDetail />} />
-                <Route path="/products" element={<Products />} />
+                <Route path="/products" element={<Navigate to="/settings?tab=products" replace />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>
 

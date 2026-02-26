@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { List, ListItem, Product, Store, Manufacturer, ProductRelation, ProductSubstitution, sequelize } = require('../models');
+const { List, ListItem, Product, Store, ProductRelation, ProductSubstitution, ProductVariation, ProductVariant, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { auth } = require('../middleware/auth');
 
@@ -206,15 +206,21 @@ router.get('/:id', auth, async (req, res) => {
                     model: ListItem,
                     where: { UserId: req.user.effectiveId },
                     required: false,
-                    include: [{
-                        model: Product,
-                        where: { UserId: req.user.effectiveId },
-                        required: false,
-                        include: [
-                            { model: Store, where: { UserId: req.user.effectiveId }, required: false },
-                            { model: Manufacturer, where: { UserId: req.user.effectiveId }, required: false }
-                        ]
-                    }]
+                    include: [
+                        {
+                            model: Product,
+                            where: { UserId: req.user.effectiveId },
+                            required: false,
+                            include: [
+                                { model: Store, where: { UserId: req.user.effectiveId }, required: false }
+                            ]
+                        },
+                        {
+                            model: ProductVariation,
+                            required: false,
+                            include: [{ model: ProductVariant }]
+                        }
+                    ]
                 }
             ]
         });
@@ -247,10 +253,11 @@ router.get('/:id', auth, async (req, res) => {
                 if (orderA !== orderB) return orderA - orderB;
 
                 // Fallback for items without sort_order
-                const catA = a.Product.category || 'Z';
-                const catB = b.Product.category || 'Z';
+                // Fallback for items without sort_order
+                const catA = a.ProductVariation?.category || a.Product?.category || 'Z';
+                const catB = b.ProductVariation?.category || b.Product?.category || 'Z';
                 if (catA !== catB) return catA.localeCompare(catB);
-                return a.Product.name.localeCompare(b.Product.name);
+                return (a.Product?.name || '').localeCompare(b.Product?.name || '');
             });
 
             console.log(`[Manual Sort] Used sort_order for ${unboughtItems.length} items`);
@@ -278,22 +285,22 @@ router.get('/:id', auth, async (req, res) => {
                 const edgeMap = new Map(); // "min:max" -> { A: weight, B: weight, dirA: A->B }
 
                 allRelations.forEach(r => {
-                    const u = r.PredecessorId;
-                    const v = r.SuccessorId;
+                    const u = `${r.PredecessorId}_${r.PredecessorVariationId || 'null'}`;
+                    const v = `${r.SuccessorId}_${r.SuccessorVariationId || 'null'}`;
                     const key = u < v ? `${u}:${v}` : `${v}:${u}`;
 
                     if (!edgeMap.has(key)) edgeMap.set(key, { forward: 0, backward: 0 });
                     const entry = edgeMap.get(key);
 
-                    if (u < v) entry.forward = r.weight; // "Forward" means Lower ID -> Higher ID
-                    else entry.backward = r.weight;      // "Backward" means Higher -> Lower
+                    if (u < v) entry.forward = r.weight; // "Forward" means Lexicographically smaller string first
+                    else entry.backward = r.weight;      // "Backward" means larger first
                 });
 
                 // Add Winning Edges to Graph
                 for (const [key, weights] of edgeMap.entries()) {
                     const [uStr, vStr] = key.split(':');
-                    const u = parseInt(uStr);
-                    const v = parseInt(vStr);
+                    const u = uStr;
+                    const v = vStr;
 
                     let from, to;
                     if (weights.forward > weights.backward) { from = u; to = v; }
@@ -314,24 +321,49 @@ router.get('/:id', auth, async (req, res) => {
                 // Init queue with 0-in-degree nodes
                 // Sort initial queue deterministically (e.g. by Category/Name roughly? or just ID) to stabilize
                 // We don't have product details for ALL nodes here efficiently without big join.
-                // Just use ID for deterministic stats.
+                // Just use string ID for deterministic stats.
                 allProductIds.forEach(id => {
                     if ((inDegree.get(id) || 0) === 0) queue.push(id);
                 });
-                queue.sort((a, b) => a - b);
+                queue.sort((a, b) => a.localeCompare(b));
+                console.log(`[Smart Sort V2] Initial Queue:`, queue);
 
                 const masterSequence = [];
-                while (queue.length > 0) {
+                const remainingNodes = new Set(allProductIds);
+
+                while (remainingNodes.size > 0) {
+                    if (queue.length === 0) {
+                        // Cycle detected! Force-break it by picking the node with the lowest inDegree
+                        let bestNode = null;
+                        let minDegree = Infinity;
+                        for (const id of remainingNodes) {
+                            const deg = inDegree.get(id) || 0;
+                            if (deg < minDegree) {
+                                minDegree = deg;
+                                bestNode = id;
+                            } else if (deg === minDegree && id < bestNode) {
+                                bestNode = id; // deterministic tie-breaker
+                            }
+                        }
+                        if (bestNode) {
+                            queue.push(bestNode);
+                            inDegree.set(bestNode, 0);
+                        }
+                    }
+
                     const u = queue.shift();
                     masterSequence.push(u);
+                    remainingNodes.delete(u);
 
                     if (graph.has(u)) {
                         const neighbors = Array.from(graph.get(u));
-                        neighbors.sort((a, b) => a - b); // Deterministic visitation
+                        neighbors.sort((a, b) => a.localeCompare(b)); // Deterministic visitation
 
                         for (const v of neighbors) {
-                            inDegree.set(v, inDegree.get(v) - 1);
-                            if (inDegree.get(v) === 0) queue.push(v);
+                            if (remainingNodes.has(v)) {
+                                inDegree.set(v, Math.max(0, inDegree.get(v) - 1));
+                                if (inDegree.get(v) === 0) queue.push(v);
+                            }
                         }
                     }
                 }
@@ -339,6 +371,7 @@ router.get('/:id', auth, async (req, res) => {
                 // 4. Map Master Sequence to Ranks
                 const rankMap = new Map();
                 masterSequence.forEach((pid, idx) => rankMap.set(pid, idx));
+                console.log(`[Smart Sort V2] Master Sequence Length: ${masterSequence.length}`);
 
                 // --- NEW SORTING LOGIC WITH CATEGORY INHERITANCE ---
                 const categoryMaxRank = new Map();
@@ -346,10 +379,10 @@ router.get('/:id', auth, async (req, res) => {
 
                 // 4b. Identify Max Rank for each Category present
                 unboughtItems.forEach(item => {
-                    const pid = item.ProductId;
+                    const pid = `${item.ProductId}_${item.ProductVariationId || 'null'}`;
                     if (rankMap.has(pid)) {
                         const rank = rankMap.get(pid);
-                        const cat = item.Product.category || 'Uncategorized';
+                        const cat = item.ProductVariation?.category || item.Product.category || 'Uncategorized';
                         if (!categoryMaxRank.has(cat) || rank > categoryMaxRank.get(cat)) {
                             categoryMaxRank.set(cat, rank);
                         }
@@ -360,11 +393,11 @@ router.get('/:id', auth, async (req, res) => {
                 unboughtItems.sort((a, b) => {
                     // Helper to determine Effective Rank
                     const getRank = (item) => {
-                        const pid = item.ProductId;
+                        const pid = `${item.ProductId}_${item.ProductVariationId || 'null'}`;
                         if (rankMap.has(pid)) return { val: rankMap.get(pid), type: 'DIRECT' };
 
                         // If Unknown, inherit from Category Max
-                        const cat = item.Product.category || 'Uncategorized';
+                        const cat = item.ProductVariation?.category || item.Product.category || 'Uncategorized';
                         if (categoryMaxRank.has(cat)) return { val: categoryMaxRank.get(cat) + 0.1, type: 'CATEGORY' };
 
                         return { val: Infinity, type: 'UNKNOWN' };
@@ -373,25 +406,31 @@ router.get('/:id', auth, async (req, res) => {
                     const rA = getRank(a);
                     const rB = getRank(b);
 
-                    if (rA.val !== rB.val) return rA.val - rB.val;
+                    if (rA.val !== rB.val) {
+                        // Handle Infinity math safely
+                        if (rA.val === Infinity) return 1;
+                        if (rB.val === Infinity) return -1;
+                        return rA.val - rB.val;
+                    }
 
                     // Fallback to Category/Name
-                    const catA = a.Product.category || 'Z';
-                    const catB = b.Product.category || 'Z';
+                    const catA = a.ProductVariation?.category || a.Product?.category || 'Z';
+                    const catB = b.ProductVariation?.category || b.Product?.category || 'Z';
                     if (catA !== catB) return catA.localeCompare(catB);
-                    return a.Product.name.localeCompare(b.Product.name);
+                    return (a.Product?.name || '').localeCompare(b.Product?.name || '');
                 });
 
                 // 6. Collect Debug Info
                 unboughtItems.forEach(item => {
-                    const pid = item.ProductId;
-                    const cat = item.Product.category || 'Uncategorized';
+                    const pid = `${item.ProductId}_${item.ProductVariationId || 'null'}`;
+                    const cat = item.ProductVariation?.category || item.Product.category || 'Uncategorized';
                     let rankInfo = 'UNKNOWN';
                     let rankVal = Infinity;
 
                     if (rankMap.has(pid)) {
                         rankInfo = 'DIRECT';
                         rankVal = rankMap.get(pid);
+                        console.log(`[Smart Sort V2] Assigned DIRECT rank ${rankVal} to ${item.Product.name} (${pid})`);
                     } else if (categoryMaxRank.has(cat)) {
                         rankInfo = `CATEGORY (Inherited from max ${categoryMaxRank.get(cat)})`;
                         rankVal = categoryMaxRank.get(cat) + 0.1;
@@ -414,19 +453,19 @@ router.get('/:id', auth, async (req, res) => {
             } else {
                 // No relations, use fallback
                 unboughtItems.sort((a, b) => {
-                    const catA = a.Product.category || 'Z';
-                    const catB = b.Product.category || 'Z';
+                    const catA = a.ProductVariation?.category || a.Product?.category || 'Z';
+                    const catB = b.ProductVariation?.category || b.Product?.category || 'Z';
                     if (catA !== catB) return catA.localeCompare(catB);
-                    return a.Product.name.localeCompare(b.Product.name);
+                    return (a.Product?.name || '').localeCompare(b.Product?.name || '');
                 });
             }
         } else {
             // Always Fallback Sort if no store or no data
             unboughtItems.sort((a, b) => {
-                const catA = a.Product.category || 'Z';
-                const catB = b.Product.category || 'Z';
+                const catA = a.ProductVariation?.category || a.Product?.category || 'Z';
+                const catB = b.ProductVariation?.category || b.Product?.category || 'Z';
                 if (catA !== catB) return catA.localeCompare(catB);
-                return a.Product.name.localeCompare(b.Product.name);
+                return (a.Product?.name || '').localeCompare(b.Product?.name || '');
             });
         }
 
@@ -481,7 +520,9 @@ router.put('/:id', auth, async (req, res) => {
                                 StoreId: list.CurrentStoreId,
                                 UserId: req.user.effectiveId,
                                 PredecessorId: pred.ProductId,
-                                SuccessorId: succ.ProductId
+                                PredecessorVariationId: pred.ProductVariationId || null,
+                                SuccessorId: succ.ProductId,
+                                SuccessorVariationId: succ.ProductVariationId || null
                             }
                         });
 
@@ -492,7 +533,9 @@ router.put('/:id', auth, async (req, res) => {
                                 StoreId: list.CurrentStoreId,
                                 UserId: req.user.effectiveId,
                                 PredecessorId: pred.ProductId,
+                                PredecessorVariationId: pred.ProductVariationId || null,
                                 SuccessorId: succ.ProductId,
+                                SuccessorVariationId: succ.ProductVariationId || null,
                                 weight: 1
                             });
                         }
@@ -547,7 +590,9 @@ router.post('/:id/commit', auth, async (req, res) => {
                             StoreId: storeId,
                             UserId: req.user.effectiveId,
                             PredecessorId: pred.ProductId,
-                            SuccessorId: succ.ProductId
+                            PredecessorVariationId: pred.ProductVariationId || null,
+                            SuccessorId: succ.ProductId,
+                            SuccessorVariationId: succ.ProductVariationId || null
                         }
                     });
 
@@ -558,7 +603,9 @@ router.post('/:id/commit', auth, async (req, res) => {
                             StoreId: storeId,
                             UserId: req.user.effectiveId,
                             PredecessorId: pred.ProductId,
+                            PredecessorVariationId: pred.ProductVariationId || null,
                             SuccessorId: succ.ProductId,
+                            SuccessorVariationId: succ.ProductVariationId || null,
                             weight: 1
                         });
                     }
@@ -620,11 +667,28 @@ router.put('/:id/reorder', auth, async (req, res) => {
     }
 });
 
+// Get unique notes from all list items for suggestions
+router.get('/item-notes', auth, async (req, res) => {
+    try {
+        const items = await ListItem.findAll({
+            attributes: ['note'],
+            where: {
+                UserId: req.user.effectiveId,
+                note: { [Op.ne]: null }
+            }
+        });
+        const notes = [...new Set(items.map(i => i.note).filter(n => n && n.trim()))].sort();
+        res.json(notes);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Add item to list
 router.post('/:id/items', auth, async (req, res) => {
     try {
         const listId = parseInt(req.params.id);
-        const { ProductId, quantity, price_actual, unit } = req.body;
+        const { ProductId, quantity, price_actual, unit, ProductVariationId } = req.body;
 
         if (isNaN(listId)) return res.status(400).json({ error: 'Invalid List ID' });
 
@@ -637,16 +701,10 @@ router.post('/:id/items', auth, async (req, res) => {
             ProductId: parseInt(ProductId),
             quantity: parseFloat(quantity) || 1,
             unit: unit || null,
-            price_actual: price_actual || null
+            note: req.body.note || null,
+            price_actual: price_actual || null,
+            ProductVariationId: ProductVariationId || null
         });
-
-        // Update Product Note if provided
-        if (req.body.note !== undefined) {
-            const product = await Product.findOne({ where: { id: parseInt(ProductId), UserId: req.user.effectiveId } });
-            if (product) {
-                await product.update({ note: req.body.note });
-            }
-        }
 
         res.status(201).json(item);
     } catch (err) {
@@ -672,12 +730,9 @@ router.put('/items/:itemId', auth, async (req, res) => {
             }
         }
 
-        // Update Product Note if provided
+        // Update ListItem Note if provided
         if (updates.note !== undefined) {
-            const product = await Product.findOne({ where: { id: item.ProductId, UserId: req.user.effectiveId } });
-            if (product) {
-                await product.update({ note: updates.note });
-            }
+            item.note = updates.note;
         }
 
         await item.update(updates);
@@ -982,10 +1037,12 @@ router.post('/:id/bulk-items', auth, async (req, res) => {
                 // If units match, add quantities. If not, what? 
                 // For simplicity, if units differ, we might overwrite or add as string note? 
                 // Current simple logic: Add quantity, Update unit to new one (if provided)
-
+                // Append notes if both exist? Or just use new one?
+                // Let's just use the new one if provided.
                 const newQuantity = parseFloat(existing.quantity) + parseFloat(item.quantity);
                 const updates = { quantity: newQuantity };
                 if (item.unit) updates.unit = item.unit;
+                if (item.note) updates.note = item.note;
 
                 await existing.update(updates);
             } else {
@@ -994,7 +1051,8 @@ router.post('/:id/bulk-items', auth, async (req, res) => {
                     UserId: req.user.effectiveId,
                     ProductId: resolvedProductId,
                     quantity: item.quantity,
-                    unit: item.unit
+                    unit: item.unit,
+                    note: item.note || null
                 });
             }
         }

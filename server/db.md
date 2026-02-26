@@ -6,8 +6,9 @@
 - id (Integer, Primary Key)
 - username (String)
 - password (String, Hashed)
+- email (String)
 - role (Enum: 'admin', 'user')
-- kitchenId (Integer, Foreign Key -> Kitchens)
+- householdId (Integer, Foreign Key)
 - tier (Enum: 'Plastikgabel', ...)
 - aiCredits (Decimal)
 - newsletterSignedUp (Boolean)
@@ -23,9 +24,19 @@
 - cancelAtPeriodEnd (Boolean, default false)
 - stripeCustomerId (String, Nullable)
 - stripeSubscriptionId (String, Nullable)
-- paypalSubscriptionId (String, Nullable)
 - pendingTier (Enum: 'Silbergabel', 'none')
 - lastRefillAt (DateTime, Nullable)
+- isEmailVerified (Boolean)
+- emailVerificationToken (String)
+- pendingEmail (String)
+- tokenVersion (Integer)
+- cookbookTitle (String)
+- cookbookImage (String)
+- sharingKey (String)
+- alexaApiKey (String)
+- isPublicCookbook (Boolean)
+- isCommunityVisible (Boolean)
+- cookbookClicks (Integer)
 
 ### Recipes
 - id (Integer, Primary Key)
@@ -33,153 +44,170 @@
 - category (String)
 - image_url (String)
 - prep_time (Integer)
-- duration (Integer)
+- total_time (Integer)
 - servings (Integer, default 1)
-- instructions (JSON)
-- imageSource (Enum: 'upload', 'scraped', 'ai', 'none', default 'scraped')
 - clicks (Integer, default 0)
 - bannedAt (DateTime, Nullable)
 - UserId (Integer, Foreign Key -> Users)
 - createdAt (DateTime)
 - updatedAt (DateTime)
 
-### Ingredients
-- id (Integer, Primary Key)
-- name (String)
-- unit (String)
+### Ingredients -> Handled via RecipeIngredient and Product relations
 
 ### RecipeIngredients
 - id (Integer, Primary Key)
 - amount (Float)
 - unit (String)
 - RecipeId (Integer, Foreign Key -> Recipes)
-- IngredientId (Integer, Foreign Key -> Ingredients)
-- raw (String)
+- ProductId (Integer, Foreign Key -> Products)
+- UserId (Integer, Foreign Key -> Users)
 
 ### Products
 - id (Integer, Primary Key)
 - name (String)
 - category (String)
-- defaultUnit (String)
+- price_hint (Decimal)
+- unit (Enum)
+- isNew (Boolean)
+- source (String)
+- synonyms (JSON)
+- StoreId (Integer, Foreign Key -> Stores)
+- UserId (Integer, Foreign Key -> Users)
+
+### Stores
+- id (Integer, Primary Key)
+- name (String)
+- logo_url (String)
+- UserId (Integer, Foreign Key -> Users)
 
 ### Lists
 - id (Integer, Primary Key)
 - name (String)
-- type (Enum: 'shopping', 'pantry')
-- HouseholdId (Integer, Foreign Key -> Households)
+- date (DateOnly)
+- status (Enum: 'active', 'completed', 'archived')
+- total_cost (Decimal)
+- CurrentStoreId (Integer, Foreign Key -> Stores)
+- UserId (Integer, Foreign Key -> Users)
 
 ### ListItems
 - id (Integer, Primary Key)
-- name (String)
-- amount (Float)
+- quantity (Float)
 - unit (String)
-- isChecked (Boolean)
+- is_bought (Boolean)
+- is_committed (Boolean)
+- sort_order (Float)
+- sort_store_id (Integer)
+- bought_at (DateTime)
+- price_actual (Decimal)
+- note (Text, Nullable)
+- MenuId (Integer)
 - ListId (Integer, Foreign Key -> Lists)
 - ProductId (Integer, Foreign Key -> Products)
+- UserId (Integer, Foreign Key -> Users)
+
+### ProductSubstitutions
+- id (Integer, Primary Key)
+- ListId (Integer, Foreign Key -> Lists)
+- originalProductId (Integer, Foreign Key -> Products)
+- substituteProductId (Integer, Foreign Key -> Products)
+- UserId (Integer, Foreign Key -> Users)
+
+### ProductRelations
+- id (Integer, Primary Key)
+- StoreId (Integer, Foreign Key -> Stores)
+- PredecessorId (Integer, Foreign Key -> Products)
+- SuccessorId (Integer, Foreign Key -> Products)
+- weight (Integer)
+- UserId (Integer, Foreign Key -> Users)
+
+### Tags
+- id (Integer, Primary Key)
+- name (String)
+- UserId (Integer, Foreign Key -> Users)
+
+### RecipeTag
+- RecipeId (Integer)
+- TagId (Integer)
+- UserId (Integer)
+
+### Menus
+- id (Integer, Primary Key)
+- date (DateOnly)
+- meal_type (Enum)
+- description (Text)
+- is_eating_out (Boolean)
+- RecipeId (Integer)
+- UserId (Integer)
+
+### Expenses
+- id (Integer, Primary Key)
+- title (String)
+- amount (Decimal)
+- date (DateOnly)
+- category (String)
+- UserId (Integer)
+
+### HiddenCleanups
+- id (Integer, Primary Key)
+- context (Enum: 'category', 'unit')
+- ProductId (Integer)
+- UserId (Integer)
 
 ### Settings
 - id (Integer, Primary Key)
-- key (String, Unique per User)
+- key (String)
 - value (Text)
 - UserId (Integer, Foreign Key -> Users)
 
 ### LoginLogs
 - id (Integer, Primary Key)
 - username (String)
-- UserId (Integer, Nullable, Foreign Key -> Users)
-- event (Enum: 'login_success', 'login_failed', 'password_reset')
+- UserId (Integer, Foreign Key -> Users)
+- event (Enum)
 - ipHash (String)
 - userAgent (String)
-- createdAt (DateTime)
 
 ### SubscriptionLogs
 - id (Integer, Primary Key)
-- UserId (Integer, Nullable, Foreign Key -> Users)
+- UserId (Integer, Foreign Key -> Users)
 - username (String)
-- event (String: 'checkout_initiated', 'checkout_completed', 'checkout_canceled', 'subscription_renewed', 'payment_failed', 'subscription_expired', 'subscription_canceled_user', 'subscription_deleted', 'tier_changed_admin', 'credits_refilled')
+- event (String)
 - tier (String)
 - amount (Decimal)
-- currency (String, default 'EUR')
 - details (Text)
-- ipHash (String)
-- userAgent (String)
-- createdAt (DateTime)
 
 ### CreditTransactions
 - id (Integer, Primary Key)
-- UserId (Integer, Nullable, Foreign Key -> Users)
+- UserId (Integer, Foreign Key -> Users)
 - delta (Decimal)
 - description (Text)
-- type (String: 'usage', 'booking')
-- createdAt (DateTime)
+- type (Enum)
 
 ### Emails
 - id (Integer, Primary Key)
-- messageId (String, Nullable, Unique email Message-ID, Unique Index)
-- folder (Enum: 'inbox', 'sent', 'sent_system', 'daemon', 'newsletter', 'trash')
-- previousFolder (Enum, Nullable, stores folder before move to trash)
-- flag (Enum: 'none', 'flagged', 'completed')
+- messageId (String)
+- folder (Enum)
 - fromAddress (String)
 - toAddress (String)
-- cc (Text, Nullable)
-- bcc (Text, Nullable)
-- subject (String, Nullable)
-- body (Text, HTML body)
-- bodyText (Text, Plain text body)
-- isRead (Boolean, default false)
-- date (DateTime)
-- inReplyTo (String, Nullable, for threading)
-- UserId (Integer, Nullable, Foreign Key -> Users. Null for system/newsletter admin mails)
-
-## Relations
-- Users have many Recipes
-- Recipes have many Ingredients (through RecipeIngredients)
-- Lists have many ListItems
-- Products can be in many ListItems
-- Users have many Settings
-- Users have many LoginLogs
-- Users have many SubscriptionLogs
-- Users have many CreditTransactions
-- Users have many Emails
-
-### ComplianceReports
-- id (Integer, Primary Key)
-- reporterName (String)
-- reporterEmail (String)
-- reporterRole (Enum)
-- contentUrl (String)
-- contentType (Enum)
-- reasonCategory (Enum)
-- reasonDescription (Text)
-- originalSourceUrl (String)
-- status (Enum: 'open', 'investigating', 'resolved', 'dismissed')
-- resolutionNote (Text)
-- internalNote (Text)
-- screenshotPath (String)
-- accusedUserId (Integer, Foreign Key -> Users)
-- createdAt (DateTime)
-- updatedAt (DateTime)
-
-### Newsletters
-- id (Integer, Primary Key)
 - subject (String)
 - body (Text)
-- status (Enum: 'draft', 'sending', 'completed', 'failed')
-- recipientsCount (Integer)
-- sentCount (Integer)
-- failedCount (Integer)
-- batchSize (Integer)
-- waitMinutes (Integer)
-- footer (Text, Nullable)
+- isRead (Boolean)
+- UserId (Integer, Foreign Key -> Users)
+
+### PublicVisits
+- id (Integer, Primary Key)
+- UserID (Integer)
+- visitorIpHash (String)
+- visitedAt (DateTime)
+
+### ProductVariants
+- id (Integer, Primary Key)
+- title (String, Not Null)
+- UserId (Integer, Foreign Key -> Users)
 - createdAt (DateTime)
 - updatedAt (DateTime)
 
-### NewsletterRecipients
-- id (Integer, Primary Key)
-- NewsletterId (Integer, Foreign Key -> Newsletters)
-- UserId (Integer, Foreign Key -> Users)
-- status (Enum: 'pending', 'sent', 'failed')
-- error (Text, Nullable)
-- sentAt (DateTime, Nullable)
-- createdAt (DateTime)
-- updatedAt (DateTime)
+## Changes
+- **v0.31.7**: Removed Manufacturer attribute from Products and dropped Manufacturers table.
+- **v0.31.8**: Moved 'note' from Product to ListItem (Notes are now list-specific).
+- **v0.31.9**: Added ProductVariants table (simple titles for product variations).

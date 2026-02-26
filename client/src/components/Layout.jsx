@@ -19,7 +19,7 @@ export default function Layout({ children }) {
 
     // Navigation Order for animation direction
     // Lists (/) -> Menu -> Recipes -> Products -> Settings
-    const navOrder = ['/', '/menu', '/recipes', '/products', '/settings'];
+    const navOrder = ['/', '/menu', '/recipes', '/settings'];
     const getNavIndex = (path) => {
         // Handle detail paths or unknown paths by defaulting to a logical parent or -1
         if (path.startsWith('/lists/')) return 0; // Treat list details as part of "Lists" tab
@@ -54,7 +54,6 @@ export default function Layout({ children }) {
         if (path === '/') return 'Listen';
         if (path === '/menu') return 'Menüplan';
         if (path === '/recipes') return 'Rezepte';
-        if (path === '/products') return 'Produkte';
         if (path === '/settings') return 'Optionen';
         if (path.startsWith('/lists/')) return 'Liste Details';
         return 'GabelGuru';

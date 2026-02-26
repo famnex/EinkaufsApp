@@ -264,7 +264,6 @@ router.delete('/:id', async (req, res) => {
             await models.Product.destroy(dOpt);
 
             // Tier 4 Parents
-            await models.Manufacturer.destroy(dOpt);
             await models.Store.destroy(dOpt);
             await models.Tag.destroy(dOpt);
 

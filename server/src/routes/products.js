@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Product, Manufacturer, Store, ListItem, RecipeIngredient, sequelize, HiddenCleanup } = require('../models');
+const { Product, Store, ListItem, RecipeIngredient, sequelize, HiddenCleanup, ProductVariation, ProductVariant } = require('../models');
 const { auth, admin } = require('../middleware/auth');
 
 router.get('/', auth, async (req, res) => {
@@ -8,9 +8,14 @@ router.get('/', auth, async (req, res) => {
         const products = await Product.findAll({
             where: { UserId: req.user.effectiveId },
             include: [
-                { model: Manufacturer, where: { UserId: req.user.effectiveId }, required: false },
                 { model: Store, where: { UserId: req.user.effectiveId }, required: false },
-                { model: HiddenCleanup, where: { UserId: req.user.effectiveId }, required: false }
+                { model: HiddenCleanup, where: { UserId: req.user.effectiveId }, required: false },
+                {
+                    model: ProductVariation,
+                    where: { UserId: req.user.effectiveId },
+                    required: false,
+                    include: [{ model: ProductVariant }]
+                }
             ],
             order: [[sequelize.fn('lower', sequelize.col('Product.name')), 'ASC']]
         });
@@ -40,21 +45,60 @@ router.get('/units', auth, async (req, res) => {
 });
 
 router.post('/', auth, async (req, res) => {
+    const t = await sequelize.transaction();
     try {
-        const product = await Product.create({ ...req.body, UserId: req.user.effectiveId });
+        const { variations, ...productData } = req.body;
+        const product = await Product.create({ ...productData, UserId: req.user.effectiveId }, { transaction: t });
+
+        if (variations && Array.isArray(variations)) {
+            for (const v of variations) {
+                await ProductVariation.create({
+                    ...v,
+                    ProductId: product.id,
+                    UserId: req.user.effectiveId
+                }, { transaction: t });
+            }
+        }
+
+        await t.commit();
         res.status(201).json(product);
     } catch (err) {
+        await t.rollback();
         res.status(500).json({ error: err.message });
     }
 });
 
 router.put('/:id', auth, async (req, res) => {
+    const t = await sequelize.transaction();
     try {
+        const { variations, ...productData } = req.body;
         const product = await Product.findOne({ where: { id: req.params.id, UserId: req.user.effectiveId } });
-        if (!product) return res.status(404).json({ error: 'Product not found or unauthorized' });
-        await product.update(req.body);
+        if (!product) {
+            await t.rollback();
+            return res.status(404).json({ error: 'Product not found or unauthorized' });
+        }
+
+        await product.update(productData, { transaction: t });
+
+        if (variations && Array.isArray(variations)) {
+            // Simple sync: delete existing and recreat (can be optimized but safe for small lists)
+            await ProductVariation.destroy({ where: { ProductId: product.id, UserId: req.user.effectiveId }, transaction: t });
+            for (const v of variations) {
+                await ProductVariation.create({
+                    ...v,
+                    ProductId: product.id,
+                    UserId: req.user.effectiveId
+                }, { transaction: t });
+            }
+        } else if (variations === null) {
+            // Null explicitly passed means delete all variations
+            await ProductVariation.destroy({ where: { ProductId: product.id, UserId: req.user.effectiveId }, transaction: t });
+        }
+
+        await t.commit();
         res.json(product);
     } catch (err) {
+        await t.rollback();
         res.status(500).json({ error: err.message });
     }
 });

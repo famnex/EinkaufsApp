@@ -16,8 +16,9 @@ import SubscriptionModal from '../components/SubscriptionModal';
 import SubscriptionCancelModal from '../components/SubscriptionCancelModal';
 import HouseholdConfirmModal from '../components/HouseholdConfirmModal';
 import api from '../lib/axios';
-import { Search } from 'lucide-react';
+import { Search, Package } from 'lucide-react';
 import RichTextEditor from '../components/RichTextEditor';
+import Products from './Products';
 
 export default function SettingsPage() {
     const navigate = useNavigate();
@@ -1339,6 +1340,7 @@ export default function SettingsPage() {
         { id: 'subscription', label: 'Abo & Credits', icon: CreditCard },
         { id: 'household', label: 'Haushalt', icon: Users },
         { id: 'cookbook', label: 'Öffentliches Kochbuch', icon: ChefHat },
+        { id: 'products', label: 'Produkte', icon: Package },
         { id: 'stores', label: 'Geschäfte', icon: StoreIcon },
         ...(hasSpecialTier ? [{ id: 'alexa', label: 'Alexa', icon: Building2 }] : []),
         ...(user?.role === 'admin' ? [
@@ -4449,6 +4451,7 @@ export default function SettingsPage() {
                                             {tab.id === 'profile' && ProfileSection}
                                             {tab.id === 'household' && HouseholdSection}
                                             {tab.id === 'cookbook' && CookbookSection}
+                                            {tab.id === 'products' && <Products />}
                                             {tab.id === 'stores' && StoresSection}
                                             {tab.id === 'subscription' && SubscriptionSection}
                                             {tab.id === 'alexa' && ApiSection}
@@ -4499,6 +4502,7 @@ export default function SettingsPage() {
                     {activeTab === 'profile' && ProfileSection}
                     {activeTab === 'household' && HouseholdSection}
                     {activeTab === 'cookbook' && CookbookSection}
+                    {activeTab === 'products' && <Products />}
                     {activeTab === 'stores' && StoresSection}
                     {activeTab === 'subscription' && SubscriptionSection}
                     {activeTab === 'alexa' && ApiSection}

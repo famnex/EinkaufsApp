@@ -74,20 +74,12 @@ export default function ListDetail() {
     );
 
     // Derived Lists
-    const uncommittedItems = (list?.ListItems?.filter(i => !i.is_committed) || []).sort((a, b) => {
-        if (a.is_bought !== b.is_bought) return a.is_bought ? 1 : -1;
-
-        // Sort bought items by timestamp
-        if (a.is_bought && b.is_bought) {
-            if (a.bought_at && b.bought_at) {
-                return new Date(a.bought_at) - new Date(b.bought_at);
-            }
-            return a.id - b.id; // Fallback
-        }
-
-        // Keep server-side sort order for unbought items
-        return 0;
+    const uncommittedItemsRaw = list?.ListItems?.filter(i => !i.is_committed) || [];
+    const unbought = uncommittedItemsRaw.filter(i => !i.is_bought);
+    const bought = uncommittedItemsRaw.filter(i => i.is_bought).sort((a, b) => {
+        return new Date(a.bought_at || 0) - new Date(b.bought_at || 0);
     });
+    const uncommittedItems = [...unbought, ...bought];
     const committedItems = list?.ListItems?.filter(i => i.is_committed) || [];
 
     const handleDragStart = (event) => {
@@ -175,7 +167,7 @@ export default function ListDetail() {
         setSuggestions([]);
     };
 
-    const onConfirmQuantity = async (quantity, unit, note) => {
+    const onConfirmQuantity = async (quantity, unit, note, variationId) => {
         if (!pendingProduct) return;
         try {
             let productId = pendingProduct.id;
@@ -194,7 +186,8 @@ export default function ListDetail() {
                 ProductId: productId,
                 quantity: quantity,
                 unit: unit,
-                note: note
+                note: note,
+                ProductVariationId: variationId || null
             });
 
             fetchListDetails();
@@ -666,7 +659,7 @@ export default function ListDetail() {
                                                         )}
                                                     </div>
                                                     {/* Note Indicator - Direct child for clean stacking. Only show in view mode to avoid overlapping with edit/delete icons. */}
-                                                    {item.Product?.note && editMode === 'view' && (
+                                                    {item.note && editMode === 'view' && (
                                                         <div
                                                             className="absolute top-2 right-2 w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white shadow-lg z-30 cursor-pointer group/note"
                                                             onClick={(e) => {
@@ -707,7 +700,7 @@ export default function ListDetail() {
                                                                 <div className="absolute -top-1.5 right-9 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 w-3 h-3 bg-slate-900 rotate-45 border-l border-t border-white/10" />
                                                                 <div className="text-[10px] font-bold uppercase tracking-wider text-orange-400 mb-1">Hinweis</div>
                                                                 <div className="text-sm font-medium leading-relaxed">
-                                                                    {item.Product.note}
+                                                                    {item.note}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -749,20 +742,15 @@ export default function ListDetail() {
                                                             zoomLevel === 0 ? "text-sm md:text-lg" : "text-xl md:text-2xl"
                                                         )} lang="de">
                                                             {item.Product?.name}
+                                                            {item.ProductVariation?.ProductVariant?.title && (
+                                                                <span className="text-[0.7em] block opacity-90 mt-0.5 leading-tight">
+                                                                    {item.ProductVariation.ProductVariant.title}
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                        {item.Product?.Manufacturer?.name && (
-                                                            <div className={cn(
-                                                                "text-white/70 mt-0.5 font-medium tracking-wide uppercase truncate",
-                                                                zoomLevel === 0 ? "text-[8px]" : "text-[10px]"
-                                                            )}>
-                                                                {item.Product.Manufacturer.name}
-                                                            </div>
-                                                        )}
-                                                        {zoomLevel > 0 && (
-                                                            <div className="text-xs text-white/80 mt-1 font-medium tracking-wider uppercase truncate">
-                                                                {item.Product?.category || 'Sonstiges'}
-                                                            </div>
-                                                        )}
+                                                        <div className="text-xs text-white/80 mt-1 font-medium tracking-wider uppercase truncate">
+                                                            {item.ProductVariation?.category || item.Product?.category || 'Sonstiges'}
+                                                        </div>
                                                     </div>
 
                                                     {/* Bottom: Quantity */}
@@ -881,6 +869,7 @@ export default function ListDetail() {
                 productName={typeof pendingProduct === 'string' ? pendingProduct : pendingProduct?.name}
                 defaultUnit={typeof pendingProduct === 'object' ? pendingProduct?.unit : 'Stück'}
                 productNote={typeof pendingProduct === 'object' ? pendingProduct?.note : ''}
+                variations={pendingProduct?.ProductVariations || []}
                 onConfirm={onConfirmQuantity}
             />
 
@@ -936,6 +925,6 @@ export default function ListDetail() {
                 onClose={() => setIsSubscriptionModalOpen(false)}
                 currentTier={user?.tier}
             />
-        </div>
+        </div >
     );
 }

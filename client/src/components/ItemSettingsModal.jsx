@@ -21,37 +21,28 @@ export default function ItemSettingsModal({ isOpen, onClose, item, onSave, onDel
         if (item) {
             setQuantity(item.quantity || 1);
             setUnit(item.unit || item.Product?.unit || 'Stück');
-            setNote(item.Product?.note || '');
+            setNote(item.note || '');
         }
         // Fetch units and note suggestions always when opening
         if (isOpen) {
             api.get('/products/units')
                 .then(res => setAvailableUnits(res.data))
                 .catch(err => console.error("Failed to load units", err));
-            api.get('/products')
+            api.get('/lists/item-notes') // New endpoint for list item notes
                 .then(res => {
-                    const uniqueNotes = [...new Set(res.data.map(p => p.note).filter(Boolean))].sort();
-                    setNoteSuggestions(uniqueNotes);
+                    setNoteSuggestions(res.data);
                 })
                 .catch(err => console.error("Failed to load note suggestions", err));
         }
     }, [item, isOpen]);
 
     const handleSave = async () => {
-        // Update quantity and unit on the ListItem
+        // Update quantity, unit and note on the ListItem
         onSave({
             quantity: parseFloat(quantity),
-            unit: unit
+            unit: unit,
+            note: note
         });
-
-        // Update note on the Product if it changed
-        if (item?.Product && note !== item.Product.note) {
-            try {
-                await api.put(`/products/${item.ProductId}`, { note });
-            } catch (err) {
-                console.error("Failed to update product note", err);
-            }
-        }
 
         onClose();
     };

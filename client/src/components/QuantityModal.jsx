@@ -6,10 +6,11 @@ import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
 
-export default function QuantityModal({ isOpen, onClose, productName, defaultUnit = 'Stück', productNote = '', onConfirm }) {
+export default function QuantityModal({ isOpen, onClose, productName, defaultUnit = 'Stück', productNote = '', variations = [], onConfirm }) {
     const [quantity, setQuantity] = useState('1');
     const [unit, setUnit] = useState(defaultUnit);
     const [note, setNote] = useState('');
+    const [selectedVariationId, setSelectedVariationId] = useState('');
     const [noteSuggestions, setNoteSuggestions] = useState([]);
 
     useLockBodyScroll(isOpen);
@@ -18,18 +19,23 @@ export default function QuantityModal({ isOpen, onClose, productName, defaultUni
         if (isOpen) {
             setQuantity('1');
             setUnit(defaultUnit || 'Stück');
-            setNote(productNote || '');
-            // Fetch note suggestions
+            setNote('');
+            setSelectedVariationId(variations.length > 0 ? variations[0].id : '');
             fetchNoteSuggestions();
         }
-    }, [isOpen, defaultUnit, productNote]);
+    }, [isOpen, defaultUnit, productNote, variations]);
+
+    useEffect(() => {
+        if (selectedVariationId) {
+            const v = variations.find(v => v.id == selectedVariationId);
+            if (v && v.unit) setUnit(v.unit);
+        }
+    }, [selectedVariationId, variations]);
 
     const fetchNoteSuggestions = async () => {
         try {
-            const res = await fetch('/api/products');
-            const products = await res.json();
-            const uniqueNotes = [...new Set(products.map(p => p.note).filter(Boolean))].sort();
-            setNoteSuggestions(uniqueNotes);
+            const res = await api.get('/lists/item-notes');
+            setNoteSuggestions(res.data);
         } catch (err) {
             console.error('Failed to fetch note suggestions:', err);
         }
@@ -37,7 +43,11 @@ export default function QuantityModal({ isOpen, onClose, productName, defaultUni
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onConfirm(quantity, unit, note);
+        if (variations.length > 0 && !selectedVariationId) {
+            alert('Bitte wähle eine Variante aus.');
+            return;
+        }
+        onConfirm(quantity, unit, note, selectedVariationId);
         onClose();
     };
 
@@ -63,6 +73,25 @@ export default function QuantityModal({ isOpen, onClose, productName, defaultUni
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-4">
+                            {variations.length > 0 && (
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Variante auswählen</label>
+                                    <select
+                                        className="w-full bg-muted/50 border border-border rounded-xl h-12 px-4 text-foreground focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer"
+                                        value={selectedVariationId}
+                                        onChange={(e) => setSelectedVariationId(e.target.value)}
+                                        required
+                                    >
+                                        <option value="" disabled>Bitte wählen...</option>
+                                        {variations.map(v => (
+                                            <option key={v.id} value={v.id}>
+                                                {v.ProductVariant?.title} ({v.category})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Menge</label>

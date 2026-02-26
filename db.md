@@ -118,12 +118,38 @@ Tracking von anonymisierten Besuchen auf öffentlichen Pfaden zur Unique-Visitor
 - `targetId` (INT): ID des Kochbuchs (Users) oder Rezepts.
 - `lastVisitAt` (DATE): Zeitstempel des letzten gezählten Besuchs innerhalb eines Fensters (1 Std).
 
+### `ProductVariants` [NEW]
+Zentrale Verwaltung von Produktvarianten (z.B. "Bio", "Vegan", "Laktosefrei").
+- `id` (INT, PK)
+- `title` (STRING, Unique per User): Der Name der Variante.
+- `UserId` (INT, FK)
+
+### `ProductVariations` [NEW]
+Spezifische Ausprägung eines Produkts für eine Variante.
+- `id` (INT, PK)
+- `category` (STRING): Kategorieneinstellung für diese spezifische Variation.
+- `unit` (STRING): Standard-Einheit für diese spezifische Variation.
+- `ProductId` (INT, FK)
+- `ProductVariantId` (INT, FK)
+- `UserId` (INT, FK)
+
+### `ListItems` (Erweiterung)
+- `ProductVariationId` (INT, FK, NULL): Referenz auf die gewählte Variation beim Hinzufügen zur Liste.
+
 ### `Menus` / `Expenses` / `Tags` / `Settings`
 - Alle Tabellen enthalten ein `UserId` Feld zur strikten Isolation.
 
 ---
 
 ## 2. Migrationen & Änderungen
+
+### v0.31.9 - Produktvarianten (Februar 2026)
+1. **Produktvarianten-System**: Einführung der Tabellen `ProductVariants` und `ProductVariations` zur flexiblen Verwaltung von Produkt-Ausprägungen.
+2. **Einkaufslisten-Integration**: Erweiterung der `ListItems` um `ProductVariationId`, um die gewählte Variante auf der Liste zu speichern und die sortierung/einheit entsprechend anzupassen.
+3. **Smart Sorting Update**: Das Sorting-System nutzt nun prioritär die Kategorie der gewählten Variation. Erweiterung der `ProductRelations` Tabelle um `PredecessorVariationId` und `SuccessorVariationId`.
+
+### v0.31.0 - Fixing Production Migration (Februar 2026)
+... (vorherige Einträge)
 
 ### Multi-User Transformation (v0.19.0 - Februar 2026)
 1. **UserId-Integration**: Zu fast allen Tabellen wurde eine `UserId`-Spalte hinzugefügt.

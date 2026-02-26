@@ -417,13 +417,12 @@ router.post('/household/join', auth, async (req, res) => {
         }
 
         const models = require('../models');
-        const { sequelize, Manufacturer, Store, Tag, Settings, Product, Recipe, List, ListItem, Menu, Expense, HiddenCleanup, ProductSubstitution, RecipeTag, RecipeIngredient, ProductRelation } = models;
+        const { sequelize, Store, Tag, Settings, Product, Recipe, List, ListItem, Menu, Expense, HiddenCleanup, ProductSubstitution, RecipeTag, RecipeIngredient, ProductRelation } = models;
 
         await sequelize.transaction(async (t) => {
             // 1. Merge tables with unique constraints [name, UserId]
             // We'll handle Manufacturer, Store, Tag, Settings
             const uniqueModels = [
-                { model: Manufacturer, dep: [{ model: Product, fk: 'ManufacturerId' }] },
                 { model: Store, dep: [{ model: Product, fk: 'StoreId' }, { model: List, fk: 'CurrentStoreId' }, { model: ProductRelation, fk: 'StoreId' }] },
                 { model: Tag, dep: [{ model: RecipeTag, fk: 'TagId' }] },
                 { model: Settings, dep: [] }

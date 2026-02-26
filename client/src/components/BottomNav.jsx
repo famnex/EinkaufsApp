@@ -15,7 +15,6 @@ export default function BottomNav() {
         { id: 'menu', icon: CalendarRange, path: '/menu', label: 'Menüplan' },
         { id: 'recipes', icon: UtensilsCrossed, path: '/recipes', label: 'Rezepte' },
         { id: 'community', icon: BookOpen, path: '/community-cookbooks', label: 'Community' },
-        { id: 'products', icon: Package, path: '/products', label: 'Produkte' },
         { id: 'settings', icon: Settings, path: '/settings', label: 'Optionen' },
     ];
 
@@ -27,7 +26,7 @@ export default function BottomNav() {
             className="fixed bottom-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-xl border-t border-border h-20 shadow-xl"
             style={{ WebkitBackdropFilter: 'blur(20px)' }}
         >
-            <div className="max-w-7xl mx-auto h-full grid grid-cols-6 relative px-2">
+            <div className="max-w-7xl mx-auto h-full grid grid-cols-5 relative px-2">
                 {/* Active Highlight Marker */}
                 {activeIndex !== -1 && (
                     <div className="absolute inset-y-0 left-2 right-2 pointer-events-none">
@@ -36,8 +35,8 @@ export default function BottomNav() {
                                 className="absolute top-2 bottom-2 bg-primary rounded-2xl shadow-lg shadow-primary/20"
                                 initial={false}
                                 animate={{
-                                    left: `${(activeIndex * 100) / 6}%`,
-                                    width: `${100 / 6}%`
+                                    left: `${(activeIndex * 100) / 5}%`,
+                                    width: `${100 / 5}%`
                                 }}
                                 transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
                             />

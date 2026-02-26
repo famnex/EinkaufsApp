@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Package, Tag, Euro, Store as StoreIcon, Plus, Sparkles } from 'lucide-react';
+import { X, Save, Package, Plus, Trash2 } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
@@ -10,22 +10,18 @@ import { useAuth } from '../contexts/AuthContext';
 
 export default function ProductModal({ isOpen, onClose, product, onSave }) {
     const [categories, setCategories] = useState([]);
-    const [noteSuggestions, setNoteSuggestions] = useState([]);
     const [formData, setFormData] = useState({
         name: '',
         category: '',
         price_hint: '',
-        unit: 'Stück',
-        ManufacturerId: '',
-        note: ''
+        unit: 'Stück'
     });
-    const [manufacturers, setManufacturers] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [loadingAi, setLoadingAi] = useState(false);
-    const [aiManufacturers, setAiManufacturers] = useState([]);
 
     const [synonymInput, setSynonymInput] = useState('');
-    const { user } = useAuth(); // ADDED for Tier checks
+    const [availableVariants, setAvailableVariants] = useState([]);
+    const [variations, setVariations] = useState([]);
+    const { user } = useAuth();
 
     useLockBodyScroll(isOpen);
 
@@ -36,32 +32,36 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                 category: product.category || '',
                 price_hint: product.price_hint || '',
                 unit: product.unit || 'Stück',
-                note: product.note || '',
                 synonyms: (typeof product.synonyms === 'string' ? JSON.parse(product.synonyms || '[]') : product.synonyms) || []
             });
+            setVariations(product.ProductVariations || []);
         } else {
-            setFormData({ name: '', category: '', price_hint: '', unit: 'Stück', ManufacturerId: '', note: '', synonyms: [] });
-            setAiManufacturers([]); // Reset on new
+            setFormData({ name: '', category: '', price_hint: '', unit: 'Stück', synonyms: [] });
+            setVariations([]);
         }
 
         if (isOpen) {
             fetchMetadata();
+            fetchAvailableVariants();
         }
     }, [product, isOpen]);
 
     const fetchMetadata = async () => {
         try {
-            const [productsRes, manufacturersRes] = await Promise.all([
-                api.get('/products'),
-                api.get('/manufacturers')
-            ]);
-            const uniqueCats = [...new Set(productsRes.data.map(p => p.category).filter(Boolean))].sort();
-            const uniqueNotes = [...new Set(productsRes.data.map(p => p.note).filter(Boolean))].sort();
+            const { data } = await api.get('/products');
+            const uniqueCats = [...new Set(data.map(p => p.category).filter(Boolean))].sort();
             setCategories(uniqueCats);
-            setNoteSuggestions(uniqueNotes);
-            setManufacturers(manufacturersRes.data);
         } catch (err) {
             console.error('Failed to fetch metadata', err);
+        }
+    };
+
+    const fetchAvailableVariants = async () => {
+        try {
+            const { data } = await api.get('/variants');
+            setAvailableVariants(data);
+        } catch (err) {
+            console.error('Failed to fetch variants', err);
         }
     };
 
@@ -92,11 +92,10 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
         try {
             const dataToSave = {
                 ...formData,
-                StoreId: null, // Removed Standard Store
-                ManufacturerId: formData.ManufacturerId || null,
                 price_hint: formData.price_hint || null,
-                synonyms: formData.synonyms || [], // Ensure array
-                isNew: false // Confirming/Editing a product verifies it
+                synonyms: formData.synonyms || [],
+                isNew: false,
+                variations: variations.length > 0 ? variations : null
             };
             if (product?.id) {
                 await api.put(`/products/${product.id}`, dataToSave);
@@ -112,49 +111,34 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
         }
     };
 
-    const handleAiLookup = async () => {
-        if (!formData.name) return alert("Bitte geben Sie zuerst einen Produktnamen ein.");
-        setLoadingAi(true);
-        setAiManufacturers([]);
-        try {
-            const { data } = await api.post('/ai/lookup', { name: formData.name });
+    const handleAddVariation = () => {
+        const usedIds = variations.map(v => Number(v.ProductVariantId));
+        const unusedVariant = availableVariants.find(av => !usedIds.includes(av.id));
 
-            // Auto-fill fields
-            setFormData(prev => ({
-                ...prev,
-                category: data.category || prev.category,
-                unit: data.unit || prev.unit
-            }));
-
-            // Handle manufacturers
-            if (data.manufacturers && data.manufacturers.length > 0) {
-                setAiManufacturers(data.manufacturers);
+        if (!unusedVariant) {
+            if (availableVariants.length === 0) {
+                alert('Bitte lege erst Varianten unter Einstellungen > Produkte > Varianten an.');
+            } else {
+                alert('Alle verfügbaren Varianten wurden bereits hinzugefügt.');
             }
-
-        } catch (err) {
-            console.error(err);
-            alert("AI Lookup fehlgeschlagen: " + (err.response?.data?.error || err.message));
-        } finally {
-            setLoadingAi(false);
+            return;
         }
+
+        setVariations([...variations, {
+            ProductVariantId: unusedVariant.id,
+            category: formData.category,
+            unit: formData.unit
+        }]);
     };
 
-    const handleSelectManufacturer = async (manufName) => {
-        // Check if exists
-        const existing = manufacturers.find(m => m.name.toLowerCase() === manufName.toLowerCase());
-        if (existing) {
-            setFormData(prev => ({ ...prev, ManufacturerId: existing.id }));
-        } else {
-            // Create new
-            try {
-                const { data } = await api.post('/manufacturers', { name: manufName });
-                setManufacturers(prev => [...prev, data]);
-                setFormData(prev => ({ ...prev, ManufacturerId: data.id }));
-            } catch (err) {
-                console.error(err);
-                alert("Fehler beim Erstellen des Herstellers");
-            }
-        }
+    const handleUpdateVariation = (index, field, value) => {
+        const newVariations = [...variations];
+        newVariations[index][field] = field === 'ProductVariantId' ? Number(value) : value;
+        setVariations(newVariations);
+    };
+
+    const handleRemoveVariation = (index) => {
+        setVariations(variations.filter((_, i) => i !== index));
     };
 
     return (
@@ -199,7 +183,6 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                     />
                                 </div>
 
-                                {/* Synonyms Input */}
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Synonyme</label>
                                     <div className="bg-muted/30 border border-border rounded-xl p-2 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
@@ -228,94 +211,99 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                     <p className="text-[10px] text-muted-foreground ml-1">Drücke Enter zum Hinzufügen</p>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Kategorie</label>
-                                        <Input
-                                            value={formData.category}
-                                            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                            placeholder="z.B. Milchprodukte"
-                                            className="bg-muted/50 border-border h-12"
-                                            list="category-suggestions"
-                                        />
-                                        <datalist id="category-suggestions">
-                                            {categories.map(cat => <option key={cat} value={cat} />)}
-                                        </datalist>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Standard-Einheit</label>
-                                        <Input
-                                            value={formData.unit}
-                                            onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                                            placeholder="z.B. Stück, kg, Packung"
-                                            className="bg-muted/50 border-border h-12"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Hersteller</label>
-
-                                    {/* AI Manufacturer Suggestions */}
-                                    {aiManufacturers.length > 0 && (
-                                        <div className="flex flex-wrap gap-2 mb-2">
-                                            <span className="text-xs text-muted-foreground self-center mr-1">Vorschläge:</span>
-                                            {aiManufacturers.map(m => (
-                                                <button
-                                                    key={m}
-                                                    type="button"
-                                                    onClick={() => handleSelectManufacturer(m)}
-                                                    className="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs rounded-full border border-indigo-200 hover:bg-indigo-100 transition-colors flex items-center gap-1"
-                                                >
-                                                    <Sparkles size={10} />
-                                                    {m}
-                                                </button>
+                                {variations.length > 0 ? (
+                                    <div className="space-y-4">
+                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Varianten-Konfiguration</label>
+                                        <div className="space-y-3">
+                                            {variations.map((v, idx) => (
+                                                <div key={idx} className="bg-muted/30 border border-border rounded-xl p-4 relative group">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveVariation(idx)}
+                                                        className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground p-1.5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all z-10"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-bold uppercase text-muted-foreground">Variante</label>
+                                                            <select
+                                                                className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                value={v.ProductVariantId}
+                                                                onChange={(e) => handleUpdateVariation(idx, 'ProductVariantId', e.target.value)}
+                                                            >
+                                                                {availableVariants.map(av => {
+                                                                    const isUsedElsewhere = variations.some((other, i) => i !== idx && Number(other.ProductVariantId) === av.id);
+                                                                    if (isUsedElsewhere) return null;
+                                                                    return <option key={av.id} value={av.id}>{av.title}</option>;
+                                                                })}
+                                                            </select>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-bold uppercase text-muted-foreground">Kategorie</label>
+                                                            <input
+                                                                className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                value={v.category}
+                                                                onChange={(e) => handleUpdateVariation(idx, 'category', e.target.value)}
+                                                                placeholder="z.B. Obst"
+                                                                list="category-suggestions"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[10px] font-bold uppercase text-muted-foreground">Einheit</label>
+                                                            <input
+                                                                className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                value={v.unit}
+                                                                onChange={(e) => handleUpdateVariation(idx, 'unit', e.target.value)}
+                                                                placeholder="kg, Stück..."
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             ))}
                                         </div>
-                                    )}
-
-                                    <div className="flex gap-2">
-                                        <select
-                                            value={formData.ManufacturerId}
-                                            onChange={(e) => setFormData({ ...formData, ManufacturerId: e.target.value })}
-                                            className="flex-1 bg-muted/50 border border-border rounded-xl h-12 px-4 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none text-sm"
-                                        >
-                                            <option value="">Keiner</option>
-                                            {manufacturers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                                        </select>
-                                        <button
-                                            type="button"
-                                            onClick={async () => {
-                                                const name = prompt('Neuer Hersteller Name:');
-                                                if (name) {
-                                                    try {
-                                                        const { data } = await api.post('/manufacturers', { name });
-                                                        setManufacturers([...manufacturers, data]);
-                                                        setFormData({ ...formData, ManufacturerId: data.id });
-                                                    } catch (err) {
-                                                        alert('Fehler beim Erstellen des Herstellers');
-                                                    }
-                                                }
-                                            }}
-                                            className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center hover:bg-primary/20 transition-colors shrink-0"
-                                        >
-                                            <Plus size={20} />
-                                        </button>
                                     </div>
-                                </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Kategorie</label>
+                                            <Input
+                                                value={formData.category}
+                                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                                placeholder="z.B. Milchprodukte"
+                                                className="bg-muted/50 border-border h-12"
+                                                list="category-suggestions"
+                                            />
+                                            <datalist id="category-suggestions">
+                                                {categories.map(cat => <option key={cat} value={cat} />)}
+                                            </datalist>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Standard-Einheit</label>
+                                            <Input
+                                                value={formData.unit}
+                                                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                                                placeholder="z.B. Stück, kg, Packung"
+                                                className="bg-muted/50 border-border h-12"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
 
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Hinweis</label>
-                                    <Input
-                                        value={formData.note}
-                                        onChange={(e) => setFormData({ ...formData, note: e.target.value })}
-                                        placeholder="z.B. Nur im Angebot kaufen"
-                                        className="bg-muted/50 border-border h-12"
-                                        list="note-suggestions"
-                                    />
-                                    <datalist id="note-suggestions">
-                                        {noteSuggestions.map(note => <option key={note} value={note} />)}
-                                    </datalist>
+                                <div className="flex justify-center">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleAddVariation}
+                                        disabled={availableVariants.length > 0 && variations.length >= availableVariants.length}
+                                        className="text-primary hover:bg-primary/10 gap-2 border border-dashed border-primary/30 w-full py-6 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <Plus size={16} />
+                                        {availableVariants.length > 0 && variations.length >= availableVariants.length
+                                            ? 'Alle Varianten hinzugefügt'
+                                            : 'Variante hinzufügen'}
+                                    </Button>
                                 </div>
 
                                 <div className="pt-4 flex gap-3">
@@ -328,22 +316,7 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                         Abbrechen
                                     </Button>
 
-                                    <div className="flex-1" /> {/* Spacer */}
-
-                                    {user?.tier !== 'Plastikgabel' && (
-                                        <Button
-                                            type="button"
-                                            onClick={handleAiLookup}
-                                            disabled={loadingAi || !formData.name}
-                                            className="h-12 gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 px-4 sm:px-6 flex items-center justify-center whitespace-nowrap"
-                                        >
-                                            {loadingAi ? <Sparkles size={18} className="animate-spin" /> : <Sparkles size={18} />}
-                                            <span className="hidden sm:inline">
-                                                {loadingAi ? 'AI sucht...' : 'AI Lookup'}
-                                                {user?.tier === 'Silbergabel' && !loadingAi && <span className="ml-1 text-xs opacity-80">(5 Coins)</span>}
-                                            </span>
-                                        </Button>
-                                    )}
+                                    <div className="flex-1" />
 
                                     <Button
                                         type="submit"

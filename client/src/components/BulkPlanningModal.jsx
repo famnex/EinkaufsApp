@@ -68,8 +68,8 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
         try {
             const res = await api.get('/products');
             setAllProducts(res.data);
-            const uniqueNotes = [...new Set(res.data.map(p => p.note).filter(Boolean))].sort();
-            setNoteSuggestions(uniqueNotes);
+            const notesRes = await api.get('/lists/item-notes');
+            setNoteSuggestions(notesRes.data);
         } catch (err) {
             console.error('Failed to load products:', err);
         }
@@ -99,21 +99,10 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
                     return {
                         ProductId: effectiveProductId,
                         quantity: parseFloat(val.quantity),
-                        unit: val.unit
+                        unit: val.unit,
+                        note: val.note || null
                     };
                 });
-
-            // Save notes to products
-            for (const [origProdId, val] of Object.entries(adjustments)) {
-                if (val.note && val.note.trim()) {
-                    const effectiveProductId = substitutions[origProdId]?.id || parseInt(origProdId);
-                    try {
-                        await api.put(`/products/${effectiveProductId}`, { note: val.note });
-                    } catch (err) {
-                        console.error('Failed to save product note:', err);
-                    }
-                }
-            }
 
             if (itemsToSave.length > 0) {
                 await api.post(`/lists/${listId}/bulk-items`, { items: itemsToSave });

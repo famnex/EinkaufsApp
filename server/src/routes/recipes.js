@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Recipe, RecipeIngredient, Product, Manufacturer, Tag, Menu, RecipeTag, sequelize, User } = require('../models');
+const { Recipe, RecipeIngredient, Product, Tag, Menu, RecipeTag, sequelize, User } = require('../models');
 const { auth } = require('../middleware/auth');
 const { Op } = require('sequelize');
 const multer = require('multer');
@@ -146,7 +146,7 @@ router.get('/public/:sharingKey/:id', async (req, res) => {
                     model: RecipeIngredient,
                     where: { UserId: user.id },
                     required: false,
-                    include: [{ model: Product, where: { UserId: user.id }, required: false, include: [{ model: Manufacturer, where: { UserId: user.id }, required: false }] }]
+                    include: [{ model: Product, where: { UserId: user.id }, required: false }]
                 },
                 { model: Tag, where: { UserId: user.id }, required: false }
             ]
@@ -318,7 +318,7 @@ router.get('/:id', auth, async (req, res) => {
                 {
                     model: RecipeIngredient,
                     required: false,
-                    include: [{ model: Product, required: false, include: [{ model: Manufacturer, required: false }] }]
+                    include: [{ model: Product, required: false }]
                 },
                 { model: Tag, required: false },
                 {
@@ -595,8 +595,7 @@ router.post('/:id/ingredients', auth, async (req, res) => {
             include: [{
                 model: Product,
                 where: { UserId: req.user.effectiveId },
-                required: false,
-                include: [{ model: Manufacturer, where: { UserId: req.user.effectiveId }, required: false }]
+                required: false
             }]
         });
         res.status(201).json(withProduct);

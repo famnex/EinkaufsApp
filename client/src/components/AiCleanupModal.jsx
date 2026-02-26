@@ -12,7 +12,7 @@ import { Input } from './Input';
 import api from '../lib/axios';
 
 export default function AiCleanupModal({ isOpen, onClose, products = [], onRefresh }) {
-    const [selectedType, setSelectedType] = useState('category'); // 'category', 'manufacturer', 'unit', 'duplicates'
+    const [selectedType, setSelectedType] = useState('category'); // 'category', 'unit', 'duplicates'
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [step, setStep] = useState('selection'); // 'selection', 'loading', 'review'
     const [results, setResults] = useState([]); // [{ id, name, original, suggestion, accepted: true, value: '' }]
@@ -60,7 +60,6 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
     const stats = useMemo(() => {
         return {
             category: products.filter(p => !p.category && !p.HiddenCleanups?.some(h => h.context === 'category')).length,
-            manufacturer: products.filter(p => (!p.ManufacturerId && !p.Manufacturer) && !p.HiddenCleanups?.some(h => h.context === 'manufacturer')).length,
             // For unit, usually we check everyone. If hidden for unit, exclude.
             unit: products.filter(p => !p.HiddenCleanups?.some(h => h.context === 'unit')).length
         };
@@ -70,8 +69,6 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
         switch (selectedType) {
             case 'category':
                 return products.filter(p => !p.category);
-            case 'manufacturer':
-                return products.filter(p => !p.ManufacturerId && !p.Manufacturer);
             case 'unit':
                 return products; // All products for unit cleanup
             default:
@@ -90,7 +87,7 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
         if (selectedType === 'unit') {
             // Default: All deselected for unit
         } else {
-            // Default: All selected for category and manufacturer, EXCEPT hidden ones
+            // Default: All selected for category, EXCEPT hidden ones
             filteredProducts.forEach(p => {
                 if (!isProductHidden(p)) {
                     newSelected.add(p.id);
@@ -185,11 +182,10 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
             // Format results for review
             const formattedResults = data.map(r => ({
                 id: r.id,
-                name: r.name,
-                suggestion: r.category || r.unit || (r.manufacturers ? r.manufacturers[0] : ''),
-                options: r.manufacturers || [], // For manufacturer dropdown
+                suggestion: r.category || r.unit || '',
+                options: [],
                 unitAmount: r.amount || 1, // For unit
-                value: r.category || r.unit || (r.manufacturers ? r.manufacturers[0] : ''),
+                value: r.category || r.unit || '',
                 accepted: true,
                 isCustom: false
             }));
@@ -213,27 +209,11 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
                 .map(r => {
                     if (selectedType === 'category') return { id: r.id, category: r.value };
                     if (selectedType === 'unit') return { id: r.id, unit: r.value };
-                    return { id: r.id, manufacturerName: r.value };
+                    return { id: r.id };
                 });
 
-            // Execute updates in parallel or batch
             for (const update of updates) {
-                if (selectedType === 'manufacturer') {
-                    // Find or create manufacturer
-                    try {
-                        const mRes = await api.get('/manufacturers');
-                        const existing = mRes.data.find(m => m.name.toLowerCase() === update.manufacturerName.toLowerCase());
-                        let manufId = null;
-                        if (existing) manufId = existing.id;
-                        else {
-                            const newMan = await api.post('/manufacturers', { name: update.manufacturerName });
-                            manufId = newMan.data.id;
-                        }
-                        await api.put(`/products/${update.id}`, { ManufacturerId: manufId });
-                    } catch (e) { console.error(e); }
-                } else {
-                    await api.put(`/products/${update.id}`, update);
-                }
+                await api.put(`/products/${update.id}`, update);
             }
 
             onRefresh && onRefresh();
@@ -323,7 +303,6 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
 
     const tabs = [
         { id: 'category', label: 'Fehlende Kategorien', icon: Tag, count: stats.category, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-        { id: 'manufacturer', label: 'Fehlende Hersteller', icon: Factory, count: stats.manufacturer, color: 'text-orange-500', bg: 'bg-orange-500/10' },
         { id: 'unit', label: 'Normalisieren', icon: Scale, count: stats.unit, color: 'text-green-500', bg: 'bg-green-500/10' },
         { id: 'duplicates', label: 'Doppeleinträge', icon: Copy, count: products.length, color: 'text-purple-500', bg: 'bg-purple-500/10' },
     ];
@@ -594,8 +573,7 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
                                                                             <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
                                                                                 {selectedType !== 'unit' && <AlertCircle size={12} className="text-amber-500" />}
                                                                                 {selectedType === 'category' ? 'Keine Kategorie' :
-                                                                                    selectedType === 'manufacturer' ? 'Kein Hersteller' :
-                                                                                        `Aktuell: ${product.unit || 'Keine Einheit'}`}
+                                                                                    `Aktuell: ${product.unit || 'Keine Einheit'}`}
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -647,56 +625,16 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
                                                             <ArrowRight className="text-muted-foreground shrink-0" size={16} />
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="text-sm text-muted-foreground mb-1">Vorschlag ({selectedType})</div>
-                                                                {selectedType === 'manufacturer' && result.options?.length > 0 && !result.isCustom ? (
-                                                                    <select
-                                                                        value={result.value}
-                                                                        onChange={(e) => {
-                                                                            const newRes = [...results];
-                                                                            if (e.target.value === '___OTHER___') {
-                                                                                newRes[idx].isCustom = true;
-                                                                                newRes[idx].value = '';
-                                                                            } else {
-                                                                                newRes[idx].value = e.target.value;
-                                                                            }
-                                                                            newRes[idx].accepted = true;
-                                                                            setResults(newRes);
-                                                                        }}
-                                                                        className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm"
-                                                                    >
-                                                                        {result.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                                                        <option value="___OTHER___">(Anderer...)</option>
-                                                                    </select>
-                                                                ) : (
-                                                                    <div className="flex gap-2 w-full">
-                                                                        <Input
-                                                                            value={result.value}
-                                                                            onChange={(e) => {
-                                                                                const newRes = [...results];
-                                                                                newRes[idx].value = e.target.value;
-                                                                                newRes[idx].accepted = true;
-                                                                                setResults(newRes);
-                                                                            }}
-                                                                            className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-medium"
-                                                                            placeholder={result.isCustom ? "Hersteller eingeben..." : ""}
-                                                                            autoFocus={result.isCustom}
-                                                                        />
-                                                                        {selectedType === 'manufacturer' && result.isCustom && (
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="icon"
-                                                                                onClick={() => {
-                                                                                    const newRes = [...results];
-                                                                                    newRes[idx].isCustom = false;
-                                                                                    newRes[idx].value = result.options[0] || '';
-                                                                                    setResults(newRes);
-                                                                                }}
-                                                                                title="Zurück zur Auswahl"
-                                                                            >
-                                                                                <X size={16} />
-                                                                            </Button>
-                                                                        )}
-                                                                    </div>
-                                                                )}
+                                                                <Input
+                                                                    value={result.value}
+                                                                    onChange={(e) => {
+                                                                        const newRes = [...results];
+                                                                        newRes[idx].value = e.target.value;
+                                                                        newRes[idx].accepted = true;
+                                                                        setResults(newRes);
+                                                                    }}
+                                                                    className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-medium"
+                                                                />
                                                             </div>
                                                             <div className="flex items-center gap-2 shrink-0">
                                                                 <button
@@ -750,6 +688,7 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
                     </motion.div>
                 </div>
             )}
+
             <AiActionConfirmModal
                 isOpen={aiConfirmModalOpen}
                 onClose={() => setAiConfirmModalOpen(false)}

@@ -88,7 +88,6 @@ if (process.env.NODE_ENV !== 'production') {
 const authRoutes = require('./src/routes/auth');
 const listRoutes = require('./src/routes/lists');
 const productRoutes = require('./src/routes/products');
-const manufacturerRoutes = require('./src/routes/manufacturers');
 const storeRoutes = require('./src/routes/stores');
 
 const apiRouter = express.Router();
@@ -96,7 +95,6 @@ const apiRouter = express.Router();
 apiRouter.use('/auth', authRoutes);
 apiRouter.use('/lists', listRoutes);
 apiRouter.use('/products', productRoutes);
-apiRouter.use('/manufacturers', manufacturerRoutes);
 apiRouter.use('/stores', storeRoutes);
 apiRouter.use('/recipes', require('./src/routes/recipes'));
 apiRouter.use('/menus', require('./src/routes/menus'));
@@ -109,6 +107,7 @@ apiRouter.use('/messaging', require('./src/routes/messaging'));
 apiRouter.use('/compliance', require('./src/routes/compliance'));
 apiRouter.use('/subscription', require('./src/routes/subscription'));
 apiRouter.use('/newsletter', require('./src/routes/newsletter'));
+apiRouter.use('/variants', require('./src/routes/variants'));
 
 // Mount API
 app.use(`${BASE_PATH}/api`, apiRouter);
