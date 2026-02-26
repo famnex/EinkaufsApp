@@ -9,6 +9,7 @@ export function Card({ className, children, variant = "default", ...props }) {
                 variant === "dark" && "glass-dark backdrop-blur-2xl",
                 variant === "default" && "bg-card/50 border-border backdrop-blur-md",
                 "hover:border-primary/20 hover:shadow-2xl hover:shadow-primary/5",
+                "print:overflow-visible",
                 className
             )}
             {...props}

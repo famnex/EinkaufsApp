@@ -95,6 +95,23 @@ const applyThemeColor = (type, hexColor) => {
   }
 };
 
+const IndexRoute = () => {
+  const { user } = useAuth();
+  const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+  if (user) {
+    return (
+      <ProtectedRoute>
+        <Layout>
+          <Dashboard />
+        </Layout>
+      </ProtectedRoute>
+    );
+  }
+
+  return isPWA ? <Navigate to="/login" replace /> : <LandingPage />;
+};
+
 function AppContent() {
   const { loading, user } = useAuth();
 
@@ -225,17 +242,27 @@ function AppContent() {
               <Route path="/shared/:sharingKey/recipe/:id" element={<PublicLayout><SharedRecipe /></PublicLayout>} />
               <Route path="/shared/:sharingKey/cookbook" element={<PublicLayout><SharedCookbook /></PublicLayout>} />
 
+              {/* Dynamic Root Route */}
+              <Route path="/" element={<IndexRoute />} />
+
               {/* Main App Layout */}
               <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                <Route path="/" element={user ? <Dashboard /> : <LandingPage />} />
                 <Route path="/menu" element={<MenuPlan />} />
                 <Route path="/recipes" element={<Recipes />} />
                 <Route path="/lists" element={<Lists />} />
                 <Route path="/lists/:id" element={<ListDetail />} />
                 <Route path="/products" element={<Products />} />
                 <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/community-cookbooks" element={user ? <CommunityCookbooksContent /> : <PublicCookbooks />} />
               </Route>
+
+              {/* Public/Community Routes */}
+              <Route path="/community-cookbooks" element={
+                user ? (
+                  <Layout><CommunityCookbooksContent /></Layout>
+                ) : (
+                  <PublicLayout><PublicCookbooks /></PublicLayout>
+                )
+              } />
 
               <Route path="/privacy" element={<LegalPage type="privacy" />} />
               <Route path="/imprint" element={<LegalPage type="imprint" />} />

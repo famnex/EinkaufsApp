@@ -39,35 +39,51 @@ router.get('/public-cookbooks', async (req, res) => {
         logger.logSystem('DEBUG', 'Fetching public cookbooks...');
         const users = await User.findAll({
             where: { isCommunityVisible: true, bannedAt: null },
-            attributes: ['id', 'username', 'cookbookTitle', 'cookbookImage', 'sharingKey'],
+            attributes: ['id', 'username', 'cookbookTitle', 'cookbookImage', 'sharingKey', 'cookbookClicks'],
             include: [{
                 model: Recipe,
-                attributes: ['image_url']
+                attributes: ['id', 'image_url'],
+                include: [{
+                    model: User,
+                    as: 'FavoritedBy',
+                    attributes: ['id'],
+                    through: { attributes: [] }
+                }]
             }]
         });
 
         logger.logSystem('DEBUG', `Found ${users.length} public users.`);
 
-        // Format data — tileImage = random recipe image, cookbookImage = user avatar
+        // Format data
         const result = users.map(user => {
             let tileImage = null;
+            let totalFavorites = 0;
 
-            // Pick a random recipe image for the tile background
             if (user.Recipes && user.Recipes.length > 0) {
+                // Background Image
                 const recipesWithImages = user.Recipes.filter(r => r.image_url);
                 if (recipesWithImages.length > 0) {
                     const randomIdx = Math.floor(Math.random() * recipesWithImages.length);
                     tileImage = recipesWithImages[randomIdx].image_url;
                 }
+
+                // Total Favorites
+                user.Recipes.forEach(recipe => {
+                    if (recipe.FavoritedBy) {
+                        totalFavorites += recipe.FavoritedBy.length;
+                    }
+                });
             }
 
             return {
                 username: user.username,
                 cookbookTitle: user.cookbookTitle,
-                cookbookImage: user.cookbookImage,  // Original cookbook avatar
-                tileImage: tileImage,                // Random recipe image for background
+                cookbookImage: user.cookbookImage,
+                tileImage: tileImage,
                 sharingKey: user.sharingKey,
-                recipeCount: user.Recipes ? user.Recipes.length : 0
+                recipeCount: user.Recipes ? user.Recipes.length : 0,
+                totalFavorites: totalFavorites,
+                cookbookClicks: user.cookbookClicks || 0
             };
         });
 

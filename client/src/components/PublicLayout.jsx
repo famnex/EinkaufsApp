@@ -3,7 +3,7 @@ import PublicFooter from './PublicFooter';
 
 export default function PublicLayout({ children, mainClassName = "flex-1" }) {
     return (
-        <div className="min-h-screen bg-background font-['Outfit'] overflow-x-hidden selection:bg-primary/20 flex flex-col">
+        <div className="min-h-screen bg-background font-['Outfit'] overflow-x-hidden print:overflow-visible selection:bg-primary/20 flex flex-col">
             <PublicHeader />
             <main
                 className={mainClassName}

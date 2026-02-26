@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import api from '../lib/axios';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,11 +17,12 @@ import ShareConfirmationModal from '../components/ShareConfirmationModal';
 import { cn, getImageUrl } from '../lib/utils';
 import LoadingOverlay from '../components/LoadingOverlay';
 
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Recipes() {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [recipes, setRecipes] = useState([]);
     const [menus, setMenus] = useState([]);
 
@@ -79,23 +80,23 @@ export default function Recipes() {
         return () => document.removeEventListener('click', closeMenu);
     }, []);
 
-    useEffect(() => {
-        fetchRecipes();
-    }, []);
+
+
+    const deepLinkHandled = useRef(false);
 
     // Handle deep linking / navigation state
     useEffect(() => {
-        if (!loading && recipes.length > 0 && location.state?.openRecipeId) {
+        if (!loading && recipes.length > 0 && location.state?.openRecipeId && !deepLinkHandled.current) {
             const target = recipes.find(r => r.id === location.state.openRecipeId);
             if (target) {
+                deepLinkHandled.current = true;
                 if (location.state.startCooking) {
                     handleOpenCookingMode(target);
                 } else {
                     setSelectedRecipe(target);
                     setIsModalOpen(true);
                 }
-                // Clear state to prevent reopening on generic re-renders?
-                // Actually keep it, but maybe replace history to clean it up.
+                // Clear state in history so refresh doesn't trigger it again
                 window.history.replaceState({}, document.title);
             }
         }
@@ -183,6 +184,7 @@ export default function Recipes() {
     const effectiveUserId = user?.householdId || user?.id;
 
     const [selectedCategory, setSelectedCategory] = useState('All');
+    const [sortBy, setSortBy] = useState('A-Z'); // 'A-Z', 'Meiste in Favoriten', 'Meiste Klicks', 'Am Meisten gekocht', 'Wenigste Zutaten', 'Schnellste Kochzeit'
 
     // Dynamically build favorite categories based on who in the household favorited what
     const favoriteCategories = useMemo(() => {
@@ -234,8 +236,24 @@ export default function Recipes() {
             }
 
             return matchesSearch && matchesCategory;
+        }).sort((a, b) => {
+            if (sortBy === 'A-Z') return a.title.localeCompare(b.title);
+            if (sortBy === 'Am Meisten gekocht') return (b.cookCount || 0) - (a.cookCount || 0);
+            if (sortBy === 'Meiste in Favoriten') return (b.favoritedBy?.length || 0) - (a.favoritedBy?.length || 0);
+            if (sortBy === 'Meiste Klicks') return (b.clicks || 0) - (a.clicks || 0);
+            if (sortBy === 'Wenigste Zutaten') return (a.RecipeIngredients?.length || 0) - (b.RecipeIngredients?.length || 0);
+            if (sortBy === 'Schnellste Kochzeit') {
+                const timeA = (a.prep_time || 0) + (a.duration || 0);
+                const timeB = (b.prep_time || 0) + (b.duration || 0);
+                // If both are 0, might leave as is or put at end, but basic sort is fine
+                if (timeA === 0 && timeB === 0) return 0;
+                if (timeA === 0) return 1;
+                if (timeB === 0) return -1;
+                return timeA - timeB;
+            }
+            return 0;
         });
-    }, [recipes, searchTerm, selectedCategory]);
+    }, [recipes, searchTerm, selectedCategory, sortBy]);
 
     const { visibleItems: renderedRecipes, observerTarget } = useInfiniteScroll(filteredRecipes, 12);
 
@@ -388,6 +406,25 @@ export default function Recipes() {
                         </div>
                     </div>
 
+                    {/* Sorting Dropdown */}
+                    <div className="relative transition-all duration-300 ease-in-out md:w-auto md:flex-none w-12 hidden min-[800px]:block">
+                        <select
+                            value={sortBy}
+                            onChange={(e) => {
+                                setSortBy(e.target.value);
+                                e.target.blur();
+                            }}
+                            className="h-12 w-full bg-card border border-border rounded-xl shadow-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none px-4 transition-all pr-10"
+                        >
+                            {['A-Z', 'Am Meisten gekocht', 'Meiste in Favoriten', 'Meiste Klicks', 'Wenigste Zutaten', 'Schnellste Kochzeit'].map(s => (
+                                <option key={s} value={s}>{s}</option>
+                            ))}
+                        </select>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] border-t-muted-foreground" />
+                        </div>
+                    </div>
+
                     <div className="h-12 w-px bg-border mx-2 hidden md:block" />
 
                     <div className="flex gap-2">
@@ -507,16 +544,18 @@ export default function Recipes() {
                                                     >
                                                         <MoreHorizontal size={20} />
                                                     </button>
-                                                    <button
-                                                        onClick={(e) => toggleFavorite(e, recipe)}
-                                                        className="absolute top-12 right-0 p-2 rounded-full backdrop-blur-sm bg-black/20 hover:bg-black/40 text-white transition-all duration-200 focus:outline-none"
-                                                        title="Zu Favoriten hinzufügen/entfernen"
-                                                    >
-                                                        <Heart
-                                                            size={20}
-                                                            className={cn("transition-colors duration-300", recipe.isFavorite ? "fill-rose-500 text-rose-500" : "text-white")}
-                                                        />
-                                                    </button>
+                                                    <div onClick={(e) => e.stopPropagation()}>
+                                                        <button
+                                                            onClick={(e) => toggleFavorite(e, recipe)}
+                                                            className="absolute top-12 right-0 p-2 rounded-full backdrop-blur-sm bg-black/20 hover:bg-black/40 text-white transition-all duration-200 focus:outline-none"
+                                                            title="Zu Favoriten hinzufügen/entfernen"
+                                                        >
+                                                            <Heart
+                                                                size={20}
+                                                                className={cn("transition-colors duration-300", recipe.isFavorite ? "fill-rose-500 text-rose-500" : "text-white")}
+                                                            />
+                                                        </button>
+                                                    </div>
 
                                                     {/* Menu Dropdown */}
                                                     <AnimatePresence>

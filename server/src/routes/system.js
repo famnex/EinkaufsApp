@@ -37,8 +37,61 @@ router.get('/settings', async (req, res) => {
         });
 
         const settingsMap = {};
+
+        const token = req.header('Authorization')?.replace('Bearer ', '') || req.query.token;
+        let isAdmin = false;
+
+        if (token) {
+            try {
+                const jwt = require('jsonwebtoken');
+                const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                const user = await User.findByPk(decoded.id);
+                if (user && user.role === 'admin') {
+                    isAdmin = true;
+                }
+            } catch (err) {
+                // Ignore invalid token, treat as public request
+            }
+        }
+
+        const publicKeys = [
+            'system_accent_color',
+            'system_secondary_color',
+            'system_debug_mode',
+            'registration_enabled',
+            'legal_privacy', 'legal_imprint', 'legal_terms',
+            'stripe_publishable_key'
+        ];
+
+        const secretKeys = [
+            'stripe_webhook_secret',
+            'stripe_secret_key',
+            'openai_key',
+            'alexa_key',
+            'smtp_password',
+            'imap_password'
+        ];
+
         settings.forEach(s => {
-            settingsMap[s.key] = s.value;
+            if (isAdmin) {
+                // Admin gets everything, but mask secrets
+                if (secretKeys.includes(s.key) || s.key.includes('password') || s.key.includes('secret') || s.key.includes('_key')) {
+                    if (s.key === 'stripe_publishable_key' || s.key.includes('public')) {
+                        settingsMap[s.key] = s.value;
+                    } else if (s.value) {
+                        settingsMap[s.key] = '***';
+                    } else {
+                        settingsMap[s.key] = s.value;
+                    }
+                } else {
+                    settingsMap[s.key] = s.value;
+                }
+            } else {
+                // Public only gets public keys
+                if (publicKeys.includes(s.key)) {
+                    settingsMap[s.key] = s.value;
+                }
+            }
         });
 
         res.json(settingsMap);
@@ -92,6 +145,11 @@ router.post('/settings', auth, admin, async (req, res) => {
         console.log(`[SYSTEM] Update Request: ${key} = ${value} (User: ${req.user.username})`);
 
         if (!key) return res.status(400).json({ error: 'Key is required' });
+
+        if (value === '***') {
+            console.log(`[SYSTEM] Skipping update for ${key} because value is masked.`);
+            return res.json({ message: 'Setting update skipped (masked)', key, value });
+        }
 
         const stringValue = value !== undefined ? String(value) : null;
 

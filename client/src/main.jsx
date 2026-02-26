@@ -7,9 +7,7 @@ const startTime = Date.now();
 const root = createRoot(document.getElementById('root'));
 
 root.render(
-  <StrictMode>
-    <App />
-  </StrictMode>
+  <App />
 );
 
 // Remove splash screen after min 1 second

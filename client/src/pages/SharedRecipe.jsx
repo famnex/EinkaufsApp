@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ChefHat, Clock, Play, User, Users, ShieldCheck } from 'lucide-react';
+import { ChefHat, Clock, Play, User, Users, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { Card } from '../components/Card';
 import SharedCookingMode from '../components/SharedCookingMode';
 import SharedNotFound from '../components/SharedNotFound';
@@ -70,7 +70,7 @@ export default function SharedRecipe() {
         <>
             <main className="max-w-3xl mx-auto p-4 space-y-6 flex-1 w-full print:max-w-none print:p-0">
                 {/* Print Title Header */}
-                <div className="hidden print:block mb-6 space-y-2">
+                <div className="hidden print:block mb-6 space-y-2 print-avoid-break">
                     <h1 className="text-4xl font-bold text-black">{recipe.title}</h1>
                     <div className="flex items-center gap-4 text-sm text-gray-600">
                         <span className="uppercase font-bold tracking-wider border px-2 py-0.5 rounded-md border-gray-300">
@@ -112,6 +112,15 @@ export default function SharedRecipe() {
                         </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                    <div className="absolute top-4 left-4 z-20">
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="fixed top-20 left-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-all z-40 flex items-center gap-2"
+                        >
+                            <ArrowLeft size={20} />
+                            <span className="text-sm font-bold hidden sm:inline pr-2">Zurück</span>
+                        </button>
+                    </div>
                     <div className="absolute bottom-0 left-0 right-0 p-6 pt-20 text-white">
                         <span className="px-2 py-1 bg-primary/20 text-primary-foreground text-xs uppercase font-bold rounded-full backdrop-blur-md border border-white/10 mb-2 inline-block">
                             {recipe.category || 'Rezept'}
@@ -179,21 +188,22 @@ export default function SharedRecipe() {
                     </Card>
                 </div>
 
-                <div className="grid md:grid-cols-[1fr_1.5fr] gap-6 print:grid-cols-[1fr_2fr] print:gap-8">
+                {/* Screen-only Grid Layout */}
+                <div className="print:hidden grid md:grid-cols-[1fr_1.5fr] gap-6">
                     {/* Ingredients */}
                     <div className="space-y-4">
-                        <h2 className="text-xl font-bold flex items-center gap-2 print:text-black">
-                            <span className="w-8 h-8 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center text-sm print:border print:border-gray-300 print:text-black print:bg-transparent">1</span>
+                        <h2 className="text-xl font-bold flex items-center gap-2">
+                            <span className="w-8 h-8 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center text-sm">1</span>
                             Zutaten
                         </h2>
-                        <Card className="divide-y divide-border overflow-hidden print:shadow-none print:border-gray-200">
+                        <Card className="divide-y divide-border overflow-hidden">
                             {recipe.RecipeIngredients && recipe.RecipeIngredients.length > 0 ? (
                                 recipe.RecipeIngredients.map((ri) => (
-                                    <div key={ri.id} className="p-3 flex items-center justify-between hover:bg-muted/30 transition-colors print:px-3 print:py-2">
-                                        <span className="font-medium print:text-black">
+                                    <div key={ri.id} className="p-3 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                                        <span className="font-medium">
                                             {ri.Product?.name || 'Unbekanntes Produkt'}
                                         </span>
-                                        <span className="text-sm text-muted-foreground font-semibold bg-muted px-2 py-0.5 rounded-md print:bg-transparent print:text-black print:border print:border-gray-200">
+                                        <span className="text-sm text-muted-foreground font-semibold bg-muted px-2 py-0.5 rounded-md">
                                             {ri.quantity} {ri.unit}
                                         </span>
                                     </div>
@@ -207,30 +217,19 @@ export default function SharedRecipe() {
                     </div>
 
                     {/* Instructions */}
-                    <div className="space-y-4 print:space-y-6">
-                        {/* Print-only Recipe Image */}
-                        {recipe.image_url && (
-                            <div className="hidden print:block w-full rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
-                                <img
-                                    src={renderImageUrl(recipe.image_url)}
-                                    alt={recipe.title}
-                                    className="w-full h-auto object-cover max-h-[300px]"
-                                />
-                            </div>
-                        )}
-
-                        <h2 className="text-xl font-bold flex items-center gap-2 print:text-black">
-                            <span className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-sm print:border print:border-gray-300 print:text-black print:bg-transparent">2</span>
+                    <div className="space-y-4">
+                        <h2 className="text-xl font-bold flex items-center gap-2">
+                            <span className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-sm">2</span>
                             Zubereitung
                         </h2>
                         <div className="space-y-4">
                             {recipe.instructions && recipe.instructions.length > 0 ? (
                                 recipe.instructions.map((step, idx) => (
-                                    <Card key={idx} className="p-4 flex gap-4 hover:shadow-md transition-shadow print:shadow-none print:border-none print:p-0 print:gap-4 print:mb-4">
-                                        <div className="shrink-0 w-8 h-8 rounded-full bg-muted text-muted-foreground font-bold flex items-center justify-center text-sm print:bg-transparent print:border print:border-gray-400 print:text-black print:w-6 print:h-6">
+                                    <Card key={idx} className="p-4 flex gap-4 hover:shadow-md transition-shadow">
+                                        <div className="shrink-0 w-8 h-8 rounded-full bg-muted text-muted-foreground font-bold flex items-center justify-center text-sm">
                                             {idx + 1}
                                         </div>
-                                        <p className="leading-relaxed text-muted-foreground print:text-black text-justify">
+                                        <p className="leading-relaxed text-muted-foreground text-justify">
                                             {step}
                                         </p>
                                     </Card>
@@ -243,6 +242,74 @@ export default function SharedRecipe() {
                         </div>
                     </div>
                 </div>
+
+                {/* Print-only Table Layout (Solves Chrome Pagination) */}
+                <table className="hidden print:table w-full border-collapse border-none">
+                    <tbody>
+                        <tr>
+                            <td className="w-[35%] align-top pr-8 pb-4 border-none">
+                                {/* Ingredients Column */}
+                                <h2 className="text-xl font-bold mb-4 text-black flex items-center gap-2">
+                                    <span className="w-6 h-6 rounded-md border border-gray-300 flex items-center justify-center text-sm">1</span>
+                                    Zutaten
+                                </h2>
+                                <div className="border border-gray-200 rounded-xl overflow-visible">
+                                    {recipe.RecipeIngredients && recipe.RecipeIngredients.length > 0 ? (
+                                        recipe.RecipeIngredients.map((ri) => (
+                                            <div key={ri.id} className="p-3 flex items-center justify-between border-b border-gray-100 last:border-0">
+                                                <span className="font-medium text-black">
+                                                    {ri.Product?.name || 'Unbekanntes Produkt'}
+                                                </span>
+                                                <span className="text-xs font-semibold text-black border border-gray-200 px-2 py-0.5 rounded-md">
+                                                    {ri.quantity} {ri.unit}
+                                                </span>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="p-4 text-center text-gray-400 text-sm italic">
+                                            Keine Zutaten.
+                                        </div>
+                                    )}
+                                </div>
+                            </td>
+                            <td className="w-[65%] align-top pb-4 border-none">
+                                {/* Image & Instructions Column */}
+                                {recipe.image_url && (
+                                    <div className="mb-6 rounded-2xl overflow-hidden border border-gray-100 shadow-sm print-avoid-break">
+                                        <img
+                                            src={renderImageUrl(recipe.image_url)}
+                                            alt={recipe.title}
+                                            className="w-full h-auto object-cover max-h-[300px]"
+                                        />
+                                    </div>
+                                )}
+
+                                <h2 className="text-xl font-bold mb-4 text-black flex items-center gap-2">
+                                    <span className="w-6 h-6 rounded-md border border-gray-300 flex items-center justify-center text-sm">2</span>
+                                    Zubereitung
+                                </h2>
+                                <div className="space-y-4">
+                                    {recipe.instructions && recipe.instructions.length > 0 ? (
+                                        recipe.instructions.map((step, idx) => (
+                                            <div key={idx} className="flex gap-4 mb-4 break-inside-avoid page-break-inside-avoid">
+                                                <div className="shrink-0 w-6 h-6 rounded-full border border-gray-400 text-black font-bold flex items-center justify-center text-sm">
+                                                    {idx + 1}
+                                                </div>
+                                                <p className="leading-relaxed text-black text-justify flex-1">
+                                                    {step}
+                                                </p>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="p-4 border-2 border-dashed border-gray-200 rounded-xl text-center italic text-gray-400">
+                                            Keine Schritte.
+                                        </div>
+                                    )}
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </main>
 
             <style>{`
@@ -253,6 +320,8 @@ export default function SharedRecipe() {
                     html, body {
                         background: white !important;
                         color: black !important;
+                        height: auto !important;
+                        overflow: visible !important;
                     }
                     .bg-card, .bg-muted, .bg-secondary\\/10, .bg-primary\\/10 {
                         background-color: transparent !important;
@@ -266,6 +335,11 @@ export default function SharedRecipe() {
                     }
                     .text-primary, .text-secondary, .text-muted-foreground {
                         color: black !important;
+                    }
+                    
+                    .print-avoid-break {
+                        break-inside: avoid !important;
+                        page-break-inside: avoid !important;
                     }
                 }
             `}</style>

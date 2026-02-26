@@ -182,26 +182,36 @@ export default function SettingsPage() {
 
     useEffect(() => {
         fetchStores();
-        fetchSettings();
         if (user) {
             fetchHouseholdMembers();
-            fetchUserStrikes(); // New: Fetch strikes for personal profile
         }
+    }, [user?.id, user?.householdId]);
+
+    // System and Admin Settings Fetch
+    useEffect(() => {
+        fetchSettings();
+    }, [user?.role]);
+
+    // Admin Tabs Fetching
+    useEffect(() => {
         if (user?.role === 'admin') {
-            fetchUsers();
-            fetchEmails('inbox');
+            if (activeAdminTab === 'users' || !activeAdminTab) {
+                fetchUsers();
+                fetchUserStrikes(); // Only fetch strikes for admins
+            }
+            if (activeAdminTab === 'messaging' || !activeAdminTab) fetchEmails('inbox');
             if (activeAdminTab === 'compliance') {
                 fetchComplianceReports();
             }
         }
-    }, [user?.role, activeAdminTab, user?.id, user?.householdId]); // Added user.householdId dependency
+    }, [user?.role, activeAdminTab]);
 
     // User Strikes State
     const [userStrikes, setUserStrikes] = useState([]);
     const [loadingStrikes, setLoadingStrikes] = useState(false);
 
     const fetchUserStrikes = async () => {
-        if (!user) return;
+        if (!user || user.role !== 'admin') return;
         setLoadingStrikes(true);
         try {
             const res = await api.get(`/users/${user.id}/strikes`);
@@ -360,24 +370,33 @@ export default function SettingsPage() {
 
     const fetchSettings = async () => {
         try {
+            const isAdmin = user?.role === 'admin';
+
             const promises = [
-                api.get('/settings/openai_key'),
-                api.get('/settings/registration_enabled'),
-                api.get('/settings/system/version'),
-                api.get('/settings/alexa_key'),
-                api.get('/system/settings'),
-                api.get('/settings/email')
+                api.get('/system/settings')
             ];
 
-            // Allow version fetch to fail gracefully if endpoint doesn't exist yet (though it should)
+            if (isAdmin) {
+                promises.push(api.get('/settings/openai_key'));
+                promises.push(api.get('/settings/registration_enabled'));
+                promises.push(api.get('/settings/system/version'));
+                promises.push(api.get('/settings/alexa_key'));
+                promises.push(api.get('/settings/email'));
+            }
+
             const results = await Promise.allSettled(promises);
 
-            const openaiRes = results[0].status === 'fulfilled' ? results[0].value : { data: {} };
-            const regRes = results[1].status === 'fulfilled' ? results[1].value : { data: {} };
-            const verRes = results[2].status === 'fulfilled' ? results[2].value : { data: { version: 'Unknown' } };
-            const alexaRes = results[3]?.status === 'fulfilled' ? results[3].value : { data: {} };
-            const systemSettingsRes = results[4]?.status === 'fulfilled' ? results[4].value : { data: {} };
-            const emailRes = results[5]?.status === 'fulfilled' ? results[5].value : { data: {} };
+            const systemSettingsRes = results[0]?.status === 'fulfilled' ? results[0].value : { data: {} };
+
+            let openaiRes = { data: {} }, regRes = { data: {} }, verRes = { data: { version: 'Unknown' } }, alexaRes = { data: {} }, emailRes = { data: {} };
+
+            if (isAdmin) {
+                openaiRes = results[1]?.status === 'fulfilled' ? results[1].value : { data: {} };
+                regRes = results[2]?.status === 'fulfilled' ? results[2].value : { data: {} };
+                verRes = results[3]?.status === 'fulfilled' ? results[3].value : { data: { version: 'Unknown' } };
+                alexaRes = results[4]?.status === 'fulfilled' ? results[4].value : { data: {} };
+                emailRes = results[5]?.status === 'fulfilled' ? results[5].value : { data: {} };
+            }
 
             setOpenaiKey(openaiRes.data.value || '');
             setRegistrationEnabled(regRes.data.value !== 'false');
@@ -398,7 +417,7 @@ export default function SettingsPage() {
             if (systemSettingsRes.data) {
                 setStripeConfig({
                     publishableKey: systemSettingsRes.data.stripe_publishable_key || '',
-                    secretKey: '', // Never populate secret from server
+                    secretKey: systemSettingsRes.data.stripe_secret_key || '',
                     webhookSecret: systemSettingsRes.data.stripe_webhook_secret || '',
                     priceSilber: systemSettingsRes.data.stripe_price_silber || '',
                     priceGold: systemSettingsRes.data.stripe_price_gold || ''
@@ -412,14 +431,14 @@ export default function SettingsPage() {
                     smtpHost: emailRes.data.smtpHost || '',
                     smtpPort: emailRes.data.smtpPort || '587',
                     smtpUser: emailRes.data.smtpUser || '',
-                    smtpPassword: '', // Never populate password from server
+                    smtpPassword: emailRes.data.smtpPassword || '',
                     smtpSenderName: emailRes.data.smtpSenderName || '',
                     smtpFrom: emailRes.data.smtpFrom || '',
                     smtpSecure: emailRes.data.smtpSecure === true,
                     imapHost: emailRes.data.imapHost || '',
                     imapPort: emailRes.data.imapPort || '993',
                     imapUser: emailRes.data.imapUser || '',
-                    imapPassword: '', // Never populate password from server
+                    imapPassword: emailRes.data.imapPassword || '',
                     imapSecure: emailRes.data.imapSecure === true,
                     newsletterBatchSize: parseInt(emailRes.data.newsletterBatchSize) || 50,
                     newsletterWaitMinutes: parseInt(emailRes.data.newsletterWaitMinutes) || 5,

@@ -226,12 +226,62 @@ router.delete('/:id', async (req, res) => {
             return res.status(400).json({ error: 'Cannot delete yourself' });
         }
 
-        // Dissolve household: if others have this user's id as their householdId, set it back to their own
-        await User.update({ householdId: sequelize.col('id') }, { where: { householdId: user.id } });
+        // SQLite Foreign Key Constraint Workaround (Manual Cascade)
+        // Since we didn't define ON DELETE CASCADE inside the actual DB definitions, we have to clean dependencies.
+        const models = require('../models');
+        const transaction = await models.sequelize.transaction();
 
-        await user.destroy();
-        res.json({ message: 'User deleted' });
+        try {
+            await models.User.update(
+                { householdId: models.sequelize.col('id') },
+                { where: { householdId: user.id }, transaction }
+            );
+
+            const dOpt = { where: { UserId: user.id }, transaction };
+
+            // Tier 1 Dependencies
+            await models.ListItem.destroy(dOpt);
+            await models.ProductSubstitution.destroy(dOpt);
+            await models.ProductRelation.destroy(dOpt);
+            await models.HiddenCleanup.destroy(dOpt);
+            await models.RecipeIngredient.destroy(dOpt);
+            await models.RecipeTag.destroy(dOpt);
+
+            // Tier 2 Dependencies
+            await models.List.destroy(dOpt);
+            await models.Menu.destroy(dOpt);
+            await models.Expense.destroy(dOpt);
+            await models.Settings.destroy(dOpt);
+            await models.CreditTransaction.destroy(dOpt);
+            await models.LoginLog.destroy(dOpt);
+            await models.SubscriptionLog.destroy(dOpt);
+            await models.Email.destroy(dOpt);
+            await models.NewsletterRecipient.destroy(dOpt);
+            try { await models.ComplianceReport.destroy({ where: { accusedUserId: user.id }, transaction }); } catch (e) { }
+
+            // Tier 3 Entities
+            await models.Recipe.destroy(dOpt);
+            await models.Product.destroy(dOpt);
+
+            // Tier 4 Parents
+            await models.Manufacturer.destroy(dOpt);
+            await models.Store.destroy(dOpt);
+            await models.Tag.destroy(dOpt);
+
+            // Cleanup joins
+            await models.sequelize.query(`DELETE FROM FavoriteRecipes WHERE UserId = ${user.id}`, { transaction });
+
+            await user.destroy({ transaction });
+            await transaction.commit();
+            res.json({ message: 'User deleted' });
+
+        } catch (innerErr) {
+            await transaction.rollback();
+            throw innerErr;
+        }
     } catch (err) {
+        const logger = require('../utils/logger');
+        logger.logError(`Failed to delete user ${req.params.id}:`, err);
         res.status(500).json({ error: err.message });
     }
 });

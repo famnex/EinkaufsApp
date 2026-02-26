@@ -175,7 +175,7 @@ export default function Layout({ children }) {
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.2 }}
                     >
-                        <Outlet />
+                        {children || <Outlet />}
                     </motion.div>
                 </AnimatePresence>
             </main>

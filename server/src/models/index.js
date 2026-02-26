@@ -50,7 +50,8 @@ const User = sequelize.define('User', {
     isEmailVerified: { type: DataTypes.BOOLEAN, defaultValue: false },
     emailVerificationToken: { type: DataTypes.STRING, allowNull: true },
     pendingEmail: { type: DataTypes.STRING, allowNull: true },
-    tokenVersion: { type: DataTypes.INTEGER, defaultValue: 0 }
+    tokenVersion: { type: DataTypes.INTEGER, defaultValue: 0 },
+    cookbookClicks: { type: DataTypes.INTEGER, defaultValue: 0 }
 });
 
 const Manufacturer = sequelize.define('Manufacturer', {
@@ -186,6 +187,7 @@ const SubscriptionLog = require('./SubscriptionLog')(sequelize);
 const ComplianceReport = require('./ComplianceReport')(sequelize);
 const Newsletter = require('./Newsletter')(sequelize);
 const NewsletterRecipient = require('./NewsletterRecipient')(sequelize);
+const PublicVisit = require('./PublicVisit')(sequelize);
 
 LoginLog.belongsTo(User);
 SubscriptionLog.belongsTo(User);
@@ -289,5 +291,6 @@ module.exports = {
     Email,
     ComplianceReport,
     Newsletter,
-    NewsletterRecipient
+    NewsletterRecipient,
+    PublicVisit
 };

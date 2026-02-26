@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChefHat, Search, ArrowRight, BookOpen, User, Star, TrendingUp, Users, ShieldCheck } from 'lucide-react';
+import { ChefHat, Search, ArrowRight, BookOpen, User, Star, TrendingUp, Users, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { Card } from './Card';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -16,6 +16,7 @@ export default function CommunityCookbooksContent() {
     const [cookbooks, setCookbooks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [sortBy, setSortBy] = useState('favorites'); // 'recipes', 'favorites', 'clicks'
 
     useEffect(() => {
         fetchPublicCookbooks();
@@ -32,12 +33,27 @@ export default function CommunityCookbooksContent() {
         }
     };
 
-    const filteredCookbooks = cookbooks.filter(cb => {
-        const title = cb.cookbookTitle || '';
-        const name = cb.username || '';
-        return title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            name.toLowerCase().includes(searchTerm.toLowerCase());
-    });
+    const filteredCookbooks = cookbooks
+        .filter(cb => {
+            const title = cb.cookbookTitle || '';
+            const name = cb.username || '';
+            return title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                name.toLowerCase().includes(searchTerm.toLowerCase());
+        })
+        .sort((a, b) => {
+            // Pin THECOOKINGGUYS to the top
+            const pinnedTitle = "THECOOKINGGUYS";
+            const aIsPinned = (a.cookbookTitle || '').toUpperCase() === pinnedTitle;
+            const bIsPinned = (b.cookbookTitle || '').toUpperCase() === pinnedTitle;
+
+            if (aIsPinned && !bIsPinned) return -1;
+            if (!aIsPinned && bIsPinned) return 1;
+
+            if (sortBy === 'recipes') return (b.recipeCount || 0) - (a.recipeCount || 0);
+            if (sortBy === 'favorites') return (b.totalFavorites || 0) - (a.totalFavorites || 0);
+            if (sortBy === 'clicks') return (b.cookbookClicks || 0) - (a.cookbookClicks || 0);
+            return 0;
+        });
 
     const totalRecipes = cookbooks.reduce((acc, curr) => acc + (parseInt(curr.recipeCount) || 0), 0);
 
@@ -60,6 +76,15 @@ export default function CommunityCookbooksContent() {
         <LoadingOverlay isLoading={loading}>
 
             <div className="space-y-8 pb-24 max-w-7xl mx-auto px-4 pt-8">
+                {/* Back Button */}
+                <button
+                    onClick={() => navigate(-1)}
+                    className="fixed top-20 left-4 p-2 bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 text-foreground rounded-full backdrop-blur-md transition-all z-40 flex items-center gap-2 border border-border/50"
+                >
+                    <ArrowLeft size={20} />
+                    <span className="text-sm font-bold hidden sm:inline pr-2">Zurück</span>
+                </button>
+
                 {/* Header Section */}
                 <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-background to-accent/5 border border-border/50 p-8 md:p-12">
                     <div className="absolute top-0 right-0 p-12 opacity-5">
@@ -101,15 +126,39 @@ export default function CommunityCookbooksContent() {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.3 }}
-                            className="relative max-w-md"
+                            className="flex flex-col md:flex-row gap-4 items-start md:items-center w-full max-w-2xl"
                         >
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
-                            <Input
-                                placeholder="Suche nach Titel, Koch oder Thema..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-12 h-14 rounded-2xl bg-background/80 backdrop-blur-sm border-2 border-primary/10 focus:border-primary/30 text-lg shadow-xl shadow-primary/5"
-                            />
+                            <div className="relative flex-1 w-full">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
+                                <Input
+                                    placeholder="Suche nach Titel, Koch oder Thema..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-12 h-14 rounded-2xl bg-background/80 backdrop-blur-sm border-2 border-primary/10 focus:border-primary/30 text-lg shadow-xl shadow-primary/5"
+                                />
+                            </div>
+
+                            <div className="flex bg-muted/50 p-1 rounded-2xl border border-border/50 backdrop-blur-sm w-full md:w-auto h-14 items-center">
+                                {[
+                                    { id: 'favorites', label: 'Favoriten', icon: Star },
+                                    { id: 'recipes', label: 'Rezepte', icon: ChefHat },
+                                    { id: 'clicks', label: 'Klicks', icon: TrendingUp }
+                                ].map((tab) => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setSortBy(tab.id)}
+                                        className={cn(
+                                            "flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap h-full",
+                                            sortBy === tab.id
+                                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                                                : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                                        )}
+                                    >
+                                        <tab.icon size={16} />
+                                        <span className="hidden sm:inline">{tab.label}</span>
+                                    </button>
+                                ))}
+                            </div>
                         </motion.div>
                     </div>
                 </header>
@@ -154,7 +203,8 @@ export default function CommunityCookbooksContent() {
                         filteredCookbooks.map((cb, idx) => (
                             <motion.div variants={item} key={cb.sharingKey || idx}>
                                 <Card
-                                    className="p-0 overflow-hidden hover:shadow-2xl transition-all duration-500 border-border/50 bg-card hover:bg-card group flex flex-col h-full rounded-3xl hover:-translate-y-1"
+                                    onClick={() => navigate(`/shared/${cb.sharingKey}/cookbook`)}
+                                    className="p-0 overflow-hidden hover:shadow-2xl transition-all duration-500 border-border/50 bg-card hover:bg-card group flex flex-col h-full rounded-3xl hover:-translate-y-1 cursor-pointer"
                                 >
                                     <div className="h-48 bg-muted relative overflow-hidden">
                                         {cb.tileImage ? (
@@ -200,31 +250,31 @@ export default function CommunityCookbooksContent() {
                                         </div>
                                     </div>
                                     <div className="p-5 flex flex-col flex-1 bg-card">
-                                        {/* Follower section — temporarily disabled
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="flex -space-x-2">
-                                            {[1, 2, 3].map(i => (
-                                                <div key={i} className={`w-8 h-8 rounded-full border-2 border-card flex items-center justify-center text-xs text-white font-bold ${['bg-red-400', 'bg-blue-400', 'bg-green-400'][i - 1]}`}>
-                                                    {String.fromCharCode(64 + i)}
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="flex flex-col items-center">
+                                                    <div className="flex items-center gap-1.5 text-rose-500 mb-0.5">
+                                                        <Star size={16} className="fill-rose-500/20" />
+                                                        <span className="text-lg font-black">{cb.totalFavorites || 0}</span>
+                                                    </div>
+                                                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Favoriten</span>
                                                 </div>
-                                            ))}
-                                            <div className="w-8 h-8 rounded-full border-2 border-card bg-muted flex items-center justify-center text-[10px] text-muted-foreground font-bold">
-                                                +{Math.floor(Math.random() * 20) + 5}
+                                                <div className="w-px h-8 bg-border/50" />
+                                                <div className="flex flex-col items-center">
+                                                    <div className="flex items-center gap-1.5 text-blue-500 mb-0.5">
+                                                        <TrendingUp size={16} />
+                                                        <span className="text-lg font-black">{cb.cookbookClicks || 0}</span>
+                                                    </div>
+                                                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Aufrufe</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-primary/5 text-primary px-3 py-1.5 rounded-xl border border-primary/10 flex items-center gap-2">
+                                                <ChefHat size={14} className="opacity-70" />
+                                                <span className="text-sm font-black">{cb.recipeCount || 0}</span>
                                             </div>
                                         </div>
-                                        <span className="text-xs text-muted-foreground font-medium">Follower</span>
-                                    </div>
-                                    */}
 
-                                        <div className="mt-auto">
-                                            <Button
-                                                onClick={() => navigate(`/shared/${cb.sharingKey}/cookbook`)}
-                                                className="w-full gap-2 rounded-xl h-12 font-bold shadow-lg shadow-primary/10 group-hover:shadow-primary/20 transition-all"
-                                                variant="default"
-                                            >
-                                                Kochbuch öffnen <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                                            </Button>
-                                        </div>
                                     </div>
                                 </Card>
                             </motion.div>

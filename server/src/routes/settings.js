@@ -146,14 +146,19 @@ router.get('/email', auth, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
 
     try {
-        const fields = ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_from', 'smtp_sender_name', 'smtp_secure', 'imap_host', 'imap_port', 'imap_user', 'imap_secure', 'newsletter_batch_size', 'newsletter_wait_minutes', 'newsletter_footer'];
+        const fields = ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_from', 'smtp_sender_name', 'smtp_secure', 'imap_host', 'imap_port', 'imap_user', 'imap_secure', 'newsletter_batch_size', 'newsletter_wait_minutes', 'newsletter_footer', 'smtp_password', 'imap_password'];
         const settings = {};
 
         for (const field of fields) {
             // Fetch GLOBAL settings (UserId: null)
             const setting = await Settings.findOne({ where: { key: field, UserId: null } });
             const camelKey = field.replace(/_([a-z])/g, (_, char) => char.toUpperCase());
-            settings[camelKey] = setting ? setting.value : '';
+
+            let value = setting ? setting.value : '';
+            if (value && field.includes('password')) {
+                value = '***';
+            }
+            settings[camelKey] = value;
         }
 
         // Convert booleans
@@ -190,11 +195,11 @@ router.post('/email', auth, async (req, res) => {
             newsletter_footer: newsletterFooter || ''
         };
 
-        // Only save passwords if provided
-        if (smtpPassword && smtpPassword.trim() !== '') {
+        // Only save passwords if provided and not masked
+        if (smtpPassword && smtpPassword.trim() !== '' && smtpPassword !== '***') {
             fieldMap.smtp_password = smtpPassword;
         }
-        if (imapPassword && imapPassword.trim() !== '') {
+        if (imapPassword && imapPassword.trim() !== '' && imapPassword !== '***') {
             fieldMap.imap_password = imapPassword;
         }
 
@@ -279,7 +284,12 @@ router.post('/email/test', auth, async (req, res) => {
 router.get('/:key', auth, async (req, res) => {
     try {
         const setting = await Settings.findOne({ where: { key: req.params.key, UserId: req.user.effectiveId } });
-        res.json({ value: setting ? setting.value : '' });
+        let value = setting ? setting.value : '';
+        const secretKeys = ['openai_key', 'alexa_key', 'stripe_webhook_secret', 'stripe_secret_key'];
+        if (value && (secretKeys.includes(req.params.key) || req.params.key.includes('password'))) {
+            value = '***';
+        }
+        res.json({ value });
     } catch (err) {
         logger.logError('Error in settings route:', err);
         res.status(500).json({ error: err.message });
@@ -291,6 +301,10 @@ router.post('/', auth, async (req, res) => {
     try {
         const { key, value } = req.body;
         if (!key) return res.status(400).json({ error: 'Key is required' });
+
+        if (value === '***') {
+            return res.json({ message: 'Setting update skipped (masked)', key });
+        }
 
         const [setting, created] = await Settings.findOrCreate({
             where: { key, UserId: req.user.effectiveId },

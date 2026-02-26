@@ -38,7 +38,10 @@ export const AuthProvider = ({ children }) => {
     const refreshUser = async () => {
         try {
             const { data } = await api.get('/auth/me');
-            setUser(data);
+            setUser(prevUser => {
+                const isSame = prevUser && JSON.stringify(prevUser) === JSON.stringify(data);
+                return isSame ? prevUser : data;
+            });
             localStorage.setItem('user', JSON.stringify(data));
             return data;
         } catch (err) {
@@ -102,9 +105,14 @@ export const AuthProvider = ({ children }) => {
 
     // Handle automatic refresh when window gains focus (e.g. returning from Payment)
     useEffect(() => {
+        let lastFocusTime = Date.now();
         const handleFocus = () => {
             if (localStorage.getItem('token')) {
-                refreshUser();
+                const now = Date.now();
+                if (now - lastFocusTime > 30000) { // Throttle: Only refresh if 30s have passed
+                    lastFocusTime = now;
+                    refreshUser();
+                }
             }
         };
 

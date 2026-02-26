@@ -7,6 +7,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { optimizeImage } = require('../utils/imageOptimizer');
+const { recordVisit } = require('../utils/visitorTracker');
 // const axios = require('axios'); // Removed for compliance
 
 // Configure multer for image upload
@@ -62,7 +63,7 @@ router.get('/', auth, async (req, res) => {
                     { '$FavoritedBy.id$': { [Op.in]: householdUserIds } }
                 ]
             },
-            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'createdAt', 'updatedAt', 'UserId'],
+            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'createdAt', 'updatedAt', 'UserId', 'clicks'],
             include: [
                 {
                     model: Tag,
@@ -90,6 +91,11 @@ router.get('/', auth, async (req, res) => {
                     where: { id: { [Op.in]: householdUserIds } },
                     required: false,
                     attributes: ['id', 'username']
+                },
+                {
+                    model: Menu,
+                    required: false,
+                    attributes: ['id']
                 }
             ],
             order: [['title', 'ASC']]
@@ -100,7 +106,9 @@ router.get('/', auth, async (req, res) => {
             const plain = r.get({ plain: true });
             plain.isFavorite = plain.FavoritedBy && plain.FavoritedBy.some(u => u.id === req.user.id);
             plain.favoritedBy = plain.FavoritedBy ? plain.FavoritedBy.map(u => u.username) : [];
+            plain.cookCount = plain.Menus ? plain.Menus.length : 0;
             delete plain.FavoritedBy; // clean up payload
+            delete plain.Menus;
             return plain;
         });
 
@@ -125,9 +133,14 @@ router.get('/public/:sharingKey/:id', async (req, res) => {
             return res.status(403).json({ error: 'Dieses Kochbuch wurde aufgrund eines Verstoßes gesperrt.' });
         }
 
+        // Increment clicks (only if unique visitor in window)
+        if (await recordVisit(req, 'cookbook', user.id)) {
+            await user.increment('cookbookClicks');
+        }
+
         const recipe = await Recipe.findOne({
             where: { id: id, UserId: user.id },
-            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'instructions'],
+            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'instructions', 'clicks'],
             include: [
                 {
                     model: RecipeIngredient,
@@ -143,6 +156,11 @@ router.get('/public/:sharingKey/:id', async (req, res) => {
 
         if (recipe.bannedAt) {
             return res.status(403).json({ error: 'Dieses Rezept wurde aufgrund eines Verstoßes gesperrt.' });
+        }
+
+        // Increment recipe clicks (only if unique visitor in window)
+        if (await recordVisit(req, 'recipe', recipe.id)) {
+            await recipe.increment('clicks');
         }
 
         // Hide image if scraped
@@ -200,6 +218,11 @@ router.get('/public/:sharingKey', checkOptionalAuth, async (req, res) => {
             return res.status(403).json({ error: 'Dieses Kochbuch wurde aufgrund eines Verstoßes gesperrt.' });
         }
 
+        // Increment clicks (only if unique visitor in window)
+        if (await recordVisit(req, 'cookbook', listOwner.id)) {
+            await listOwner.increment('cookbookClicks');
+        }
+
         const includeArr = [
             {
                 model: Tag,
@@ -207,26 +230,33 @@ router.get('/public/:sharingKey', checkOptionalAuth, async (req, res) => {
                 required: false,
                 attributes: ['id', 'name'],
                 through: { attributes: [] }
-            }
-        ];
-
-        // If viewer is logged in, check if they favorited these recipes
-        if (req.user) {
-            includeArr.push({
+            },
+            {
                 model: User,
                 as: 'FavoritedBy',
-                where: { id: req.user.id },
+                required: false,
+                attributes: ['id', 'username']
+            },
+            {
+                model: Menu,
                 required: false,
                 attributes: ['id']
-            });
-        }
+            },
+            {
+                // Lightweight ingredient count
+                model: RecipeIngredient,
+                where: { UserId: listOwner.id },
+                required: false,
+                attributes: ['id']
+            }
+        ];
 
         const recipes = await Recipe.findAll({
             where: {
                 UserId: listOwner.id,
                 bannedAt: null // Exclude banned recipes from list
             },
-            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource'],
+            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'clicks'],
             include: includeArr,
             order: [['title', 'ASC']]
         });
@@ -238,11 +268,14 @@ router.get('/public/:sharingKey', checkOptionalAuth, async (req, res) => {
                 plain.image_url = null; // Hide image
             }
             if (req.user) {
-                plain.isFavorite = !!(plain.FavoritedBy && plain.FavoritedBy.length > 0);
-                delete plain.FavoritedBy;
+                plain.isFavorite = !!(plain.FavoritedBy && plain.FavoritedBy.some(u => u.id === req.user.id));
             } else {
                 plain.isFavorite = false;
             }
+            plain.favoritedBy = plain.FavoritedBy ? plain.FavoritedBy.map(u => u.username) : [];
+            plain.cookCount = plain.Menus ? plain.Menus.length : 0;
+            delete plain.FavoritedBy;
+            delete plain.Menus;
             return plain;
         });
 
@@ -259,20 +292,51 @@ router.get('/public/:sharingKey', checkOptionalAuth, async (req, res) => {
 // Get recipe details
 router.get('/:id', auth, async (req, res) => {
     try {
+        const { Op } = require('sequelize');
+        const { User } = require('../models');
+
+        const householdUsers = await User.findAll({
+            where: {
+                [Op.or]: [
+                    { id: req.user.effectiveId },
+                    { householdId: req.user.effectiveId }
+                ]
+            },
+            attributes: ['id']
+        });
+        const householdUserIds = householdUsers.map(u => u.id);
+
         const recipe = await Recipe.findOne({
-            where: { id: req.params.id, UserId: req.user.effectiveId },
+            where: {
+                id: req.params.id,
+                [Op.or]: [
+                    { UserId: req.user.effectiveId },
+                    { '$FavoritedBy.id$': { [Op.in]: householdUserIds } }
+                ]
+            },
             include: [
                 {
                     model: RecipeIngredient,
-                    where: { UserId: req.user.effectiveId },
                     required: false,
-                    include: [{ model: Product, where: { UserId: req.user.effectiveId }, required: false, include: [{ model: Manufacturer, where: { UserId: req.user.effectiveId }, required: false }] }]
+                    include: [{ model: Product, required: false, include: [{ model: Manufacturer, required: false }] }]
                 },
-                { model: Tag, where: { UserId: req.user.effectiveId }, required: false }
+                { model: Tag, required: false },
+                {
+                    model: User,
+                    as: 'FavoritedBy',
+                    required: false,
+                    attributes: ['id']
+                }
             ]
         });
         if (!recipe) return res.status(404).json({ error: 'Recipe not found or unauthorized' });
-        res.json(recipe);
+
+        // Format isFavorite so frontend doesn't break
+        const plain = recipe.get({ plain: true });
+        plain.isFavorite = !!(plain.FavoritedBy && plain.FavoritedBy.some(u => u.id === req.user.id));
+        delete plain.FavoritedBy;
+
+        res.json(plain);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

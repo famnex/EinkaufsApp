@@ -433,3 +433,14 @@ textarea,
 .nav-icon-circle:active {
   transform: scale(0.9);
 }
+
+/* GLOBAL PRINT OVERRIDES */
+@media print {
+  html, body, #root, .min-h-screen, .h-screen, .h-full, .flex-1, main {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+}

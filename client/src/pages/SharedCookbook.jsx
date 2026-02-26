@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChefHat, Clock, Users, Filter, X, UtensilsCrossed, ArrowRight, ChevronDown, ChevronUp, Moon, Sun, Dices, Eye, ShieldCheck, Heart } from 'lucide-react';
+import { Search, ChefHat, Clock, Users, Filter, X, UtensilsCrossed, ArrowRight, ChevronDown, ChevronUp, Moon, Sun, Dices, Eye, ShieldCheck, Heart, ArrowLeft } from 'lucide-react';
 import axios from 'axios';
 import { cn, getImageUrl } from '../lib/utils';
 import { useTheme } from '../contexts/ThemeContext';
@@ -22,6 +22,7 @@ export default function SharedCookbook() {
     const [cookbookInfo, setCookbookInfo] = useState({ title: 'MEIN KOCHBUCH', image: null });
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('Alle');
+    const [sortBy, setSortBy] = useState('A-Z');
     const [selectedTags, setSelectedTags] = useState([]);
     const [categories, setCategories] = useState(['Alle']);
     const [allTags, setAllTags] = useState([]);
@@ -95,8 +96,23 @@ export default function SharedCookbook() {
                 selectedTags.every(t => recipe.Tags?.some(rt => rt.name === t));
 
             return matchesSearch && matchesCategory && matchesTags;
+        }).sort((a, b) => {
+            if (sortBy === 'A-Z') return a.title.localeCompare(b.title);
+            if (sortBy === 'Am Meisten gekocht') return (b.cookCount || 0) - (a.cookCount || 0);
+            if (sortBy === 'Meiste in Favoriten') return (b.favoritedBy?.length || 0) - (a.favoritedBy?.length || 0);
+            if (sortBy === 'Meiste Klicks') return (b.clicks || 0) - (a.clicks || 0);
+            if (sortBy === 'Wenigste Zutaten') return (a.RecipeIngredients?.length || 0) - (b.RecipeIngredients?.length || 0);
+            if (sortBy === 'Schnellste Kochzeit') {
+                const timeA = (a.prep_time || 0) + (a.duration || 0);
+                const timeB = (b.prep_time || 0) + (b.duration || 0);
+                if (timeA === 0 && timeB === 0) return 0;
+                if (timeA === 0) return 1;
+                if (timeB === 0) return -1;
+                return timeA - timeB;
+            }
+            return 0;
         });
-    }, [recipes, searchTerm, selectedCategory, selectedTags]);
+    }, [recipes, searchTerm, selectedCategory, selectedTags, sortBy]);
 
     const { visibleItems: renderedRecipes, observerTarget } = useInfiniteScroll(filteredRecipes, 16);
 
@@ -144,7 +160,13 @@ export default function SharedCookbook() {
                     style={{ backgroundImage: `url(${import.meta.env.BASE_URL}pattern.svg)` }}
                 />
 
-
+                <button
+                    onClick={() => navigate(-1)}
+                    className="fixed top-20 left-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-all z-40 flex items-center gap-2"
+                >
+                    <ArrowLeft size={20} />
+                    <span className="text-sm font-bold hidden sm:inline pr-2">Zurück</span>
+                </button>
 
                 <div className="max-w-7xl mx-auto px-4 py-8 md:py-20 relative z-10 flex flex-col items-center text-center">
                     <motion.div
@@ -236,9 +258,9 @@ export default function SharedCookbook() {
                                 <Filter size={18} />
                             </div>
                             <div className="text-left">
-                                <span className="block text-sm md:text-base">Kategorien & Filter</span>
+                                <span className="block text-sm md:text-base">Sortierung, Kategorien & Filter</span>
                                 <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                                    {selectedCategory !== 'Alle' || selectedTags.length > 0 ? 'Filter aktiv' : 'Alle Rezepte anzeigen'}
+                                    {selectedCategory !== 'Alle' || selectedTags.length > 0 || sortBy !== 'A-Z' ? 'Filter & Sortierung aktiv' : 'Alle Rezepte anzeigen'}
                                 </span>
                             </div>
                         </div>
@@ -260,6 +282,21 @@ export default function SharedCookbook() {
                                 className="overflow-hidden"
                             >
                                 <div className="p-4 pt-2 border-t border-border/50 space-y-6">
+
+                                    {/* Sorting */}
+                                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                                        <span className="text-sm font-bold text-muted-foreground">Sortieren nach:</span>
+                                        <select
+                                            value={sortBy}
+                                            onChange={(e) => setSortBy(e.target.value)}
+                                            className="bg-card border border-border rounded-xl px-4 py-2 text-sm font-bold w-full sm:w-auto focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-sans"
+                                        >
+                                            {['A-Z', 'Am Meisten gekocht', 'Meiste in Favoriten', 'Meiste Klicks', 'Wenigste Zutaten', 'Schnellste Kochzeit'].map(s => (
+                                                <option key={s} value={s}>{s}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
                                     {/* Categories names */}
                                     <div className="flex flex-wrap gap-2 justify-center">
                                         {categories.map(cat => (

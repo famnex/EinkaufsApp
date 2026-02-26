@@ -11,18 +11,7 @@ export default function LandingPage() {
     const navigate = useNavigate();
     const { user } = useAuth();
 
-    useEffect(() => {
-        // PWA Detection
-        const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
-        if (isPWA) {
-            if (user) {
-                navigate('/', { replace: true });
-            } else {
-                navigate('/login', { replace: true });
-            }
-        }
-    }, [user, navigate]);
 
     const features = [
         {

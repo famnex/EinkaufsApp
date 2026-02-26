@@ -31,8 +31,9 @@ Zentrales Benutzermodell.
 - `newsletterSignupDate` (DATE): Datum der Newsletter-Anmeldung [NEW v0.24.1].
 - `isEmailVerified` (BOOLEAN): Status der E-Mail-Bestätigung [NEW v0.29.0].
 - `emailVerificationToken` (STRING): Token für E-Mail-Aktivierung [NEW v0.29.0].
-- `pendingEmail` (STRING): Temporäre Speicherung bei E-Mail-Änderung [NEW v0.29.0].
-- `bannedAt` (DATETIME, NULLABLE): Wenn gesetzt, ist das öffentliche Kochbuch gesperrt.
+- `isPermanentlyBanned` (BOOLEAN)
+- `cookbookClicks` (INT): Anzahl der Aufrufe des öffentlichen Kochbuchs/Rezepte [NEW v0.30.15].
+- `resetPasswordToken` / `resetPasswordExpires` (STRING/DATE)
 
 ### `CreditTransactions` [NEW]
 Aufzeichnung aller AI-Guthaben-Bewegungen.
@@ -109,6 +110,14 @@ Protokollierung aller Abonnements-bezogenen Aktivitäten.
 - Spalten: `UserId`, `RecipeId`, `createdAt`, `updatedAt`
 - `isFavorite` (BOOLEAN): Gibt an, ob ein Rezept als Favorit markiert wurde [NEW v0.30.12].
 
+### `PublicVisits` [NEW v0.30.16]
+Tracking von anonymisierten Besuchen auf öffentlichen Pfaden zur Unique-Visitor-Zählung.
+- `id` (INT, PK)
+- `identifierHash` (STRING): SHA-256(IP + täglicher Salt).
+- `targetType` ('cookbook' | 'recipe')
+- `targetId` (INT): ID des Kochbuchs (Users) oder Rezepts.
+- `lastVisitAt` (DATE): Zeitstempel des letzten gezählten Besuchs innerhalb eines Fensters (1 Std).
+
 ### `Menus` / `Expenses` / `Tags` / `Settings`
 - Alle Tabellen enthalten ein `UserId` Feld zur strikten Isolation.
 
@@ -181,6 +190,16 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*
+
+### v0.30.16 - Unique Visitor Tracking (Februar 2026)
+1. **Besucher-Tracking**: Einführung der `PublicVisits` Tabelle.
+2. **DSGVO-Compliance**: Umstellung der Klick-Zählung von einfachem Inkrement auf ein systematisches Tracking einzigartiger Besucher (max. 1 Inkrement pro Stunde). Benutzer werden anonym per SHA-256 Hash aus IP-Adresse und einem täglich wechselnden Salt identifiziert.
+3. **Analytics**: Sowohl `cookbookClicks` in `Users` als auch `clicks` in `Recipes` verwenden nun diese Throttling-Logik.
+
+### v0.30.15 - Community Sorting & Analytics (Februar 2026)
+1. **Kochbuch-Analytics**: Einführung der `cookbookClicks` Spalte in `Users`. Diese wird bei jedem Aufruf eines öffentlichen Rezept-Links oder der Kochbuch-Übersicht inkrementiert.
+2. **Community-Sortierung**: Implementierung von Sortieroptionen in der Community-Ansicht nach Rezeptanzahl, Gesamt-Favoriten (Summe aller Rezepte des Nutzers) und Aufrufen (Clicks).
+3. **UI-Metriken**: Anzeige von Favoriten- und Klick-Zahlen direkt auf den Kochbuch-Karten in der Community.
 
 ### v0.30.14 - Community Visibility Separation (Februar 2026)
 1. **Sichtbarkeits-Trennung**: Einführung der `isCommunityVisible` Spalte in der `Users` Tabelle. Zuvor steuerte `isPublicCookbook` sowohl die generelle öffentliche Link-Freigabe als auch die Auflistung in der internen Community-Ansicht. Diese beiden Funktionen sind nun getrennt.

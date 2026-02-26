@@ -13,6 +13,7 @@ module.exports = (sequelize) => {
             type: DataTypes.ENUM('upload', 'scraped', 'ai', 'none'),
             defaultValue: 'scraped'
         },
+        clicks: { type: DataTypes.INTEGER, defaultValue: 0 },
         bannedAt: { type: DataTypes.DATE, allowNull: true }
     });
 };
