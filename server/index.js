@@ -108,6 +108,7 @@ apiRouter.use('/compliance', require('./src/routes/compliance'));
 apiRouter.use('/subscription', require('./src/routes/subscription'));
 apiRouter.use('/newsletter', require('./src/routes/newsletter'));
 apiRouter.use('/variants', require('./src/routes/variants'));
+apiRouter.use('/intolerances', require('./src/routes/intolerances'));
 
 // Mount API
 app.use(`${BASE_PATH}/api`, apiRouter);

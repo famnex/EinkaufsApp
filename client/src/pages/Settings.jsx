@@ -103,6 +103,14 @@ export default function SettingsPage() {
         priceSilber: '',
         priceGold: ''
     });
+
+    // Intolerances State
+    const [intolerances, setIntolerances] = useState([]);
+    const [loadingIntolerances, setLoadingIntolerances] = useState(false);
+    const [intoleranceEditMode, setIntoleranceEditMode] = useState('add'); // 'add' | 'edit' | 'delete'
+    const [isIntoleranceModalOpen, setIsIntoleranceModalOpen] = useState(false);
+    const [selectedIntolerance, setSelectedIntolerance] = useState(null);
+
     const [savingPayment, setSavingPayment] = useState(false);
     const [isPaymentConfigOpen, setIsPaymentConfigOpen] = useState(false);
 
@@ -183,6 +191,7 @@ export default function SettingsPage() {
 
     useEffect(() => {
         fetchStores();
+        fetchIntolerances();
         if (user) {
             fetchHouseholdMembers();
         }
@@ -356,6 +365,41 @@ export default function SettingsPage() {
             handleAdd();
         }
     }, [editMode]);
+
+    const fetchIntolerances = async () => {
+        setLoadingIntolerances(true);
+        try {
+            const { data } = await api.get('/intolerances');
+            setIntolerances(data);
+        } catch (err) {
+            console.error('Failed to fetch intolerances', err);
+        } finally {
+            setLoadingIntolerances(false);
+        }
+    };
+
+    const handleSaveIntolerance = async (name) => {
+        try {
+            if (selectedIntolerance) {
+                await api.put(`/intolerances/${selectedIntolerance.id}`, { name });
+            } else {
+                await api.post('/intolerances', { name });
+            }
+            await fetchIntolerances();
+        } catch (err) {
+            alert('Fehler beim Speichern: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleDeleteIntolerance = async (id) => {
+        if (!confirm('Diesen Eintrag wirklich löschen?')) return;
+        try {
+            await api.delete(`/intolerances/${id}`);
+            await fetchIntolerances();
+        } catch (err) {
+            alert('Fehler beim Löschen: ' + (err.response?.data?.error || err.message));
+        }
+    };
 
     const fetchStores = async () => {
         setLoading(true);
@@ -1342,6 +1386,7 @@ export default function SettingsPage() {
         { id: 'cookbook', label: 'Öffentliches Kochbuch', icon: ChefHat },
         { id: 'products', label: 'Produkte', icon: Package },
         { id: 'stores', label: 'Geschäfte', icon: StoreIcon },
+        { id: 'intolerances', label: 'Unverträglichkeiten', icon: ShieldAlert },
         ...(hasSpecialTier ? [{ id: 'alexa', label: 'Alexa', icon: Building2 }] : []),
         ...(user?.role === 'admin' ? [
             { id: 'admin', label: 'Verwaltung', icon: Shield }
@@ -2148,7 +2193,125 @@ export default function SettingsPage() {
         </div>
     );
 
+    const IntolerancesSection = (
+        <div className="space-y-4">
+            <div className="flex items-center justify-between mb-2 px-2">
+                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                    <ShieldAlert size={20} className="text-primary" />
+                    Unverträglichkeiten
+                </h2>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIntoleranceEditMode(intoleranceEditMode === 'edit' ? 'add' : 'edit')}
+                    className={cn(
+                        "p-2 rounded-lg transition-colors",
+                        intoleranceEditMode === 'edit' ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
+                    )}
+                    title="Verwalten"
+                >
+                    <SettingsIcon size={20} />
+                </Button>
+            </div>
 
+            <div className="space-y-3">
+                {/* Add New Input */}
+                <Card className="p-4 border-dashed border-border bg-card/30 flex gap-2">
+                    <Input
+                        placeholder="Neue Unverträglichkeit..."
+                        className="bg-transparent border-transparent focus:bg-background"
+                        id="new-intolerance-input"
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && e.target.value.trim()) {
+                                handleSaveIntolerance(e.target.value.trim());
+                                e.target.value = '';
+                            }
+                        }}
+                    />
+                    <Button
+                        size="sm"
+                        onClick={() => {
+                            const input = document.getElementById('new-intolerance-input');
+                            if (input && input.value.trim()) {
+                                handleSaveIntolerance(input.value.trim());
+                                input.value = '';
+                            }
+                        }}
+                    >
+                        <Plus size={16} />
+                    </Button>
+                </Card>
+
+                <AnimatePresence mode="popLayout">
+                    {loadingIntolerances ? (
+                        <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary/50" /></div>
+                    ) : intolerances.length > 0 ? (
+                        intolerances.map((item, index) => (
+                            <motion.div
+                                key={item.id}
+                                initial={{ opacity: 0, y: 5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                transition={{ delay: index * 0.03 }}
+                            >
+                                <Card className="p-4 flex items-center justify-between group border-border bg-card/50 shadow-sm">
+                                    <div className="flex-1">
+                                        {selectedIntolerance?.id === item.id ? (
+                                            <div className="flex gap-2">
+                                                <Input
+                                                    defaultValue={item.name}
+                                                    autoFocus
+                                                    className="h-8"
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            handleSaveIntolerance(e.target.value);
+                                                            setSelectedIntolerance(null);
+                                                        } else if (e.key === 'Escape') {
+                                                            setSelectedIntolerance(null);
+                                                        }
+                                                    }}
+                                                />
+                                                <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => setSelectedIntolerance(null)}>
+                                                    <X size={14} />
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <span className="font-bold text-foreground text-lg">{item.name}</span>
+                                        )}
+                                    </div>
+
+                                    {intoleranceEditMode === 'edit' && !selectedIntolerance && (
+                                        <div className="flex gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
+                                                onClick={() => setSelectedIntolerance(item)}
+                                            >
+                                                <Pen size={14} />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                                onClick={() => handleDeleteIntolerance(item.id)}
+                                            >
+                                                <Trash2 size={14} />
+                                            </Button>
+                                        </div>
+                                    )}
+                                </Card>
+                            </motion.div>
+                        ))
+                    ) : (
+                        <div className="text-center py-10 bg-muted/20 border border-dashed border-border rounded-3xl text-muted-foreground italic">
+                            Noch keine Unverträglichkeiten hinterlegt.
+                        </div>
+                    )}
+                </AnimatePresence>
+            </div>
+        </div>
+    );
 
     const StoresSection = (
         <div className="space-y-4">
@@ -4453,6 +4616,7 @@ export default function SettingsPage() {
                                             {tab.id === 'cookbook' && CookbookSection}
                                             {tab.id === 'products' && <Products />}
                                             {tab.id === 'stores' && StoresSection}
+                                            {tab.id === 'intolerances' && IntolerancesSection}
                                             {tab.id === 'subscription' && SubscriptionSection}
                                             {tab.id === 'alexa' && ApiSection}
                                             {tab.id === 'admin' && AdminSection}
@@ -4504,6 +4668,7 @@ export default function SettingsPage() {
                     {activeTab === 'cookbook' && CookbookSection}
                     {activeTab === 'products' && <Products />}
                     {activeTab === 'stores' && StoresSection}
+                    {activeTab === 'intolerances' && IntolerancesSection}
                     {activeTab === 'subscription' && SubscriptionSection}
                     {activeTab === 'alexa' && ApiSection}
                     {activeTab === 'admin' && AdminSection}

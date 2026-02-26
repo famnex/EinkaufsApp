@@ -284,8 +284,15 @@ const Email = sequelize.define('Email', {
     flag: { type: DataTypes.ENUM('none', 'flagged', 'completed'), defaultValue: 'none' }
 });
 
+const Intolerance = sequelize.define('Intolerance', {
+    name: { type: DataTypes.STRING, allowNull: false }
+});
+
 Email.belongsTo(User);
 User.hasMany(Email);
+
+Intolerance.belongsTo(User);
+User.hasMany(Intolerance);
 
 module.exports = {
     sequelize,
@@ -313,5 +320,6 @@ module.exports = {
     NewsletterRecipient,
     PublicVisit,
     ProductVariant,
-    ProductVariation
+    ProductVariation,
+    Intolerance
 };

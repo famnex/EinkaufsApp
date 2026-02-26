@@ -136,6 +136,13 @@ Spezifische Ausprägung eines Produkts für eine Variante.
 ### `ListItems` (Erweiterung)
 - `ProductVariationId` (INT, FK, NULL): Referenz auf die gewählte Variation beim Hinzufügen zur Liste.
 
+### `Intolerances` [NEW v0.31.9]
+Benutzerspezifische Unverträglichkeiten (z.B. "Laktose", "Gluten").
+- `id` (INT, PK)
+- `name` (STRING): Name der Unverträglichkeit.
+- `UserId` (INT, FK)
+- `createdAt` / `updatedAt` (DATE)
+
 ### `Menus` / `Expenses` / `Tags` / `Settings`
 - Alle Tabellen enthalten ein `UserId` Feld zur strikten Isolation.
 
@@ -148,7 +155,11 @@ Spezifische Ausprägung eines Produkts für eine Variante.
 2. **Einkaufslisten-Integration**: Erweiterung der `ListItems` um `ProductVariationId`, um die gewählte Variante auf der Liste zu speichern und die sortierung/einheit entsprechend anzupassen.
 3. **Smart Sorting Update**: Das Sorting-System nutzt nun prioritär die Kategorie der gewählten Variation. Erweiterung der `ProductRelations` Tabelle um `PredecessorVariationId` und `SuccessorVariationId`.
 
-### v0.31.0 - Fixing Production Migration (Februar 2026)
+### v0.31.9 - Unverträglichkeiten (Februar 2026)
+1. **Unverträglichkeiten-System**: Einführung der Tabelle `Intolerances` zur Verwaltung benutzerspezifischer Unverträglichkeiten.
+2. **Settings-Integration**: Neuer Reiter "Unverträglichkeiten" in den Einstellungen zum Verwalten der Einträge.
+
+### v0.31.8 - Fixing Production Migration (Februar 2026)
 ... (vorherige Einträge)
 
 ### Multi-User Transformation (v0.19.0 - Februar 2026)
