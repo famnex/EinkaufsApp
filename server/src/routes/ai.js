@@ -951,7 +951,7 @@ router.post('/analyze-product', auth, async (req, res) => {
             return res.status(403).json({ error: 'Only admins can use this feature.' });
         }
 
-        const { productName } = req.body;
+        const { productName, userFeedback } = req.body;
         if (!productName) return res.status(400).json({ error: 'Product name is required' });
 
         const setting = await Settings.findOne({ where: { key: 'openai_key' } });
@@ -987,12 +987,15 @@ Kategorien: ${JSON.stringify(categoryList)}
 Varianten: ${JSON.stringify(variantList)}
 Unverträglichkeiten: ${JSON.stringify(intoleranceList)}
 
+${userFeedback ? `ACHTUNG - Der Benutzer war mit dem vorherigen Ergebnis nicht einverstanden und hat folgendes Feedback gegeben: "${userFeedback}". 
+Bitte passe deine neue Analyse zwingend an dieses Feedback an (!).` : ''}
+
 Bitte beantworte diese drei Hauptfragen und formatiere die Antwort EXAKT wie unten gefordert als JSON:
 1. Kommt das Produkt typischerweise in mehr als einer dieser DB-Varianten vor? 
-   - Wenn NEIN: ordne eine Kategorie und eine Standardeinheit (z.B. Stück, Packung, Korb, Netz, g (nicht kg), Dose (bei Gewürzen), etc.) zu.
+   - Wenn NEIN: ordne eine Kategorie und eine Standardverkaufseinheit [also wie verpackt wird es verkauft] (z.B. Stück, Packung, Korb, Netz, Dose (bei Gewürzen), etc. - nutze g (nicht kg) nur wenn nichts anderes passt!) zu.
    - Wenn JA: nenne die passenden DB-Varianten-IDs und ordne pro Variante eine passende Kategorie und Einheit zu.
 2. In welche existierende Kategorie (siehe Liste) passt das Produkt am besten? Falls keine passt, schlage eine neue sinnvolle vor.
-3. Welche der exakt vorgegebenen DB-Unverträglichkeiten (IDs) treffen typischerweise auf dieses Produkt zu?
+3. Welche der exakt vorgegebenen DB-Unverträglichkeiten (IDs) treffen typischerweise auf dieses Produkt zu? Recherchiere genau! Avocados sind z.B. keine Schalenfrüchte! Eier und Butter sind vegetarisch aber nicht vegan! Beachte den feinen unterschied: Fleisch vom Tier: nicht vegetarisch - Produkt vom Tier: nicht vegan.
 
 Erforderliches JSON-Format:
 {
