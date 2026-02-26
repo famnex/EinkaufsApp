@@ -68,6 +68,18 @@ async function migrate() {
             console.log('=> cookbookClicks already exists in Users table.');
         }
 
+        // 3. Add clicks to Recipes (Ensuring it exists)
+        const recipeTable = await queryInterface.describeTable('Recipes');
+        if (!recipeTable.clicks) {
+            console.log('=> Adding clicks to Recipes table...');
+            await queryInterface.addColumn('Recipes', 'clicks', {
+                type: DataTypes.INTEGER,
+                defaultValue: 0
+            });
+        } else {
+            console.log('=> clicks already exists in Recipes table.');
+        }
+
         console.log('Migration completed successfully.');
     } catch (error) {
         console.error('Migration failed:', error);
