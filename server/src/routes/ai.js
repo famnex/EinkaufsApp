@@ -1033,10 +1033,31 @@ Bitte beantworte diese drei Hauptfragen und formatiere die Antwort EXAKT wie unt
 2. In welche existierende Kategorie (siehe Liste) passt das Produkt am besten? Falls keine passt, schlage eine neue sinnvolle vor.
 3. Welche der exakt vorgegebenen DB-Unverträglichkeiten (IDs) treffen typischerweise auf dieses Produkt zu?
    RECHERCHIERE EXTREM GENAU UND KRITISCH:
+   - Alkohol: Alle Getränke mit Ethanolgehalt (Bier, Wein, Spirituosen) sowie Speisen, die mit Alkohol zubereitet wurden (z. B. Rotwein-Saucen oder Pralinen).
+   - Eier: Hühnereier in allen Formen (gekocht, gebraten) sowie Produkte, die Ei als Bindemittel enthalten (Mayonnaise, Panaden, viele Backwaren).
+   - Erdnüsse: Ganze Erdnüsse, Erdnussbutter, Erdnussöl und oft auch Spuren in asiatischen Gerichten oder Knabbergebäck.
+   - Fisch: Alle Süß- und Salzwasserfische. Auch versteckt in Saucen (z. B. Worcestershiresauce oder thailändische Fischsauce).
+   - FODMAP-empfindlich: Bezieht sich auf fermentierbare Kohlenhydrate, die Blähungen verursachen können. Dazu gehören u. a. Zwiebeln, Knoblauch, Hülsenfrüchte, bestimmte Obstsorten (Äpfel) und Weizen.
+   - Fruktose: Fruchtzucker, der in Obst, Säften, Honig und oft als Süßungsmittel (Maisstärkesirup) in verarbeiteten Lebensmitteln vorkommt.
+   - Glutamat: Ein Geschmacksverstärker, der oft in Fertiggerichten, Brühwürfeln, Chips und der klassischen China-Restaurant-Küche (MSG) zu finden ist.
+   - Glutenhaltiges Getreide: Weizen (auch Dinkel, Emmer, Einkorn), Roggen, Gerste und Hafer (sofern nicht als glutenfrei zertifiziert). Enthalten in Brot, Pasta und Bier.
+   - Histaminintoleranz: Betrifft gereifte Lebensmittel wie alten Käse, Rotwein, Sauerkraut, gepökeltes Fleisch sowie Tomaten und Schokolade.
+   - Krebstiere: Garnelen, Krabben, Hummer, Flusskrebse und Scampi.
+   - Lupine: Eine proteinreiche Hülsenfrucht, deren Mehl oft in glutenfreien Backwaren, veganem Fleischersatz oder Pizza-Teigen verwendet wird.
+   - Milcheiweiß / Laktose: Kuhmilch und daraus hergestellte Produkte (Käse, Joghurt, Sahne, Butter). Laktose ist der Milchzucker, Milcheiweiß das Protein (Kasein/Molke).
+   - Schalenfrüchte: Hierzu zählen Baumnüsse wie Mandeln, Haselnüsse, Walnüsse, Cashews, Pekannüsse, Paranüsse, Pistazien und Macadamia.
+   - Sellerie: Knollen- und Staudensellerie. Oft versteckt in Gewürzmischungen, Suppengrün, Saucen und Fertigsuppen.
+   - Senf: Senfkörner, Senfpulver und natürlich die Paste. Auch oft in Dressings, Marinaden und Currys enthalten.
+   - Sesam: Sesamsamen, Sesamöl und Pasten wie Tahini (Hummussutat).
+   - Soja: Sojabohnen, Tofu, Sojamilch, Sojasauce und Lecithin (E322) in Schokolade oder Backwaren.
+   - Sorbitunverträglichkeit: Ein Zuckerersatzstoff (E420), der natürlich in Steinobst (Pflaumen, Kirschen) vorkommt oder als Süßungsmittel in zuckerfreien Kaugummis/Bonbons genutzt wird.
+   - Sulfite: Schwefelverbindungen zur Konservierung. Hauptsächlich in Wein, Trockenfrüchten und manchmal in geschälten Kartoffelprodukten.
+   - Weichtiere: Dazu gehören Muscheln (Miesmuscheln, Austern), Schnecken und Tintenfische (Kalmare, Oktopus).
+   - Pescetarisch: Eine vegetarische Ernährung, die jedoch Fisch und Meeresfrüchte sowie meist Eier und Milchprodukte einschließt.
+   - Schwein: Alle Produkte vom Hausschwein oder Wildschwein (Schnitzel, Schinken, Speck, Salami) sowie Gelatine vom Schwein (oft in Gummibärchen).
+   - Vegan: Verzicht auf alle tierischen Produkte. Kein Fleisch, Fisch, Milch, Eier, Honig oder tierische Zusatzstoffe (wie Karmin oder Gelatine).
+   Vegetarisch: Verzicht auf Fleisch und Fisch (Schlachtprodukte). Milch, Eier und Honig werden konsumiert.
    - **Fleisch (Meat):** Falls das Produkt Fleisch enthält (Schinken, Salami, Rind, Huhn, etc.), ist es weder vegan noch vegetarisch! Kennzeichne dies korrekt, falls es dafür IDs gibt.
-   - **Vegan vs. Vegetarisch:** 
-     - Vegan bedeutet: Keinerlei tierische Produkte (kein Fleisch, keine Milch, keine Eier, kein Honig, kein Fisch, kein Gelatine). Gehe bei deinen Überlegungen von einem normalen Produkt aus. Eventualitäten, welche vielleicht tierische Produkte enhalten könnten markierst du dennoch als vegan.
-     - Vegetarisch bedeutet: Kein Fleisch und kein Fisch (Milch und Eier sind okay).
    - **Allergene:** Beachte versteckte Allergene (z.B. Gluten in Sojasauce, Laktose in Wurst, etc.).
    - Avocados sind KEINE Schalenfrüchte.
    - Butter/Milch/Eier sind NICHT vegan.
