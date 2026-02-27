@@ -50,6 +50,24 @@ router.post('/cleanup/toggle-hidden', auth, async (req, res) => {
     }
 });
 
+router.delete('/cleanup/hidden', auth, async (req, res) => {
+    try {
+        const { context } = req.body;
+        if (!context) {
+            return res.status(400).json({ error: 'Context required' });
+        }
+
+        const deletedCount = await HiddenCleanup.destroy({
+            where: { context, UserId: req.user.effectiveId }
+        });
+
+        res.json({ message: 'Success', deletedCount });
+    } catch (err) {
+        console.error('Bulk Unhide Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.post('/parse', auth, async (req, res) => {
     try {
         let { input } = req.body;
@@ -1076,6 +1094,147 @@ router.get('/speak', auth, async (req, res) => {
     }
 });
 
+// Rewrite Recipe Instructions based on Substitutions
+router.post('/rewrite-instructions', auth, async (req, res) => {
+    try {
+        const { recipeId } = req.body;
+        if (!recipeId) return res.status(400).json({ error: 'RecipeId is required' });
+
+        const { Recipe, RecipeSubstitution, Product, RecipeInstructionOverride } = require('../models');
+
+        // Fetch user's substitutions for this recipe
+        const substitutions = await RecipeSubstitution.findAll({
+            where: { RecipeId: recipeId, UserId: req.user.effectiveId },
+            include: [
+                { model: Product, as: 'OriginalProduct' },
+                { model: Product, as: 'SubstituteProduct' }
+            ]
+        });
+
+        if (substitutions.length === 0) {
+            // If no substitutions, delete any existing override and return original steps
+            await RecipeInstructionOverride.destroy({
+                where: { RecipeId: recipeId, UserId: req.user.effectiveId }
+            });
+            const recipe = await Recipe.findByPk(recipeId);
+            return res.json({ instructions: recipe.instructions, isOverride: false });
+        }
+
+        const recipe = await Recipe.findByPk(recipeId);
+        if (!recipe) return res.status(404).json({ error: 'Recipe not found' });
+
+        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
+        if (!setting || !setting.value) {
+            return res.status(400).json({ error: 'OpenAI API Key not configured' });
+        }
+
+        const openai = new OpenAI({ apiKey: setting.value });
+
+        const subList = substitutions.map(s => {
+            if (s.isOmitted) {
+                return `"${s.OriginalProduct.name}" wurde KOMPLETT GESTRICHEN/WEGGELASSEN (dafür gibt es KEINEN Ersatz).`;
+            }
+            return `"${s.OriginalProduct.name}" wurde ersetzt durch "${s.SubstituteProduct.name}"`;
+        }).join('\n');
+
+        const prompt = `
+Du bist ein erfahrener Koch und Experte für Lebensmitteltechnologie. Deine Aufgabe ist es, die Zubereitungsschritte eines Rezepts basierend auf Zutaten-Ersetzungen semantisch und technisch völlig neu zu bewerten.
+
+Original-Rezept: "${recipe.title}"
+Original-Schritte (Format: JSON Array von Strings):
+${JSON.stringify(recipe.instructions)}
+
+Vorgenommene Ersetzungen:
+${subList}
+
+Handlungsanweisungen für die Prozess-Transformation:
+
+1. KULINARISCHE LOGIK-PRÜFUNG:
+   Analysiere jeden Schritt auf seine physikalische Sinnhaftigkeit. Wenn eine Handlung (z.B. "Eier trennen", "Knochen entfernen", "Haut einschneiden") auf die Ersatz-Zutat nicht anwendbar ist, ersetze sie durch eine technisch sinnvolle Vorbereitung (z.B. "Ersatzprodukt glatt rühren", "in Scheiben schneiden" oder "trocken tupfen").
+
+2. VORBEREITUNG (PRE-PROCESSING):
+   Falls eine Ersatz-Zutat eine Vorbehandlung benötigt, die das Original nicht brauchte (z.B. Soja-Schnetzel einweichen, Jackfruit abspülen, Leinsamen-Ei quellen lassen), integriere diesen Hinweis organisch in den ersten passenden Schritt.
+
+3. GAR- UND TEXTUR-ANPASSUNG:
+   Passe Verben und Zeiten an die neue Textur an:
+   - Von tierisch auf pflanzlich: Achte darauf, dass pflanzliche Proteine oft schneller zäh werden oder Röstaromen anders entwickeln (z.B. "kurz scharf anbraten" statt "stundenlang schmoren").
+   - Flüssigkeiten: Achte auf das Kochverhalten (z.B. "Mandelmilch nur leicht köcheln" statt "Milch sprudelnd aufkochen").
+
+4. STRUKTURELLE KONSISTENZ:
+   - Behalte die Anzahl der Schritte (Array-Länge) bei. 
+   - Kombiniere Vorbehandlungen der neuen Zutat mit dem ersten Schritt des Originals, um die Schrittzahl nicht zu verändern.
+
+5. AUSGABE-FORMAT:
+   - Antworte NUR mit dem JSON-Array der Strings.
+   - Keine Markdown-Blöcke, kein Text davor oder danach.
+   - Korrigiere dabei automatisch die Grammatik (Artikel/Fälle).
+
+6. ELIMINIERUNG VON FLEISCH-ANATOMIE:
+   - Durchsuche den Text aktiv nach Begriffen, die biologisch exklusiv für Fleisch/Tierprodukte sind und lösche oder transformiere sie zwingend:
+   - Fettseite / Schwarte / Haut: Ersetze durch "glatte Seite", "Oberfläche" oder streiche es ganz (z.B. "den Tofu von beiden Seiten scharf anbraten").
+   - Knochen / Sehnen / Mark: Ersetze durch Formbeschreibungen wie "Würfel", "Scheiben" oder "Stücke".
+   - Eigelb/Eiweiß trennen: Ersetze durch "das Ersatzprodukt glatt rühren" oder "mit den flüssigen Zutaten vermengen".
+   - Ruhen lassen (Fleischsaft): Bei pflanzlichem Ersatz streichen oder in "kurz ziehen lassen, damit sich die Aromen verbinden" ändern.
+
+7. ELIMINIERUNG UNMÖGLICHER HANDLUNGEN:
+   Wenn eine Handlung bei der neuen Zutat physikalisch unmöglich ist, schreibe den Satz komplett um.
+   - KEIN "Schälen" oder "Abschrecken" bei Tofu/Ersatzprodukten.
+   - KEINE "Größenangaben (Größe M)" bei pflanzlichen Produkten.
+   - KEINE "Fettseite", "Haut" oder "Schwarte" bei Fleischersatz.
+   - KEIN "Eier trennen", wenn der Ersatz (z.B. Apfelmus) homogen ist.
+
+8. SEMANTISCHE TRANSFORMATION:
+   Übersetze die Intention des Originalschritts in eine für die neue Zutat logische Handlung:
+   - "Eier 6 Min. kochen und schälen" -> "[Ersatz] vorbereiten und unter die Masse rühren/anbraten."
+   - "Mit der Fettseite nach unten anbraten" -> "In der Pfanne von beiden Seiten goldbraun anbraten."
+   - "Fleisch vom Knochen lösen" -> "[Ersatz] in mundgerechte Stücke schneiden."
+
+9. TECHNISCHE KORREKTUR:
+   Passe Garzeiten und Hitze an. Pflanzliche Proteine und Milchalternativen verbrennen oder verändern ihre Textur anders als tierische Originale.
+
+Beispiele für Transformationen:
+- Original: "Eier trennen und das Eigelb schaumig schlagen." -> Ersatz (Apfelmark): "Das Apfelmark mit den übrigen feuchten Zutaten glatt rühren."
+- Original: "Den Braten mit der Fettseite nach unten..." -> Ersatz (Seitan): "Den Seitan rundherum scharf anbraten, um eine Kruste zu bilden..."
+- Original: "Das Fleisch 2 Stunden schmoren." -> Ersatz (Sojawürfel): "Die eingeweichten Sojawürfel 15 Minuten in der Sauce ziehen lassen."
+
+Beispiel - Ergebnis:
+["Zuerst die Zwiebeln anbraten.", "Dann den [Ersatz] dazugeben und 5 Minuten köcheln lassen.", "Zum Schluss alles mit Salz abschmecken."]
+    `;
+
+        const completion = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo", // gpt-4o might be better but gpt-3.5 is faster and cheaper for this
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.3,
+        });
+
+        let rewrittenInstructions = [];
+        try {
+            const content = completion.choices[0].message.content.trim();
+            rewrittenInstructions = JSON.parse(content);
+        } catch (e) {
+            console.error('Failed to parse AI response:', e, completion.choices[0].message.content);
+            throw new Error('Die KI hat ein ungültiges Format zurückgegeben.');
+        }
+
+        // Save or update override
+        const [override, created] = await RecipeInstructionOverride.findOrCreate({
+            where: { RecipeId: recipeId, UserId: req.user.effectiveId },
+            defaults: { instructions: rewrittenInstructions }
+        });
+
+        if (!created) {
+            override.instructions = rewrittenInstructions;
+            await override.save();
+        }
+
+        res.json({ instructions: rewrittenInstructions, isOverride: true });
+
+    } catch (err) {
+        console.error('Rewrite Instructions Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Analyze Product for Admin Modal
 router.post('/analyze-product', auth, async (req, res) => {
     try {
@@ -1111,7 +1270,7 @@ router.post('/analyze-product', auth, async (req, res) => {
         const openai = new OpenAI({ apiKey: setting.value });
 
         const prompt = `
-Du bist ein Ernährungs- und Supermarktexperte.
+Du bist ein Ernährungs - und Supermarktexperte.
 Analysiere das folgende Produkt: "${productName}"
 
 Hier sind die in der Datenbank vorhandenen Optionen:
@@ -1120,74 +1279,75 @@ Varianten: ${JSON.stringify(variantList)}
 Unverträglichkeiten: ${JSON.stringify(intoleranceList)}
 
 ${userFeedback ? `ACHTUNG - Der Benutzer war mit dem vorherigen Ergebnis nicht einverstanden und hat folgendes Feedback gegeben: "${userFeedback}". 
-Bitte passe deine neue Analyse zwingend an dieses Feedback an (!).` : ''}
+Bitte passe deine neue Analyse zwingend an dieses Feedback an (!).` : ''
+            }
 
 Bitte beantworte diese drei Hauptfragen und formatiere die Antwort EXAKT wie unten gefordert als JSON:
-1. Kommt das Produkt typischerweise in mehr als einer dieser DB-Varianten vor? 
-   - Wenn NEIN: ordne eine Kategorie und eine Standardverkaufseinheit zu. 
-     WICHTIG: Denke zwingend an das **Verkaufsgebinde** (wie steht es im Regal?). 
+1. Kommt das Produkt typischerweise in mehr als einer dieser DB - Varianten vor ?
+    - Wenn NEIN: ordne eine Kategorie und eine Standardverkaufseinheit zu.
+        WICHTIG: Denke zwingend an das ** Verkaufsgebinde ** (wie steht es im Regal ?). 
      Nutze Einheiten wie: Stück, Packung, Glas, Dose, Flasche, Beutel, Kiste, Netz, Korb, Bund, etc.
      VERMEIDE generische Einheiten wie g, kg, ml oder l!
-   - Wenn JA: nenne die passenden DB-Varianten-IDs und ordne pro Variante eine passende Kategorie und Einheit (Verkaufsgebinde!) zu.
-2. In welche existierende Kategorie (siehe Liste) passt das Produkt am besten? Falls keine passt, schlage eine neue sinnvolle vor.
-3. Welche der exakt vorgegebenen DB-Unverträglichkeiten (IDs) treffen typischerweise auf dieses Produkt zu?
-   RECHERCHIERE EXTREM GENAU UND KRITISCH UND GIB EINE WAHRSCHEINLICHKEIT AN:
-   - Gib für jede zutreffende Unverträglichkeit eine Wahrscheinlichkeit (0-100%) an.
-   - 100% bedeutet: Das Produkt verstößt definitiv gegen diese Regel (z.B. Schweinefleisch bei "Vegan" oder "Vegetarisch").
-   - Niedrigere Werte (z.B. 30%) bedeuten: Es besteht ein Risiko oder eine gewisse Wahrscheinlichkeit (z.B. Spuren von Nüssen, oder bei Cashewmuß ein Restrisiko für nicht-vegane Zusätze wie Honig).
-   - Ein Produkt, das zu 100% Sicher ist (z.B. Brokkoli bei "Vegan"), sollte eine Wahrscheinlichkeit von 0% haben (und muss dann nicht zwingend gelistet werden, außer du bist dir unsicher).
+    - Wenn JA: nenne die passenden DB - Varianten - IDs und ordne pro Variante eine passende Kategorie und Einheit(Verkaufsgebinde!) zu.
+2. In welche existierende Kategorie(siehe Liste) passt das Produkt am besten ? Falls keine passt, schlage eine neue sinnvolle vor.
+3. Welche der exakt vorgegebenen DB - Unverträglichkeiten(IDs) treffen typischerweise auf dieses Produkt zu ?
+    RECHERCHIERE EXTREM GENAU UND KRITISCH UND GIB EINE WAHRSCHEINLICHKEIT AN:
+- Gib für jede zutreffende Unverträglichkeit eine Wahrscheinlichkeit(0 - 100 %) an.
+   - 100 % bedeutet: Das Produkt verstößt definitiv gegen diese Regel(z.B.Schweinefleisch bei "Vegan" oder "Vegetarisch").
+   - Niedrigere Werte(z.B. 30 %) bedeuten: Es besteht ein Risiko oder eine gewisse Wahrscheinlichkeit(z.B.Spuren von Nüssen, oder bei Cashewmuß ein Restrisiko für nicht - vegane Zusätze wie Honig).
+   - Ein Produkt, das zu 100 % Sicher ist(z.B.Brokkoli bei "Vegan"), sollte eine Wahrscheinlichkeit von 0 % haben(und muss dann nicht zwingend gelistet werden, außer du bist dir unsicher).
 
    HIER SIND DIE DETAILS:
-   - Alkohol: Alle Getränke mit Ethanolgehalt (Bier, Wein, Spirituosen) sowie Speisen, die mit Alkohol zubereitet wurden (z. B. Rotwein-Saucen oder Pralinen).
-   - Eier: Hühnereier in allen Formen (gekocht, gebraten) sowie Produkte, die Ei als Bindemittel enthalten (Mayonnaise, Panaden, viele Backwaren).
+- Alkohol: Alle Getränke mit Ethanolgehalt(Bier, Wein, Spirituosen) sowie Speisen, die mit Alkohol zubereitet wurden(z.B.Rotwein - Saucen oder Pralinen).
+   - Eier: Hühnereier in allen Formen(gekocht, gebraten) sowie Produkte, die Ei als Bindemittel enthalten(Mayonnaise, Panaden, viele Backwaren).
    - Erdnüsse: Ganze Erdnüsse, Erdnussbutter, Erdnussöl und oft auch Spuren in asiatischen Gerichten oder Knabbergebäck.
-   - Fisch: Alle Süß- und Salzwasserfische. Auch versteckt in Saucen (z. B. Worcestershiresauce oder thailändische Fischsauce).
-   - FODMAP-empfindlich: Diese und nur diese Lebensmittel markieren (und ihre ähnlichen Schreibweisen oder wo diese Lebensmittel nachweislich enthalten sind): Apfel, Aprikose, Avocado, Birne, Brombeeren, Datteln, Johannisbeeren, Kirschen, Litschis, Mango, Nashi-Birne, Nektarine, Pampelmuse, Persimone, Pfirsich, Pflaumen, Wassermelone, Zwetschgen, Obstkonserven, Fruchtsäfte, getrocknete Früchte, Artischocke, Blumenkohl, Bohnen (alle außer grüne Stangenbohnen), Chicorée, Erbsen, Frühlingszwiebel (weißer Teil), Knoblauch, Kraut, Lauch (weißer Teil), Linsen, Pilze, Rote Bete, Schalotte, Sellerie (ausgewachsen), Soja, Spargel, Wirsing, Zuckererbsen, Zuckermais, Zwiebel, Gerste, Roggen, Weizen, Brot, Cerealien, Couscous, Gebäck, Gries, Nudeln, Buttermilch, Frischkäse, Hüttenkäse, Joghurt, Kondensmilch, Margarine, Mascarpone, Milch, Milchpulver, Milcheis, Sahne, Sauerrahm, Agavensirup, Fruktosesirup, Honig, Ketchup, Maissirup, Zuckeraustauschstoffe, Vollmilchschokolade, Cashewkerne, Pistazien, Bier (mehr als ein Glas), Wein, Schaumwein (halbtrocken; süß)
-   - Fruktose: Fruchtzucker, der in Obst, Säften, Honig und oft als Süßungsmittel (Maisstärkesirup) in verarbeiteten Lebensmitteln vorkommt.
-   - Glutamat: Ein Geschmacksverstärker, der oft in Fertiggerichten, Brühwürfeln, Chips und der klassischen China-Restaurant-Küche (MSG) zu finden ist.
-   - Glutenhaltiges Getreide: Weizen (auch Dinkel, Emmer, Einkorn), Roggen, Gerste und Hafer (sofern nicht als glutenfrei zertifiziert). Enthalten in Brot, Pasta und Bier.
+   - Fisch: Alle Süß - und Salzwasserfische.Auch versteckt in Saucen(z.B.Worcestershiresauce oder thailändische Fischsauce).
+   - FODMAP - empfindlich: Diese und nur diese Lebensmittel markieren(und ihre ähnlichen Schreibweisen oder wo diese Lebensmittel nachweislich enthalten sind): Apfel, Aprikose, Avocado, Birne, Brombeeren, Datteln, Johannisbeeren, Kirschen, Litschis, Mango, Nashi - Birne, Nektarine, Pampelmuse, Persimone, Pfirsich, Pflaumen, Wassermelone, Zwetschgen, Obstkonserven, Fruchtsäfte, getrocknete Früchte, Artischocke, Blumenkohl, Bohnen(alle außer grüne Stangenbohnen), Chicorée, Erbsen, Frühlingszwiebel(weißer Teil), Knoblauch, Kraut, Lauch(weißer Teil), Linsen, Pilze, Rote Bete, Schalotte, Sellerie(ausgewachsen), Soja, Spargel, Wirsing, Zuckererbsen, Zuckermais, Zwiebel, Gerste, Roggen, Weizen, Brot, Cerealien, Couscous, Gebäck, Gries, Nudeln, Buttermilch, Frischkäse, Hüttenkäse, Joghurt, Kondensmilch, Margarine, Mascarpone, Milch, Milchpulver, Milcheis, Sahne, Sauerrahm, Agavensirup, Fruktosesirup, Honig, Ketchup, Maissirup, Zuckeraustauschstoffe, Vollmilchschokolade, Cashewkerne, Pistazien, Bier(mehr als ein Glas), Wein, Schaumwein(halbtrocken; süß)
+- Fruktose: Fruchtzucker, der in Obst, Säften, Honig und oft als Süßungsmittel(Maisstärkesirup) in verarbeiteten Lebensmitteln vorkommt.
+   - Glutamat: Ein Geschmacksverstärker, der oft in Fertiggerichten, Brühwürfeln, Chips und der klassischen China - Restaurant - Küche(MSG) zu finden ist.
+   - Glutenhaltiges Getreide: Weizen(auch Dinkel, Emmer, Einkorn), Roggen, Gerste und Hafer(sofern nicht als glutenfrei zertifiziert).Enthalten in Brot, Pasta und Bier.
    - Histaminintoleranz: Betrifft gereifte Lebensmittel wie alten Käse, Rotwein, Sauerkraut, gepökeltes Fleisch sowie Tomaten und Schokolade.
    - Krebstiere: Garnelen, Krabben, Hummer, Flusskrebse und Scampi.
-   - Lupine: Eine proteinreiche Hülsenfrucht, deren Mehl oft in glutenfreien Backwaren, veganem Fleischersatz oder Pizza-Teigen verwendet wird.
-   - Milcheiweiß / Laktose: Kuhmilch und daraus hergestellte Produkte (Käse, Joghurt, Sahne, Butter). Laktose ist der Milchzucker, Milcheiweiß das Protein (Kasein/Molke).
+   - Lupine: Eine proteinreiche Hülsenfrucht, deren Mehl oft in glutenfreien Backwaren, veganem Fleischersatz oder Pizza - Teigen verwendet wird.
+   - Milcheiweiß / Laktose: Kuhmilch und daraus hergestellte Produkte(Käse, Joghurt, Sahne, Butter).Laktose ist der Milchzucker, Milcheiweiß das Protein(Kasein / Molke).
    - Schalenfrüchte: Hierzu zählen Baumnüsse wie Mandeln, Haselnüsse, Walnüsse, Cashews, Pekannüsse, Paranüsse, Pistazien und Macadamia.
-   - Sellerie: Knollen- und Staudensellerie. Oft versteckt in Gewürzmischungen, Suppengrün, Saucen und Fertigsuppen.
-   - Senf: Senfkörner, Senfpulver und natürlich die Paste. Auch oft in Dressings, Marinaden und Currys enthalten.
-   - Sesam: Sesamsamen, Sesamöl und Pasten wie Tahini (Hummussutat).
-   - Soja: Sojabohnen, Tofu, Sojamilch, Sojasauce und Lecithin (E322) in Schokolade oder Backwaren.
-   - Sorbitunverträglichkeit: Ein Zuckerersatzstoff (E420), der natürlich in Steinobst (Pflaumen, Kirschen) vorkommt oder als Süßungsmittel in zuckerfreien Kaugummis/Bonbons genutzt wird.
-   - Sulfite: Schwefelverbindungen zur Konservierung. Hauptsächlich in Wein, Trockenfrüchten und manchmal in geschälten Kartoffelprodukten.
-   - Weichtiere: Dazu gehören Muscheln (Miesmuscheln, Austern), Schnecken und Tintenfische (Kalmare, Oktopus).
+   - Sellerie: Knollen - und Staudensellerie.Oft versteckt in Gewürzmischungen, Suppengrün, Saucen und Fertigsuppen.
+   - Senf: Senfkörner, Senfpulver und natürlich die Paste.Auch oft in Dressings, Marinaden und Currys enthalten.
+   - Sesam: Sesamsamen, Sesamöl und Pasten wie Tahini(Hummussutat).
+   - Soja: Sojabohnen, Tofu, Sojamilch, Sojasauce und Lecithin(E322) in Schokolade oder Backwaren.
+   - Sorbitunverträglichkeit: Ein Zuckerersatzstoff(E420), der natürlich in Steinobst(Pflaumen, Kirschen) vorkommt oder als Süßungsmittel in zuckerfreien Kaugummis / Bonbons genutzt wird.
+   - Sulfite: Schwefelverbindungen zur Konservierung.Hauptsächlich in Wein, Trockenfrüchten und manchmal in geschälten Kartoffelprodukten.
+   - Weichtiere: Dazu gehören Muscheln(Miesmuscheln, Austern), Schnecken und Tintenfische(Kalmare, Oktopus).
    - Pescetarisch: Eine vegetarische Ernährung, die jedoch Fisch und Meeresfrüchte sowie meist Eier und Milchprodukte einschließt.
-   - Schwein: Alle Produkte vom Hausschwein oder Wildschwein (Schnitzel, Schinken, Speck, Salami) sowie Gelatine vom Schwein (oft in Gummibärchen).
-   - Vegan: Verzicht auf alle tierischen Produkte. Kein Fleisch, Fisch, Milch, Eier, Honig oder tierische Zusatzstoffe (wie Karmin oder Gelatine).
-   - Vegetarisch: Verzicht auf Fleisch und Fisch (Schlachtprodukte). Milch, Eier und Honig werden konsumiert.
-   - **Fleisch (Meat):** Falls das Produkt Fleisch enthält (Schinken, Salami, Rind, Huhn, etc.), ist es weder vegan noch vegetarisch! Kennzeichne dies korrekt, falls es dafür IDs gibt.
-   - **Allergene:** Beachte versteckte Allergene (z.B. Gluten in Sojasauce, Laktose in Wurst, etc.).
+   - Schwein: Alle Produkte vom Hausschwein oder Wildschwein(Schnitzel, Schinken, Speck, Salami) sowie Gelatine vom Schwein(oft in Gummibärchen).
+   - Vegan: Verzicht auf alle tierischen Produkte.Kein Fleisch, Fisch, Milch, Eier, Honig oder tierische Zusatzstoffe(wie Karmin oder Gelatine).
+   - Vegetarisch: Verzicht auf Fleisch und Fisch(Schlachtprodukte).Milch, Eier und Honig werden konsumiert.
+   - ** Fleisch(Meat):** Falls das Produkt Fleisch enthält(Schinken, Salami, Rind, Huhn, etc.), ist es weder vegan noch vegetarisch! Kennzeichne dies korrekt, falls es dafür IDs gibt.
+   - ** Allergene:** Beachte versteckte Allergene(z.B.Gluten in Sojasauce, Laktose in Wurst, etc.).
    - Avocados sind KEINE Schalenfrüchte.
-   - Butter/Milch/Eier sind NICHT vegan.
+   - Butter / Milch / Eier sind NICHT vegan.
 
-Erforderliches JSON-Format:
+Erforderliches JSON - Format:
 {
-  "hasVariants": true/false,
-  "variants": [
-    { "ProductVariantId": 1, "category": "KategorieName", "unit": "Einheit" }
-  ],
-  "category": "KategorieName", 
-  "unit": "Einheit",
-  "intolerances": [
-    { "id": 3, "probability": 100 },
-    { "id": 4, "probability": 30 }
-  ]
+    "hasVariants": true / false,
+        "variants": [
+            { "ProductVariantId": 1, "category": "KategorieName", "unit": "Einheit" }
+        ],
+            "category": "KategorieName",
+                "unit": "Einheit",
+                    "intolerances": [
+                        { "id": 3, "probability": 100 },
+                        { "id": 4, "probability": 30 }
+                    ]
 }
 
 WICHTIG:
 - Nutze unter 'variants' nur "ProductVariantId"s, die in der DB existieren.
-- Fülle "category" und "unit" für das Basis-Objekt immer aus, als Fallback.
+- Fülle "category" und "unit" für das Basis - Objekt immer aus, als Fallback.
 - "variants" kann leer sein, wenn "hasVariants" false ist.
 - Nutze unter 'intolerances' nur IDs, die tatsächlichen Unverträglichkeiten aus der Liste zugeordnet sind.
-- Priorisiere bei 'unit' IMMER das Verkaufsgebinde. Ein Apfel ist 1 Stück, nicht 150g. Milch ist 1 Flasche/Packung, nicht 1l.
-- Wenn Fleisch enthalten ist, MUSS "Vegetarisch" und "Vegan" explizit ALS NICHT KONFORM (Wahrscheinlichkeit 100%) gekennzeichnet werden.
+- Priorisiere bei 'unit' IMMER das Verkaufsgebinde.Ein Apfel ist 1 Stück, nicht 150g.Milch ist 1 Flasche / Packung, nicht 1l.
+- Wenn Fleisch enthalten ist, MUSS "Vegetarisch" und "Vegan" explizit ALS NICHT KONFORM(Wahrscheinlichkeit 100 %) gekennzeichnet werden.
 `;
 
         const completion = await openai.chat.completions.create({

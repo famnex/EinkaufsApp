@@ -183,6 +183,7 @@ const ComplianceReport = require('./ComplianceReport')(sequelize);
 const Newsletter = require('./Newsletter')(sequelize);
 const NewsletterRecipient = require('./NewsletterRecipient')(sequelize);
 const PublicVisit = require('./PublicVisit')(sequelize);
+const RecipeInstructionOverride = require('./RecipeInstructionOverride')(sequelize);
 
 LoginLog.belongsTo(User);
 SubscriptionLog.belongsTo(User);
@@ -268,11 +269,12 @@ List.hasMany(ProductSubstitution, { foreignKey: 'ListId' });
 
 const RecipeSubstitution = sequelize.define('RecipeSubstitution', {
     originalProductId: { type: DataTypes.INTEGER, allowNull: false },
-    substituteProductId: { type: DataTypes.INTEGER, allowNull: false },
+    substituteProductId: { type: DataTypes.INTEGER, allowNull: true },
     originalQuantity: { type: DataTypes.FLOAT, allowNull: true },
     originalUnit: { type: DataTypes.STRING, allowNull: true },
     substituteQuantity: { type: DataTypes.FLOAT, allowNull: true },
-    substituteUnit: { type: DataTypes.STRING, allowNull: true }
+    substituteUnit: { type: DataTypes.STRING, allowNull: true },
+    isOmitted: { type: DataTypes.BOOLEAN, defaultValue: false }
 });
 
 RecipeSubstitution.belongsTo(User);
@@ -283,6 +285,11 @@ Recipe.hasMany(RecipeSubstitution, { foreignKey: 'RecipeId' });
 
 RecipeSubstitution.belongsTo(Product, { as: 'OriginalProduct', foreignKey: 'originalProductId' });
 RecipeSubstitution.belongsTo(Product, { as: 'SubstituteProduct', foreignKey: 'substituteProductId' });
+
+RecipeInstructionOverride.belongsTo(User);
+User.hasMany(RecipeInstructionOverride);
+RecipeInstructionOverride.belongsTo(Recipe, { foreignKey: 'RecipeId' });
+Recipe.hasMany(RecipeInstructionOverride, { foreignKey: 'RecipeId' });
 
 const Email = sequelize.define('Email', {
     messageId: { type: DataTypes.STRING, allowNull: true, unique: true },
@@ -367,5 +374,6 @@ module.exports = {
     Intolerance,
     ProductIntolerance,
     UserIntolerance,
-    RecipeSubstitution
+    RecipeSubstitution,
+    RecipeInstructionOverride
 };

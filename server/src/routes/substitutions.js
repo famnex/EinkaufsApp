@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { RecipeSubstitution, Product, Recipe } = require('../models');
+const { RecipeSubstitution, Product, Recipe, RecipeInstructionOverride } = require('../models');
 const { auth } = require('../middleware/auth');
 
 // Get substitutions for a recipe
@@ -33,7 +33,8 @@ router.post('/', auth, async (req, res) => {
             originalQuantity,
             originalUnit,
             substituteQuantity,
-            substituteUnit
+            substituteUnit,
+            isOmitted
         } = req.body;
         const userId = req.user.householdId || req.user.id;
 
@@ -48,7 +49,8 @@ router.post('/', auth, async (req, res) => {
                 originalQuantity,
                 originalUnit,
                 substituteQuantity,
-                substituteUnit
+                substituteUnit,
+                isOmitted: isOmitted || false
             }
         });
 
@@ -58,6 +60,7 @@ router.post('/', auth, async (req, res) => {
             substitution.originalUnit = originalUnit;
             substitution.substituteQuantity = substituteQuantity;
             substitution.substituteUnit = substituteUnit;
+            substitution.isOmitted = isOmitted || false;
             await substitution.save();
         }
 
@@ -89,7 +92,16 @@ router.delete('/:id', auth, async (req, res) => {
             return res.status(404).json({ error: 'Substitution not found' });
         }
 
+        const { RecipeId } = substitution;
         await substitution.destroy();
+
+        // Also delete instruction override because substitutions changed
+        await RecipeInstructionOverride.destroy({
+            where: {
+                RecipeId,
+                UserId: req.user.householdId || req.user.id
+            }
+        });
         res.json({ message: 'Substitution deleted' });
     } catch (error) {
         console.error(error);

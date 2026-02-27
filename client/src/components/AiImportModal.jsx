@@ -256,7 +256,8 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                         name: mapping.newName,
                         unit: rawIng.unit || 'Stück',
                         isNew: true,
-                        source: 'ai'
+                        source: 'ai',
+                        synonyms: [rawIng.name]
                     });
                     productId = newProd.id;
                 }
@@ -264,7 +265,8 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                 await api.post(`/recipes/${recipe.id}/ingredients`, {
                     ProductId: productId,
                     quantity: rawIng.amount || 1,
-                    unit: rawIng.unit || 'Stück'
+                    unit: rawIng.unit || 'Stück',
+                    originalName: rawIng.name
                 });
             }
 

@@ -105,11 +105,15 @@
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-pulse-subtle: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-spin-slow: spin 3s linear infinite;
 
   @keyframes pulse-subtle {
-    0%, 100% {
+
+    0%,
+    100% {
       opacity: 1;
     }
+
     50% {
       opacity: 0.85;
     }
@@ -446,7 +450,15 @@ textarea,
 
 /* GLOBAL PRINT OVERRIDES */
 @media print {
-  html, body, #root, .min-h-screen, .h-screen, .h-full, .flex-1, main {
+
+  html,
+  body,
+  #root,
+  .min-h-screen,
+  .h-screen,
+  .h-full,
+  .flex-1,
+  main {
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;

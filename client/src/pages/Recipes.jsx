@@ -591,6 +591,15 @@ export default function Recipes() {
                                                 </div>
                                             )}
 
+                                            {recipe.hasSubstitutions && (
+                                                <div className="absolute top-2 left-2 z-20">
+                                                    <div className="bg-amber-500/90 backdrop-blur-md px-2 py-1 rounded-lg shadow-lg border border-amber-400/30 text-white flex items-center gap-1.5 pointer-events-none">
+                                                        <RefreshCw size={12} className="animate-spin-slow" />
+                                                        <span className="text-[10px] font-bold uppercase tracking-wider">Ersetzungen aktiv</span>
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             {/* Action Menu Trigger - Prevent card click propagation */}
                                             <div
                                                 className="absolute top-2 right-2 z-20"
@@ -718,8 +727,13 @@ export default function Recipes() {
                                                 </div>
                                             ) : null}
 
-                                            <div className="absolute bottom-4 left-4 right-4">
-                                                <h3 className="text-xl font-bold text-white line-clamp-1">{recipe.title}</h3>
+                                            <div className="absolute bottom-4 left-4 right-4 flex flex-col gap-1">
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="text-xl font-bold text-white line-clamp-1">{recipe.title}</h3>
+                                                    {recipe.hasSubstitutions && (
+                                                        <Sparkles size={16} className="text-amber-400 shrink-0" />
+                                                    )}
+                                                </div>
                                                 <p className="text-white/80 text-sm">{recipe.category || 'Allgemein'}</p>
                                             </div>
                                         </div>
@@ -839,6 +853,7 @@ export default function Recipes() {
                     recipe={resolvingRecipe}
                     conflicts={resolvingConflicts}
                     onResolved={() => {
+                        fetchRecipes();
                         setSchedulingRecipe(resolvingRecipe);
                         setResolvingRecipe(null);
                         setResolvingConflicts([]);

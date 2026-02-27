@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, Loader2, Play, Eye, EyeOff, CheckCircle2, ChevronRight, LayoutGrid } from 'lucide-react';
+import { X, Sparkles, Loader2, Play, Eye, EyeOff, CheckCircle2, ChevronRight, LayoutGrid, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './Button';
 import { Card } from './Card';
@@ -59,6 +59,16 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
     const handleToggleHidden = async (productId) => {
         try {
             await api.post('/ai/cleanup/toggle-hidden', { productId, context: CONTEXT });
+            if (onRefresh) onRefresh();
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const handleRestoreAll = async () => {
+        if (!window.confirm('Möchtest du wirklich alle versteckten Produkte wieder einblenden?')) return;
+        try {
+            await api.delete('/ai/cleanup/hidden', { data: { context: CONTEXT } });
             if (onRefresh) onRefresh();
         } catch (e) {
             console.error(e);
@@ -153,6 +163,18 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
                                                     {showHidden ? <Eye size={16} /> : <EyeOff size={16} />}
                                                     {showHidden ? 'Versteckte ausblenden' : 'Versteckte zeigen'}
                                                 </Button>
+
+                                                {showHidden && hiddenProducts.length > 0 && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={handleRestoreAll}
+                                                        className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                    >
+                                                        <RefreshCw size={16} />
+                                                        Alle wiederherstellen
+                                                    </Button>
+                                                )}
                                             </div>
 
                                             <Button
@@ -179,11 +201,18 @@ export default function AiCleanupModal({ isOpen, onClose, products = [], onRefre
                                                                     : "bg-card border-border hover:border-primary/40 hover:shadow-md"
                                                             )}
                                                         >
-                                                            <div className="flex flex-col min-w-0">
+                                                            <div className="flex flex-col min-w-0 pr-2">
                                                                 <span className="font-semibold truncate">{product.name}</span>
-                                                                <span className="text-xs text-muted-foreground truncate">
-                                                                    {product.category || 'Keine Kategorie'} • {product.unit || 'Keine Einheit'}
-                                                                </span>
+                                                                <div className="flex flex-col gap-0.5">
+                                                                    <span className="text-[10px] text-muted-foreground truncate uppercase font-bold tracking-tight">
+                                                                        {product.category || 'Keine Kategorie'} • {product.unit || 'Keine Einheit'}
+                                                                    </span>
+                                                                    {product.synonyms && (
+                                                                        <span className="text-[9px] text-primary/70 italic truncate">
+                                                                            as: {Array.isArray(product.synonyms) ? product.synonyms.join(', ') : JSON.parse(product.synonyms || '[]').join(', ')}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                             <button
                                                                 onClick={() => handleToggleHidden(product.id)}

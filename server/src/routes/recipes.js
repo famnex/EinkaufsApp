@@ -300,8 +300,8 @@ router.get('/public/:sharingKey', checkOptionalAuth, async (req, res) => {
 // Get recipe details
 router.get('/:id', auth, async (req, res) => {
     try {
+        const { User, RecipeInstructionOverride } = require('../models');
         const { Op } = require('sequelize');
-        const { User } = require('../models');
 
         const householdUsers = await User.findAll({
             where: {
@@ -343,17 +343,31 @@ router.get('/:id', auth, async (req, res) => {
                         { model: Product, as: 'OriginalProduct' },
                         { model: Product, as: 'SubstituteProduct' }
                     ]
+                },
+                {
+                    model: RecipeInstructionOverride,
+                    where: { UserId: req.user.effectiveId },
+                    required: false
                 }
             ]
         });
+
         if (!recipe) return res.status(404).json({ error: 'Recipe not found or unauthorized' });
 
         // Format response so frontend doesn't break
         const plain = recipe.get({ plain: true });
         plain.isFavorite = !!(plain.FavoritedBy && plain.FavoritedBy.some(u => u.id === req.user.id));
         plain.substitutions = plain.RecipeSubstitutions || [];
+
+        // Use overridden instructions if present
+        if (plain.RecipeInstructionOverrides && plain.RecipeInstructionOverrides.length > 0) {
+            plain.instructions = plain.RecipeInstructionOverrides[0].instructions;
+            plain.hasInstructionOverride = true;
+        }
+
         delete plain.FavoritedBy;
         delete plain.RecipeSubstitutions;
+        delete plain.RecipeInstructionOverrides;
 
         res.json(plain);
     } catch (err) {
@@ -513,12 +527,8 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
             if (req.body.image_url === '' || req.body.image_url === 'null' || req.body.image_url === null) {
                 updates.image_url = null;
             } else if (req.body.image_url.startsWith('http')) {
-                const downloaded = await downloadImage(req.body.image_url, req.user.effectiveId);
-                if (downloaded) {
-                    updates.image_url = downloaded;
-                } else {
-                    updates.image_url = req.body.image_url;
-                }
+                // Image downloading is disabled, just use external URL if needed (but usually we don't for compliance)
+                updates.image_url = req.body.image_url;
             } else {
                 updates.image_url = req.body.image_url;
             }
@@ -573,10 +583,6 @@ router.post('/:id/favorite', auth, async (req, res) => {
             return res.status(404).json({ error: 'Recipe not found' });
         }
 
-        // We could add logic to ensure the recipe is either owned by the user,
-        // or belongs to a public cookbook. For now, we assume if they can see it,
-        // they can favorite it.
-
         const user = await User.findByPk(req.user.id);
         if (!user) {
             console.log(`[PATCH /favorite] User ${req.user.id} not found in DB`);
@@ -601,13 +607,14 @@ router.post('/:id/favorite', auth, async (req, res) => {
 // Add ingredient
 router.post('/:id/ingredients', auth, async (req, res) => {
     try {
-        const { ProductId, quantity, unit } = req.body;
+        const { ProductId, quantity, unit, originalName } = req.body;
         const ingredient = await RecipeIngredient.create({
             RecipeId: req.params.id,
             UserId: req.user.effectiveId,
             ProductId,
             quantity,
-            unit
+            unit,
+            originalName
         });
         const withProduct = await RecipeIngredient.findOne({
             where: { id: ingredient.id, UserId: req.user.effectiveId },
@@ -627,13 +634,13 @@ router.post('/:id/ingredients', auth, async (req, res) => {
 // Update ingredient
 router.put('/:id/ingredients/:ingredientId', auth, async (req, res) => {
     try {
-        const { quantity, unit } = req.body;
+        const { quantity, unit, originalName } = req.body;
         const ingredient = await RecipeIngredient.findOne({
             where: { id: req.params.ingredientId, RecipeId: req.params.id }
         });
         if (!ingredient) return res.status(404).json({ error: 'Ingredient not found' });
 
-        await ingredient.update({ quantity, unit });
+        await ingredient.update({ quantity, unit, originalName });
         res.json(ingredient);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -647,9 +654,37 @@ router.delete('/:id/ingredients/:ingredientId', auth, async (req, res) => {
             where: { id: req.params.ingredientId, RecipeId: req.params.id }
         });
         if (!ingredient) return res.status(404).json({ error: 'Ingredient not found' });
-        await ingredient.destroy();
-        res.json({ message: 'Ingredient removed' });
+
+        const { ProductId, RecipeId } = ingredient;
+
+        // Start transaction for coupled deletion
+        await sequelize.transaction(async (t) => {
+            // Delete associated substitutions
+            await RecipeSubstitution.destroy({
+                where: {
+                    RecipeId,
+                    originalProductId: ProductId,
+                    UserId: req.user.effectiveId
+                },
+                transaction: t
+            });
+
+            // Also delete instruction override because substitutions changed
+            await RecipeInstructionOverride.destroy({
+                where: {
+                    RecipeId,
+                    UserId: req.user.effectiveId
+                },
+                transaction: t
+            });
+
+            // Delete the ingredient
+            await ingredient.destroy({ transaction: t });
+        });
+
+        res.json({ message: 'Ingredient and coupled substitutions removed' });
     } catch (err) {
+        console.error('Delete Ingredient Error:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -679,7 +714,6 @@ router.delete('/:id', auth, async (req, res) => {
         // 3. Remove Tags
         if (RecipeTag) {
             console.log('Removing Tag Links...');
-            // Check if table exists (simplified check by just trying)
             await RecipeTag.destroy({ where: { RecipeId: req.params.id, UserId: req.user.effectiveId }, transaction: t });
         }
 
@@ -697,30 +731,23 @@ router.delete('/:id', auth, async (req, res) => {
         // 6. Delete Image File (Best effort, non-blocking)
         if (imageToDelete && !imageToDelete.startsWith('http')) {
             try {
-                // image_url is like /uploads/recipes/xxx.jpg
-                //We need to go from src/routes -> ... -> public
                 const publicDir = path.join(__dirname, '../../public');
                 const fullPath = path.join(publicDir, imageToDelete);
                 console.log('Attempting to delete image:', fullPath);
                 if (fs.existsSync(fullPath)) {
                     fs.unlinkSync(fullPath);
                     console.log('Image deleted.');
-                } else {
-                    console.log('Image file not found:', fullPath);
                 }
             } catch (fileErr) {
                 console.error('Failed to delete image file:', fileErr.message);
-                // Do not fail the request since DB is consistent
             }
         }
 
         res.json({ message: 'Recipe deleted' });
     } catch (err) {
-        // Only rollback if transaction is active (it should be)
         if (t) await t.rollback();
         console.error('--- RECIPE DELETE ERROR ---');
         console.error('Message:', err.message);
-        console.error('Stack:', err.stack);
         res.status(500).json({ error: 'Delete failed: ' + err.message });
     }
 });

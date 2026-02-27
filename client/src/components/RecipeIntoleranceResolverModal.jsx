@@ -18,6 +18,7 @@ export default function RecipeIntoleranceResolverModal({
     const [suggestions, setSuggestions] = useState({}); // { productId: [suggestions] }
     const [error, setError] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [isRewriting, setIsRewriting] = useState(false);
 
     useLockBodyScroll(isOpen);
 
@@ -54,6 +55,17 @@ export default function RecipeIntoleranceResolverModal({
     };
 
     const handleSelectSubstitute = (originalProductId, suggestion) => {
+        if (suggestion.isOmitted) {
+            setResolutions(prev => ({
+                ...prev,
+                [originalProductId]: {
+                    isOmitted: true,
+                    name: 'Wird weggelassen'
+                }
+            }));
+            return;
+        }
+
         setResolutions(prev => ({
             ...prev,
             [originalProductId]: {
@@ -94,6 +106,21 @@ export default function RecipeIntoleranceResolverModal({
             for (const pid of uniqueConflictedProducts) {
                 const suggestion = resolutions[pid];
 
+                if (suggestion.isOmitted) {
+                    const recipeIngredient = recipe.RecipeIngredients.find(ri => ri.ProductId === pid);
+                    await api.post('/substitutions', {
+                        recipeId: recipe.id,
+                        originalProductId: pid,
+                        substituteProductId: null,
+                        originalQuantity: recipeIngredient?.quantity,
+                        originalUnit: recipeIngredient?.unit,
+                        substituteQuantity: null,
+                        substituteUnit: null,
+                        isOmitted: true
+                    });
+                    continue;
+                }
+
                 // 1. Find or Create the substitute product
                 // We use the search endpoint to see if product exists
                 const { data: searchResults } = await api.get(`/products?search=${encodeURIComponent(suggestion.name)}`);
@@ -121,8 +148,19 @@ export default function RecipeIntoleranceResolverModal({
                     originalQuantity: recipeIngredient?.quantity,
                     originalUnit: recipeIngredient?.unit,
                     substituteQuantity: suggestion.substituteQuantity,
-                    substituteUnit: suggestion.substituteUnit
+                    substituteUnit: suggestion.substituteUnit,
+                    isOmitted: false
                 });
+            }
+
+            // Trigger AI Rewrite of instructions
+            setIsSaving(false);
+            setIsRewriting(true);
+            try {
+                await api.post('/ai/rewrite-instructions', { recipeId: recipe.id });
+            } catch (rewriteErr) {
+                console.error('Failed to rewrite instructions', rewriteErr);
+                // We don't block the whole process if rewriting fails
             }
 
             onResolved();
@@ -132,6 +170,7 @@ export default function RecipeIntoleranceResolverModal({
             setError('Fehler beim Speichern der Ersetzungen. Bitte versuche es erneut.');
         } finally {
             setIsSaving(false);
+            setIsRewriting(false);
         }
     };
 
@@ -212,7 +251,7 @@ export default function RecipeIntoleranceResolverModal({
                                         </div>
                                     </div>
 
-                                    {selected && (
+                                    {selected && !selected.isOmitted && (
                                         <motion.div
                                             initial={{ opacity: 0, y: -10 }}
                                             animate={{ opacity: 1, y: 0 }}
@@ -251,6 +290,27 @@ export default function RecipeIntoleranceResolverModal({
                                             </div>
                                         ) : (
                                             <div className="flex gap-3 overflow-x-auto pb-2 -mx-2 px-2 snap-x scrollbar-hide">
+                                                {/* Omit Option */}
+                                                <button
+                                                    onClick={() => handleSelectSubstitute(pid, { isOmitted: true })}
+                                                    className={cn(
+                                                        "shrink-0 p-4 rounded-2xl border text-left transition-all w-48 sm:w-56 space-y-2 snap-start group",
+                                                        resolutions[pid]?.isOmitted
+                                                            ? "border-destructive bg-destructive/5 ring-1 ring-destructive shadow-md"
+                                                            : "border-border bg-card hover:border-destructive/50 shadow-sm"
+                                                    )}
+                                                >
+                                                    <div className="flex items-start justify-between gap-1">
+                                                        <div className="font-bold text-xs sm:text-sm truncate group-hover:text-destructive transition-colors pr-2 text-destructive">Zutat weglassen</div>
+                                                        <div className="w-5 h-5 rounded-full border border-destructive/30 flex items-center justify-center shrink-0">
+                                                            <X className="text-destructive" size={12} />
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-[10px] text-muted-foreground line-clamp-2 leading-snug">
+                                                        Streiche diese Zutat ersatzlos aus dem Rezept. Die Schritte werden entsprechend angepasst.
+                                                    </div>
+                                                </button>
+
                                                 {suggestions[pid]?.map((s, idx) => (
                                                     <button
                                                         key={idx}
@@ -325,17 +385,22 @@ export default function RecipeIntoleranceResolverModal({
                             <Button
                                 className="flex-1 rounded-2xl h-12 font-bold shadow-lg shadow-primary/20 gap-2"
                                 onClick={handleConfirm}
-                                disabled={uniqueConflictedProducts.some(pid => !resolutions[pid]) || isSaving}
+                                disabled={uniqueConflictedProducts.some(pid => !resolutions[pid]) || isSaving || isRewriting}
                             >
                                 {isSaving ? (
                                     <>
                                         <RefreshCw size={18} className="animate-spin" />
-                                        Speichern...
+                                        Ersatz wird gespeichert...
+                                    </>
+                                ) : isRewriting ? (
+                                    <>
+                                        <RefreshCw size={18} className="animate-spin" />
+                                        Schritte werden angepasst...
                                     </>
                                 ) : (
                                     <>
                                         <Sparkles size={18} />
-                                        Ersetzungen & Fortfahren
+                                        Ersetzen & Fortfahren
                                     </>
                                 )}
                             </Button>

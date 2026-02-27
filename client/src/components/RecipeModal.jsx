@@ -102,6 +102,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
     const [aiActionData, setAiActionData] = useState(null);
     const [products, setProducts] = useState([]);
     const [substitutions, setSubstitutions] = useState([]);
+    const [hasInstructionOverride, setHasInstructionOverride] = useState(false);
 
     // Tab 1: Basics
     const [basics, setBasics] = useState({
@@ -160,6 +161,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                             tags: fullRecipe.Tags ? fullRecipe.Tags.map(t => t.name) : [],
                             imageSource: fullRecipe.imageSource || 'scraped'
                         });
+                        setHasInstructionOverride(!!fullRecipe.hasInstructionOverride);
 
                         // Load ingredients
                         const apiIngredients = fullRecipe.RecipeIngredients?.map(ri => ({
@@ -218,7 +220,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
     const fetchSubstitutions = async () => {
         if (!recipe) return;
         try {
-            const { data } = await api.get(`/recipes/${recipe.id}/substitutions`);
+            const { data } = await api.get(`/substitutions/recipe/${recipe.id}`);
             setSubstitutions(data);
         } catch (err) {
             console.error('Failed to fetch substitutions', err);
@@ -670,7 +672,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                             <div className="col-span-1"></div>
                                         </div>
                                         {ingredients.map((ing, idx) => {
-                                            const sub = substitutions.find(s => s.OriginalProductId === ing.ProductId);
+                                            const sub = substitutions.find(s => s.originalProductId === ing.ProductId);
                                             return (
                                                 <div key={idx} className={cn(
                                                     "grid grid-cols-12 gap-2 items-center p-2 rounded-xl transition-colors",
@@ -679,9 +681,16 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                                     <div className="col-span-6 font-medium text-foreground flex flex-col">
                                                         <span>{ing.name}</span>
                                                         {sub && (
-                                                            <span className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
-                                                                <RefreshCw size={10} /> Ersetzt durch: {sub.SubstituteProduct?.name}
-                                                                ({sub.substituteQuantity} {sub.substituteUnit})
+                                                            <span className={cn(
+                                                                "text-[10px] font-bold flex items-center gap-1",
+                                                                sub.isOmitted ? "text-destructive" : "text-amber-600"
+                                                            )}>
+                                                                {sub.isOmitted ? (
+                                                                    <><X size={10} /> Diese Zutat wird weggelassen</>
+                                                                ) : (
+                                                                    <><RefreshCw size={10} /> Ersetzt durch: {sub.SubstituteProduct?.name}
+                                                                        ({sub.substituteQuantity} {sub.substituteUnit})</>
+                                                                )}
                                                             </span>
                                                         )}
                                                     </div>
@@ -719,6 +728,17 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                             {activeTab === 2 && (
                                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
                                     <div className="space-y-4">
+                                        {hasInstructionOverride && (
+                                            <div className="mb-4 p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-between">
+                                                <div className="flex items-center gap-2 text-indigo-400">
+                                                    <Sparkles size={16} />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">KI-angepasste Schritte</span>
+                                                </div>
+                                                <div className="text-[10px] text-indigo-400/60 font-medium">
+                                                    Basierend auf deinen Ersetzungen
+                                                </div>
+                                            </div>
+                                        )}
                                         <DndContext
                                             sensors={sensors}
                                             collisionDetection={closestCenter}

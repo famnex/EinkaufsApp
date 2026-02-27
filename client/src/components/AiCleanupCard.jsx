@@ -14,17 +14,22 @@ export default function AiCleanupCard({ product, onComplete, context = 'pipeline
     const [feedback, setFeedback] = useState('');
     const [showFeedback, setShowFeedback] = useState(false);
     const [error, setError] = useState(null);
+    const [usage, setUsage] = useState(null);
 
     const fetchAnalysis = async (userFeedback = '') => {
         setStatus(userFeedback ? 'refining' : 'loading');
         setError(null);
         try {
-            const res = await api.post('/ai/analyze-product', {
-                productName: product.name,
-                userFeedback: userFeedback || undefined
-            });
-            setData(res.data);
-            setIntoleranceIds(res.data.intoleranceIds || []);
+            const [analysisRes, usageRes] = await Promise.all([
+                api.post('/ai/analyze-product', {
+                    productName: product.name,
+                    userFeedback: userFeedback || undefined
+                }),
+                api.get(`/products/${product.id}/usage`)
+            ]);
+            setData(analysisRes.data);
+            setUsage(usageRes.data);
+            setIntoleranceIds(analysisRes.data.intoleranceIds || []);
             setStatus('review');
             setShowFeedback(false);
             setFeedback('');
@@ -66,10 +71,15 @@ export default function AiCleanupCard({ product, onComplete, context = 'pipeline
             }
 
             // 1. Save product data
+            // Filter the AI intolerances (which have probabilities) to match the user's remaining IDs
+            const filteredIntolerances = (data.intolerances || []).filter(i =>
+                intoleranceIds.includes(i.id)
+            );
+
             const updatePayload = {
                 category: finalCategory,
                 unit: finalUnit,
-                intolerances: data.intolerances,
+                intolerances: filteredIntolerances,
                 variations: finalVariations
             };
 
@@ -165,6 +175,38 @@ export default function AiCleanupCard({ product, onComplete, context = 'pipeline
                             animate={{ opacity: 1, y: 0 }}
                             className="space-y-5"
                         >
+                            {/* Usage & Synonyms (New) */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                                        <Info size={10} /> In Rezepten
+                                    </div>
+                                    <div className="text-[11px] font-medium bg-muted/50 p-2 rounded-lg border border-border/50 text-muted-foreground leading-tight min-h-[44px]">
+                                        {usage?.usageCount > 0 ? (
+                                            <>
+                                                <div className="text-foreground font-bold">{usage.usageCount}x verwendet</div>
+                                                <div className="truncate opacity-80">
+                                                    {usage.recipes.slice(0, 1).map(r => r.title).join(', ')}
+                                                    {usage.usageCount > 1 && '...'}
+                                                </div>
+                                            </>
+                                        ) : 'Wird noch nicht verwendet'}
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                                        <RefreshCw size={10} /> Verwendet als
+                                    </div>
+                                    <div className="text-[11px] font-medium bg-muted/50 p-2 rounded-lg border border-border/50 text-muted-foreground leading-tight min-h-[44px]">
+                                        {product.synonyms && JSON.parse(typeof product.synonyms === 'string' ? product.synonyms : JSON.stringify(product.synonyms)).length > 0 ? (
+                                            <div className="line-clamp-2">
+                                                {JSON.parse(typeof product.synonyms === 'string' ? product.synonyms : JSON.stringify(product.synonyms)).join(', ')}
+                                            </div>
+                                        ) : 'Keine Synonyme'}
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Category & Unit (Only if NO variants) */}
                             {!data.hasVariants && (
                                 <div className="grid grid-cols-2 gap-3">

@@ -1,23 +1,23 @@
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
-    return sequelize.define('RecipeIngredient', {
+    return sequelize.define('RecipeInstructionOverride', {
         id: {
             type: DataTypes.INTEGER,
             primaryKey: true,
             autoIncrement: true
         },
-        RecipeId: {
-            type: DataTypes.INTEGER,
-            allowNull: false,
-            unique: false
+        instructions: {
+            type: DataTypes.JSON,
+            allowNull: false
         },
-        ProductId: {
+        RecipeId: {
             type: DataTypes.INTEGER,
             allowNull: false
         },
-        quantity: { type: DataTypes.FLOAT, allowNull: false },
-        unit: { type: DataTypes.STRING },
-        originalName: { type: DataTypes.STRING, allowNull: true }
+        UserId: {
+            type: DataTypes.INTEGER,
+            allowNull: false
+        }
     });
 };

@@ -229,4 +229,38 @@ router.post('/merge', auth, async (req, res) => {
     }
 });
 
+// Get product usage in recipes
+router.get('/:id/usage', auth, async (req, res) => {
+    try {
+        const { Recipe, RecipeIngredient } = require('../models');
+
+        const usage = await RecipeIngredient.findAll({
+            where: {
+                ProductId: req.params.id,
+                UserId: req.user.effectiveId
+            },
+            include: [{
+                model: Recipe,
+                attributes: ['id', 'title']
+            }],
+            attributes: ['originalName'] // If we have this field (from AI imports)
+        });
+
+        // Format: { usageCount: X, recipes: [{ id, title, as: 'Original Name' }] }
+        const recipes = usage.map(u => ({
+            id: u.Recipe?.id,
+            title: u.Recipe?.title,
+            as: u.originalName
+        })).filter(r => r.id);
+
+        res.json({
+            usageCount: recipes.length,
+            recipes
+        });
+    } catch (err) {
+        console.error('Product Usage Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
