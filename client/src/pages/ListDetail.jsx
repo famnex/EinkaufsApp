@@ -163,25 +163,31 @@ export default function ListDetail() {
     }, [activeNoteId]);
 
     const fetchIntoleranceConflicts = useCallback(async (productId) => {
-        if (!productId) return [];
+        if (!productId) return { messages: [], maxProbability: 0 };
         try {
             const { data: conflicts } = await api.post('/intolerances/check', { productIds: [productId] });
             if (conflicts && conflicts.length > 0) {
                 const messages = [];
+                let maxProb = 0;
                 conflicts.forEach(pc => {
                     if (pc.warnings) {
                         pc.warnings.forEach(w => {
                             const householdName = (pc.username && pc.username !== user?.username) ? ` (${pc.username})` : '';
                             messages.push(`🛑 Unverträglichkeit: ${w.message}${householdName}`);
+                            const prob = w.probability !== undefined ? w.probability : 100;
+                            if (prob > maxProb) maxProb = prob;
                         });
                     }
                 });
-                return [...new Set(messages)];
+                return {
+                    messages: [...new Set(messages)],
+                    maxProbability: maxProb
+                };
             }
         } catch (err) {
             console.error('Failed to check intolerances', err);
         }
-        return [];
+        return { messages: [], maxProbability: 0 };
     }, [user?.username]);
 
     useEffect(() => {
@@ -202,10 +208,10 @@ export default function ListDetail() {
         setSuggestions([]);
 
         if (product && typeof product === 'object' && product.id) {
-            const messages = await fetchIntoleranceConflicts(product.id);
-            setIntoleranceMessages(messages);
+            const conflictData = await fetchIntoleranceConflicts(product.id);
+            setIntoleranceMessages(conflictData);
         } else {
-            setIntoleranceMessages([]);
+            setIntoleranceMessages({ messages: [], maxProbability: 0 });
         }
 
         setIsQuantityModalOpen(true);
@@ -922,18 +928,21 @@ export default function ListDetail() {
                 item={selectedItem}
                 onSave={handleUpdateItem}
                 onDelete={deleteItem}
-                intoleranceMessages={intoleranceMessages}
+                intoleranceData={intoleranceMessages}
             />
 
             <QuantityModal
                 isOpen={isQuantityModalOpen}
-                onClose={() => setIsQuantityModalOpen(false)}
+                onClose={() => {
+                    setIsQuantityModalOpen(false);
+                    setIntoleranceMessages({ messages: [], maxProbability: 0 });
+                }}
                 productName={typeof pendingProduct === 'string' ? pendingProduct : pendingProduct?.name}
                 defaultUnit={typeof pendingProduct === 'object' ? pendingProduct?.unit : 'Stück'}
                 productNote={typeof pendingProduct === 'object' ? pendingProduct?.note : ''}
                 variations={pendingProduct?.ProductVariations || []}
                 onConfirm={onConfirmQuantity}
-                intoleranceMessages={intoleranceMessages}
+                intoleranceData={intoleranceMessages}
             />
 
             <ProductSubstituteModal

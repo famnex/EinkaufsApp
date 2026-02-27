@@ -266,6 +266,24 @@ ProductSubstitution.belongsTo(Product, { as: 'OriginalProduct', foreignKey: 'ori
 ProductSubstitution.belongsTo(Product, { as: 'SubstituteProduct', foreignKey: 'substituteProductId' });
 List.hasMany(ProductSubstitution, { foreignKey: 'ListId' });
 
+const RecipeSubstitution = sequelize.define('RecipeSubstitution', {
+    originalProductId: { type: DataTypes.INTEGER, allowNull: false },
+    substituteProductId: { type: DataTypes.INTEGER, allowNull: false },
+    originalQuantity: { type: DataTypes.FLOAT, allowNull: true },
+    originalUnit: { type: DataTypes.STRING, allowNull: true },
+    substituteQuantity: { type: DataTypes.FLOAT, allowNull: true },
+    substituteUnit: { type: DataTypes.STRING, allowNull: true }
+});
+
+RecipeSubstitution.belongsTo(User);
+User.hasMany(RecipeSubstitution);
+
+RecipeSubstitution.belongsTo(Recipe, { foreignKey: 'RecipeId' });
+Recipe.hasMany(RecipeSubstitution, { foreignKey: 'RecipeId' });
+
+RecipeSubstitution.belongsTo(Product, { as: 'OriginalProduct', foreignKey: 'originalProductId' });
+RecipeSubstitution.belongsTo(Product, { as: 'SubstituteProduct', foreignKey: 'substituteProductId' });
+
 const Email = sequelize.define('Email', {
     messageId: { type: DataTypes.STRING, allowNull: true, unique: true },
     folder: { type: DataTypes.ENUM('inbox', 'sent', 'sent_system', 'daemon', 'newsletter', 'trash'), defaultValue: 'inbox' },
@@ -295,7 +313,8 @@ const UserIntolerance = sequelize.define('UserIntolerance', {
 
 const ProductIntolerance = sequelize.define('ProductIntolerance', {
     ProductId: { type: DataTypes.INTEGER, references: { model: 'Products', key: 'id' } },
-    IntoleranceId: { type: DataTypes.INTEGER, references: { model: 'Intolerances', key: 'id' } }
+    IntoleranceId: { type: DataTypes.INTEGER, references: { model: 'Intolerances', key: 'id' } },
+    probability: { type: DataTypes.INTEGER, defaultValue: 100 }
 });
 
 const UserProductIntolerance = sequelize.define('UserProductIntolerance', {
@@ -345,5 +364,8 @@ module.exports = {
     PublicVisit,
     ProductVariant,
     ProductVariation,
-    Intolerance
+    Intolerance,
+    ProductIntolerance,
+    UserIntolerance,
+    RecipeSubstitution
 };

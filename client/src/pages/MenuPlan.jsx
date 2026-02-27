@@ -11,6 +11,7 @@ import BulkPlanningModal from '../components/BulkPlanningModal';
 import CookingMode from '../components/CookingMode';
 import { useNavigate } from 'react-router-dom';
 import LoadingOverlay from '../components/LoadingOverlay';
+import RecipeIntoleranceResolverModal from '../components/RecipeIntoleranceResolverModal';
 
 
 function getMonday(d) {
@@ -45,6 +46,9 @@ export default function MenuPlan() {
     const [tooltip, setTooltip] = useState(null);
 
     const [bulkModal, setBulkModal] = useState({ open: false, listId: null });
+    const [resolvingRecipe, setResolvingRecipe] = useState(null);
+    const [resolvingConflicts, setResolvingConflicts] = useState([]);
+    const [pendingSelection, setPendingSelection] = useState(null);
 
     const fetchData = async () => {
         setLoading(true);
@@ -176,6 +180,38 @@ export default function MenuPlan() {
 
     const handleMealSelect = async (selection) => {
         if (!activeSlot) return;
+        try {
+            // If it's a recipe, check for intolerances first
+            if (selection.RecipeId) {
+                // Get full recipe to check for substitutions
+                const { data: fullRecipe } = await api.get(`/recipes/${selection.RecipeId}`);
+
+                // Get IDs of products that AREN'T substituted yet
+                const substitutedProductIds = new Set(fullRecipe.substitutions?.map(s => s.originalProductId) || []);
+                const productIdsToCheck = fullRecipe.RecipeIngredients
+                    ?.map(ri => ri.ProductId)
+                    .filter(pid => pid && !substitutedProductIds.has(pid)) || [];
+
+                if (productIdsToCheck.length > 0) {
+                    const { data: conflicts } = await api.post('/intolerances/check', { productIds: productIdsToCheck });
+                    const severeConflicts = conflicts.filter(c => c.maxProbability >= 30);
+
+                    if (severeConflicts.length > 0) {
+                        setResolvingRecipe(fullRecipe);
+                        setResolvingConflicts(severeConflicts);
+                        setPendingSelection(selection);
+                        return;
+                    }
+                }
+            }
+
+            await executeMealSelect(selection);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const executeMealSelect = async (selection) => {
         try {
             const existing = menus.find(m => m.date === activeSlot.date && m.meal_type === activeSlot.type);
             const payload = {
@@ -597,6 +633,25 @@ export default function MenuPlan() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <RecipeIntoleranceResolverModal
+                isOpen={!!resolvingRecipe}
+                onClose={() => {
+                    setResolvingRecipe(null);
+                    setResolvingConflicts([]);
+                    setPendingSelection(null);
+                }}
+                recipe={resolvingRecipe}
+                conflicts={resolvingConflicts}
+                onResolved={() => {
+                    if (pendingSelection) {
+                        executeMealSelect(pendingSelection);
+                    }
+                    setResolvingRecipe(null);
+                    setResolvingConflicts([]);
+                    setPendingSelection(null);
+                }}
+            />
         </div >
     );
 }

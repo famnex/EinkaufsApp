@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Clock, Users, ArrowRight, Wand2, Plus, Minus, Search, Trash2, Image as ImageIcon, Sparkles, Loader2, Tag, ShieldAlert, GripVertical, Play } from 'lucide-react';
+import { X, Save, Clock, Users, ArrowRight, Wand2, Plus, Minus, Search, Trash2, Image as ImageIcon, Sparkles, Loader2, Tag, ShieldAlert, GripVertical, Play, RefreshCw, ArrowRightCircle } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
@@ -101,6 +101,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
     const [aiConfirmModalOpen, setAiConfirmModalOpen] = useState(false);
     const [aiActionData, setAiActionData] = useState(null);
     const [products, setProducts] = useState([]);
+    const [substitutions, setSubstitutions] = useState([]);
 
     // Tab 1: Basics
     const [basics, setBasics] = useState({
@@ -139,6 +140,9 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
     useEffect(() => {
         if (isOpen) {
             api.get('/products').then(res => setProducts(res.data));
+            if (recipe) {
+                fetchSubstitutions();
+            }
 
             if (recipe) {
                 setLoading(true);
@@ -208,6 +212,26 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
         });
         setIngredients([]);
         setSteps([{ id: Date.now().toString(), text: '' }]);
+        setSubstitutions([]);
+    };
+
+    const fetchSubstitutions = async () => {
+        if (!recipe) return;
+        try {
+            const { data } = await api.get(`/recipes/${recipe.id}/substitutions`);
+            setSubstitutions(data);
+        } catch (err) {
+            console.error('Failed to fetch substitutions', err);
+        }
+    };
+
+    const handleDeleteSubstitution = async (id) => {
+        try {
+            await api.delete(`/recipes/substitutions/${id}`);
+            fetchSubstitutions();
+        } catch (err) {
+            console.error('Failed to delete substitution', err);
+        }
     };
 
     const handleImageChange = (e) => {
@@ -645,32 +669,46 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                             <div className="col-span-2">Einh.</div>
                                             <div className="col-span-1"></div>
                                         </div>
-                                        {ingredients.map((ing, idx) => (
-                                            <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-muted/30 p-2 rounded-xl">
-                                                <div className="col-span-6 font-medium text-foreground">{ing.name}</div>
-                                                <div className="col-span-3">
-                                                    <Input
-                                                        type="number"
-                                                        value={ing.quantity}
-                                                        onChange={e => updateIngredient(idx, 'quantity', e.target.value)}
-                                                        className="h-8 text-sm bg-background"
-                                                    />
+                                        {ingredients.map((ing, idx) => {
+                                            const sub = substitutions.find(s => s.OriginalProductId === ing.ProductId);
+                                            return (
+                                                <div key={idx} className={cn(
+                                                    "grid grid-cols-12 gap-2 items-center p-2 rounded-xl transition-colors",
+                                                    sub ? "bg-amber-500/10 border border-amber-500/20" : "bg-muted/30"
+                                                )}>
+                                                    <div className="col-span-6 font-medium text-foreground flex flex-col">
+                                                        <span>{ing.name}</span>
+                                                        {sub && (
+                                                            <span className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
+                                                                <RefreshCw size={10} /> Ersetzt durch: {sub.SubstituteProduct?.name}
+                                                                ({sub.substituteQuantity} {sub.substituteUnit})
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="col-span-3">
+                                                        <Input
+                                                            type="number"
+                                                            value={ing.quantity}
+                                                            onChange={e => updateIngredient(idx, 'quantity', e.target.value)}
+                                                            className="h-8 text-sm bg-background"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-2">
+                                                        <Input
+                                                            value={ing.unit || ''}
+                                                            placeholder="Einh."
+                                                            onChange={e => updateIngredient(idx, 'unit', e.target.value)}
+                                                            className="h-8 text-sm bg-background"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-1 flex justify-end">
+                                                        <button onClick={() => removeIngredient(idx)} className="text-destructive hover:bg-destructive/10 p-1.5 rounded-lg transition-colors">
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                                <div className="col-span-2">
-                                                    <Input
-                                                        value={ing.unit || ''}
-                                                        placeholder="Einh."
-                                                        onChange={e => updateIngredient(idx, 'unit', e.target.value)}
-                                                        className="h-8 text-sm bg-background"
-                                                    />
-                                                </div>
-                                                <div className="col-span-1 flex justify-end">
-                                                    <button onClick={() => removeIngredient(idx)} className="text-destructive hover:bg-destructive/10 p-1.5 rounded-lg transition-colors">
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                         {ingredients.length === 0 && (
                                             <div className="text-center py-10 text-muted-foreground italic">Noch keine Zutaten.</div>
                                         )}

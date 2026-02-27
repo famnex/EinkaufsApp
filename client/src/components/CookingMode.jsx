@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, Maximize2, Minimize2, AlertTriangle, Sparkles, Share2, Mic } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, Maximize2, Minimize2, AlertTriangle, AlertCircle, HelpCircle, Sparkles, Share2, Mic } from 'lucide-react';
 import { Button } from './Button';
 import { cn, getImageUrl } from '../lib/utils';
 import api from '../lib/axios';
@@ -82,12 +82,12 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
     };
 
     // Portal Tooltip State
-    const [tooltipData, setTooltipData] = useState(null); // { x, y, items: [] }
+    const [tooltipData, setTooltipData] = useState(null); // { x, y, items: [], maxProbability: number }
 
     // Parse ingredients to ensure we handle the async fetched data structure
     const rawIngredients = useMemo(() => recipe.RecipeIngredients?.map(ri => {
         const originalName = ri.Product?.name || 'Unknown';
-        const subName = substitutions[originalName];
+        const sub = substitutions[originalName];
 
         // Parse synonyms safely (may be JSON string or array)
         let synonyms = ri.Product?.synonyms || [];
@@ -96,11 +96,11 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
         return {
             id: ri.id,
             productId: ri.ProductId,
-            name: subName || originalName,
+            name: sub ? sub.name : originalName,
             originalName: originalName,
-            isSubstituted: !!subName,
-            amount: ri.quantity * scaleFactor,
-            unit: ri.unit || ri.Product?.unit,
+            isSubstituted: !!sub,
+            amount: (sub && sub.quantity !== null ? sub.quantity : ri.quantity) * scaleFactor,
+            unit: (sub && sub.unit) ? sub.unit : (ri.unit || ri.Product?.unit),
             synonyms: Array.isArray(synonyms) ? synonyms : []
         };
     }) || [], [recipe, substitutions, scaleFactor]);
@@ -201,20 +201,24 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
         if (productConflicts.length === 0) return null;
 
         const messages = [];
+        let maxProb = 0;
         productConflicts.forEach(pc => {
             if (pc.warnings && Array.isArray(pc.warnings)) {
                 pc.warnings.forEach(w => {
                     const householdName = (pc.username && pc.username !== user?.username) ? ` (${pc.username})` : '';
                     messages.push(`🛑 Unverträglichkeit: ${w.message}${householdName}`);
+                    const prob = w.probability !== undefined ? w.probability : 100;
+                    if (prob > maxProb) maxProb = prob;
                 });
             }
         });
 
-        const uniqueMessages = [...new Set(messages)];
-        if (uniqueMessages.length > 0) {
-            console.log(`[CookingMode] Found ${uniqueMessages.length} conflicts for product ${productId}`);
-        }
-        return uniqueMessages.length > 0 ? uniqueMessages : null;
+        if (maxProb <= 30) return null;
+
+        return {
+            messages: [...new Set(messages)],
+            maxProbability: maxProb
+        };
     }, [conflicts, user]);
 
     useEffect(() => {
@@ -297,6 +301,31 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
             checkFutureUsage();
         }
     }, [recipe]); // Note: removed ingredients dep to avoid loop if object ref changes, handled by memo
+
+    useEffect(() => {
+        if (recipe?.id) {
+            fetchSavedSubstitutions();
+        }
+    }, [recipe?.id]);
+
+    const fetchSavedSubstitutions = async () => {
+        try {
+            const { data } = await api.get(`/substitutions/recipe/${recipe.id}`);
+            const subMap = {};
+            data.forEach(sub => {
+                if (sub.OriginalProduct?.name && sub.SubstituteProduct?.name) {
+                    subMap[sub.OriginalProduct.name] = {
+                        name: sub.SubstituteProduct.name,
+                        quantity: sub.substituteQuantity,
+                        unit: sub.substituteUnit
+                    };
+                }
+            });
+            setSubstitutions(prev => ({ ...prev, ...subMap }));
+        } catch (err) {
+            console.error('Failed to fetch saved substitutions', err);
+        }
+    };
 
 
     // iOS Audio: Create and keep a single shared AudioContext.
@@ -391,12 +420,16 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
     };
 
     // Tooltip Interaction Handlers
-    const handleTooltipShow = (e, items) => {
+    const handleTooltipShow = (e, conflict) => {
         const rect = e.currentTarget.getBoundingClientRect();
+        // Check if conflict is an array (future usage) or object (intolerances)
+        const isIntolerance = conflict && !Array.isArray(conflict) && conflict.messages;
+
         setTooltipData({
             x: rect.right + 10, // Default to right
             y: rect.top,
-            items: items,
+            items: isIntolerance ? conflict.messages : conflict,
+            maxProbability: isIntolerance ? conflict.maxProbability : null,
             targetRect: rect // Store to adjust if off-screen
         });
     };
@@ -692,7 +725,14 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                                                 {Number(ing.amount.toFixed(2)).toLocaleString('de-DE')} {ing.unit}
                                             </span>}
                                             <span className={cn(ing.isSubstituted && "text-primary italic")}>{ing.name}</span>
-                                            {ing.isSubstituted && <span className="text-xs text-muted-foreground line-through ml-2 opacity-60">{ing.originalName}</span>}
+                                            {ing.isSubstituted && (
+                                                <div className="flex flex-col gap-0.5 mt-0.5">
+                                                    <span className="text-xs text-muted-foreground line-through opacity-60">Original: {ing.originalName}</span>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1">
+                                                        <Sparkles size={10} className="fill-current" /> Ersetzt
+                                                    </span>
+                                                </div>
+                                            )}
                                         </span>
 
                                         {/* Future Usage Warning */}
@@ -718,26 +758,32 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                                         )}
 
                                         {/* Intolerance Warning */}
-                                        {getConflictForProduct(ing.productId) && (
-                                            <div
-                                                className="z-10 p-2 -m-2 shrink-0"
-                                                onMouseEnter={(e) => handleTooltipShow(e, getConflictForProduct(ing.productId))}
-                                                onMouseLeave={handleTooltipHide}
-                                                onTouchStart={(e) => {
-                                                    e.stopPropagation();
-                                                    handleTooltipShow(e, getConflictForProduct(ing.productId));
-                                                }}
-                                                onTouchEnd={(e) => {
-                                                    e.stopPropagation();
-                                                    handleTooltipHide();
-                                                }}
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <div className="w-8 h-8 flex items-center justify-center text-destructive bg-destructive/10 rounded-full animate-pulse ring-1 ring-destructive/20">
-                                                    <AlertTriangle size={18} />
+                                        {(() => {
+                                            const conflict = getConflictForProduct(ing.productId);
+                                            return conflict && !ing.isSubstituted && (
+                                                <div
+                                                    className="z-10 p-2 -m-2 shrink-0"
+                                                    onMouseEnter={(e) => handleTooltipShow(e, conflict)}
+                                                    onMouseLeave={handleTooltipHide}
+                                                    onTouchStart={(e) => {
+                                                        e.stopPropagation();
+                                                        handleTooltipShow(e, conflict);
+                                                    }}
+                                                    onTouchEnd={(e) => {
+                                                        e.stopPropagation();
+                                                        handleTooltipHide();
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <div className={cn(
+                                                        "w-8 h-8 flex items-center justify-center rounded-full ring-1 transition-all",
+                                                        conflict.maxProbability >= 80 ? "text-destructive bg-destructive/10 animate-pulse ring-destructive/20" : "text-orange-500 bg-orange-500/10 ring-orange-500/20"
+                                                    )}>
+                                                        {conflict.maxProbability >= 80 ? <AlertCircle size={18} /> : <HelpCircle size={18} />}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            );
+                                        })()}
                                     </div>
                                 ))}
                             </div>
@@ -787,10 +833,12 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                                                         "px-1.5 py-0.5 rounded-md cursor-pointer transition-colors mx-0.5 border-b-2 border-primary/40 hover:border-primary shadow-sm",
                                                         checkedIngredients.has(frag.id)
                                                             ? "bg-secondary text-secondary-foreground line-through decoration-secondary-foreground/60 opacity-60 dark:bg-secondary/40 dark:text-secondary-foreground"
-                                                            : "bg-primary text-primary-foreground font-black shadow-md dark:bg-primary dark:text-primary-foreground"
+                                                            : (frag.ingredient.isSubstituted
+                                                                ? "bg-amber-500 text-white font-black shadow-md"
+                                                                : "bg-primary text-primary-foreground font-black shadow-md dark:bg-primary dark:text-primary-foreground")
                                                     )}
                                                 >
-                                                    {frag.text}
+                                                    {frag.ingredient.isSubstituted ? frag.ingredient.name : frag.text}
                                                 </span>
                                             ) : (
                                                 <span
@@ -971,13 +1019,17 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                                 </>
                             ) : (
                                 <>
-                                    <div className="font-bold mb-2 text-destructive flex items-center gap-2">
-                                        <AlertTriangle size={16} /> Achtung!
+                                    <div className={cn("font-bold mb-2 flex items-center gap-2", tooltipData.maxProbability >= 80 ? "text-destructive" : "text-orange-500")}>
+                                        {tooltipData.maxProbability >= 80 ? <AlertCircle size={16} /> : <HelpCircle size={16} />}
+                                        {tooltipData.maxProbability >= 80 ? 'Achtung!' : 'Hinweis'} ({tooltipData.maxProbability}%)
                                     </div>
-                                    <div className="text-muted-foreground mb-2 text-xs">Unverträglichkeiten in diesem Haushalt:</div>
+                                    <div className="text-muted-foreground mb-2 text-xs">Unverträglichkeit erkannt:</div>
                                     <ul className="space-y-1">
                                         {tooltipData.items.map((msg, idx) => (
-                                            <li key={idx} className="flex items-start gap-2 text-xs font-semibold bg-destructive/5 p-2 rounded-lg text-destructive border border-destructive/10">
+                                            <li key={idx} className={cn(
+                                                "flex items-start gap-2 text-xs font-semibold p-2 rounded-lg border",
+                                                tooltipData.maxProbability >= 80 ? "bg-destructive/5 text-destructive border-destructive/10" : "bg-orange-500/5 text-orange-500 border-orange-500/10"
+                                            )}>
                                                 <span>{msg}</span>
                                             </li>
                                         ))}
@@ -1014,12 +1066,13 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
 
                             {ingredientTooltip.conflicts && (
                                 <div className="mt-2 pt-2 border-t border-border/50 min-w-[200px]">
-                                    <div className="font-bold text-[10px] text-destructive flex items-center gap-1 mb-1">
-                                        <AlertTriangle size={12} /> Achtung!
+                                    <div className={cn("font-bold text-[10px] flex items-center gap-1 mb-1", ingredientTooltip.conflicts.maxProbability >= 80 ? "text-destructive" : "text-orange-500")}>
+                                        {ingredientTooltip.conflicts.maxProbability >= 80 ? <AlertCircle size={12} /> : <HelpCircle size={12} />}
+                                        {ingredientTooltip.conflicts.maxProbability >= 80 ? 'Achtung!' : 'Hinweis'} ({ingredientTooltip.conflicts.maxProbability}%)
                                     </div>
                                     <div className="space-y-1">
-                                        {ingredientTooltip.conflicts.map((msg, i) => (
-                                            <div key={i} className="text-[10px] text-destructive/80 font-medium leading-tight">
+                                        {ingredientTooltip.conflicts.messages.map((msg, i) => (
+                                            <div key={i} className={cn("text-[10px] font-medium leading-tight", ingredientTooltip.conflicts.maxProbability >= 80 ? "text-destructive/80" : "text-orange-500/80")}>
                                                 {msg}
                                             </div>
                                         ))}

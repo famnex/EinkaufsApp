@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { X, Check, ShoppingCart, ChevronDown, ChevronUp, AlertCircle, Plus, Trash2, ArrowRight, RefreshCw, Search } from 'lucide-react';
+import { X, Check, ShoppingCart, ChevronDown, ChevronUp, AlertCircle, HelpCircle, Plus, Trash2, ArrowRight, RefreshCw, Search } from 'lucide-react';
 import { Button } from './Button';
 import { UnitCombobox } from './UnitCombobox';
 import api from '../lib/axios';
@@ -21,7 +21,14 @@ function Tooltip({ children, items = [], onToggle }) {
     const safeItems = Array.isArray(items) ? items : [];
     if (safeItems.length === 0) return children;
 
-    // Correctly extract messages from conflict objects if necessary
+    // Correctly extract messages and probability from conflict objects
+    const maxProb = safeItems.reduce((max, item) => {
+        const prob = (item && typeof item === 'object') ? (item.probability ?? 100) : 100;
+        return Math.max(max, prob);
+    }, 0);
+
+    if (maxProb <= 30) return children;
+
     const displayMessages = safeItems.map(item => {
         if (typeof item === 'string') return item;
         if (item && typeof item === 'object') {
@@ -76,7 +83,10 @@ function Tooltip({ children, items = [], onToggle }) {
                             initial={{ opacity: 0, scale: 0.9, y: -10 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.9, y: -10 }}
-                            className="fixed p-4 bg-card border-2 border-destructive shadow-2xl rounded-2xl z-[9999] min-w-[220px]"
+                            className={cn(
+                                "fixed p-4 bg-card shadow-2xl rounded-2xl z-[9999] min-w-[220px] border-2",
+                                maxProb >= 80 ? "border-destructive" : "border-orange-500"
+                            )}
                             style={{
                                 top: pos.top,
                                 left: pos.left,
@@ -84,20 +94,29 @@ function Tooltip({ children, items = [], onToggle }) {
                             }}
                             onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside tooltip
                         >
-                            <div className="flex items-center gap-2 text-destructive font-black text-xs mb-3 border-b border-destructive/10 pb-2">
-                                <AlertCircle size={14} />
-                                <span>Achtung! Unverträglichkeit</span>
+                            <div className={cn(
+                                "flex items-center gap-2 font-black text-xs mb-3 border-b pb-2",
+                                maxProb >= 80 ? "text-destructive border-destructive/10" : "text-orange-500 border-orange-500/10"
+                            )}>
+                                {maxProb >= 80 ? <AlertCircle size={14} /> : <HelpCircle size={14} />}
+                                <span>{maxProb >= 80 ? 'Achtung! Unverträglichkeit' : 'Hinweis: Eventuelle Unverträglichkeit'} ({maxProb}%)</span>
                             </div>
                             <ul className="space-y-2">
                                 {displayMessages.map((msg, idx) => (
-                                    <li key={idx} className="text-xs text-destructive font-bold flex items-start gap-2 leading-tight bg-red-500/5 p-2 rounded-lg">
-                                        <span className="shrink-0">⚠️</span>
+                                    <li key={idx} className={cn(
+                                        "text-xs font-bold flex items-start gap-2 leading-tight p-2 rounded-lg",
+                                        maxProb >= 80 ? "text-destructive bg-red-500/5" : "text-orange-500 bg-orange-500/5"
+                                    )}>
+                                        <span className="shrink-0">{maxProb >= 80 ? '🛑' : '⚠️'}</span>
                                         <span>{msg.replace('🛑 Unverträglichkeit: ', '')}</span>
                                     </li>
                                 ))}
                             </ul>
                             {/* Arrow pointing up */}
-                            <div className="absolute bottom-full left-1/2 -ml-2 border-8 border-transparent border-b-destructive" />
+                            <div className={cn(
+                                "absolute bottom-full left-1/2 -ml-2 border-8 border-transparent",
+                                maxProb >= 80 ? "border-b-destructive" : "border-b-orange-500"
+                            )} />
                             <div className="absolute bottom-full left-1/2 -ml-[7px] border-[7px] border-transparent border-b-card mt-[1px]" />
                         </motion.div>
                     )}
@@ -607,14 +626,26 @@ function PlanningRow({
                                 <>
                                     <div className={cn("font-bold truncate text-base md:text-sm leading-tight flex items-center gap-2", substitutions[item.product.id] && "line-through opacity-50")}>
                                         {item.product.name}
-                                        {hasConflict && (
-                                            <Tooltip
-                                                items={conflicts?.find(c => c.productId === item.product.id)?.warnings || []}
-                                                onToggle={setIsTooltipOpen}
-                                            >
-                                                <AlertCircle size={14} className="text-destructive animate-pulse shrink-0 cursor-help" />
-                                            </Tooltip>
-                                        )}
+                                        {(() => {
+                                            const conflict = conflicts?.find(c => Number(c.productId) === Number(item.product.id));
+                                            const warnings = conflict?.warnings || [];
+                                            const maxProb = warnings.reduce((max, w) => Math.max(max, w.probability || 0), 0);
+
+                                            if (maxProb <= 30 || substitutions[item.product.id]) return null;
+
+                                            return (
+                                                <Tooltip
+                                                    items={warnings}
+                                                    onToggle={setIsTooltipOpen}
+                                                >
+                                                    {maxProb >= 80 ? (
+                                                        <AlertCircle size={14} className="text-destructive animate-pulse shrink-0 cursor-help" />
+                                                    ) : (
+                                                        <HelpCircle size={14} className="text-orange-500 shrink-0 cursor-help" />
+                                                    )}
+                                                </Tooltip>
+                                            );
+                                        })()}
                                     </div>
                                     {substitutions[item.product.id] && (
                                         <div className="font-bold text-primary truncate text-sm flex items-center gap-1 mt-0.5 animate-in fade-in slide-in-from-left-2">

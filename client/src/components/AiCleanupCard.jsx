@@ -69,7 +69,7 @@ export default function AiCleanupCard({ product, onComplete, context = 'pipeline
             const updatePayload = {
                 category: finalCategory,
                 unit: finalUnit,
-                intoleranceIds: intoleranceIds,
+                intolerances: data.intolerances,
                 variations: finalVariations
             };
 
@@ -203,6 +203,11 @@ export default function AiCleanupCard({ product, onComplete, context = 'pipeline
                                                     className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-primary/10 text-primary rounded-full border border-primary/20 animate-in fade-in zoom-in-50"
                                                 >
                                                     {label}
+                                                    {data.intolerances?.find(i => i.id === id)?.probability !== undefined && (
+                                                        <span className="opacity-60 font-medium ml-0.5">
+                                                            {data.intolerances.find(i => i.id === id).probability}%
+                                                        </span>
+                                                    )}
                                                     <button
                                                         onClick={() => setIntoleranceIds(prev => prev.filter(i => i !== id))}
                                                         className="hover:text-destructive transition-colors ml-0.5"

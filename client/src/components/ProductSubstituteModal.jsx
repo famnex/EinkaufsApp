@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, RefreshCw, Sparkles, AlertCircle } from 'lucide-react';
+import { X, RefreshCw, Sparkles, AlertCircle, HelpCircle } from 'lucide-react';
 import { Button } from './Button';
 import { cn, getImageUrl } from '../lib/utils';
 
@@ -81,10 +81,18 @@ export default function ProductSubstituteModal({
                                                     </div>
                                                     {(() => {
                                                         const p = allProducts.find(ap => ap.name.toLowerCase() === suggestion.name.toLowerCase());
-                                                        if (p && conflicts.some(c => c.productId === p.id && c.warnings?.length > 0)) {
-                                                            return <AlertCircle size={16} className="text-destructive animate-pulse" />;
-                                                        }
-                                                        return null;
+                                                        if (!p) return null;
+                                                        const conflict = conflicts.find(c => Number(c.productId) === Number(p.id));
+                                                        if (!conflict || !conflict.warnings || conflict.warnings.length === 0) return null;
+
+                                                        const maxProb = conflict.warnings.reduce((max, w) => Math.max(max, w.probability || 0), 0);
+                                                        if (maxProb <= 30) return null;
+
+                                                        return maxProb >= 80 ? (
+                                                            <AlertCircle size={16} className="text-destructive animate-pulse" />
+                                                        ) : (
+                                                            <HelpCircle size={16} className="text-orange-500" />
+                                                        );
                                                     })()}
                                                 </div>
                                                 <div className="text-xs text-muted-foreground mt-1">

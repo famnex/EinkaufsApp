@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Product, Store, ListItem, RecipeIngredient, sequelize, HiddenCleanup, ProductVariation, ProductVariant, Intolerance } = require('../models');
+const { Product, Store, ListItem, RecipeIngredient, sequelize, HiddenCleanup, ProductVariation, ProductVariant, Intolerance, ProductIntolerance } = require('../models');
 const { auth, admin } = require('../middleware/auth');
 
 router.get('/', auth, async (req, res) => {
@@ -26,7 +26,7 @@ router.get('/', auth, async (req, res) => {
                     required: false,
                     include: [{ model: ProductVariant }]
                 },
-                { model: Intolerance, through: { attributes: [] } }
+                { model: Intolerance, through: { attributes: ['probability'] } }
             ],
             order: [[sequelize.fn('lower', sequelize.col('Product.name')), 'ASC']],
             limit: limit ? parseInt(limit) : undefined
@@ -59,7 +59,7 @@ router.get('/units', auth, async (req, res) => {
 router.post('/', auth, async (req, res) => {
     const t = await sequelize.transaction();
     try {
-        const { variations, intoleranceIds, ...productData } = req.body;
+        const { variations, intoleranceIds, intolerances, ...productData } = req.body;
         const product = await Product.create({ ...productData, UserId: req.user.effectiveId }, { transaction: t });
 
         if (variations && Array.isArray(variations)) {
@@ -72,7 +72,15 @@ router.post('/', auth, async (req, res) => {
             }
         }
 
-        if (intoleranceIds && Array.isArray(intoleranceIds)) {
+        if (intolerances && Array.isArray(intolerances)) {
+            for (const i of intolerances) {
+                await ProductIntolerance.create({
+                    ProductId: product.id,
+                    IntoleranceId: i.id,
+                    probability: i.probability
+                }, { transaction: t });
+            }
+        } else if (intoleranceIds && Array.isArray(intoleranceIds)) {
             await product.setIntolerances(intoleranceIds, { transaction: t });
         }
 
@@ -87,7 +95,7 @@ router.post('/', auth, async (req, res) => {
 router.put('/:id', auth, async (req, res) => {
     const t = await sequelize.transaction();
     try {
-        const { variations, intoleranceIds, ...productData } = req.body;
+        const { variations, intoleranceIds, intolerances, ...productData } = req.body;
         const product = await Product.findOne({ where: { id: req.params.id, UserId: req.user.effectiveId } });
         if (!product) {
             await t.rollback();
@@ -111,7 +119,16 @@ router.put('/:id', auth, async (req, res) => {
             await ProductVariation.destroy({ where: { ProductId: product.id, UserId: req.user.effectiveId }, transaction: t });
         }
 
-        if (intoleranceIds !== undefined) {
+        if (intolerances && Array.isArray(intolerances)) {
+            await ProductIntolerance.destroy({ where: { ProductId: product.id }, transaction: t });
+            for (const i of intolerances) {
+                await ProductIntolerance.create({
+                    ProductId: product.id,
+                    IntoleranceId: i.id,
+                    probability: i.probability !== undefined ? i.probability : 100
+                }, { transaction: t });
+            }
+        } else if (intoleranceIds !== undefined) {
             await product.setIntolerances(intoleranceIds || [], { transaction: t });
         }
 
@@ -119,6 +136,7 @@ router.put('/:id', auth, async (req, res) => {
         res.json(product);
     } catch (err) {
         await t.rollback();
+        console.error('PUT Product Error:', err);
         res.status(500).json({ error: err.message });
     }
 });

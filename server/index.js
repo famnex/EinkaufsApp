@@ -109,6 +109,7 @@ apiRouter.use('/subscription', require('./src/routes/subscription'));
 apiRouter.use('/newsletter', require('./src/routes/newsletter'));
 apiRouter.use('/variants', require('./src/routes/variants'));
 apiRouter.use('/intolerances', require('./src/routes/intolerances'));
+apiRouter.use('/substitutions', require('./src/routes/substitutions'));
 
 // Mount API
 app.use(`${BASE_PATH}/api`, apiRouter);

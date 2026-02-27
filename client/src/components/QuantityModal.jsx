@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, X, Check, Save } from 'lucide-react';
+import { AlertTriangle, AlertCircle, HelpCircle, X, Check, Save } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
 import api from '../lib/axios';
+import { cn } from '../lib/utils';
 
-export default function QuantityModal({ isOpen, onClose, productName, defaultUnit = 'Stück', productNote = '', variations = [], onConfirm, intoleranceMessages = [] }) {
+export default function QuantityModal({ isOpen, onClose, productName, defaultUnit = 'Stück', productNote = '', variations = [], onConfirm, intoleranceData = { messages: [], maxProbability: 0 } }) {
     const [quantity, setQuantity] = useState('1');
     const [unit, setUnit] = useState(defaultUnit);
     const [note, setNote] = useState('');
@@ -74,16 +75,25 @@ export default function QuantityModal({ isOpen, onClose, productName, defaultUni
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            {intoleranceMessages.length > 0 && (
-                                <div className="bg-destructive/10 border border-destructive/20 rounded-2xl p-4 animate-pulse-subtle">
-                                    <div className="flex items-center gap-2 text-destructive font-bold text-sm mb-2">
-                                        <AlertTriangle size={18} />
-                                        <span>Achtung! Unverträglichkeit</span>
+                            {intoleranceData.maxProbability > 30 && (
+                                <div className={cn(
+                                    "border rounded-2xl p-4 animate-pulse-subtle",
+                                    intoleranceData.maxProbability >= 80 ? "bg-destructive/10 border-destructive/20" : "bg-orange-500/10 border-orange-500/20"
+                                )}>
+                                    <div className={cn(
+                                        "flex items-center gap-2 font-bold text-sm mb-2",
+                                        intoleranceData.maxProbability >= 80 ? "text-destructive" : "text-orange-500"
+                                    )}>
+                                        {intoleranceData.maxProbability >= 80 ? <AlertCircle size={18} /> : <HelpCircle size={18} />}
+                                        <span>{intoleranceData.maxProbability >= 80 ? 'Achtung! Unverträglichkeit' : 'Hinweis: Eventuelle Unverträglichkeit'} ({intoleranceData.maxProbability}%)</span>
                                     </div>
                                     <ul className="space-y-1">
-                                        {intoleranceMessages.map((msg, idx) => (
-                                            <li key={idx} className="text-xs text-destructive/90 font-medium flex items-start gap-2">
-                                                <span className="shrink-0">🛑</span>
+                                        {intoleranceData.messages.map((msg, idx) => (
+                                            <li key={idx} className={cn(
+                                                "text-xs font-medium flex items-start gap-2",
+                                                intoleranceData.maxProbability >= 80 ? "text-destructive/90" : "text-orange-500/90"
+                                            )}>
+                                                <span className="shrink-0">{intoleranceData.maxProbability >= 80 ? '🛑' : '⚠️'}</span>
                                                 <span>{msg.replace('🛑 Unverträglichkeit: ', '')}</span>
                                             </li>
                                         ))}

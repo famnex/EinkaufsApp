@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import api from '../lib/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices, ShieldAlert, Edit, Heart } from 'lucide-react';
+import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices, ShieldAlert, Edit, Heart, RefreshCw } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
@@ -14,6 +14,8 @@ import CookingMode from '../components/CookingMode';
 import ScheduleModal from '../components/ScheduleModal';
 import SlotMachineModal from '../components/SlotMachineModal';
 import ShareConfirmationModal from '../components/ShareConfirmationModal';
+import RecipeIntoleranceResolverModal from '../components/RecipeIntoleranceResolverModal';
+import RecipeSubstitutionsModal from '../components/RecipeSubstitutionsModal';
 import { cn, getImageUrl } from '../lib/utils';
 import LoadingOverlay from '../components/LoadingOverlay';
 
@@ -63,6 +65,7 @@ export default function Recipes() {
     const { editMode, setEditMode } = useEditMode();
 
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [initialModalTab, setInitialModalTab] = useState(0);
     const [isAiModalOpen, setIsAiModalOpen] = useState(false);
     const [isSlotMachineOpen, setIsSlotMachineOpen] = useState(false);
     const [selectedRecipe, setSelectedRecipe] = useState(null);
@@ -70,6 +73,9 @@ export default function Recipes() {
     const [cookingRecipe, setCookingRecipe] = useState(null);
     const [cookingConflicts, setCookingConflicts] = useState([]);
     const [schedulingRecipe, setSchedulingRecipe] = useState(null);
+    const [resolvingRecipe, setResolvingRecipe] = useState(null);
+    const [resolvingConflicts, setResolvingConflicts] = useState([]);
+    const [substitutionsRecipe, setSubstitutionsRecipe] = useState(null);
 
     // Track which menu is open (by recipe ID)
     const [openMenuId, setOpenMenuId] = useState(null);
@@ -129,8 +135,12 @@ export default function Recipes() {
             const { data } = await api.get(`/recipes/${recipe.id}`);
             setCookingRecipe(data);
 
-            // Fetch intolerance conflicts
-            const productIds = [...new Set(data.RecipeIngredients?.map(ri => ri.ProductId).filter(Boolean))];
+            // Fetch intolerance conflicts - filter out substituted products
+            const substitutedProductIds = new Set(data.substitutions?.map(s => s.originalProductId) || []);
+            const productIds = [...new Set(data.RecipeIngredients
+                ?.map(ri => ri.ProductId)
+                .filter(pid => pid && !substitutedProductIds.has(pid)) || [])];
+
             if (productIds.length > 0) {
                 try {
                     const { data: conflictData } = await api.post('/intolerances/check', { productIds });
@@ -150,8 +160,39 @@ export default function Recipes() {
         }
     };
 
+    const handlePlanClick = async (recipe) => {
+        try {
+            // Get full recipe to have ingredients and substitutions
+            const { data: fullRecipe } = await api.get(`/recipes/${recipe.id}`);
+
+            // Get IDs of products that AREN'T substituted yet
+            const substitutedProductIds = new Set(fullRecipe.substitutions?.map(s => s.originalProductId) || []);
+            const productIdsToCheck = fullRecipe.RecipeIngredients
+                ?.map(ri => ri.ProductId)
+                .filter(pid => pid && !substitutedProductIds.has(pid)) || [];
+
+            if (productIdsToCheck.length > 0) {
+                const { data: conflicts } = await api.post('/intolerances/check', { productIds: productIdsToCheck });
+                const severeConflicts = conflicts.filter(c => c.maxProbability >= 30);
+
+                if (severeConflicts.length > 0) {
+                    setResolvingRecipe(fullRecipe);
+                    setResolvingConflicts(severeConflicts);
+                    return;
+                }
+            }
+
+            setSchedulingRecipe(recipe);
+        } catch (err) {
+            console.error('Failed to prepare planning', err);
+            setSchedulingRecipe(recipe);
+        }
+    };
+
     const handleCloseModal = () => {
         setIsModalOpen(false);
+        setSelectedRecipe(null);
+        setInitialModalTab(0);
         if (editMode === 'create') {
             setEditMode('view');
         }
@@ -482,12 +523,20 @@ export default function Recipes() {
                     </div>
                 </div>
 
+                <RecipeSubstitutionsModal
+                    isOpen={!!substitutionsRecipe}
+                    onClose={() => setSubstitutionsRecipe(null)}
+                    recipeId={substitutionsRecipe?.id}
+                    recipeTitle={substitutionsRecipe?.title}
+                    onUpdate={fetchRecipes}
+                />
+
                 <SlotMachineModal
                     isOpen={isSlotMachineOpen}
                     onClose={() => setIsSlotMachineOpen(false)}
                     recipes={recipes}
                     onSelect={(recipe) => {
-                        setSchedulingRecipe(recipe);
+                        handlePlanClick(recipe);
                         setIsSlotMachineOpen(false);
                     }}
                 />
@@ -613,11 +662,24 @@ export default function Recipes() {
                                                                     <Edit size={16} />
                                                                     Bearbeiten
                                                                 </button>
+                                                                {recipe.hasSubstitutions && (
+                                                                    <button
+                                                                        className="w-full text-left px-4 py-3 text-sm text-amber-500 hover:bg-white/10 flex items-center gap-3 transition-colors font-bold"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setSubstitutionsRecipe(recipe);
+                                                                            setOpenMenuId(null);
+                                                                        }}
+                                                                    >
+                                                                        <RefreshCw size={16} />
+                                                                        Ersetzungen
+                                                                    </button>
+                                                                )}
                                                                 <button
                                                                     className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
-                                                                        setSchedulingRecipe(recipe);
+                                                                        handlePlanClick(recipe);
                                                                         setOpenMenuId(null);
                                                                     }}
                                                                 >
@@ -721,6 +783,7 @@ export default function Recipes() {
                     onClose={handleCloseModal}
                     recipe={selectedRecipe}
                     onSave={fetchRecipes}
+                    initialTab={initialModalTab}
                 />
                 <AiImportModal
                     isOpen={isAiModalOpen}
@@ -765,6 +828,21 @@ export default function Recipes() {
                     isOpen={!!shareModalConfig}
                     onClose={() => setShareModalConfig(null)}
                     onConfirm={handleConfirmShare}
+                />
+
+                <RecipeIntoleranceResolverModal
+                    isOpen={!!resolvingRecipe}
+                    onClose={() => {
+                        setResolvingRecipe(null);
+                        setResolvingConflicts([]);
+                    }}
+                    recipe={resolvingRecipe}
+                    conflicts={resolvingConflicts}
+                    onResolved={() => {
+                        setSchedulingRecipe(resolvingRecipe);
+                        setResolvingRecipe(null);
+                        setResolvingConflicts([]);
+                    }}
                 />
             </div>
         </LoadingOverlay>

@@ -187,7 +187,7 @@ router.post('/check', auth, async (req, res) => {
         // Fetch products with their global intolerances
         const products = await Product.findAll({
             where: { id: productIds },
-            include: [{ model: Intolerance, through: { attributes: [] } }]
+            include: [{ model: Intolerance, through: { attributes: ['probability'] } }]
         });
 
         const conflicts = [];
@@ -211,6 +211,7 @@ router.post('/check', auth, async (req, res) => {
                 if (userPersonalExclusionIds.has(product.id)) {
                     productConflicts.push({
                         type: 'personal',
+                        probability: 100, // Personal exclusions are always 100%
                         message: `Persönlicher Ausschluss`
                     });
                 }
@@ -218,23 +219,27 @@ router.post('/check', auth, async (req, res) => {
                 // 2. Check Global Allergens
                 for (const productIntol of product.Intolerances) {
                     if (userGlobalIntoleranceIds.has(productIntol.id)) {
+                        const probability = productIntol.ProductIntolerance ? productIntol.ProductIntolerance.probability : 100;
                         productConflicts.push({
                             type: 'global',
                             intoleranceId: productIntol.id,
                             intoleranceName: productIntol.name,
                             warningText: productIntol.warningText,
+                            probability: probability,
                             message: productIntol.warningText || productIntol.name
                         });
                     }
                 }
 
                 if (productConflicts.length > 0) {
+                    const maxProb = Math.max(...productConflicts.map(w => w.probability));
                     conflicts.push({
                         productId: product.id,
                         productName: product.name,
                         userId: user.id,
                         username: user.username,
-                        warnings: productConflicts
+                        warnings: productConflicts,
+                        maxProbability: maxProb
                     });
                 }
             }

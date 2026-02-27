@@ -25,6 +25,7 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
     const [variations, setVariations] = useState([]);
     const [allIntolerances, setAllIntolerances] = useState([]);
     const [selectedIntoleranceIds, setSelectedIntoleranceIds] = useState([]);
+    const [aiIntoleranceProbabilities, setAiIntoleranceProbabilities] = useState({});
     const { user } = useAuth();
 
     useLockBodyScroll(isOpen);
@@ -40,10 +41,18 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
             });
             setVariations(product.ProductVariations || []);
             setSelectedIntoleranceIds((product.Intolerances || []).map(i => i.id));
+            const probs = {};
+            (product.Intolerances || []).forEach(i => {
+                if (i.ProductIntolerance && i.ProductIntolerance.probability !== undefined) {
+                    probs[i.id] = i.ProductIntolerance.probability;
+                }
+            });
+            setAiIntoleranceProbabilities(probs);
         } else {
             setFormData({ name: '', category: '', price_hint: '', unit: 'Stück', synonyms: [] });
             setVariations([]);
             setSelectedIntoleranceIds([]);
+            setAiIntoleranceProbabilities({});
         }
 
         if (isOpen) {
@@ -112,7 +121,11 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                 synonyms: formData.synonyms || [],
                 isNew: false,
                 variations: variations.length > 0 ? variations : null,
-                intoleranceIds: selectedIntoleranceIds
+                intoleranceIds: selectedIntoleranceIds,
+                intolerances: selectedIntoleranceIds.map(id => ({
+                    id,
+                    probability: aiIntoleranceProbabilities[id] !== undefined ? aiIntoleranceProbabilities[id] : 100
+                }))
             };
             if (product?.id) {
                 await api.put(`/products/${product.id}`, dataToSave);
@@ -183,6 +196,14 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                     category: fallbackCat || prev.category,
                     unit: fallbackUnit || prev.unit
                 }));
+            }
+
+            if (data.intolerances) {
+                const probs = {};
+                data.intolerances.forEach(i => {
+                    probs[i.id] = i.probability;
+                });
+                setAiIntoleranceProbabilities(probs);
             }
 
             if (data.intoleranceIds) {
@@ -374,7 +395,14 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                                         key={id}
                                                         className="bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 px-2 py-1 rounded-lg text-sm flex items-center gap-1.5 animate-in fade-in zoom-in duration-200"
                                                     >
-                                                        <span className="font-medium">{intol.warningText || intol.name}</span>
+                                                        <span className="font-medium">
+                                                            {intol.warningText || intol.name}
+                                                            {aiIntoleranceProbabilities[id] !== undefined && (
+                                                                <span className="opacity-60 text-[10px] ml-1 font-bold">
+                                                                    {aiIntoleranceProbabilities[id]}%
+                                                                </span>
+                                                            )}
+                                                        </span>
                                                         <button
                                                             type="button"
                                                             onClick={() => setSelectedIntoleranceIds(prev => prev.filter(i => i !== id))}

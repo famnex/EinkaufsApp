@@ -201,61 +201,63 @@ export function findIngredientsInText(stepText, ingredients, occurrencesBefore =
     const processedNames = new Set();
 
     sortedIngredients.forEach(ing => {
-        const lowerName = ing.name.toLowerCase();
+        const namesToTry = [ing.name.toLowerCase()];
+        if (ing.originalName && ing.originalName.toLowerCase() !== namesToTry[0]) {
+            namesToTry.push(ing.originalName.toLowerCase());
+        }
 
-        // Skip stop words and already-processed names
-        if (STOP_WORDS.has(lowerName)) return;
-        if (processedNames.has(lowerName)) return;
-        processedNames.add(lowerName);
+        namesToTry.forEach(lowerName => {
+            // Skip stop words and already-processed names (within this ingredient's context)
+            if (STOP_WORDS.has(lowerName)) return;
 
-        // --- RULE 1: Strict "Ei"/"Eier" Check ---
-        if (lowerName === 'ei' || lowerName === 'eier') {
-            const regex = new RegExp(`\\b${ing.name}\\b`, 'gi');
-            const iter = stepText.matchAll(regex);
-            for (const m of iter) {
-                const start = m.index;
-                const end = start + m[0].length;
-                const matchedText = m[0].toLowerCase();
+            // --- RULE 1: Strict "Ei"/"Eier" Check ---
+            if (lowerName === 'ei' || lowerName === 'eier') {
+                const regex = new RegExp(`\\b${lowerName}\\b`, 'gi');
+                const iter = stepText.matchAll(regex);
+                for (const m of iter) {
+                    const start = m.index;
+                    const end = start + m[0].length;
+                    const matchedText = m[0].toLowerCase();
 
-                if (!isOverlapping(start, end) && !STOP_WORDS.has(matchedText)) {
-                    const expanded = expandToWordBoundaries(stepText, start, end);
-                    const chosenIng = pickIngredient(lowerName);
+                    if (!isOverlapping(start, end) && !STOP_WORDS.has(matchedText)) {
+                        const expanded = expandToWordBoundaries(stepText, start, end);
+                        const chosenIng = pickIngredient(ing.name.toLowerCase());
+                        matches.push({
+                            ingredientId: chosenIng.id,
+                            ingredient: chosenIng,
+                            matchedText: expanded.text,
+                            index: expanded.start,
+                            length: expanded.text.length,
+                            type: 'exact-strict'
+                        });
+                        matchedRanges.push([expanded.start, expanded.end]);
+                    }
+                }
+                return;
+            }
+
+            // Standard Substring Match
+            let idx = lowerStep.indexOf(lowerName);
+            while (idx !== -1) {
+                const end = idx + lowerName.length;
+                const matchedText = stepText.substring(idx, end).toLowerCase();
+
+                if (!isOverlapping(idx, end) && !STOP_WORDS.has(matchedText)) {
+                    const expanded = expandToWordBoundaries(stepText, idx, end);
+                    const chosenIng = pickIngredient(ing.name.toLowerCase());
                     matches.push({
                         ingredientId: chosenIng.id,
                         ingredient: chosenIng,
                         matchedText: expanded.text,
                         index: expanded.start,
                         length: expanded.text.length,
-                        type: 'exact-strict'
+                        type: 'exact'
                     });
                     matchedRanges.push([expanded.start, expanded.end]);
                 }
+                idx = lowerStep.indexOf(lowerName, end);
             }
-            return;
-        }
-
-        // Standard Substring Match – find ALL occurrences of this name,
-        // assign each to the corresponding ingredient in the group in order.
-        let idx = lowerStep.indexOf(lowerName);
-        while (idx !== -1) {
-            const end = idx + lowerName.length;
-            const matchedText = stepText.substring(idx, end).toLowerCase();
-
-            if (!isOverlapping(idx, end) && !STOP_WORDS.has(matchedText)) {
-                const expanded = expandToWordBoundaries(stepText, idx, end);
-                const chosenIng = pickIngredient(lowerName);
-                matches.push({
-                    ingredientId: chosenIng.id,
-                    ingredient: chosenIng,
-                    matchedText: expanded.text,
-                    index: expanded.start,
-                    length: expanded.text.length,
-                    type: 'exact'
-                });
-                matchedRanges.push([expanded.start, expanded.end]);
-            }
-            idx = lowerStep.indexOf(lowerName, end);
-        }
+        });
     });
 
     // Strategy 1b: Synonym Matching

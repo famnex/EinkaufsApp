@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Recipe, RecipeIngredient, Product, Tag, Menu, RecipeTag, sequelize, User } = require('../models');
+const { Recipe, RecipeIngredient, Product, Tag, Menu, RecipeTag, sequelize, User, RecipeSubstitution } = require('../models');
 const { auth } = require('../middleware/auth');
 const { Op } = require('sequelize');
 const multer = require('multer');
@@ -96,6 +96,12 @@ router.get('/', auth, async (req, res) => {
                     model: Menu,
                     required: false,
                     attributes: ['id']
+                },
+                {
+                    model: RecipeSubstitution,
+                    where: { UserId: req.user.effectiveId },
+                    required: false,
+                    attributes: ['id']
                 }
             ],
             order: [['title', 'ASC']]
@@ -107,8 +113,10 @@ router.get('/', auth, async (req, res) => {
             plain.isFavorite = plain.FavoritedBy && plain.FavoritedBy.some(u => u.id === req.user.id);
             plain.favoritedBy = plain.FavoritedBy ? plain.FavoritedBy.map(u => u.username) : [];
             plain.cookCount = plain.Menus ? plain.Menus.length : 0;
+            plain.hasSubstitutions = plain.RecipeSubstitutions && plain.RecipeSubstitutions.length > 0;
             delete plain.FavoritedBy; // clean up payload
             delete plain.Menus;
+            delete plain.RecipeSubstitutions;
             return plain;
         });
 
@@ -326,15 +334,26 @@ router.get('/:id', auth, async (req, res) => {
                     as: 'FavoritedBy',
                     required: false,
                     attributes: ['id']
+                },
+                {
+                    model: RecipeSubstitution,
+                    where: { UserId: req.user.effectiveId },
+                    required: false,
+                    include: [
+                        { model: Product, as: 'OriginalProduct' },
+                        { model: Product, as: 'SubstituteProduct' }
+                    ]
                 }
             ]
         });
         if (!recipe) return res.status(404).json({ error: 'Recipe not found or unauthorized' });
 
-        // Format isFavorite so frontend doesn't break
+        // Format response so frontend doesn't break
         const plain = recipe.get({ plain: true });
         plain.isFavorite = !!(plain.FavoritedBy && plain.FavoritedBy.some(u => u.id === req.user.id));
+        plain.substitutions = plain.RecipeSubstitutions || [];
         delete plain.FavoritedBy;
+        delete plain.RecipeSubstitutions;
 
         res.json(plain);
     } catch (err) {

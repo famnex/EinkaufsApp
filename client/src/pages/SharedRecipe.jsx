@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ChefHat, Clock, Play, User, Users, ShieldCheck, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { ChefHat, Clock, Play, User, Users, ShieldCheck, ArrowLeft, AlertTriangle, AlertCircle, HelpCircle } from 'lucide-react';
+import IntoleranceIcon from '../components/IntoleranceIcon';
 import { Card } from '../components/Card';
 import SharedCookingMode from '../components/SharedCookingMode';
 import SharedNotFound from '../components/SharedNotFound';
@@ -95,18 +96,28 @@ export default function SharedRecipe() {
     };
 
     const getConflictForProduct = (productId) => {
-        const productConflicts = conflicts.filter(c => c.productId === productId);
+        const productConflicts = conflicts.filter(c => Number(c.productId) === Number(productId));
         if (productConflicts.length === 0) return null;
 
-        // Group by warning type/message to avoid duplicate text for the same user
         const messages = [];
+        let maxProb = 0;
         productConflicts.forEach(pc => {
-            pc.warnings.forEach(w => {
-                const householdLabel = pc.username ? ` (${pc.username})` : '';
-                messages.push(`🛑 ${w.message}${householdLabel}`);
-            });
+            if (pc.warnings) {
+                pc.warnings.forEach(w => {
+                    const householdLabel = pc.username ? ` (${pc.username})` : '';
+                    messages.push(`🛑 ${w.message}${householdLabel}`);
+                    const prob = w.probability !== undefined ? w.probability : 100;
+                    if (prob > maxProb) maxProb = prob;
+                });
+            }
         });
-        return [...new Set(messages)]; // Unique messages
+
+        if (maxProb <= 30) return null;
+
+        return {
+            messages: [...new Set(messages)],
+            maxProbability: maxProb
+        };
     };
 
     return (
@@ -259,13 +270,20 @@ export default function SharedRecipe() {
                                                 {productConflicts && (
                                                     <div className="z-50 shrink-0">
                                                         <div
-                                                            className="w-8 h-8 flex items-center justify-center text-destructive bg-destructive/10 rounded-full animate-pulse ring-1 ring-destructive/20 cursor-pointer"
+                                                            className={cn(
+                                                                "w-10 h-10 flex items-center justify-center rounded-full transition-all cursor-pointer",
+                                                                productConflicts.maxProbability >= 80 ? "bg-destructive/10 text-destructive animate-pulse ring-1 ring-destructive/20" : "bg-orange-500/10 text-orange-500 ring-1 ring-orange-500/20"
+                                                            )}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 setActiveTooltip(activeTooltip === ri.id ? null : ri.id);
                                                             }}
                                                         >
-                                                            <AlertTriangle size={18} />
+                                                            {productConflicts.maxProbability >= 80 ? (
+                                                                <AlertCircle size={20} />
+                                                            ) : (
+                                                                <HelpCircle size={20} />
+                                                            )}
                                                         </div>
 
                                                         {activeTooltip === ri.id && (
@@ -273,13 +291,17 @@ export default function SharedRecipe() {
                                                                 className="absolute right-0 bottom-full mb-3 w-64 p-4 bg-popover text-popover-foreground rounded-2xl shadow-2xl border border-border z-50 animate-in fade-in slide-in-from-bottom-2 duration-200"
                                                                 onClick={(e) => e.stopPropagation()}
                                                             >
-                                                                <div className="font-bold mb-2 text-destructive flex items-center gap-2">
-                                                                    <AlertTriangle size={16} /> Achtung!
+                                                                <div className={cn("font-bold mb-2 flex items-center gap-2", productConflicts.maxProbability >= 80 ? "text-destructive" : "text-orange-500")}>
+                                                                    {productConflicts.maxProbability >= 80 ? <AlertCircle size={16} /> : <HelpCircle size={16} />}
+                                                                    {productConflicts.maxProbability >= 80 ? 'Achtung!' : 'Hinweis'}
                                                                 </div>
-                                                                <div className="text-muted-foreground mb-2 text-xs">Unverträglichkeit erkannt:</div>
+                                                                <div className="text-muted-foreground mb-2 text-xs">Unverträglichkeit erkannt ({productConflicts.maxProbability}%):</div>
                                                                 <div className="space-y-1">
-                                                                    {productConflicts.map((msg, i) => (
-                                                                        <div key={i} className="text-xs font-semibold bg-destructive/5 p-2 rounded-lg text-destructive border border-destructive/10">
+                                                                    {productConflicts.messages.map((msg, i) => (
+                                                                        <div key={i} className={cn(
+                                                                            "text-xs font-semibold p-2 rounded-lg border",
+                                                                            productConflicts.maxProbability >= 80 ? "bg-destructive/5 text-destructive border-destructive/10" : "bg-orange-500/5 text-orange-500 border-orange-500/10"
+                                                                        )}>
                                                                             {msg}
                                                                         </div>
                                                                     ))}
@@ -356,8 +378,11 @@ export default function SharedRecipe() {
                                                         </span>
                                                     </div>
                                                     {productConflicts && (
-                                                        <div className="text-[10px] text-red-600 font-bold leading-tight">
-                                                            {productConflicts.join(' | ')}
+                                                        <div className={cn(
+                                                            "text-[10px] font-bold leading-tight",
+                                                            productConflicts.maxProbability >= 80 ? "text-red-600" : "text-orange-600"
+                                                        )}>
+                                                            {productConflicts.messages.join(' | ')}
                                                         </div>
                                                     )}
                                                 </div>

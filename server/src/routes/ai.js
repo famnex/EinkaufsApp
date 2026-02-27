@@ -371,6 +371,105 @@ Sortiere nach confidence (höchste zuerst).
     }
 });
 
+// Recipe-Aware Product Substitution Suggestions
+router.post('/suggest-recipe-substitute', auth, async (req, res) => {
+    try {
+        const { productName, recipeId, originalAmount, originalUnit } = req.body;
+
+        if (!productName || !recipeId) {
+            return res.status(400).json({ error: 'Product name and Recipe ID required' });
+        }
+
+        const recipe = await Recipe.findByPk(recipeId);
+        if (!recipe) return res.status(404).json({ error: 'Recipe not found' });
+
+        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
+        if (!setting || !setting.value) {
+            return res.status(400).json({ error: 'OpenAI API Key not configured' });
+        }
+
+        // ... (Fair-Use check remains same)
+        if (req.user.tier === 'Plastikgabel') {
+            if (!checkFairUse(req.user.effectiveId)) {
+                return res.status(429).json({ error: 'Fair-Use Limit erreicht: Bitte warte ein wenig, bevor du diese kostenlose Funktion erneut nutzt.' });
+            }
+        }
+
+        const openai = new OpenAI({ apiKey: setting.value });
+
+        // Fetch household intolerances
+        const { Intolerance, User: UserModel, Product: ProductModel } = require('../models');
+        const { Op } = require('sequelize');
+
+        const currentUser = await UserModel.findByPk(req.user.effectiveId);
+        const householdMembers = await UserModel.findAll({
+            where: {
+                [Op.or]: [
+                    { id: currentUser.householdId || req.user.effectiveId },
+                    { householdId: currentUser.householdId || req.user.effectiveId }
+                ]
+            },
+            include: [
+                { model: Intolerance, through: { attributes: [] } },
+                { model: ProductModel, as: 'IntolerantProducts', through: { attributes: [] } }
+            ]
+        });
+
+        const forbiddenItems = new Set();
+        householdMembers.forEach(m => {
+            m.Intolerances?.forEach(i => forbiddenItems.add(i.warningText || i.name));
+            m.IntolerantProducts?.forEach(p => forbiddenItems.add(p.name));
+        });
+
+        const forbiddenList = Array.from(forbiddenItems).join(', ');
+
+        const prompt = `
+Du bist ein kulinarischer Experte. Ich brauche einen Ersatz für "${productName}" (Menge im Rezept: ${originalAmount || '?'} ${originalUnit || ''}) in dem Rezept "${recipe.title}".
+Das Rezept hat folgende Zubereitungsschritte: ${JSON.stringify(recipe.instructions || [])}.
+
+${forbiddenList ? `WICHTIG: Schlage KEINE Produkte vor, die gegen diese Haushalts-Unverträglichkeiten verstoßen: [${forbiddenList}]` : ''}
+
+Der Ersatz MUSS:
+1. Kulinarisch perfekt zum Rezept "${recipe.title}" passen (Konsistenz, Geschmack, Garverhalten).
+2. Sicher für die genannten Unverträglichkeiten sein.
+3. In deutschen Supermärkten als Einzelprodukt (keine Gruppen) verfügbar sein.
+4. EINE EMPFOHLENE MENGE angeben, die die ursprüngliche Menge (${originalAmount} ${originalUnit}) ersetzt. 
+   WICHTIG: Berücksichtige die physikalischen Eigenschaften. (Beispiel: Wenn 4 Eier ersetzt werden, braucht man vielleicht 200g Seitan oder 2 EL Leinsamenmehl+Wasser. Gib realistische Mengen an!)
+
+Gib mir 5 gute Alternativen als JSON:
+{
+  "suggestions": [
+    {
+      "name": "Produktname",
+      "substituteQuantity": 200, // Empfohlene Menge als Zahl
+      "substituteUnit": "g", // Empfohlene Einheit (z.B. g, ml, Stück, EL)
+      "reason": "Kurze kulinarische Begründung warum es passt und warum diese Menge (max 80 Zeichen)",
+      "confidence": 0.95
+    }
+  ]
+}
+`;
+
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.7,
+            response_format: { type: "json_object" }
+        });
+
+        const result = JSON.parse(completion.choices[0].message.content);
+
+        // Deduct credits
+        await creditService.deductCredits(req.user.effectiveId, 'TEXT', `KI Rezept-Ersatz: ${productName} in ${recipe.title}`);
+
+        res.json(result);
+
+    } catch (err) {
+        console.error('AI Recipe Substitute Suggestion Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // AI Duplicate Product Detection
 router.post('/find-duplicates', auth, async (req, res) => {
     try {
@@ -1032,7 +1131,13 @@ Bitte beantworte diese drei Hauptfragen und formatiere die Antwort EXAKT wie unt
    - Wenn JA: nenne die passenden DB-Varianten-IDs und ordne pro Variante eine passende Kategorie und Einheit (Verkaufsgebinde!) zu.
 2. In welche existierende Kategorie (siehe Liste) passt das Produkt am besten? Falls keine passt, schlage eine neue sinnvolle vor.
 3. Welche der exakt vorgegebenen DB-Unverträglichkeiten (IDs) treffen typischerweise auf dieses Produkt zu?
-   RECHERCHIERE EXTREM GENAU UND KRITISCH:
+   RECHERCHIERE EXTREM GENAU UND KRITISCH UND GIB EINE WAHRSCHEINLICHKEIT AN:
+   - Gib für jede zutreffende Unverträglichkeit eine Wahrscheinlichkeit (0-100%) an.
+   - 100% bedeutet: Das Produkt verstößt definitiv gegen diese Regel (z.B. Schweinefleisch bei "Vegan" oder "Vegetarisch").
+   - Niedrigere Werte (z.B. 30%) bedeuten: Es besteht ein Risiko oder eine gewisse Wahrscheinlichkeit (z.B. Spuren von Nüssen, oder bei Cashewmuß ein Restrisiko für nicht-vegane Zusätze wie Honig).
+   - Ein Produkt, das zu 100% Sicher ist (z.B. Brokkoli bei "Vegan"), sollte eine Wahrscheinlichkeit von 0% haben (und muss dann nicht zwingend gelistet werden, außer du bist dir unsicher).
+
+   HIER SIND DIE DETAILS:
    - Alkohol: Alle Getränke mit Ethanolgehalt (Bier, Wein, Spirituosen) sowie Speisen, die mit Alkohol zubereitet wurden (z. B. Rotwein-Saucen oder Pralinen).
    - Eier: Hühnereier in allen Formen (gekocht, gebraten) sowie Produkte, die Ei als Bindemittel enthalten (Mayonnaise, Panaden, viele Backwaren).
    - Erdnüsse: Ganze Erdnüsse, Erdnussbutter, Erdnussöl und oft auch Spuren in asiatischen Gerichten oder Knabbergebäck.
@@ -1056,7 +1161,7 @@ Bitte beantworte diese drei Hauptfragen und formatiere die Antwort EXAKT wie unt
    - Pescetarisch: Eine vegetarische Ernährung, die jedoch Fisch und Meeresfrüchte sowie meist Eier und Milchprodukte einschließt.
    - Schwein: Alle Produkte vom Hausschwein oder Wildschwein (Schnitzel, Schinken, Speck, Salami) sowie Gelatine vom Schwein (oft in Gummibärchen).
    - Vegan: Verzicht auf alle tierischen Produkte. Kein Fleisch, Fisch, Milch, Eier, Honig oder tierische Zusatzstoffe (wie Karmin oder Gelatine).
-   Vegetarisch: Verzicht auf Fleisch und Fisch (Schlachtprodukte). Milch, Eier und Honig werden konsumiert.
+   - Vegetarisch: Verzicht auf Fleisch und Fisch (Schlachtprodukte). Milch, Eier und Honig werden konsumiert.
    - **Fleisch (Meat):** Falls das Produkt Fleisch enthält (Schinken, Salami, Rind, Huhn, etc.), ist es weder vegan noch vegetarisch! Kennzeichne dies korrekt, falls es dafür IDs gibt.
    - **Allergene:** Beachte versteckte Allergene (z.B. Gluten in Sojasauce, Laktose in Wurst, etc.).
    - Avocados sind KEINE Schalenfrüchte.
@@ -1070,16 +1175,19 @@ Erforderliches JSON-Format:
   ],
   "category": "KategorieName", 
   "unit": "Einheit",
-  "intoleranceIds": [3, 4]
+  "intolerances": [
+    { "id": 3, "probability": 100 },
+    { "id": 4, "probability": 30 }
+  ]
 }
 
 WICHTIG:
 - Nutze unter 'variants' nur "ProductVariantId"s, die in der DB existieren.
 - Fülle "category" und "unit" für das Basis-Objekt immer aus, als Fallback.
 - "variants" kann leer sein, wenn "hasVariants" false ist.
-- Nutze unter 'intoleranceIds' nur IDs, die tatsächlichen Unverträglichkeiten aus der Liste zugeordnet sind.
+- Nutze unter 'intolerances' nur IDs, die tatsächlichen Unverträglichkeiten aus der Liste zugeordnet sind.
 - Priorisiere bei 'unit' IMMER das Verkaufsgebinde. Ein Apfel ist 1 Stück, nicht 150g. Milch ist 1 Flasche/Packung, nicht 1l.
-- Wenn Fleisch enthalten ist, MUSS "Vegetarisch" und "Vegan" explizit AUSGEKLAMMERT werden (falls sie in der Liste sind, wähle sie NICHT aus).
+- Wenn Fleisch enthalten ist, MUSS "Vegetarisch" und "Vegan" explizit ALS NICHT KONFORM (Wahrscheinlichkeit 100%) gekennzeichnet werden.
 `;
 
         const completion = await openai.chat.completions.create({
@@ -1088,7 +1196,14 @@ WICHTIG:
             response_format: { type: "json_object" }
         });
 
-        const result = JSON.parse(completion.choices[0].message.content);
+        let result = JSON.parse(completion.choices[0].message.content);
+
+        // Map intolerances to intoleranceIds for backward compatibility
+        if (result.intolerances) {
+            result.intoleranceIds = result.intolerances
+                .filter(i => i.probability > 0)
+                .map(i => i.id);
+        }
 
         // Deduct logical credits internally without charging the admin specifically for their own usage if desired, 
         // but since AI costs real money, let's track it softly or just use the system credit record.

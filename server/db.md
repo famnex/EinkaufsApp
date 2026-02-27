@@ -217,12 +217,27 @@
 - IntoleranceId (Integer)
 
 ### ProductIntolerances (M:N Product <-> Intolerance)
+- id (Integer, Primary Key)
 - ProductId (Integer)
 - IntoleranceId (Integer)
+- probability (Integer, default 100)
 
 ### UserProductIntolerances (M:N User <-> Product, Personal Exclusions)
 - UserId (Integer)
 - ProductId (Integer)
+
+### RecipeSubstitutions
+- id (Integer, Primary Key)
+- originalQuantity (Float, Nullable)
+- originalUnit (String, Nullable)
+- substituteQuantity (Float, Nullable)
+- substituteUnit (String, Nullable)
+- RecipeId (Integer, Foreign Key -> Recipes)
+- originalProductId (Integer, Foreign Key -> Products)
+- substituteProductId (Integer, Foreign Key -> Products)
+- UserId (Integer, Foreign Key -> Users)
+- createdAt (DateTime)
+- updatedAt (DateTime)
 
 ## Changes
 - **v0.31.7**: Removed Manufacturer attribute from Products and dropped Manufacturers table.
@@ -231,3 +246,6 @@
 - **v0.32.1**: Changed `Product.unit` from ENUM to STRING to support retail units (Verkaufsgebinde).
 - **v0.32.2**: Added `ProductVariation` and `ProductVariant` for better variant management in AI Cleanup.
 - **v0.32.3**: Added `UserProductIntolerance` and global `Intolerance` system to support personal product exclusions and allergen warnings.
+- **v0.32.4**: Added `probability` column to `ProductIntolerances` to store AI-calculated quantification of restrictions.
+- **v0.32.5**: Added `RecipeSubstitutions` table to support persistent ingredient replacements for specific recipes.
+- **v0.32.6**: Added `originalQuantity`, `originalUnit`, `substituteQuantity`, and `substituteUnit` to `RecipeSubstitutions` for precise adjustments.

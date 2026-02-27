@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Check, ShoppingCart, AlertCircle } from 'lucide-react';
+import { X, Check, ShoppingCart, AlertCircle, HelpCircle } from 'lucide-react';
 import { Button } from './Button';
 import { cn } from '../lib/utils';
 import api from '../lib/axios';
@@ -125,9 +125,19 @@ export default function SmartQuantityModal({ isOpen, onClose, recipe, menuId, li
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2">
                                             <div className="font-bold text-sm text-foreground">{ri.Product.name}</div>
-                                            {conflicts.some(c => c.productId === ri.Product.id && c.warnings?.length > 0) && (
-                                                <AlertCircle size={14} className="text-destructive animate-pulse" />
-                                            )}
+                                            {(() => {
+                                                const conflict = conflicts.find(c => Number(c.productId) === Number(ri.Product.id));
+                                                if (!conflict || !conflict.warnings || conflict.warnings.length === 0) return null;
+
+                                                const maxProb = conflict.warnings.reduce((max, w) => Math.max(max, w.probability || 0), 0);
+                                                if (maxProb <= 30) return null;
+
+                                                return maxProb >= 80 ? (
+                                                    <AlertCircle size={14} className="text-destructive animate-pulse shrink-0" />
+                                                ) : (
+                                                    <HelpCircle size={14} className="text-orange-500 shrink-0" />
+                                                );
+                                            })()}
                                         </div>
                                         <div className="text-xs text-muted-foreground">{ri.amount} {ri.unit}</div>
                                     </div>
