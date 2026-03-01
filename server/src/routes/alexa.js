@@ -106,7 +106,7 @@ router.get('/authorize', (req, res) => {
 });
 
 // POST Authorize: Handle Login and Redirect with code
-router.post('/authorize', async (req, res) => {
+router.post('/authorize', express.urlencoded({ extended: true }), async (req, res) => {
     const { email, password, state, redirect_uri } = req.body;
 
     logAlexa('INFO', 'AUTH', 'Authorize POST Request received', { email, state, redirect_uri });
