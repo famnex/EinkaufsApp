@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import api from '../lib/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices, ShieldAlert, Edit, Heart, RefreshCw } from 'lucide-react';
+import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices, ShieldAlert, Edit, Heart, RefreshCw, Menu, ArrowUpDown, ChevronDown, Lock, Instagram, Copy, X, Check } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
@@ -16,6 +16,7 @@ import SlotMachineModal from '../components/SlotMachineModal';
 import ShareConfirmationModal from '../components/ShareConfirmationModal';
 import RecipeIntoleranceResolverModal from '../components/RecipeIntoleranceResolverModal';
 import RecipeSubstitutionsModal from '../components/RecipeSubstitutionsModal';
+import AiLockedModal from '../components/AiLockedModal';
 import { cn, getImageUrl } from '../lib/utils';
 import LoadingOverlay from '../components/LoadingOverlay';
 
@@ -58,7 +59,8 @@ export default function Recipes() {
     };
 
     const [loading, setLoading] = useState(true);
-    const [mobileCategoryOpen, setMobileCategoryOpen] = useState(false);
+    const [mobileActiveFilter, setMobileActiveFilter] = useState('search');
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const location = useLocation();
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -67,6 +69,7 @@ export default function Recipes() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [initialModalTab, setInitialModalTab] = useState(0);
     const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+    const [isAiLockedOpen, setIsAiLockedOpen] = useState(false);
     const [isSlotMachineOpen, setIsSlotMachineOpen] = useState(false);
     const [selectedRecipe, setSelectedRecipe] = useState(null);
 
@@ -77,12 +80,20 @@ export default function Recipes() {
     const [resolvingConflicts, setResolvingConflicts] = useState([]);
     const [substitutionsRecipe, setSubstitutionsRecipe] = useState(null);
 
+    // Instagram Post Generation
+    const [instaPostResult, setInstaPostResult] = useState(null);
+    const [isInstaLoading, setIsInstaLoading] = useState(false);
+    const [copiedInsta, setCopiedInsta] = useState(false);
+
     // Track which menu is open (by recipe ID)
     const [openMenuId, setOpenMenuId] = useState(null);
 
     // Close menu on outside click
     useEffect(() => {
-        const closeMenu = () => setOpenMenuId(null);
+        const closeMenu = () => {
+            setOpenMenuId(null);
+            setIsMobileMenuOpen(false);
+        };
         document.addEventListener('click', closeMenu);
         return () => document.removeEventListener('click', closeMenu);
     }, []);
@@ -119,12 +130,66 @@ export default function Recipes() {
     const fetchRecipes = async () => {
         setLoading(true);
         try {
-            const { data } = await api.get('/recipes');
-            setRecipes(data);
+            // Phase 1: Basic Info
+            const { data: basicData } = await api.get('/recipes?phase=basic');
+            setRecipes(basicData);
+            setLoading(false); // Tiles can be shown now
+
+            // Phase 2: Images (Async)
+            api.get('/recipes?phase=images').then(({ data: imageData }) => {
+                setRecipes(prev => prev.map(r => {
+                    const match = imageData.find(img => img.id === r.id);
+                    return match ? { ...r, ...match } : r;
+                }));
+            }).catch(err => console.error('Failed to fetch recipe images', err));
+
+            // Phase 3: Search Metadata (Async)
+            api.get('/recipes?phase=search').then(({ data: searchData }) => {
+                setRecipes(prev => prev.map(r => {
+                    const match = searchData.find(s => s.id === r.id);
+                    return match ? { ...r, ...match } : r;
+                }));
+            }).catch(err => console.error('Failed to fetch search metadata', err));
+
         } catch (err) {
             console.error('Failed to fetch recipes', err);
-        } finally {
             setLoading(false);
+        }
+    };
+
+    const handleGenerateInstaPost = async (recipe) => {
+        try {
+            setIsInstaLoading(true);
+            setInstaPostResult(null);
+
+            // 1. Get full recipe data (with ingredients and instructions)
+            const { data: fullRecipe } = await api.get(`/recipes/${recipe.id}`);
+
+            // 2. Format data for AI
+            const ingredientsText = fullRecipe.RecipeIngredients?.map(ri =>
+                `${ri.quantity || ''} ${ri.unit || ''} ${ri.Product?.name || ''}`.trim()
+            ).join('\n') || 'Keine Zutaten angegeben.';
+
+            const steps = typeof fullRecipe.instructions === 'string'
+                ? JSON.parse(fullRecipe.instructions)
+                : (fullRecipe.instructions || []);
+            const instructionsText = steps.join('\n') || 'Keine Zubereitungsschritte angegeben.';
+
+            // 2. Call AI endpoint
+            const { data } = await api.post('/ai/insta-post', {
+                title: fullRecipe.title,
+                ingredients: ingredientsText,
+                instructions: instructionsText
+            });
+
+            setInstaPostResult(data.post);
+        } catch (err) {
+            console.error('Failed to generate Insta post', err);
+            alert('Fehler beim Generieren des Instagram Posts: ' + (err.response?.data?.error || err.message));
+            setIsInstaLoading(false);
+            setInstaPostResult(null);
+        } finally {
+            setIsInstaLoading(false);
         }
     };
 
@@ -142,12 +207,19 @@ export default function Recipes() {
                 .filter(pid => pid && !substitutedProductIds.has(pid)) || [])];
 
             if (productIds.length > 0) {
-                try {
-                    const { data: conflictData } = await api.post('/intolerances/check', { productIds });
-                    setCookingConflicts(conflictData);
-                } catch (err) {
-                    console.error('Failed to check intolerances', err);
+                const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+                    ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+                    user?.tier?.includes('Admin') || user?.role === 'admin';
+                if (!hasSpecialTier) {
                     setCookingConflicts([]);
+                } else {
+                    try {
+                        const { data: conflictData } = await api.post('/intolerances/check', { productIds });
+                        setCookingConflicts(conflictData);
+                    } catch (err) {
+                        console.error('Failed to check intolerances', err);
+                        setCookingConflicts([]);
+                    }
                 }
             } else {
                 setCookingConflicts([]);
@@ -172,13 +244,18 @@ export default function Recipes() {
                 .filter(pid => pid && !substitutedProductIds.has(pid)) || [];
 
             if (productIdsToCheck.length > 0) {
-                const { data: conflicts } = await api.post('/intolerances/check', { productIds: productIdsToCheck });
-                const severeConflicts = conflicts.filter(c => c.maxProbability >= 30);
+                const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+                    ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+                    user?.tier?.includes('Admin') || user?.role === 'admin';
+                if (hasSpecialTier) {
+                    const { data: conflicts } = await api.post('/intolerances/check', { productIds: productIdsToCheck });
+                    const severeConflicts = conflicts.filter(c => c.maxProbability >= 30);
 
-                if (severeConflicts.length > 0) {
-                    setResolvingRecipe(fullRecipe);
-                    setResolvingConflicts(severeConflicts);
-                    return;
+                    if (severeConflicts.length > 0) {
+                        setResolvingRecipe(fullRecipe);
+                        setResolvingConflicts(severeConflicts);
+                        return;
+                    }
                 }
             }
 
@@ -397,14 +474,14 @@ export default function Recipes() {
                     <div
                         className={cn(
                             "relative transition-all duration-300 ease-in-out overflow-hidden md:flex-1",
-                            mobileCategoryOpen ? "w-12 bg-muted rounded-xl cursor-pointer" : "flex-1"
+                            mobileActiveFilter === 'search' ? "flex-1" : "w-12 bg-muted/50 md:bg-transparent rounded-xl cursor-pointer"
                         )}
-                        onClick={() => setMobileCategoryOpen(false)}
+                        onClick={() => setMobileActiveFilter('search')}
                     >
                         <Search
                             className={cn(
                                 "absolute top-1/2 -translate-y-1/2 text-muted-foreground transition-all duration-300",
-                                mobileCategoryOpen ? "left-1/2 -translate-x-1/2" : "left-4"
+                                mobileActiveFilter !== 'search' ? "left-1/2 -translate-x-1/2" : "left-4"
                             )}
                             size={20}
                         />
@@ -412,23 +489,26 @@ export default function Recipes() {
                             placeholder="Rezept suchen..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            onFocus={() => setMobileCategoryOpen(false)}
+                            onFocus={() => setMobileActiveFilter('search')}
                             className={cn(
-                                "pl-12 h-12 bg-card border-border shadow-sm transition-opacity duration-300",
-                                mobileCategoryOpen ? "opacity-0 pointer-events-none" : "opacity-100"
+                                "pl-12 h-12 bg-card border-border shadow-sm transition-all duration-300",
+                                mobileActiveFilter !== 'search' ? "opacity-0 pointer-events-none" : "opacity-100"
                             )}
                         />
                     </div>
 
                     {/* Category Dropdown */}
-                    <div className={cn(
-                        "relative transition-all duration-300 ease-in-out md:w-auto md:flex-none",
-                        mobileCategoryOpen ? "flex-1" : "w-12"
-                    )}>
+                    <div
+                        className={cn(
+                            "relative transition-all duration-300 ease-in-out md:w-64",
+                            mobileActiveFilter === 'category' ? "flex-1" : "w-12 bg-muted/50 md:bg-transparent rounded-xl cursor-pointer"
+                        )}
+                        onClick={() => setMobileActiveFilter('category')}
+                    >
                         {/* Collapsed Icon (Mobile) */}
                         <div className={cn(
-                            "absolute inset-0 flex items-center justify-center bg-card border border-border rounded-xl shadow-sm pointer-events-none transition-opacity duration-300 md:hidden",
-                            mobileCategoryOpen ? "opacity-0" : "opacity-100"
+                            "absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-300 md:hidden",
+                            mobileActiveFilter === 'category' ? "opacity-0" : "opacity-100"
                         )}>
                             <ChefHat size={20} className="text-muted-foreground" />
                         </div>
@@ -440,15 +520,14 @@ export default function Recipes() {
 
                         <select
                             value={selectedCategory}
-                            onFocus={() => setMobileCategoryOpen(true)}
+                            onFocus={() => setMobileActiveFilter('category')}
                             onChange={(e) => {
                                 setSelectedCategory(e.target.value);
                                 e.target.blur();
-                                setMobileCategoryOpen(false);
                             }}
                             className={cn(
                                 "h-12 w-full bg-card border border-border rounded-xl shadow-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none px-4 transition-all duration-300 md:pl-12",
-                                !mobileCategoryOpen ? "opacity-0 md:opacity-100 pl-4 text-transparent md:text-foreground" : "opacity-100"
+                                mobileActiveFilter !== 'category' ? "opacity-0 md:opacity-100 pointer-events-none md:pointer-events-auto" : "opacity-100"
                             )}
                         >
                             {categories.map(cat => <option key={cat} value={cat}>{cat === 'All' ? 'Alle Kategorien' : cat}</option>)}
@@ -457,34 +536,61 @@ export default function Recipes() {
                         {/* Chevron for expanded state */}
                         <div className={cn(
                             "absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none md:block",
-                            mobileCategoryOpen ? "block" : "hidden"
+                            mobileActiveFilter === 'category' ? "block" : "hidden"
                         )}>
-                            <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] border-t-muted-foreground" />
+                            <ChevronDown size={16} className="text-muted-foreground" />
                         </div>
                     </div>
 
                     {/* Sorting Dropdown */}
-                    <div className="relative transition-all duration-300 ease-in-out md:w-auto md:flex-none w-12 hidden min-[800px]:block">
+                    <div
+                        className={cn(
+                            "relative transition-all duration-300 ease-in-out md:w-64",
+                            mobileActiveFilter === 'sort' ? "flex-1" : "w-12 bg-muted/50 md:bg-transparent rounded-xl cursor-pointer"
+                        )}
+                        onClick={() => setMobileActiveFilter('sort')}
+                    >
+                        {/* Collapsed Icon (Mobile) */}
+                        <div className={cn(
+                            "absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-300 md:hidden",
+                            mobileActiveFilter === 'sort' ? "opacity-0" : "opacity-100"
+                        )}>
+                            <ArrowUpDown size={20} className="text-muted-foreground" />
+                        </div>
+
+                        {/* Desktop Icon (Left Side) - Hidden if too narrow but usually fine */}
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 hidden md:block pointer-events-none text-muted-foreground">
+                            <ArrowUpDown size={18} />
+                        </div>
+
                         <select
                             value={sortBy}
+                            onFocus={() => setMobileActiveFilter('sort')}
                             onChange={(e) => {
                                 setSortBy(e.target.value);
                                 e.target.blur();
                             }}
-                            className="h-12 w-full bg-card border border-border rounded-xl shadow-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none px-4 transition-all pr-10"
+                            className={cn(
+                                "h-12 w-full bg-card border border-border rounded-xl shadow-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none px-4 transition-all duration-300 md:pl-12 pr-10",
+                                mobileActiveFilter !== 'sort' ? "opacity-0 md:opacity-100 pointer-events-none md:pointer-events-auto" : "opacity-100"
+                            )}
                         >
                             {['A-Z', 'Am Meisten gekocht', 'Meiste in Favoriten', 'Meiste Klicks', 'Wenigste Zutaten', 'Schnellste Kochzeit'].map(s => (
                                 <option key={s} value={s}>{s}</option>
                             ))}
                         </select>
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                            <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] border-t-muted-foreground" />
+                        <div className={cn(
+                            "absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none md:block",
+                            mobileActiveFilter === 'sort' ? "block" : "hidden"
+                        )}>
+                            <ChevronDown size={16} className="text-muted-foreground" />
                         </div>
                     </div>
 
-                    <div className="h-12 w-px bg-border mx-2 hidden md:block" />
+                    <div className="h-12 w-px bg-border mx-1 hidden md:block" />
 
-                    <div className="flex gap-2">
+                    {/* Desktop Action Buttons */}
+                    <div className="hidden md:flex gap-2">
                         <Button
                             onClick={() => {
                                 handleShareRequest(
@@ -502,24 +608,119 @@ export default function Recipes() {
 
                         <Button
                             onClick={() => setIsSlotMachineOpen(true)}
-                            className="h-12 w-14 md:w-auto md:px-6 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:via-orange-600 hover:to-rose-600 text-white border-none shadow-xl shadow-orange-500/20 active:scale-95 transition-all group overflow-hidden relative shrink-0"
+                            className="h-12 px-6 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:via-orange-600 hover:to-rose-600 text-white border-none shadow-xl shadow-orange-500/20 active:scale-95 transition-all group overflow-hidden relative shrink-0"
                         >
                             <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-12" />
-                            <Dices size={24} className="md:w-[18px] md:h-[18px] md:mr-2 group-hover:rotate-180 transition-transform duration-500" />
-                            <span className="hidden md:inline font-bold">Zufalls-Roulette</span>
+                            <Dices size={24} className="w-[18px] h-[18px] mr-2 group-hover:rotate-180 transition-transform duration-500" />
+                            <span className="font-bold">Zufalls-Roulette</span>
                         </Button>
 
-                        {user?.tier !== 'Plastikgabel' && (
+                        {user?.tier !== 'Plastikgabel' ? (
                             <Button
                                 onClick={() => setIsAiModalOpen(true)}
-                                className="h-12 px-3 md:px-6 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 shrink-0 select-none pb-safe-0"
+                                className="h-12 px-6 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 shrink-0 select-none pb-safe-0"
                             >
-                                <Sparkles size={18} className="md:mr-2" />
-                                <span className="hidden md:inline">
-                                    AI Assistant
-                                </span>
+                                <Sparkles size={18} className="mr-2" />
+                                <span>AI Assistant</span>
+                            </Button>
+                        ) : (
+                            <Button
+                                onClick={() => setIsAiLockedOpen(true)}
+                                className="h-12 px-6 bg-muted text-muted-foreground shadow-none shrink-0 select-none opacity-60 hover:opacity-80 transition-opacity relative"
+                            >
+                                <Sparkles size={18} className="mr-2 opacity-50" />
+                                <span>AI Assistant</span>
+                                <Lock size={13} className="absolute top-1 right-1 opacity-70" />
                             </Button>
                         )}
+                    </div>
+
+                    {/* Mobile Burger Menu */}
+                    <div className="md:hidden relative">
+                        <Button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsMobileMenuOpen(!isMobileMenuOpen);
+                            }}
+                            variant="ghost"
+                            size="icon"
+                            className={cn(
+                                "h-12 w-12 bg-card border border-border transition-all duration-200",
+                                isMobileMenuOpen ? "text-primary border-primary/50" : "text-muted-foreground"
+                            )}
+                        >
+                            <Menu size={24} />
+                        </Button>
+
+                        <AnimatePresence>
+                            {isMobileMenuOpen && (
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                                    className="absolute right-0 top-full mt-2 w-56 py-2 rounded-2xl bg-popover/95 backdrop-blur-xl border border-border shadow-2xl z-[100] overflow-hidden"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    {user?.tier !== 'Plastikgabel' ? (
+                                        <button
+                                            className="w-full text-left px-4 py-3 text-sm hover:bg-muted flex items-center gap-3 transition-colors text-foreground font-medium"
+                                            onClick={() => {
+                                                setIsAiModalOpen(true);
+                                                setIsMobileMenuOpen(false);
+                                            }}
+                                        >
+                                            <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
+                                                <Sparkles size={18} />
+                                            </div>
+                                            AI Assistant
+                                        </button>
+                                    ) : (
+                                        <button
+                                            className="w-full text-left px-4 py-3 text-sm flex items-center gap-3 transition-colors text-muted-foreground font-medium opacity-60 relative"
+                                            onClick={() => {
+                                                setIsAiLockedOpen(true);
+                                                setIsMobileMenuOpen(false);
+                                            }}
+                                        >
+                                            <div className="p-1.5 rounded-lg bg-muted text-muted-foreground">
+                                                <Sparkles size={18} />
+                                            </div>
+                                            AI Assistant
+                                            <Lock size={13} className="ml-auto opacity-70" />
+                                        </button>
+                                    )}
+                                    <button
+                                        className="w-full text-left px-4 py-3 text-sm hover:bg-muted flex items-center gap-3 transition-colors text-foreground font-medium"
+                                        onClick={() => {
+                                            setIsSlotMachineOpen(true);
+                                            setIsMobileMenuOpen(false);
+                                        }}
+                                    >
+                                        <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500">
+                                            <Dices size={18} />
+                                        </div>
+                                        Zufalls-Rezept
+                                    </button>
+                                    <div className="h-px bg-border mx-2 my-1" />
+                                    <button
+                                        className="w-full text-left px-4 py-3 text-sm hover:bg-muted flex items-center gap-3 transition-colors text-foreground font-medium"
+                                        onClick={() => {
+                                            handleShareRequest(
+                                                'Mein Kochbuch',
+                                                'Schau dir mein Kochbuch an!',
+                                                `${window.location.origin}${import.meta.env.BASE_URL}shared/${user?.sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1")
+                                            );
+                                            setIsMobileMenuOpen(false);
+                                        }}
+                                    >
+                                        <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                                            <Share2 size={18} />
+                                        </div>
+                                        Kochbuch teilen
+                                    </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </div>
 
@@ -567,15 +768,30 @@ export default function Recipes() {
                                     <Card className="h-full overflow-hidden hover:shadow-xl transition-all duration-300 border-border bg-card flex flex-col">
                                         <div className="aspect-video relative bg-muted shrink-0">
                                             {recipe.image_url ? (
-                                                <img
-                                                    src={getImageUrl(recipe.image_url)}
-                                                    alt={recipe.title}
-                                                    loading="lazy"
-                                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 max-h-[230px]"
-                                                />
-                                            ) : (
+                                                <div className="w-full h-full relative">
+                                                    <img
+                                                        src={getImageUrl(recipe.image_url)}
+                                                        alt={recipe.title}
+                                                        loading="lazy"
+                                                        onLoad={(e) => {
+                                                            e.target.classList.remove('opacity-0');
+                                                            const spinner = e.target.nextSibling;
+                                                            if (spinner && spinner.classList) spinner.classList.add('hidden');
+                                                        }}
+                                                        className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105 max-h-[230px] opacity-0"
+                                                    />
+                                                    {/* Local Spinner while img is opacity-0 */}
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-muted animate-pulse z-0">
+                                                        <RefreshCw className="text-muted-foreground/20 animate-spin" size={32} />
+                                                    </div>
+                                                </div>
+                                            ) : recipe.imageSource === 'none' ? (
                                                 <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/30">
                                                     <ChefHat size={48} />
+                                                </div>
+                                            ) : (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                                                    <RefreshCw className="text-muted-foreground/20 animate-spin" size={32} />
                                                 </div>
                                             )}
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60" />
@@ -708,6 +924,19 @@ export default function Recipes() {
                                                                     <Printer size={16} />
                                                                     Drucken
                                                                 </button>
+                                                                {user?.role === 'admin' && (
+                                                                    <button
+                                                                        className="w-full text-left px-4 py-3 text-sm text-pink-500 hover:bg-white/10 flex items-center gap-3 transition-colors font-bold"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleGenerateInstaPost(recipe);
+                                                                            setOpenMenuId(null);
+                                                                        }}
+                                                                    >
+                                                                        <Instagram size={16} />
+                                                                        Instagram Post
+                                                                    </button>
+                                                                )}
                                                             </motion.div>
                                                         )}
                                                     </AnimatePresence>
@@ -859,6 +1088,112 @@ export default function Recipes() {
                         setResolvingConflicts([]);
                     }}
                 />
+
+                <AiLockedModal
+                    isOpen={isAiLockedOpen}
+                    onClose={() => setIsAiLockedOpen(false)}
+                    featureName="AI Assistant"
+                />
+
+                {/* Instagram Post Modal */}
+                <AnimatePresence>
+                    {(isInstaLoading || instaPostResult) && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                className="w-full max-w-2xl bg-card border border-border rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+                            >
+                                <div className="p-6 border-b border-border flex items-center justify-between bg-card/80 backdrop-blur-md">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-pink-500/10 rounded-xl text-pink-600">
+                                            <Instagram size={24} />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-2xl font-bebas tracking-wide">Instagram Post</h2>
+                                            <p className="text-sm text-muted-foreground font-medium">KI-generierter Entwurf für Social Media</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setInstaPostResult(null);
+                                            setIsInstaLoading(false);
+                                            setCopiedInsta(false);
+                                        }}
+                                        className="p-2 hover:bg-muted rounded-full transition-colors"
+                                    >
+                                        <X size={24} />
+                                    </button>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                                    {isInstaLoading ? (
+                                        <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                                            <RefreshCw size={48} className="text-pink-500 animate-spin" />
+                                            <p className="text-lg font-bold">Generiere Post...</p>
+                                            <p className="text-sm text-muted-foreground">Einen Moment bitte.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-muted/30 rounded-2xl p-6 border border-border font-medium text-sm md:text-base leading-relaxed whitespace-pre-wrap select-text">
+                                            {instaPostResult}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="p-6 border-t border-border bg-card/80 backdrop-blur-md flex flex-wrap justify-end gap-3 rounded-b-3xl">
+                                    {!isInstaLoading && instaPostResult && (
+                                        <>
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(instaPostResult);
+                                                    setCopiedInsta(true);
+                                                    setTimeout(() => setCopiedInsta(false), 2000);
+                                                }}
+                                                className="gap-2 h-12 px-6"
+                                            >
+                                                {copiedInsta ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
+                                                {copiedInsta ? 'Kopiert!' : 'Kopieren'}
+                                            </Button>
+
+                                            <Button
+                                                variant="outline"
+                                                onClick={async () => {
+                                                    if (navigator.share) {
+                                                        try {
+                                                            await navigator.share({
+                                                                text: instaPostResult
+                                                            });
+                                                        } catch (err) {
+                                                            console.error('Error sharing', err);
+                                                        }
+                                                    } else {
+                                                        alert('Teilen wird von deinem Browser nicht unterstützt.');
+                                                    }
+                                                }}
+                                                className="gap-2 h-12 px-6"
+                                            >
+                                                <Share2 size={18} />
+                                                Teilen
+                                            </Button>
+                                        </>
+                                    )}
+                                    <Button
+                                        onClick={() => {
+                                            setInstaPostResult(null);
+                                            setIsInstaLoading(false);
+                                            setCopiedInsta(false);
+                                        }}
+                                        className="h-12 px-8 shadow-lg shadow-primary/20"
+                                    >
+                                        Fertig
+                                    </Button>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
             </div>
         </LoadingOverlay>
     );

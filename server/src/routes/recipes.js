@@ -45,6 +45,8 @@ router.get('/tags', auth, async (req, res) => {
 // Get all recipes (optimized for list view). Now includes both own and favorited community recipes for the whole household.
 router.get('/', auth, async (req, res) => {
     try {
+        const { phase } = req.query;
+
         const householdUsers = await User.findAll({
             where: {
                 [Op.or]: [
@@ -56,15 +58,14 @@ router.get('/', auth, async (req, res) => {
         });
         const householdUserIds = householdUsers.map(u => u.id);
 
-        const recipes = await Recipe.findAll({
-            where: {
-                [Op.or]: [
-                    { UserId: req.user.effectiveId },
-                    { '$FavoritedBy.id$': { [Op.in]: householdUserIds } }
-                ]
-            },
-            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'createdAt', 'updatedAt', 'UserId', 'clicks'],
-            include: [
+        let attributes = [];
+        let include = [];
+
+        if (phase === 'images') {
+            attributes = ['id', 'image_url', 'imageSource'];
+        } else if (phase === 'search') {
+            attributes = ['id'];
+            include = [
                 {
                     model: Tag,
                     where: { UserId: req.user.effectiveId },
@@ -73,30 +74,20 @@ router.get('/', auth, async (req, res) => {
                     through: { attributes: [] }
                 },
                 {
-                    // Lightweight ingredient include – only product name for search
                     model: RecipeIngredient,
-                    where: { UserId: req.user.effectiveId },
                     required: false,
                     attributes: ['id'],
                     include: [{
                         model: Product,
-                        where: {
-                            [Op.or]: [
-                                { UserId: req.user.effectiveId },
-                                { UserId: null }
-                            ]
-                        },
                         required: false,
                         attributes: ['name']
                     }]
-                },
-                {
-                    model: User,
-                    as: 'FavoritedBy',
-                    where: { id: { [Op.in]: householdUserIds } },
-                    required: false,
-                    attributes: ['id', 'username']
-                },
+                }
+            ];
+        } else {
+            // phase === 'basic' or default
+            attributes = ['id', 'title', 'category', 'prep_time', 'duration', 'servings', 'imageSource', 'createdAt', 'updatedAt', 'UserId', 'clicks'];
+            include = [
                 {
                     model: Menu,
                     required: false,
@@ -108,18 +99,41 @@ router.get('/', auth, async (req, res) => {
                     required: false,
                     attributes: ['id']
                 }
-            ],
+            ];
+        }
+
+        // FavoritedBy must ALWAYS be included if it's used in the top-level where clause
+        include.push({
+            model: User,
+            as: 'FavoritedBy',
+            where: { id: { [Op.in]: householdUserIds } },
+            required: false,
+            attributes: phase === 'basic' || !phase ? ['id', 'username'] : ['id']
+        });
+
+        const recipes = await Recipe.findAll({
+            where: {
+                [Op.or]: [
+                    { UserId: req.user.effectiveId },
+                    { '$FavoritedBy.id$': { [Op.in]: householdUserIds } }
+                ]
+            },
+            attributes,
+            include,
             order: [['title', 'ASC']]
         });
 
-        // Add an explicit isFavorite flag based on the relation for the frontend, and favoritedBy array
+        if (phase === 'images' || phase === 'search') {
+            return res.json(recipes);
+        }
+
         const mappedRecipes = recipes.map(r => {
             const plain = r.get({ plain: true });
             plain.isFavorite = plain.FavoritedBy && plain.FavoritedBy.some(u => u.id === req.user.id);
             plain.favoritedBy = plain.FavoritedBy ? plain.FavoritedBy.map(u => u.username) : [];
             plain.cookCount = plain.Menus ? plain.Menus.length : 0;
             plain.hasSubstitutions = plain.RecipeSubstitutions && plain.RecipeSubstitutions.length > 0;
-            delete plain.FavoritedBy; // clean up payload
+            delete plain.FavoritedBy;
             delete plain.Menus;
             delete plain.RecipeSubstitutions;
             return plain;
@@ -161,12 +175,6 @@ router.get('/public/:sharingKey/:id', checkOptionalAuth, async (req, res) => {
                     required: false,
                     include: [{
                         model: Product,
-                        where: {
-                            [Op.or]: [
-                                { UserId: user.id },
-                                { UserId: null }
-                            ]
-                        },
                         required: false
                     }]
                 },
@@ -341,12 +349,6 @@ router.get('/:id', auth, async (req, res) => {
                     required: false,
                     include: [{
                         model: Product,
-                        where: {
-                            [Op.or]: [
-                                { UserId: req.user.effectiveId },
-                                { UserId: null }
-                            ]
-                        },
                         required: false
                     }]
                 },

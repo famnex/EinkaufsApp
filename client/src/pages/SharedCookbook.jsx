@@ -184,7 +184,7 @@ export default function SharedCookbook() {
 
                 <button
                     onClick={() => navigate(-1)}
-                    className="fixed top-20 left-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-all z-40 flex items-center gap-2"
+                    className="fixed top-[72px] left-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-all z-40 flex items-center gap-2"
                 >
                     <ArrowLeft size={20} />
                     <span className="text-sm font-bold hidden sm:inline pr-2">Zurück</span>
@@ -193,7 +193,7 @@ export default function SharedCookbook() {
                 {localStorage.getItem('token') && (
                     <button
                         onClick={toggleFollowCookbook}
-                        className="fixed top-20 right-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-all z-40 flex items-center gap-2"
+                        className="fixed top-[72px] right-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-all z-40 flex items-center gap-2"
                         title={isFollowed ? "Kochbuch entfolgen" : "Kochbuch folgen"}
                     >
                         <Heart size={20} className={cn("transition-colors duration-300", isFollowed ? "fill-rose-500 text-rose-500" : "text-white")} />

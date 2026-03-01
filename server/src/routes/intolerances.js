@@ -184,15 +184,9 @@ router.post('/check', auth, async (req, res) => {
 
         const { Product, Intolerance } = require('../models');
 
-        // Fetch products with their global intolerances
+        // Fetch products with their global intolerances (no ownership filter - all products must be checkable)
         const products = await Product.findAll({
-            where: {
-                id: productIds,
-                [Op.or]: [
-                    { UserId: userId },
-                    { UserId: null }
-                ]
-            },
+            where: { id: productIds },
             include: [{ model: Intolerance, through: { attributes: ['probability'] } }]
         });
 

@@ -21,6 +21,7 @@ import { arrayMove, SortableContext, rectSortingStrategy } from '@dnd-kit/sortab
 import { SortableItem } from '../components/SortableItem';
 import AiActionConfirmModal from '../components/AiActionConfirmModal';
 import SubscriptionModal from '../components/SubscriptionModal';
+import AiLockedModal from '../components/AiLockedModal';
 
 export default function ListDetail() {
     const { id } = useParams();
@@ -62,6 +63,7 @@ export default function ListDetail() {
     const [aiConfirmModalOpen, setAiConfirmModalOpen] = useState(false);
     const [aiActionData, setAiActionData] = useState(null);
     const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+    const [isAiLockedOpen, setIsAiLockedOpen] = useState(false);
 
     // Double-Tap Detection (use ref to avoid closure issues)
     const lastTapTimeRef = useRef(null);
@@ -204,6 +206,10 @@ export default function ListDetail() {
 
     const fetchIntoleranceConflicts = useCallback(async (productId) => {
         if (!productId) return { messages: [], maxProbability: 0 };
+        const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+            ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+            user?.tier?.includes('Admin') || user?.role === 'admin';
+        if (!hasSpecialTier) return { messages: [], maxProbability: 0 };
         try {
             const { data: conflicts } = await api.post('/intolerances/check', { productIds: [productId] });
             if (conflicts && conflicts.length > 0) {
@@ -228,7 +234,7 @@ export default function ListDetail() {
             console.error('Failed to check intolerances', err);
         }
         return { messages: [], maxProbability: 0 };
-    }, [user?.username]);
+    }, [user?.username, user?.tier, user?.householdOwnerTier, user?.role]);
 
     useEffect(() => {
         if (selectedItem?.Product?.id && isSettingsOpen) {
@@ -329,9 +335,14 @@ export default function ListDetail() {
 
                 if (matchingProducts.length > 0) {
                     const productIds = matchingProducts.map(p => p.id);
-                    api.post('/intolerances/check', { productIds })
-                        .then(res => setConflicts(res.data))
-                        .catch(err => console.error("Failed to check substitute intolerances", err));
+                    const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+                        ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+                        user?.tier?.includes('Admin') || user?.role === 'admin';
+                    if (hasSpecialTier) {
+                        api.post('/intolerances/check', { productIds })
+                            .then(res => setConflicts(res.data))
+                            .catch(err => console.error("Failed to check substitute intolerances", err));
+                    }
                 }
             }
 
@@ -1057,6 +1068,12 @@ export default function ListDetail() {
                 isOpen={isSubscriptionModalOpen}
                 onClose={() => setIsSubscriptionModalOpen(false)}
                 currentTier={user?.tier}
+            />
+
+            <AiLockedModal
+                isOpen={isAiLockedOpen}
+                onClose={() => setIsAiLockedOpen(false)}
+                featureName="Smart Import"
             />
         </div >
     );

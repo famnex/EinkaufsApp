@@ -4,7 +4,7 @@ import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, Arr
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { cn, getImageUrl } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { useEditMode } from '../contexts/EditModeContext';
@@ -19,15 +19,19 @@ import api from '../lib/axios';
 import { Search, Package } from 'lucide-react';
 import RichTextEditor from '../components/RichTextEditor';
 import Products from './Products';
+import AiLockedModal from '../components/AiLockedModal';
 
 export default function SettingsPage() {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
+    const location = useLocation();
     const [stores, setStores] = useState([]);
     const [loading, setLoading] = useState(true);
     const { user, setUser, refreshUser, notificationCounts, fetchNotificationCounts } = useAuth();
     const { editMode, setEditMode } = useEditMode();
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isAiLockedOpen, setIsAiLockedOpen] = useState(false);
+    const [aiLockedFeatureName, setAiLockedFeatureName] = useState('');
     const [selectedStore, setSelectedStore] = useState(null);
     const [openaiKey, setOpenaiKey] = useState('');
     const [alexaKey, setAlexaKey] = useState('');
@@ -162,45 +166,80 @@ export default function SettingsPage() {
 
     // Handle payment return URLs (?payment=success|cancel) and direct tab links (?tab=...)
     useEffect(() => {
-        const paymentStatus = searchParams.get('payment');
-        if (paymentStatus) {
-            if (paymentStatus === 'cancel') {
-                // Log the cancellation
-                api.post('/subscription/checkout/canceled', { tier: 'unknown' }).catch(() => { });
-            }
-            if (paymentStatus === 'success') {
+        const paymentSlot = searchParams.get('payment');
+        const tab = searchParams.get('tab');
+        const subtab = searchParams.get('subtab');
+        const openModal = searchParams.get('openModal');
+
+        let urlChanged = false;
+
+        // 1. Payment status
+        if (paymentSlot) {
+            if (paymentSlot === 'success') {
                 setActiveTab('account');
                 setActiveAccountTab('subscription');
                 refreshUser();
+            } else if (paymentSlot === 'cancel') {
+                api.post('/subscription/checkout/canceled', { tier: 'unknown' }).catch(() => { });
             }
-            // Clean up the URL
             searchParams.delete('payment');
-            setSearchParams(searchParams, { replace: true });
+            urlChanged = true;
         }
 
-        const tab = searchParams.get('tab');
-        if (tab) {
-            // Map legacy tabs to new structure
-            if (['profile', 'subscription', 'household'].includes(tab)) {
+        // 2. Navigation and Modal logic
+        if (tab || subtab || openModal === 'true') {
+            // Handle direct tab shortcuts
+            if (tab && ['profile', 'subscription', 'household'].includes(tab)) {
                 setActiveTab('account');
                 setActiveAccountTab(tab === 'profile' ? 'profile_detail' : tab);
-            } else if (['intolerances', 'alexa'].includes(tab)) {
-                setActiveTab('preferences');
-                setActivePreferencesTab(tab);
-            } else if (tab === 'cookbook') {
-                setActiveTab('content');
-                setActiveContentTab(tab);
-            } else if (['products', 'stores'].includes(tab)) {
-                setActiveTab('marketplace');
-                setActiveMarketplaceTab(tab);
-            } else {
-                setActiveTab(tab);
+                if (tab) searchParams.delete('tab');
             }
-            // Clean up the URL (optional but cleaner)
-            searchParams.delete('tab');
+            // Handle explicit account subtabs
+            else if (tab === 'account') {
+                setActiveTab('account');
+                if (subtab) setActiveAccountTab(subtab);
+                searchParams.delete('tab');
+                if (subtab) searchParams.delete('subtab');
+            }
+            // Handle other top-level sections
+            else if (tab === 'preferences') {
+                setActiveTab('preferences');
+                if (subtab) setActivePreferencesTab(subtab);
+                searchParams.delete('tab');
+                if (subtab) searchParams.delete('subtab');
+            }
+            else if (tab === 'content') {
+                setActiveTab('content');
+                if (subtab) setActiveContentTab(subtab);
+                searchParams.delete('tab');
+                if (subtab) searchParams.delete('subtab');
+            }
+            else if (tab === 'marketplace') {
+                setActiveTab('marketplace');
+                if (subtab) setActiveMarketplaceTab(subtab);
+                searchParams.delete('tab');
+                if (subtab) searchParams.delete('subtab');
+            }
+            else if (tab) {
+                setActiveTab(tab);
+                searchParams.delete('tab');
+            }
+
+            // Explicitly handle "openModal=true" (Subscription Modal)
+            if (openModal === 'true') {
+                setActiveTab('account');
+                setActiveAccountTab('subscription');
+                setIsSubscriptionModalOpen(true);
+                searchParams.delete('openModal');
+            }
+
+            urlChanged = true;
+        }
+
+        if (urlChanged) {
             setSearchParams(searchParams, { replace: true });
         }
-    }, []);
+    }, [location.search, searchParams]);
 
     // Email/Password Change State
     const [emailChangeData, setEmailChangeData] = useState({ currentPassword: '', newEmail: '' });
@@ -1562,8 +1601,8 @@ export default function SettingsPage() {
     ];
 
     const preferencesTabs = [
-        { id: 'intolerances', label: 'Unverträglichkeiten', icon: ShieldAlert },
-        ...(hasSpecialTier ? [{ id: 'alexa', label: 'Alexa', icon: Building2 }] : [])
+        { id: 'intolerances', label: 'Unverträglichkeiten', icon: ShieldAlert, locked: !hasSpecialTier },
+        { id: 'alexa', label: 'Alexa', icon: Building2, locked: !hasSpecialTier }
     ];
 
     const contentTabs = [
@@ -1598,25 +1637,26 @@ export default function SettingsPage() {
                             <User size={20} className="text-primary" />
                             Benutzerprofil
                         </h2>
-                        <div className="p-4 bg-muted rounded-2xl flex items-center justify-between">
-                            <div>
+                        <div className="p-4 bg-muted rounded-2xl flex flex-col sm:flex-row items-center sm:justify-between gap-4">
+                            <div className="text-center sm:text-left">
                                 <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Angemeldet als</p>
                                 <p className="font-bold text-foreground text-lg">{user?.username || 'Gast'}</p>
                                 <p className="text-sm text-primary font-medium">{user?.role === 'admin' ? 'Administrator' : 'Standard-Benutzer'}</p>
-                                <div className="mt-2 text-xs flex items-center gap-1.5 text-muted-foreground">
+                                <div className="mt-2 text-xs flex items-center justify-center sm:justify-start gap-1.5 text-muted-foreground">
                                     <Mail size={12} className="text-primary/70" />
                                     <span>{user?.email || 'Keine E-Mail hinterlegt'}</span>
                                 </div>
                             </div>
                             <Button
                                 variant="ghost"
-                                className="text-destructive hover:bg-destructive/10"
+                                className="text-destructive hover:bg-destructive/10 w-full sm:w-auto"
                                 onClick={() => {
                                     localStorage.removeItem('token');
                                     const baseUrl = import.meta.env.BASE_URL || '/';
                                     window.location.href = `${baseUrl}login`.replace('//', '/');
                                 }}
                             >
+                                <LogOut size={18} className="mr-2" />
                                 Abmelden
                             </Button>
                         </div>
@@ -4065,7 +4105,7 @@ export default function SettingsPage() {
                             {selectedEmail.folder === 'inbox' && (
                                 <Button variant="outline" size="sm" onClick={() => openReply(selectedEmail)} className="gap-1">
                                     <Reply size={14} />
-                                    Antworten
+                                    <span className="hidden sm:inline">Antworten</span>
                                 </Button>
                             )}
                             {selectedEmail.folder === 'inbox' || selectedEmail.folder === 'daemon' ? (
@@ -4076,17 +4116,17 @@ export default function SettingsPage() {
                             {selectedEmail.folder !== 'trash' ? (
                                 <Button variant="outline" size="sm" onClick={() => handleTrashEmail(selectedEmail.id)} className="gap-1 text-red-500 hover:text-red-600">
                                     <Trash2 size={14} />
-                                    Löschen
+                                    <span className="hidden sm:inline">Löschen</span>
                                 </Button>
                             ) : (
                                 <>
                                     <Button variant="outline" size="sm" onClick={() => handleRestoreEmail(selectedEmail.id)} className="gap-1">
                                         <ArrowLeft size={14} />
-                                        Wiederherstellen
+                                        <span className="hidden sm:inline">Wiederherstellen</span>
                                     </Button>
                                     <Button variant="outline" size="sm" onClick={() => handleDeleteEmail(selectedEmail.id)} className="gap-1 text-red-500 hover:text-red-600">
                                         <Trash2 size={14} />
-                                        Endgültig löschen
+                                        <span className="hidden sm:inline">Endgültig löschen</span>
                                     </Button>
                                 </>
                             )}
@@ -4114,15 +4154,17 @@ export default function SettingsPage() {
                             </button>
                         )}
                     </div>
-                    <div className="border-t border-border pt-4">
-                        {selectedEmail.body ? (
-                            <div
-                                className="prose prose-sm max-w-none text-foreground [&_a]:text-primary"
-                                dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
-                            />
-                        ) : (
-                            <pre className="whitespace-pre-wrap text-sm text-foreground font-sans">{selectedEmail.bodyText || 'Kein Inhalt'}</pre>
-                        )}
+                    <div className="border-t border-border pt-4 min-w-0">
+                        <div className="w-full overflow-x-auto custom-scrollbar pb-2">
+                            {selectedEmail.body ? (
+                                <div
+                                    className="prose prose-sm max-w-none text-foreground [&_a]:text-primary min-w-0"
+                                    dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
+                                />
+                            ) : (
+                                <pre className="whitespace-pre-wrap text-sm text-foreground font-sans">{selectedEmail.bodyText || 'Kein Inhalt'}</pre>
+                            )}
+                        </div>
                     </div>
                 </Card>
             ) : (
@@ -4163,10 +4205,13 @@ export default function SettingsPage() {
                                             className="rounded border-border bg-background text-primary focus:ring-primary h-4 w-4 transition-all"
                                         />
                                     </div>
-                                    <button
+                                    <div
+                                        role="button"
+                                        tabIndex={0}
                                         onClick={() => openEmail(email.id)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openEmail(email.id); }}
                                         className={cn(
-                                            "flex-1 text-left px-4 py-3 hover:bg-muted/50 transition-colors flex items-start gap-3",
+                                            "flex-1 text-left px-4 py-3 hover:bg-muted/50 transition-colors flex items-start gap-3 cursor-pointer outline-none focus-visible:bg-muted/50",
                                             !email.isRead && "bg-primary/5"
                                         )}
                                     >
@@ -4235,7 +4280,7 @@ export default function SettingsPage() {
                                                 {email.subject || '(Kein Betreff)'}
                                             </p>
                                         </div>
-                                    </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -4950,11 +4995,11 @@ export default function SettingsPage() {
                             </Button>
                         </div>
 
-                        <div className="p-6 rounded-2xl bg-muted/30 border border-border/50 shadow-sm flex flex-col items-center text-center">
+                        <div className="p-6 rounded-2xl bg-muted/30 border border-border/50 shadow-sm flex flex-col items-center text-center overflow-hidden">
                             <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Größte Datei</h3>
-                            <div className="flex items-center gap-4 w-full justify-center">
-                                <div className="text-left">
-                                    <p className="text-sm font-bold text-foreground truncate max-w-[200px]" title={cleanupStats.largestFile.name}>
+                            <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 w-full justify-center min-w-0">
+                                <div className="text-center sm:text-left min-w-0">
+                                    <p className="text-sm font-bold text-foreground truncate max-w-full sm:max-w-[200px]" title={cleanupStats.largestFile.name}>
                                         {cleanupStats.largestFile.name}
                                     </p>
                                     <p className="text-xs font-black text-muted-foreground">
@@ -4966,7 +5011,7 @@ export default function SettingsPage() {
                                         href={cleanupStats.largestFile.path}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="inline-flex items-center gap-2 bg-background border border-border px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-muted transition-colors"
+                                        className="inline-flex items-center gap-2 bg-background border border-border px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-muted transition-colors whitespace-nowrap"
                                     >
                                         <Eye size={14} /> Datei ansehen
                                     </a>
@@ -5266,26 +5311,39 @@ export default function SettingsPage() {
             <div className="sm:hidden space-y-2">
                 {preferencesTabs.map((sub) => {
                     const isActive = activePreferencesTab === sub.id;
+                    const isLocked = sub.locked;
                     return (
                         <div key={sub.id} className="border border-border/50 rounded-lg overflow-hidden bg-card/30">
                             <button
-                                onClick={() => setActivePreferencesTab(isActive ? '' : sub.id)}
+                                onClick={() => {
+                                    if (isLocked) {
+                                        setAiLockedFeatureName(sub.label);
+                                        setIsAiLockedOpen(true);
+                                    } else {
+                                        setActivePreferencesTab(isActive ? '' : sub.id);
+                                    }
+                                }}
                                 className={cn(
                                     "w-full flex items-center justify-between p-3 text-sm font-bold text-left transition-colors",
-                                    isActive ? "bg-primary/5 text-primary" : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                                    isLocked
+                                        ? "opacity-60 text-muted-foreground"
+                                        : isActive ? "bg-primary/5 text-primary" : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                                 )}
                             >
                                 <div className="flex items-center gap-2">
                                     <sub.icon size={16} />
                                     <span>{sub.label}</span>
+                                    {isLocked && <Lock size={12} className="opacity-70" />}
                                 </div>
-                                <ChevronDown
-                                    size={16}
-                                    className={cn("text-muted-foreground transition-transform duration-300", isActive && "rotate-180 text-primary")}
-                                />
+                                {!isLocked && (
+                                    <ChevronDown
+                                        size={16}
+                                        className={cn("text-muted-foreground transition-transform duration-300", isActive && "rotate-180 text-primary")}
+                                    />
+                                )}
                             </button>
                             <AnimatePresence initial={false}>
-                                {isActive && (
+                                {isActive && !isLocked && (
                                     <motion.div
                                         initial={{ height: 0, opacity: 0 }}
                                         animate={{ height: "auto", opacity: 1 }}
@@ -5304,24 +5362,37 @@ export default function SettingsPage() {
             </div>
             <div className="hidden sm:block">
                 <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2 border-b border-border/30">
-                    {preferencesTabs.map(sub => (
-                        <button
-                            key={sub.id}
-                            onClick={() => setActivePreferencesTab(sub.id)}
-                            className={cn(
-                                "flex items-center gap-2 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all text-xs font-bold",
-                                activePreferencesTab === sub.id
-                                    ? "bg-primary/10 text-primary border border-primary/20"
-                                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
-                            )}
-                        >
-                            <sub.icon size={14} />
-                            {sub.label}
-                        </button>
-                    ))}
+                    {preferencesTabs.map(sub => {
+                        const isLocked = sub.locked;
+                        return (
+                            <button
+                                key={sub.id}
+                                onClick={() => {
+                                    if (isLocked) {
+                                        setAiLockedFeatureName(sub.label);
+                                        setIsAiLockedOpen(true);
+                                    } else {
+                                        setActivePreferencesTab(sub.id);
+                                    }
+                                }}
+                                className={cn(
+                                    "flex items-center gap-2 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all text-xs font-bold",
+                                    isLocked
+                                        ? "bg-muted/50 text-muted-foreground border border-transparent opacity-60 hover:opacity-80"
+                                        : activePreferencesTab === sub.id
+                                            ? "bg-primary/10 text-primary border border-primary/20"
+                                            : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                                )}
+                            >
+                                <sub.icon size={14} />
+                                {sub.label}
+                                {isLocked && <Lock size={11} className="opacity-70" />}
+                            </button>
+                        );
+                    })}
                 </div>
                 <div className="mt-6">
-                    {getPreferencesContent(activePreferencesTab)}
+                    {!preferencesTabs.find(t => t.id === activePreferencesTab)?.locked && getPreferencesContent(activePreferencesTab)}
                 </div>
             </div>
         </div>
@@ -5672,6 +5743,12 @@ export default function SettingsPage() {
                     </div>
                 )}
             </AnimatePresence>
+
+            <AiLockedModal
+                isOpen={isAiLockedOpen}
+                onClose={() => setIsAiLockedOpen(false)}
+                featureName={aiLockedFeatureName}
+            />
         </div>
     );
 }

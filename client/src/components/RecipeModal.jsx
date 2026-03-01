@@ -9,6 +9,8 @@ import api from '../lib/axios';
 import { cn, getImageUrl } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import AiActionConfirmModal from './AiActionConfirmModal';
+import AiLockedModal from './AiLockedModal';
+import { Lock } from 'lucide-react';
 import {
     DndContext,
     closestCenter,
@@ -99,6 +101,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
     const [isSaving, setIsSaving] = useState(false); // Bottom save button
     const [isGeneratingImage, setIsGeneratingImage] = useState(false); // AI image generation
     const [aiConfirmModalOpen, setAiConfirmModalOpen] = useState(false);
+    const [isAiLockedOpen, setIsAiLockedOpen] = useState(false);
     const [aiActionData, setAiActionData] = useState(null);
     const [products, setProducts] = useState([]);
     const [substitutions, setSubstitutions] = useState([]);
@@ -552,52 +555,65 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                                 </div>
 
                                                 {/* AI Button */}
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    className="w-full gap-2 text-[10px] bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-md shadow-indigo-500/10"
-                                                    disabled={loading || isSaving || isGeneratingImage}
-                                                    onClick={() => {
-                                                        if (!basics.title) {
-                                                            alert('Bitte erst einen Titel eingeben');
-                                                            return;
-                                                        }
-
-                                                        const isVariation = !!basics.imagePreview;
-                                                        const cost = user?.tier === 'Goldgabel' ? 40 : 60;
-
-                                                        setAiActionData({
-                                                            title: isVariation ? 'KI Variation erstellen' : 'KI Bild generieren',
-                                                            description: isVariation
-                                                                ? `Eine neue Variante des Bildes für "${basics.title}" erstellen.`
-                                                                : `Ein passendes Bild für "${basics.title}" erstellen.`,
-                                                            cost,
-                                                            onConfirm: async () => {
-                                                                setIsGeneratingImage(true);
-                                                                try {
-                                                                    const endpoint = isVariation ? '/ai/regenerate-image' : '/ai/generate-image';
-                                                                    const payload = isVariation
-                                                                        ? { imageUrl: basics.imagePreview, title: basics.title }
-                                                                        : { title: basics.title };
-
-                                                                    const { data } = await api.post(endpoint, payload);
-                                                                    setBasics(prev => ({ ...prev, imagePreview: data.url, image: null, imageSource: 'ai' }));
-                                                                    // Refresh user credits
-                                                                    refreshUser();
-                                                                } catch (err) {
-                                                                    alert('Fehler: ' + err.message);
-                                                                } finally {
-                                                                    setIsGeneratingImage(false);
-                                                                }
+                                                {user?.tier === 'Plastikgabel' ? (
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        className="w-full gap-2 text-[10px] bg-muted text-muted-foreground border-2 border-border shadow-none"
+                                                        onClick={() => setIsAiLockedOpen(true)}
+                                                    >
+                                                        <Sparkles size={14} className="opacity-50" />
+                                                        {basics.imagePreview ? 'AI Variante' : 'AI Neu'}
+                                                        <Lock size={10} className="ml-0.5" />
+                                                    </Button>
+                                                ) : (
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        className="w-full gap-2 text-[10px] bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-md shadow-indigo-500/10"
+                                                        disabled={loading || isSaving || isGeneratingImage}
+                                                        onClick={() => {
+                                                            if (!basics.title) {
+                                                                alert('Bitte erst einen Titel eingeben');
+                                                                return;
                                                             }
-                                                        });
-                                                        setAiConfirmModalOpen(true);
-                                                    }}
-                                                >
-                                                    {isGeneratingImage ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
-                                                    {basics.imagePreview ? 'AI Variante' : 'AI Neu'}
-                                                    <span className="opacity-70">({user?.tier === 'Goldgabel' ? 40 : 60})</span>
-                                                </Button>
+
+                                                            const isVariation = !!basics.imagePreview;
+                                                            const cost = user?.tier === 'Goldgabel' ? 40 : 60;
+
+                                                            setAiActionData({
+                                                                title: isVariation ? 'KI Variation erstellen' : 'KI Bild generieren',
+                                                                description: isVariation
+                                                                    ? `Eine neue Variante des Bildes für "${basics.title}" erstellen.`
+                                                                    : `Ein passendes Bild für "${basics.title}" erstellen.`,
+                                                                cost,
+                                                                onConfirm: async () => {
+                                                                    setIsGeneratingImage(true);
+                                                                    try {
+                                                                        const endpoint = isVariation ? '/ai/regenerate-image' : '/ai/generate-image';
+                                                                        const payload = isVariation
+                                                                            ? { imageUrl: basics.imagePreview, title: basics.title }
+                                                                            : { title: basics.title };
+
+                                                                        const { data } = await api.post(endpoint, payload);
+                                                                        setBasics(prev => ({ ...prev, imagePreview: data.url, image: null, imageSource: 'ai' }));
+                                                                        // Refresh user credits
+                                                                        refreshUser();
+                                                                    } catch (err) {
+                                                                        alert('Fehler: ' + err.message);
+                                                                    } finally {
+                                                                        setIsGeneratingImage(false);
+                                                                    }
+                                                                }
+                                                            });
+                                                            setAiConfirmModalOpen(true);
+                                                        }}
+                                                    >
+                                                        {isGeneratingImage ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                                                        {basics.imagePreview ? 'AI Variante' : 'AI Neu'}
+                                                        <span className="opacity-70">({user?.tier === 'Goldgabel' ? 40 : 60})</span>
+                                                    </Button>
+                                                )}
 
                                                 {/* Delete Button */}
                                                 <Button
@@ -820,6 +836,11 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                 actionDescription={aiActionData?.description}
                 cost={aiActionData?.cost}
                 balance={user?.aiCredits}
+            />
+            <AiLockedModal
+                isOpen={isAiLockedOpen}
+                onClose={() => setIsAiLockedOpen(false)}
+                featureName="KI-Bilderstellung"
             />
         </AnimatePresence>
     );

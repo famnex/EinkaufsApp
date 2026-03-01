@@ -13,6 +13,54 @@ import { useNavigate } from 'react-router-dom';
 import LoadingOverlay from '../components/LoadingOverlay';
 import RecipeIntoleranceResolverModal from '../components/RecipeIntoleranceResolverModal';
 
+import {
+    DndContext,
+    useDraggable,
+    useDroppable,
+    PointerSensor,
+    TouchSensor,
+    useSensor,
+    useSensors,
+    DragOverlay,
+    defaultDropAnimationSideEffects
+} from '@dnd-kit/core';
+
+function DroppableSlot({ id, children, className, disabled }) {
+    const { isOver, setNodeRef } = useDroppable({
+        id,
+        disabled
+    });
+
+    return (
+        <div
+            ref={setNodeRef}
+            className={cn(className, isOver && "ring-2 ring-primary ring-inset bg-primary/5")}
+        >
+            {children}
+        </div>
+    );
+}
+
+function DraggableMeal({ id, children, disabled, data, className }) {
+    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+        id,
+        disabled,
+        data
+    });
+
+    const style = transform ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        zIndex: 100,
+        opacity: isDragging ? 0.3 : 1
+    } : undefined;
+
+    return (
+        <div ref={setNodeRef} style={style} {...listeners} {...attributes} className={cn("h-full w-full", className)}>
+            {children}
+        </div>
+    );
+}
+
 
 function getMonday(d) {
     d = new Date(d);
@@ -30,7 +78,7 @@ function getKW(date) {
 }
 
 export default function MenuPlan() {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const { editMode } = useEditMode();
     const navigate = useNavigate();
     const [currentWeekStart, setCurrentWeekStart] = useState(getMonday(new Date()));
@@ -49,6 +97,7 @@ export default function MenuPlan() {
     const [resolvingRecipe, setResolvingRecipe] = useState(null);
     const [resolvingConflicts, setResolvingConflicts] = useState([]);
     const [pendingSelection, setPendingSelection] = useState(null);
+    const [isDragging, setIsDragging] = useState(false);
 
     const fetchData = async () => {
         setLoading(true);
@@ -193,14 +242,19 @@ export default function MenuPlan() {
                     .filter(pid => pid && !substitutedProductIds.has(pid)) || [];
 
                 if (productIdsToCheck.length > 0) {
-                    const { data: conflicts } = await api.post('/intolerances/check', { productIds: productIdsToCheck });
-                    const severeConflicts = conflicts.filter(c => c.maxProbability >= 30);
+                    const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+                        ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+                        user?.tier?.includes('Admin') || user?.role === 'admin';
+                    if (hasSpecialTier) {
+                        const { data: conflicts } = await api.post('/intolerances/check', { productIds: productIdsToCheck });
+                        const severeConflicts = conflicts.filter(c => c.maxProbability >= 30);
 
-                    if (severeConflicts.length > 0) {
-                        setResolvingRecipe(fullRecipe);
-                        setResolvingConflicts(severeConflicts);
-                        setPendingSelection(selection);
-                        return;
+                        if (severeConflicts.length > 0) {
+                            setResolvingRecipe(fullRecipe);
+                            setResolvingConflicts(severeConflicts);
+                            setPendingSelection(selection);
+                            return;
+                        }
                     }
                 }
             }
@@ -294,364 +348,452 @@ export default function MenuPlan() {
         }
     };
 
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: {
+                delay: 200,
+                tolerance: 5,
+            },
+        })
+    );
+
+    const handleDragStart = () => {
+        setIsDragging(true);
+    };
+
+    const handleDragEnd = async (event) => {
+        setIsDragging(false);
+        const { active, over } = event;
+        if (!over) return;
+
+        const sourceMeal = active.data.current.meal;
+        const [targetDate, targetType] = over.id.split('|');
+
+        if (!sourceMeal) return;
+
+        // Don't do anything if dropped on same slot
+        if (sourceMeal.date === targetDate && sourceMeal.meal_type === targetType) return;
+
+        try {
+            setLoading(true);
+            const targetMeal = menus.find(m => m.date === targetDate && m.meal_type === targetType);
+
+            if (targetMeal) {
+                // SWAP
+                const sourcePayload = {
+                    date: targetDate,
+                    meal_type: targetType
+                };
+                const targetPayload = {
+                    date: sourceMeal.date,
+                    meal_type: sourceMeal.meal_type
+                };
+
+                await Promise.all([
+                    api.put(`/menus/${sourceMeal.id}`, sourcePayload),
+                    api.put(`/menus/${targetMeal.id}`, targetPayload)
+                ]);
+            } else {
+                // MOVE to empty slot
+                const payload = {
+                    date: targetDate,
+                    meal_type: targetType
+                };
+                await api.put(`/menus/${sourceMeal.id}`, payload);
+            }
+            fetchData();
+        } catch (err) {
+            console.error('Drag and drop update failed', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
-        <div
-            className="space-y-4"
-            onTouchStart={onTouchStart}
-            onTouchMove={onTouchMove}
-            onTouchEnd={onTouchEnd}
-            style={{ touchAction: 'pan-y' }}
-        >
+        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <div
-                className="sticky z-30 bg-background/95 backdrop-blur-sm pt-4 pb-2 border-b border-border transition-all"
-                style={{ top: 'calc(4rem + env(safe-area-inset-top))' }}
+                className={cn("space-y-4", isDragging && "select-none")}
             >
-                <div className="flex items-center justify-between mb-4">
-                    <button onClick={() => changeWeek(-1)} className="p-2 hover:bg-muted rounded-full transition-colors">
-                        <ChevronLeft />
-                    </button>
-                    <div className="text-center">
-                        <h2 className="text-xl font-bebas tracking-wide">KW {getKW(currentWeekStart)}</h2>
-                        <p className="text-xs text-muted-foreground">
-                            {weekDays[0].dayNum}.{weekDays[0].date.toLocaleDateString('de-DE', { month: 'short' })} – {weekDays[6].dayNum}.{weekDays[6].date.toLocaleDateString('de-DE', { month: 'short' })}
-                        </p>
+                <div
+                    className="sticky z-30 bg-background/95 backdrop-blur-sm pt-4 pb-2 border-b border-border transition-all"
+                    style={{ top: 'calc(4rem + env(safe-area-inset-top))' }}
+                >
+                    <div className="flex items-center justify-between mb-4">
+                        <button onClick={() => changeWeek(-1)} className="p-2 hover:bg-muted rounded-full transition-colors">
+                            <ChevronLeft />
+                        </button>
+                        <div className="text-center">
+                            <h2 className="text-xl font-bebas tracking-wide">KW {getKW(currentWeekStart)}</h2>
+                            <p className="text-xs text-muted-foreground">
+                                {weekDays[0].dayNum}.{weekDays[0].date.toLocaleDateString('de-DE', { month: 'short' })} – {weekDays[6].dayNum}.{weekDays[6].date.toLocaleDateString('de-DE', { month: 'short' })}
+                            </p>
+                        </div>
+                        <button onClick={() => changeWeek(1)} className="p-2 hover:bg-muted rounded-full transition-colors">
+                            <ChevronRight />
+                        </button>
                     </div>
-                    <button onClick={() => changeWeek(1)} className="p-2 hover:bg-muted rounded-full transition-colors">
-                        <ChevronRight />
-                    </button>
                 </div>
 
+                <LoadingOverlay isLoading={loading}>
+                    <div className="overflow-hidden">
+                        <AnimatePresence initial={false} mode='wait' custom={direction}>
+                            <motion.div
+                                key={currentWeekStart.toISOString()}
+                                custom={direction}
+                                variants={variants}
+                                initial="enter"
+                                animate="center"
+                                exit="exit"
+                                transition={{ type: "tween", ease: "easeInOut", duration: 0.3 }}
+                                className="space-y-3"
+                            >
+                                {weekDays.map(day => {
+                                    const meals = getMealsForDay(day.dateStr);
+                                    const shoppingList = getListForDay(day.dateStr);
+                                    const isToday = new Date().toDateString() === day.date.toDateString();
+                                    const isExpanded = expandedDay === day.dateStr;
 
-            </div>
-
-            <LoadingOverlay isLoading={loading}>
-                <div className="overflow-hidden">
-                    <AnimatePresence initial={false} mode='wait' custom={direction}>
-                        <motion.div
-                            key={currentWeekStart.toISOString()}
-                            custom={direction}
-                            variants={variants}
-                            initial="enter"
-                            animate="center"
-                            exit="exit"
-                            transition={{ type: "tween", ease: "easeInOut", duration: 0.3 }}
-                            className="space-y-3"
-                        >
-                            {weekDays.map(day => {
-                                const meals = getMealsForDay(day.dateStr);
-                                const shoppingList = getListForDay(day.dateStr);
-                                const isToday = new Date().toDateString() === day.date.toDateString();
-                                const isExpanded = expandedDay === day.dateStr;
-
-                                return (
-                                    <Card
-                                        key={day.dateStr}
-                                        className={cn(
-                                            "border-border transition-all duration-300 overflow-hidden relative",
-                                            isToday ? "border-primary/50 shadow-sm" : "shadow-sm",
-                                            isExpanded ? "ring-1 ring-primary/20" : ""
-                                        )}
-                                    >
-                                        <div
-                                            onClick={() => setExpandedDay(isExpanded ? null : day.dateStr)}
-                                            className="p-3 flex items-center gap-3 cursor-pointer"
-                                        >
-                                            <div className={cn(
-                                                "flex flex-col items-center justify-center w-12 h-12 rounded-xl shrink-0 transition-colors relative",
-                                                isToday ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-                                                shoppingList && !isToday && "bg-secondary/10 text-secondary"
-                                            )}>
-                                                <span className="text-[10px] uppercase font-bold tracking-wider">{day.dayName}</span>
-                                                <span className="text-lg font-bold leading-none">{day.dayNum}</span>
-                                                {shoppingList && (
-                                                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-secondary rounded-full border border-card" />
-                                                )}
-                                            </div>
-
-                                            <div className="flex-1 min-w-0 flex gap-2 overflow-hidden items-center">
-                                                {!isExpanded && meals.length === 0 && !shoppingList && (
-                                                    <span className="hidden md:flex text-xs text-muted-foreground italic pl-1 items-center h-full">Leer</span>
-                                                )}
-
-                                                {shoppingList && (
-                                                    <>
-                                                        <div className="hidden md:flex gap-2 items-center">
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    navigate(`/lists/${shoppingList.id}`);
-                                                                }}
-                                                                className="inline-flex items-center gap-1.5 bg-secondary/10 text-secondary px-2 py-1 rounded-lg text-xs font-bold hover:bg-secondary/20 transition-colors shrink-0"
-                                                            >
-                                                                <ShoppingCart size={12} />
-                                                                <span>Einkauf</span>
-                                                            </button>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setBulkModal({ open: true, listId: shoppingList.id });
-                                                                }}
-                                                                className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-2 py-1 rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors shrink-0"
-                                                            >
-                                                                <ListChecks size={12} />
-                                                                <span>Zutaten planen</span>
-                                                            </button>
-                                                        </div>
-                                                        <ShoppingCart size={16} className="text-secondary md:hidden shrink-0" />
-                                                    </>
-                                                )}
-
-                                                {!isExpanded && meals.slice(0, 2).map(m => {
-                                                    const slotIcon = slots.find(s => s.type === m.meal_type);
-                                                    let Icon = slotIcon ? slotIcon.icon : Info;
-                                                    let styleClass = "bg-muted/50 text-foreground";
-
-                                                    if (m.is_eating_out) {
-                                                        Icon = CarFront;
-                                                        styleClass = "bg-orange-500/10 text-orange-600";
-                                                    }
-
-                                                    return (
-                                                        <div key={m.id} className={cn("hidden md:inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium min-w-0 transition-colors", styleClass)}>
-                                                            <Icon size={12} className={cn("shrink-0", m.is_eating_out ? "text-orange-600" : "text-primary")} />
-                                                            <span className="truncate">{m.Recipe ? m.Recipe.title : m.description}</span>
-                                                        </div>
-                                                    );
-                                                })}
-                                                {!isExpanded && meals.length > 2 && (
-                                                    <div className="hidden md:block bg-muted px-2 py-1 rounded-lg text-xs font-bold shrink-0">+{meals.length - 2}</div>
-                                                )}
-                                            </div>
-
-                                            <div className="flex gap-1 md:gap-2 shrink-0 ml-auto pl-2" onClick={e => e.stopPropagation()}>
-                                                {slots.map(s => {
-                                                    const meal = meals.find(m => m.meal_type === s.type);
-                                                    const isFilled = !!meal;
-                                                    const handleClick = (e) => handleSlotClick(day.dateStr, s.type, meal, e);
-
-                                                    return (
-                                                        <button
-                                                            key={s.type}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation(); // prevent card expand
-                                                                handleClick(e);
-                                                            }}
-                                                            disabled={false}
-                                                            className={cn(
-                                                                "w-8 h-8 rounded-full flex items-center justify-center transition-all relative group",
-                                                                isFilled
-                                                                    ? (meal.is_eating_out ? "bg-orange-500/10 text-orange-600" : "bg-primary/10 text-primary")
-                                                                    : "bg-muted text-muted-foreground",
-                                                                editMode === 'delete' && isFilled && "animate-pulse bg-destructive/10 text-destructive hover:bg-destructive hover:text-white cursor-pointer",
-                                                                editMode !== 'delete' && isFilled && (meal.is_eating_out ? "hover:bg-orange-500/20" : "hover:bg-primary/20 cursor-pointer"),
-                                                                editMode !== 'delete' && !isFilled && "hover:bg-muted-foreground/10",
-                                                                editMode === 'view' && !isFilled && "opacity-50 cursor-default"
-                                                            )}
-                                                            title={s.label}
-                                                        >
-                                                            {isFilled && meal.is_eating_out ? <CarFront size={16} /> : <s.icon size={16} />}
-                                                            {isFilled && editMode !== 'delete' && <span className={cn("absolute top-0 right-0 w-2 h-2 rounded-full border border-card", meal.is_eating_out ? "bg-orange-500" : "bg-primary")} />}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                            <ChevronDown
-                                                size={20}
-                                                className={cn("text-muted-foreground transition-transform duration-300 ml-1 shrink-0", isExpanded && "rotate-180 text-primary")}
-                                            />
-                                        </div>
-
-                                        <AnimatePresence>
-                                            {isExpanded && (
-                                                <motion.div
-                                                    initial={{ height: 0, opacity: 0 }}
-                                                    animate={{ height: 'auto', opacity: 1 }}
-                                                    exit={{ height: 0, opacity: 0 }}
-                                                    className="overflow-hidden"
-                                                >
-                                                    <div className="p-3 pt-0 grid grid-cols-1 gap-2">
-                                                        <div className="h-px bg-border/50 my-1 mx-2" />
-
-                                                        {shoppingList && (
-                                                            <div className="flex gap-2">
-                                                                <div
-                                                                    onClick={() => navigate(`/lists/${shoppingList.id}`)}
-                                                                    className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-secondary/10 text-secondary hover:bg-secondary/20 cursor-pointer transition-colors"
-                                                                >
-                                                                    <div className="w-8 h-8 rounded-lg bg-secondary text-white flex items-center justify-center shrink-0">
-                                                                        <ShoppingCart size={16} />
-                                                                    </div>
-                                                                    <div className="flex-1 text-sm font-bold">
-                                                                        Einkaufsliste anzeigen
-                                                                    </div>
-                                                                    <ChevronRight size={16} />
-                                                                </div>
-                                                                <div
-                                                                    onClick={() => setBulkModal({ open: true, listId: shoppingList.id })}
-                                                                    className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer transition-colors"
-                                                                >
-                                                                    <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center shrink-0">
-                                                                        <ListChecks size={16} />
-                                                                    </div>
-                                                                    <div className="flex-1 text-sm font-bold">
-                                                                        Zutaten Planer
-                                                                    </div>
-                                                                    <ChevronRight size={16} />
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        {slots.map(s => {
-                                                            const meal = meals.find(m => m.meal_type === s.type);
-
-                                                            return (
-                                                                <div
-                                                                    key={s.type}
-                                                                    onClick={() => handleSlotClick(day.dateStr, s.type, meal)}
-                                                                    className={cn(
-                                                                        "flex flex-col gap-2 p-2 rounded-xl transition-colors",
-                                                                        meal ? "bg-muted/30" : "",
-                                                                        editMode === 'delete' && meal ? "hover:bg-destructive/10 cursor-pointer border border-transparent hover:border-destructive/30" : "",
-                                                                        (editMode === 'edit' || editMode === 'create' || (editMode === 'view' && meal?.Recipe)) && meal ? "hover:bg-primary/5 cursor-pointer" : "hover:bg-muted/20"
-                                                                    )}
-                                                                >
-                                                                    <div className="flex items-center gap-3">
-                                                                        <div className={cn(
-                                                                            "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors",
-                                                                            meal
-                                                                                ? (meal.is_eating_out ? "bg-orange-500/10 text-orange-600" : "bg-primary/10 text-primary")
-                                                                                : "bg-muted/50 text-muted-foreground",
-                                                                            editMode === 'delete' && meal && "bg-destructive/10 text-destructive"
-                                                                        )}>
-                                                                            {meal && meal.is_eating_out ? <CarFront size={16} /> : <s.icon size={16} />}
-                                                                        </div>
-                                                                        <div className="flex-1 text-sm">
-                                                                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">{s.label}</span>
-                                                                            {meal ? (
-                                                                                <span className={cn("font-medium", meal.is_eating_out ? "text-orange-600" : "text-foreground")}>
-                                                                                    {meal.Recipe ? meal.Recipe.title : (meal.description || 'Auswärts essen')}
-                                                                                </span>
-                                                                            ) : (
-                                                                                (editMode === 'create' || editMode === 'edit') ? (
-                                                                                    <button
-                                                                                        onClick={() => handleSlotClick(day.dateStr, s.type)}
-                                                                                        className="text-muted-foreground/60 text-xs italic hover:text-primary transition-colors flex items-center gap-1"
-                                                                                    >
-                                                                                        <Plus size={12} /> Planen...
-                                                                                    </button>
-                                                                                ) : <span className="text-muted-foreground/30 text-xs italic">-</span>
-                                                                            )}
-                                                                        </div>
-
-                                                                        <div className="flex gap-2">
-                                                                            {meal && editMode === 'delete' && (
-                                                                                <button
-                                                                                    onClick={(e) => {
-                                                                                        e.stopPropagation();
-                                                                                        handleDelete(meal.id);
-                                                                                    }}
-                                                                                    className="p-1.5 bg-destructive/10 text-destructive rounded-lg transition-colors"
-                                                                                >
-                                                                                    <Trash2 size={16} />
-                                                                                </button>
-                                                                            )}
-
-                                                                            {meal && (editMode === 'edit' || editMode === 'create') && (
-                                                                                <button
-                                                                                    onClick={() => handleSlotClick(day.dateStr, s.type)}
-                                                                                    className="p-1.5 hover:bg-background rounded-lg text-muted-foreground transition-colors"
-                                                                                >
-                                                                                    <Info size={14} />
-                                                                                </button>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </motion.div>
+                                    return (
+                                        <Card
+                                            key={day.dateStr}
+                                            className={cn(
+                                                "border-border transition-all duration-300 overflow-hidden relative",
+                                                isToday ? "border-primary/50 shadow-sm" : "shadow-sm",
+                                                isExpanded ? "ring-1 ring-primary/20" : ""
                                             )}
-                                        </AnimatePresence>
-                                    </Card>
-                                );
-                            })}
-                        </motion.div>
-                    </AnimatePresence>
-                </div>
-            </LoadingOverlay>
+                                        >
+                                            <div
+                                                onClick={() => setExpandedDay(isExpanded ? null : day.dateStr)}
+                                                className="p-3 flex items-center gap-3 cursor-pointer"
+                                            >
+                                                <div className={cn(
+                                                    "flex flex-col items-center justify-center w-12 h-12 rounded-xl shrink-0 transition-colors relative",
+                                                    isToday ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                                                    shoppingList && !isToday && "bg-secondary/10 text-secondary"
+                                                )}>
+                                                    <span className="text-[10px] uppercase font-bold tracking-wider">{day.dayName}</span>
+                                                    <span className="text-lg font-bold leading-none">{day.dayNum}</span>
+                                                    {shoppingList && (
+                                                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-secondary rounded-full border border-card" />
+                                                    )}
+                                                </div>
 
-            <MealSelectorModal
-                isOpen={selectorOpen}
-                onClose={() => setSelectorOpen(false)}
-                onSelect={handleMealSelect}
-                initialDate={activeSlot?.date}
-                initialType={activeSlot?.type}
-            />
+                                                <div className="flex-1 min-w-0 flex gap-2 overflow-hidden items-center">
+                                                    {!isExpanded && meals.length === 0 && !shoppingList && (
+                                                        <span className="hidden md:flex text-xs text-muted-foreground italic pl-1 items-center h-full">Leer</span>
+                                                    )}
 
-            <BulkPlanningModal
-                isOpen={bulkModal.open}
-                onClose={() => setBulkModal({ ...bulkModal, open: false })}
-                listId={bulkModal.listId}
-                onConfirm={fetchData}
-            />
-            {cookingRecipe && (
-                <CookingMode
-                    recipe={cookingRecipe}
-                    onClose={() => setCookingRecipe(null)}
+                                                    {shoppingList && (
+                                                        <>
+                                                            <div className="hidden md:flex gap-2 items-center">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        navigate(`/lists/${shoppingList.id}`);
+                                                                    }}
+                                                                    className="inline-flex items-center gap-1.5 bg-secondary/10 text-secondary px-2 py-1 rounded-lg text-xs font-bold hover:bg-secondary/20 transition-colors shrink-0"
+                                                                >
+                                                                    <ShoppingCart size={12} />
+                                                                    <span>Einkauf</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setBulkModal({ open: true, listId: shoppingList.id });
+                                                                    }}
+                                                                    className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-2 py-1 rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors shrink-0"
+                                                                >
+                                                                    <ListChecks size={12} />
+                                                                    <span>Zutaten planen</span>
+                                                                </button>
+                                                            </div>
+                                                            <ShoppingCart size={16} className="text-secondary md:hidden shrink-0" />
+                                                        </>
+                                                    )}
+
+                                                    {!isExpanded && meals.slice(0, 2).map(m => {
+                                                        const slotIcon = slots.find(s => s.type === m.meal_type);
+                                                        let Icon = slotIcon ? slotIcon.icon : Info;
+                                                        let styleClass = "bg-muted/50 text-foreground";
+
+                                                        if (m.is_eating_out) {
+                                                            Icon = CarFront;
+                                                            styleClass = "bg-orange-500/10 text-orange-600";
+                                                        }
+
+                                                        return (
+                                                            <div key={m.id} className={cn("hidden md:inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium min-w-0 transition-colors", styleClass)}>
+                                                                <Icon size={12} className={cn("shrink-0", m.is_eating_out ? "text-orange-600" : "text-primary")} />
+                                                                <span className="truncate">{m.Recipe ? m.Recipe.title : m.description}</span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {!isExpanded && meals.length > 2 && (
+                                                        <div className="hidden md:block bg-muted px-2 py-1 rounded-lg text-xs font-bold shrink-0">+{meals.length - 2}</div>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex gap-1 md:gap-2 shrink-0 ml-auto pl-2" onClick={e => e.stopPropagation()}>
+                                                    {slots.map(s => {
+                                                        const meal = meals.find(m => m.meal_type === s.type);
+                                                        const isFilled = !!meal;
+                                                        const handleClick = (e) => handleSlotClick(day.dateStr, s.type, meal, e);
+                                                        const slotId = `${day.dateStr}|${s.type}`;
+
+                                                        return (
+                                                            <DroppableSlot key={s.type} id={slotId}>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation(); // prevent card expand
+                                                                        handleClick(e);
+                                                                    }}
+                                                                    disabled={false}
+                                                                    className={cn(
+                                                                        "w-8 h-8 rounded-full flex items-center justify-center transition-all relative group",
+                                                                        isFilled
+                                                                            ? (meal.is_eating_out ? "bg-orange-500/10 text-orange-600" : "bg-primary/10 text-primary")
+                                                                            : "bg-muted text-muted-foreground",
+                                                                        editMode === 'delete' && isFilled && "animate-pulse bg-destructive/10 text-destructive hover:bg-destructive hover:text-white cursor-pointer",
+                                                                        editMode !== 'delete' && isFilled && (meal.is_eating_out ? "hover:bg-orange-500/20" : "hover:bg-primary/20 cursor-pointer"),
+                                                                        editMode !== 'delete' && !isFilled && "hover:bg-muted-foreground/10",
+                                                                        editMode === 'view' && !isFilled && "opacity-50 cursor-default"
+                                                                    )}
+                                                                    title={s.label}
+                                                                >
+                                                                    {isFilled ? (
+                                                                        <DraggableMeal id={`meal-${meal.id}`} data={{ meal }}>
+                                                                            <div className="flex items-center justify-center w-full h-full">
+                                                                                {meal.is_eating_out ? <CarFront size={16} /> : <s.icon size={16} />}
+                                                                            </div>
+                                                                        </DraggableMeal>
+                                                                    ) : (
+                                                                        <s.icon size={16} />
+                                                                    )}
+                                                                    {isFilled && editMode !== 'delete' && <span className={cn("absolute top-0 right-0 w-2 h-2 rounded-full border border-card", meal.is_eating_out ? "bg-orange-500" : "bg-primary")} />}
+                                                                </button>
+                                                            </DroppableSlot>
+                                                        );
+                                                    })}
+                                                </div>
+                                                <ChevronDown
+                                                    size={20}
+                                                    className={cn("text-muted-foreground transition-transform duration-300 ml-1 shrink-0", isExpanded && "rotate-180 text-primary")}
+                                                />
+                                            </div>
+
+                                            <AnimatePresence>
+                                                {isExpanded && (
+                                                    <motion.div
+                                                        initial={{ height: 0, opacity: 0 }}
+                                                        animate={{ height: 'auto', opacity: 1 }}
+                                                        exit={{ height: 0, opacity: 0 }}
+                                                        className="overflow-hidden"
+                                                    >
+                                                        <div className="p-3 pt-0 grid grid-cols-1 gap-2">
+                                                            <div className="h-px bg-border/50 my-1 mx-2" />
+
+                                                            {shoppingList && (
+                                                                <div className="flex gap-2">
+                                                                    <div
+                                                                        onClick={() => navigate(`/lists/${shoppingList.id}`)}
+                                                                        className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-secondary/10 text-secondary hover:bg-secondary/20 cursor-pointer transition-colors"
+                                                                    >
+                                                                        <div className="w-8 h-8 rounded-lg bg-secondary text-white flex items-center justify-center shrink-0">
+                                                                            <ShoppingCart size={16} />
+                                                                        </div>
+                                                                        <div className="flex-1 text-sm font-bold">
+                                                                            Einkaufsliste anzeigen
+                                                                        </div>
+                                                                        <ChevronRight size={16} />
+                                                                    </div>
+                                                                    <div
+                                                                        onClick={() => setBulkModal({ open: true, listId: shoppingList.id })}
+                                                                        className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer transition-colors"
+                                                                    >
+                                                                        <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center shrink-0">
+                                                                            <ListChecks size={16} />
+                                                                        </div>
+                                                                        <div className="flex-1 text-sm font-bold">
+                                                                            Zutaten Planer
+                                                                        </div>
+                                                                        <ChevronRight size={16} />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {slots.map(s => {
+                                                                const meal = meals.find(m => m.meal_type === s.type);
+                                                                const slotId = `${day.dateStr}|${s.type}`;
+
+                                                                return (
+                                                                    <DroppableSlot key={s.type} id={slotId}>
+                                                                        <div
+                                                                            onClick={() => handleSlotClick(day.dateStr, s.type, meal)}
+                                                                            className={cn(
+                                                                                "flex flex-col gap-2 p-2 rounded-xl transition-colors",
+                                                                                meal ? "bg-muted/30" : "",
+                                                                                editMode === 'delete' && meal ? "hover:bg-destructive/10 cursor-pointer border border-transparent hover:border-destructive/30" : "",
+                                                                                (editMode === 'edit' || editMode === 'create' || (editMode === 'view' && meal?.Recipe)) && meal ? "hover:bg-primary/5 cursor-pointer" : "hover:bg-muted/20"
+                                                                            )}
+                                                                        >
+                                                                            <div className="flex items-center gap-3">
+                                                                                {meal ? (
+                                                                                    <DraggableMeal
+                                                                                        id={`meal-list-${meal.id}-${s.type}`}
+                                                                                        data={{ meal }}
+                                                                                        className="flex-1"
+                                                                                    >
+                                                                                        <div className="flex items-center gap-3 w-full">
+                                                                                            <div className={cn(
+                                                                                                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors",
+                                                                                                meal.is_eating_out ? "bg-orange-500/10 text-orange-600" : "bg-primary/10 text-primary",
+                                                                                                editMode === 'delete' && "bg-destructive/10 text-destructive"
+                                                                                            )}>
+                                                                                                {meal.is_eating_out ? <CarFront size={16} /> : <s.icon size={16} />}
+                                                                                            </div>
+                                                                                            <div className="flex-1 text-sm cursor-grab active:cursor-grabbing">
+                                                                                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">{s.label}</span>
+                                                                                                <span className={cn("font-medium", meal.is_eating_out ? "text-orange-600" : "text-foreground")}>
+                                                                                                    {meal.Recipe ? meal.Recipe.title : (meal.description || 'Auswärts essen')}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </DraggableMeal>
+                                                                                ) : (
+                                                                                    <>
+                                                                                        <div className="w-8 h-8 rounded-lg bg-muted/50 text-muted-foreground flex items-center justify-center shrink-0">
+                                                                                            <s.icon size={16} />
+                                                                                        </div>
+                                                                                        <div className="flex-1 text-sm">
+                                                                                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">{s.label}</span>
+                                                                                            {(editMode === 'create' || editMode === 'edit') ? (
+                                                                                                <button
+                                                                                                    onClick={() => handleSlotClick(day.dateStr, s.type)}
+                                                                                                    className="text-muted-foreground/60 text-xs italic hover:text-primary transition-colors flex items-center gap-1"
+                                                                                                >
+                                                                                                    <Plus size={12} /> Planen...
+                                                                                                </button>
+                                                                                            ) : <span className="text-muted-foreground/30 text-xs italic">-</span>}
+                                                                                        </div>
+                                                                                    </>
+                                                                                )}
+
+                                                                                <div className="flex gap-2 shrink-0">
+                                                                                    {meal && editMode === 'delete' && (
+                                                                                        <button
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                handleDelete(meal.id);
+                                                                                            }}
+                                                                                            className="p-1.5 bg-destructive/10 text-destructive rounded-lg transition-colors"
+                                                                                        >
+                                                                                            <Trash2 size={16} />
+                                                                                        </button>
+                                                                                    )}
+
+                                                                                    {meal && (editMode === 'edit' || editMode === 'create') && (
+                                                                                        <button
+                                                                                            onClick={() => handleSlotClick(day.dateStr, s.type)}
+                                                                                            className="p-1.5 hover:bg-background rounded-lg text-muted-foreground transition-colors"
+                                                                                        >
+                                                                                            <Info size={14} />
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </DroppableSlot>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
+                                        </Card>
+                                    );
+                                })}
+                            </motion.div>
+                        </AnimatePresence>
+                    </div>
+                </LoadingOverlay>
+
+                <MealSelectorModal
+                    isOpen={selectorOpen}
+                    onClose={() => setSelectorOpen(false)}
+                    onSelect={handleMealSelect}
+                    initialDate={activeSlot?.date}
+                    initialType={activeSlot?.type}
                 />
-            )}
 
-            {/* Global Tooltip */}
-            <AnimatePresence>
-                {tooltip && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        className="fixed z-50 px-4 py-3 bg-popover/95 backdrop-blur-md text-popover-foreground text-sm font-medium rounded-2xl shadow-2xl border border-border/50 pointer-events-auto flex flex-col items-center gap-2 max-w-[90vw] text-center"
-                        style={{
-                            left: tooltip.x,
-                            top: tooltip.y,
-                            transform: 'translate(-50%, -100%)'
-                        }}
+                <BulkPlanningModal
+                    isOpen={bulkModal.open}
+                    onClose={() => setBulkModal({ ...bulkModal, open: false })}
+                    listId={bulkModal.listId}
+                    onConfirm={fetchData}
+                />
+                {
+                    cookingRecipe && (
+                        <CookingMode
+                            recipe={cookingRecipe}
+                            onClose={() => setCookingRecipe(null)}
+                        />
+                    )
+                }
 
-                        onClick={(e) => {
-                            e.stopPropagation(); // Prevent closing when clicking inside
-                            if (tooltip.recipe) {
-                                setCookingRecipe(tooltip.recipe);
-                                setTooltip(null);
-                            }
-                        }}
-                    >
-                        <span className="leading-tight">{tooltip.text}</span>
-                        {tooltip.recipe && (
-                            <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full uppercase font-bold tracking-wider cursor-pointer hover:bg-primary/20 transition-colors">
-                                Rezept öffnen
-                            </span>
-                        )}
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                {/* Global Tooltip */}
+                <AnimatePresence>
+                    {tooltip && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="fixed z-50 px-4 py-3 bg-popover/95 backdrop-blur-md text-popover-foreground text-sm font-medium rounded-2xl shadow-2xl border border-border/50 pointer-events-auto flex flex-col items-center gap-2 max-w-[90vw] text-center"
+                            style={{
+                                left: tooltip.x,
+                                top: tooltip.y,
+                                transform: 'translate(-50%, -100%)'
+                            }}
 
-            <RecipeIntoleranceResolverModal
-                isOpen={!!resolvingRecipe}
-                onClose={() => {
-                    setResolvingRecipe(null);
-                    setResolvingConflicts([]);
-                    setPendingSelection(null);
-                }}
-                recipe={resolvingRecipe}
-                conflicts={resolvingConflicts}
-                onResolved={() => {
-                    if (pendingSelection) {
-                        executeMealSelect(pendingSelection);
-                    }
-                    setResolvingRecipe(null);
-                    setResolvingConflicts([]);
-                    setPendingSelection(null);
-                }}
-            />
-        </div >
+                            onClick={(e) => {
+                                e.stopPropagation(); // Prevent closing when clicking inside
+                                if (tooltip.recipe) {
+                                    setCookingRecipe(tooltip.recipe);
+                                    setTooltip(null);
+                                }
+                            }}
+                        >
+                            <span className="leading-tight">{tooltip.text}</span>
+                            {tooltip.recipe && (
+                                <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full uppercase font-bold tracking-wider cursor-pointer hover:bg-primary/20 transition-colors">
+                                    Rezept öffnen
+                                </span>
+                            )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                <RecipeIntoleranceResolverModal
+                    isOpen={!!resolvingRecipe}
+                    onClose={() => {
+                        setResolvingRecipe(null);
+                        setResolvingConflicts([]);
+                        setPendingSelection(null);
+                    }}
+                    recipe={resolvingRecipe}
+                    conflicts={resolvingConflicts}
+                    onResolved={() => {
+                        if (pendingSelection) {
+                            executeMealSelect(pendingSelection);
+                        }
+                        setPendingSelection(null);
+                    }}
+                />
+            </div>
+        </DndContext>
     );
 }

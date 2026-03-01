@@ -206,7 +206,7 @@ export default function Products() {
                     </div>
 
                     <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                        {user?.tier !== 'Plastikgabel' && (
+                        {user?.role === 'admin' && user?.tier !== 'Plastikgabel' && (
                             <Button
                                 variant="outline"
                                 onClick={() => setIsAiCleanupOpen(true)}
@@ -371,7 +371,7 @@ export default function Products() {
                 <AiCleanupModal
                     isOpen={isAiCleanupOpen}
                     onClose={() => setIsAiCleanupOpen(false)}
-                    products={products}
+                    products={products.filter(p => p.UserId === null)}
                     onRefresh={fetchProducts}
                 />
 

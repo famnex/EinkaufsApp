@@ -132,7 +132,7 @@ export default function CommunityCookbooksContent() {
                 {/* Back Button */}
                 <button
                     onClick={() => navigate(-1)}
-                    className="fixed top-20 left-4 p-2 bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 text-foreground rounded-full backdrop-blur-md transition-all z-40 flex items-center gap-2 border border-border/50"
+                    className="fixed top-[72px] left-4 p-2 bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 text-foreground rounded-full backdrop-blur-md transition-all z-40 flex items-center gap-2 border border-border/50"
                 >
                     <ArrowLeft size={20} />
                     <span className="text-sm font-bold hidden sm:inline pr-2">Zurück</span>

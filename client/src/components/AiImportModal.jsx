@@ -40,8 +40,10 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
     const [mappings, setMappings] = useState({}); // { index: { type: 'existing'|'new', productId: ?, newName: ? } }
     const [creating, setCreating] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
-    const [imageFile, setImageFile] = useState(null);
+    const [imageFile, setImageFile] = useState(null); // The final recipe image
     const [imagePreview, setImagePreview] = useState(null);
+    const [inputImage, setInputImage] = useState(null); // The source image for parsing (Vision)
+    const [inputImagePreview, setInputImagePreview] = useState(null);
     const [complianceChecked, setComplianceChecked] = useState(false);
 
     // Context & Modals
@@ -59,6 +61,8 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
             setMappings({});
             setImageFile(null);
             setImagePreview(null);
+            setInputImage(null);
+            setInputImagePreview(null);
             setComplianceChecked(false);
         }
     }, [isOpen]);
@@ -73,14 +77,14 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
     };
 
     const handleAnalyze = async () => {
-        if (!inputText.trim()) return;
+        if (!inputText.trim() && !inputImage) return;
         if (!complianceChecked) {
             alert('Bitte bestätigen Sie die Urheberrechts- und Nutzungsbedingungen.');
             return;
         }
 
         // Strict URL Block
-        if (inputText.includes('http://') || inputText.includes('https://')) {
+        if (inputText.trim() && (inputText.includes('http://') || inputText.includes('https://'))) {
             alert('Das Importieren von Web-URLs ist nicht gestattet. Bitte kopieren Sie nur den Text, für den Sie die Rechte besitzen.');
             return;
         }
@@ -90,11 +94,14 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
 
         // 2. Credit Confirmation (if Silbergabel)
         if (user?.tier === 'Silbergabel') {
+            const isVision = !!inputImage;
             setAiActionData({
-                type: 'TEXT',
-                title: 'Rezept analysieren',
-                description: 'KI-Analyse des Textes zur Extraktion von Zutaten und Schritten.',
-                cost: 5,
+                type: isVision ? 'IMAGE_TO_TEXT' : 'TEXT',
+                title: isVision ? 'Foto analysieren' : 'Rezept analysieren',
+                description: isVision
+                    ? 'KI-Vision-Analyse des Fotos zur Extraktion von Rezeptdaten.'
+                    : 'KI-Analyse des Textes zur Extraktion von Zutaten und Schritten.',
+                cost: isVision ? 15 : 5,
                 onConfirm: () => executeAnalyze()
             });
             setAiConfirmModalOpen(true);
@@ -111,8 +118,21 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
         console.log('Input:', inputText.substring(0, 100) + '...');
         try {
             const token = localStorage.getItem('token');
-            const { data } = await api.post('/ai/parse', { input: inputText }, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            const formData = new FormData();
+
+            if (inputText.trim()) {
+                formData.append('input', inputText);
+            }
+
+            if (inputImage) {
+                formData.append('image', inputImage);
+            }
+
+            const { data } = await api.post('/ai/parse', formData, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'multipart/form-data'
+                }
             });
             console.log('AI Response:', data);
 
@@ -200,6 +220,18 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                 ? { type: 'existing', productId: parseInt(value) }
                 : { type: 'new', newName: value }
         }));
+    };
+
+    const handleInputImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setInputImage(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setInputImagePreview(reader.result);
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     const handleImageUpload = (e) => {
@@ -310,41 +342,94 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                     {/* Content */}
                     <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
                         {step === 'input' && (
-                            <div className="space-y-4">
-                                <p className="text-muted-foreground">Füge den Rezepttext hier ein. Die KI wird versuchen, Zutaten und Schritte zu extrahieren. <span className="font-bold text-destructive">Keine URLs erlaubt!</span></p>
-                                <textarea
-                                    className="w-full h-64 p-4 rounded-xl bg-muted/50 border border-border focus:ring-2 focus:ring-primary/20 focus:outline-none resize-none font-medium"
-                                    placeholder="Hier Rezeptdaten eingeben (Zutaten, Schritte)..."
-                                    value={inputText}
-                                    onChange={(e) => setInputText(e.target.value)}
-                                />
+                            <>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-4">
+                                        <label className="text-sm font-bold text-muted-foreground flex items-center gap-2">
+                                            <Sparkles size={14} /> Text-Input
+                                        </label>
+                                        <textarea
+                                            className="w-full h-64 p-4 rounded-xl bg-muted/50 border border-border focus:ring-2 focus:ring-primary/20 focus:outline-none resize-none font-medium text-sm md:text-base"
+                                            placeholder="Hier Rezeptdaten eingeben (Zutaten, Schritte)..."
+                                            value={inputText}
+                                            onChange={(e) => setInputText(e.target.value)}
+                                        />
+                                    </div>
 
-                                <div className="bg-muted/30 p-4 rounded-xl border border-border text-sm text-muted-foreground space-y-2">
+                                    <div className="space-y-4">
+                                        <label className="text-sm font-bold text-muted-foreground flex items-center gap-2">
+                                            <Upload size={14} /> Foto-Upload (Vision)
+                                        </label>
+                                        <div className="relative h-64 rounded-xl bg-muted/50 border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden transition-all hover:border-primary/50 group">
+                                            {inputImagePreview ? (
+                                                <>
+                                                    <img src={inputImagePreview} alt="Preview" className="w-full h-full object-contain" />
+                                                    <button
+                                                        onClick={() => { setInputImage(null); setInputImagePreview(null); }}
+                                                        className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded-full hover:bg-black/80 transition-all opacity-0 group-hover:opacity-100"
+                                                    >
+                                                        <X size={16} />
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <div className="flex flex-col items-center gap-3 p-6 text-center">
+                                                    <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                                                        <Upload size={24} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-sm">Foto hochladen</p>
+                                                        <p className="text-xs text-muted-foreground mt-1">Lade ein Foto deines Kochbuchs oder handgeschriebenen Rezepts hoch</p>
+                                                    </div>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        capture="environment"
+                                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                                        onChange={handleInputImageUpload}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className={cn(
+                                    "p-4 rounded-xl border transition-all duration-300",
+                                    !complianceChecked ? "bg-amber-500/10 border-amber-500/30 animate-pulse-subtle" : "bg-muted/30 border-border"
+                                )}>
                                     <div className="flex items-start gap-3">
                                         <input
                                             type="checkbox"
                                             id="compliance-check"
-                                            className="mt-1 w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                            className="mt-1 w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
                                             checked={complianceChecked}
                                             onChange={(e) => setComplianceChecked(e.target.checked)}
                                         />
-                                        <label htmlFor="compliance-check" className="leading-snug cursor-pointer">
-                                            Ich bestätige, dass ich nur Inhalte (z. B. Rezepte, Texte, Bilder) eingebe oder importiere, an denen ich die erforderlichen Rechte habe oder deren Nutzung ausdrücklich erlaubt ist. Ich werde keine Inhalte aus Quellen übernehmen, deren Nutzungsbedingungen dies untersagen (z. B. automatisches Auslesen/Scraping). Mir ist bewusst, dass urheberrechtlich geschützte Inhalte nicht ohne Erlaubnis verwendet werden dürfen. Bei Verstößen können Inhalte entfernt und Zugänge gesperrt werden. Rechteinhaber können Inhalte melden: gabelguru.de/compliance. Bitte keine sensiblen Daten eingeben (z. B. Gesundheitsdaten, politische/religiöse Angaben) und keine personenbezogenen Daten Dritter. Deine Eingabe wird zur Beantwortung an unseren KI-Dienstleister OpenAI übermittelt.
+                                        <label htmlFor="compliance-check" className={cn(
+                                            "leading-snug cursor-pointer text-sm font-medium transition-colors",
+                                            !complianceChecked ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"
+                                        )}>
+                                            Ich bestätige, dass ich nur Inhalte (Rezepte, Texte, Bilder) verwende, an denen ich die Rechte besitze. Keine sensiblen Daten eingeben. Die Daten werden an OpenAI (USA) übertragen.
                                         </label>
                                     </div>
                                 </div>
 
-                                <div className="flex justify-end">
+                                <div className="flex justify-end pt-2">
                                     <Button
                                         onClick={handleAnalyze}
-                                        disabled={!complianceChecked || !inputText.trim()}
+                                        disabled={!complianceChecked || (!inputText.trim() && !inputImage)}
                                         className="h-12 px-8 text-lg gap-2 shadow-lg shadow-primary/20"
                                     >
                                         <Sparkles size={18} />
-                                        Analysieren {user?.tier === 'Silbergabel' && <span className="ml-1 opacity-70 text-xs bg-white/20 px-2 py-0.5 rounded-full">(5 Coins)</span>}
+                                        {inputText.trim() ? 'Analysieren' : 'Foto Scannen'}
+                                        {user?.tier === 'Silbergabel' && (
+                                            <span className="ml-1 opacity-70 text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                                                ({inputImage ? '15' : '5'} Coins)
+                                            </span>
+                                        )}
                                     </Button>
                                 </div>
-                            </div>
+                            </>
                         )}
 
                         {step === 'processing' && (

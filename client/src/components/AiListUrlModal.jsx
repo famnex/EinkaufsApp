@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Sparkles, Check, Loader2, Link as LinkIcon, ShoppingCart, Plus, AlertCircle, Calendar, ArrowRight } from 'lucide-react';
+import { X, Sparkles, Check, Loader2, Link as LinkIcon, ShoppingCart, Plus, AlertCircle, Calendar, ArrowRight, Upload } from 'lucide-react';
 import { Button } from './Button';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/axios';
@@ -18,6 +18,8 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
     const [error, setError] = useState(null);
     const [view, setView] = useState('input'); // input, review, select-list
     const [selectedDate, setSelectedDate] = useState(new Date());
+    const [inputImage, setInputImage] = useState(null);
+    const [inputImagePreview, setInputImagePreview] = useState(null);
 
     // AI Confirmation State
     const [aiConfirmModalOpen, setAiConfirmModalOpen] = useState(false);
@@ -30,16 +32,22 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
     const navigate = useNavigate();
 
     useEffect(() => {
-        if (isOpen && initialText) {
-            setInput(initialText);
-            // Auto-analyze if text is provided via share? Maybe better to let user confirm first.
+        if (isOpen) {
+            setInput(initialText || '');
+            setAnalyzedItems(null);
+            setError(null);
+            setView('input');
+            setInputImage(null);
+            setInputImagePreview(null);
         }
     }, [isOpen, initialText]);
 
     const handleAnalyze = async () => {
-        if (!input.trim()) return;
+        if (!input.trim() && !inputImage) return;
 
         // Smart Import ist immer kostenlos und für alle Tiers verfügbar
+        // Aber für Vision (Bild) könnten wir Coins verlangen wenn wir wollen.
+        // Der User wünscht sich das Feature, wir halten es erstmal einfach.
         executeAnalyze();
     };
 
@@ -49,7 +57,14 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
         setAnalyzedItems(null);
 
         try {
-            const { data } = await api.post('/ai/extract-list-ingredients', { text: input });
+            const formData = new FormData();
+            if (input.trim()) formData.append('text', input);
+            if (inputImage) formData.append('image', inputImage);
+
+            const { data } = await api.post('/ai/extract-list-ingredients', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
             if (data.items && Array.isArray(data.items)) {
                 setAnalyzedItems(data.items.map(item => ({ ...item, selected: true })));
                 setView('review');
@@ -63,6 +78,18 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
             setError(err.response?.data?.error || 'Fehler bei der Analyse. Bitte versuche es erneut.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setInputImage(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setInputImagePreview(reader.result);
+            };
+            reader.readAsDataURL(file);
         }
     };
 
@@ -192,15 +219,48 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
                     <div className="p-6 overflow-y-auto custom-scrollbar">
                         {view === 'input' && (
                             <div className="space-y-4">
-                                <div className="relative">
-                                    <textarea
-                                        value={input}
-                                        onChange={(e) => setInput(e.target.value)}
-                                        placeholder="Füge hier einen Link zu einem Rezept (Chefkoch, Cookidoo, etc.) oder einfach Text mit Zutaten ein..."
-                                        className="w-full h-40 bg-muted/50 border border-border rounded-xl p-4 resize-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground placeholder:text-muted-foreground/50"
-                                    />
-                                    <div className="absolute bottom-3 right-3 text-xs text-muted-foreground bg-card/80 px-2 py-1 rounded-md backdrop-blur-sm border border-border">
-                                        Powered by AI
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="relative">
+                                        <textarea
+                                            value={input}
+                                            onChange={(e) => setInput(e.target.value)}
+                                            placeholder="Füge hier einen Link zu einem Rezept oder Text mit Zutaten ein..."
+                                            className="w-full h-40 md:h-64 bg-muted/50 border border-border rounded-xl p-4 resize-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground placeholder:text-muted-foreground/50 text-sm md:text-base"
+                                        />
+                                        <div className="absolute bottom-3 right-3 text-[10px] text-muted-foreground bg-card/80 px-2 py-1 rounded-md backdrop-blur-sm border border-border">
+                                            Text / URL
+                                        </div>
+                                    </div>
+
+                                    <div className="relative h-40 md:h-64 rounded-xl bg-muted/50 border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden transition-all hover:border-primary/50 group">
+                                        {inputImagePreview ? (
+                                            <>
+                                                <img src={inputImagePreview} alt="Preview" className="w-full h-full object-contain" />
+                                                <button
+                                                    onClick={() => { setInputImage(null); setInputImagePreview(null); }}
+                                                    className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded-full hover:bg-black/80 transition-all opacity-0 group-hover:opacity-100"
+                                                >
+                                                    <X size={16} />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <div className="flex flex-col items-center gap-2 p-4 text-center">
+                                                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                                                    <Upload size={20} />
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-xs">Foto hochladen</p>
+                                                    <p className="text-[10px] text-muted-foreground mt-1">Extrahiere aus einem Foto deiner Liste</p>
+                                                </div>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    capture="environment"
+                                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                                    onChange={handleImageUpload}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -213,11 +273,11 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
 
                                 <Button
                                     onClick={handleAnalyze}
-                                    disabled={!input.trim() || loading}
+                                    disabled={(!input.trim() && !inputImage) || loading}
                                     className="w-full py-6 text-lg font-bebas tracking-wide shadow-lg hover:shadow-primary/20 transition-all"
                                 >
                                     {loading ? <Loader2 className="animate-spin mr-2" /> : <Sparkles className="mr-2" />}
-                                    Analysieren
+                                    {inputImage ? 'Foto Analysieren' : 'Analysieren'}
                                 </Button>
                             </div>
                         )}

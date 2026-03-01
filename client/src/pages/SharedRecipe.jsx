@@ -8,11 +8,13 @@ import SharedCookingMode from '../components/SharedCookingMode';
 import SharedNotFound from '../components/SharedNotFound';
 import { cn, getImageUrl } from '../lib/utils';
 import api from '../lib/axios';
+import { useAuth } from '../contexts/AuthContext';
 
 
 export default function SharedRecipe() {
     const { sharingKey, id } = useParams();
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [recipe, setRecipe] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -28,9 +30,12 @@ export default function SharedRecipe() {
                 const { data } = await api.get(`/recipes/public/${sharingKey}/${id}`);
                 setRecipe(data);
 
-                // Check for intolerances if logged in
+                // Check for intolerances if logged in AND has special tier
                 const token = localStorage.getItem('token');
-                if (token && data.RecipeIngredients?.length > 0) {
+                const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+                    ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+                    user?.tier?.includes('Admin') || user?.role === 'admin';
+                if (token && hasSpecialTier && data.RecipeIngredients?.length > 0) {
                     const productIds = data.RecipeIngredients
                         .map(ri => ri.ProductId)
                         .filter(Boolean);
@@ -134,6 +139,30 @@ export default function SharedRecipe() {
 
     return (
         <>
+            {/* Fixed back button – stays below navbar on scroll */}
+            <button
+                onClick={() => navigate(-1)}
+                className="fixed top-[72px] left-4 z-50 p-2 bg-background/80 hover:bg-muted text-foreground border border-border rounded-full backdrop-blur-md shadow-md transition-all flex items-center gap-2 print:hidden"
+            >
+                <ArrowLeft size={20} />
+                <span className="text-sm font-bold hidden sm:inline pr-1">Zurück</span>
+            </button>
+
+            {/* Fixed like button – right side */}
+            {localStorage.getItem('token') && (
+                <button
+                    onClick={toggleLike}
+                    className="fixed top-[72px] right-4 z-50 p-2 bg-background/80 hover:bg-muted text-foreground border border-border rounded-full backdrop-blur-md shadow-md transition-all flex items-center gap-2 print:hidden"
+                    title={recipe.isFavorite ? "Gefällt mir entfernen" : "Gefällt mir"}
+                >
+                    <Heart
+                        size={20}
+                        className={cn("transition-colors duration-300", recipe.isFavorite ? "fill-rose-500 text-rose-500" : "fill-none text-foreground")}
+                    />
+                    {recipe.likeCount > 0 && <span className="text-sm font-bold pr-1">{recipe.likeCount}</span>}
+                </button>
+            )}
+
             <main className="max-w-3xl mx-auto p-4 space-y-6 flex-1 w-full print:max-w-none print:p-0">
                 {/* Print Title Header */}
                 <div className="hidden print:block mb-6 space-y-2 print-avoid-break">
@@ -178,29 +207,6 @@ export default function SharedRecipe() {
                         </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                    <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
-                        <button
-                            onClick={() => navigate(-1)}
-                            className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-all flex items-center gap-2"
-                        >
-                            <ArrowLeft size={20} />
-                            <span className="text-sm font-bold hidden sm:inline pr-2">Zurück</span>
-                        </button>
-
-                        {localStorage.getItem('token') && (
-                            <button
-                                onClick={toggleLike}
-                                className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-all flex items-center gap-2"
-                                title={recipe.isFavorite ? "Gefällt mir entfernen" : "Gefällt mir"}
-                            >
-                                <Heart
-                                    size={20}
-                                    className={cn("transition-colors duration-300", recipe.isFavorite ? "fill-rose-500 text-rose-500" : "fill-none text-white")}
-                                />
-                                {recipe.likeCount > 0 && <span className="text-sm font-bold pr-1">{recipe.likeCount}</span>}
-                            </button>
-                        )}
-                    </div>
                     <div className="absolute bottom-0 left-0 right-0 p-6 pt-20 text-white">
                         <span className="px-2 py-1 bg-primary/20 text-primary-foreground text-xs uppercase font-bold rounded-full backdrop-blur-md border border-white/10 mb-2 inline-block">
                             {recipe.category || 'Rezept'}

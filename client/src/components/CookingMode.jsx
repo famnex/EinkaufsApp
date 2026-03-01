@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, Maximize2, Minimize2, AlertTriangle, AlertCircle, HelpCircle, Sparkles, Share2, Mic } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, Maximize2, Minimize2, AlertTriangle, AlertCircle, HelpCircle, Sparkles, Share2, Mic, Lock } from 'lucide-react';
 import { Button } from './Button';
 import { cn, getImageUrl } from '../lib/utils';
 import api from '../lib/axios';
@@ -13,6 +13,7 @@ import AiActionConfirmModal from './AiActionConfirmModal';
 import SubscriptionModal from './SubscriptionModal';
 import CookingExitModal from './CookingExitModal';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
+import AiLockedModal from './AiLockedModal';
 
 export default function CookingMode({ recipe, conflicts = [], onClose }) {
     const [step, setStep] = useState(0);
@@ -39,6 +40,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
     const [hasPaidForAi, setHasPaidForAi] = useState(false);
     const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
     const [isExitModalOpen, setIsExitModalOpen] = useState(false);
+    const [isAiLockedOpen, setIsAiLockedOpen] = useState(false);
 
     // Swipe Logic for Steps
     const [touchStart, setTouchStart] = useState(null);
@@ -892,8 +894,8 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                     </div>
                 </div>
 
-                {/* AI Assistant Toggle Button */}
-                {user?.tier !== 'Plastikgabel' && (
+                {/* AI Assistant Toggle Button - visible for all tiers, locked for Plastikgabel */}
+                {user?.tier !== 'Plastikgabel' ? (
                     <motion.button
                         initial={{ scale: 0 }}
                         animate={{
@@ -962,6 +964,21 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                                 10
                             </div>
                         )}
+                    </motion.button>
+                ) : (
+                    <motion.button
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
+                        title="KI Koch-Assistent (ab Silbergabel)"
+                        onClick={() => setIsAiLockedOpen(true)}
+                        className="fixed top-[calc(120px+env(safe-area-inset-top))] right-4 md:bottom-6 md:left-6 md:top-auto md:right-auto z-[100] w-12 h-12 rounded-full flex items-center justify-center bg-muted/80 text-muted-foreground border-2 border-border shadow-lg hover:bg-muted transition-colors"
+                    >
+                        <Sparkles size={20} />
+                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-background border border-border rounded-full flex items-center justify-center shadow-sm">
+                            <Lock size={10} className="text-muted-foreground" />
+                        </div>
                     </motion.button>
                 )}
 
@@ -1127,6 +1144,12 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                     isOpen={isSubscriptionModalOpen}
                     onClose={() => setIsSubscriptionModalOpen(false)}
                     currentTier={user?.tier}
+                />
+
+                <AiLockedModal
+                    isOpen={isAiLockedOpen}
+                    onClose={() => setIsAiLockedOpen(false)}
+                    featureName="KI Koch-Assistent"
                 />
 
                 <CookingExitModal

@@ -4,10 +4,29 @@ const OpenAI = require('openai');
 const axios = require('axios');
 const { Settings, Recipe, Product, Tag, HiddenCleanup, User } = require('../models');
 const { auth } = require('../middleware/auth');
+const isAdmin = require('../middleware/admin');
 const creditService = require('../services/creditService');
 const path = require('path');
 const fs = require('fs');
+const multer = require('multer');
 const { optimizeImage } = require('../utils/imageOptimizer');
+
+// Configure multer for AI image analysis (temporary storage)
+const aiStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const userId = req.user ? req.user.effectiveId : 'unknown';
+        const uploadDir = path.join(__dirname, `../../public/uploads/users/${userId}/ai-vision`);
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'vision-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+const upload = multer({ storage: aiStorage });
 
 // In-Memory Fair Use Tracking for free AI endpoints (Plastikgabel)
 const fairUseLog = new Map();
@@ -68,10 +87,14 @@ router.delete('/cleanup/hidden', auth, async (req, res) => {
     }
 });
 
-router.post('/parse', auth, async (req, res) => {
+router.post('/parse', auth, upload.single('image'), async (req, res) => {
     try {
         let { input } = req.body;
-        if (!input) return res.status(400).json({ error: 'Input is required' });
+        const imageFile = req.file;
+
+        if (!input && !imageFile) {
+            return res.status(400).json({ error: 'Input text or image is required' });
+        }
 
         // Get API Key
         const setting = await Settings.findOne({ where: { key: 'openai_key' } });
@@ -88,7 +111,7 @@ router.post('/parse', auth, async (req, res) => {
         });
         const categoryList = existingCategories
             .map(c => c.category)
-            .filter(c => c) // remove nulls
+            .filter(c => c)
             .join(', ');
 
         const existingTags = await Tag.findAll({
@@ -98,75 +121,97 @@ router.post('/parse', auth, async (req, res) => {
         });
         const tagList = existingTags.map(t => t.name).join(', ');
 
-        let metaImage = null;
-
-        // CRITICAL: Limit input size to prevent 429 Token Error (Limit ~30k tokens)
-        // 15,000 chars is roughly 4k-5k tokens, leaving plenty of room for prompt + response
-        if (input.length > 15000) {
-            console.log(`DEBUG: Truncating input from ${input.length} to 15000 chars`);
-            input = input.substring(0, 15000);
-        }
-
         const openai = new OpenAI({ apiKey: setting.value });
 
-        const prompt = `
-        Analyze the recipe data below. It may be raw text or a JSON-LD object.
-        Extract structured recipe data.
-        
-        Existing Categories in Database: [${categoryList}]
-        Existing Tags in Database: [${tagList}]
-        
-        DATA:
-        "${input}" 
-        
-        Return a JSON object with this EXACT structure:
-        {
-            "title": "Recipe Title",
-            "description": "Short description (max 200 chars)",
-            "category": "Suggested Category (Pick from existing if fits, or suggest new)",
-            "tags": ["Tag1", "Tag2"], // Authentically describe the recipe. Use existing tags if applicable, or create new ones (e.g. "Vegetarisch", "Schnell", "Party", "Sommer"). Max 5 tags.
-            "image_url": "URL found in data or meta tags (return null if none found)",
-            "servings": 4, // integer. If range "4-6", average to 5. Default 2 if missing. YOu may also give an educated guess from the weight of the ingredients
-            "prep_time": 20, // integer (minutes). 0 if missing. - Look at the recipe and give an educated guess
-            "total_time": 60, // integer (minutes). 0 if missing. - Again, look at the times in the recipe and guess
-            "ingredients": [
+        let messages = [
+            {
+                role: "system",
+                content: "You are a professional recipe parser. You extract structured data from text or images of recipes. Return strictly valid JSON in German."
+            }
+        ];
+
+        let userContent = [
+            {
+                type: "text",
+                text: `
+                Analyze the recipe data provided. It may be raw text, a JSON-LD object, or an image of a recipe (cookbook, handwriting).
+                Extract structured recipe data.
+                
+                Existing Categories in Database: [${categoryList}]
+                Existing Tags in Database: [${tagList}]
+                
+                ${input ? `TEXT DATA: "${input.substring(0, 15000)}"` : ""}
+                
+                Return a JSON object with this EXACT structure:
                 {
-                    "amount": 2,    // number. If fraction "1/2", convert to 0.5. If string "2-3", use 2.5. If null, use 1 or 0 (never null).
-                    "unit": "Stück", // Standardized German unit (e.g. g, kg, l, ml, Stück, EL, TL, Pkg, Prise, Bund, Dose)
-                    "name": "Eier", // Standardized German ingredient name
-                    "alternative_names": ["Ei", "Eier", "Hühnerei"] // Array of ALL possible synonyms, singular/plural forms, and generic terms to help matching against a database.
+                    "title": "Recipe Title",
+                    "description": "Short description (max 200 chars)",
+                    "category": "Suggested Category (Pick from existing if fits, or suggest new)",
+                    "tags": ["Tag1", "Tag2"], // Max 5 tags.
+                    "image_url": "URL found in text data (return null if image provided as file/vision)",
+                    "servings": 4, // integer.
+                    "prep_time": 20, // integer (minutes).
+                    "total_time": 60, // integer (minutes).
+                    "ingredients": [
+                        {
+                            "amount": 2,    // number.
+                            "unit": "Stück", // Standardized German unit
+                            "name": "Eier", // Standardized German ingredient name
+                            "alternative_names": ["Ei", "Eier", "Hühnerei"]
+                        }
+                    ],
+                    "steps": [
+                        "Step 1...",
+                        "Step 2..."
+                    ]
                 }
-            ],
-            "steps": [
-                "Step 1...",
-                "Step 2..."
-            ]
+                
+                IMPORTANT:
+                - Output strictly valid JSON.
+                - Translate all text to GERMAN.
+                - Ensure "amount" is a JSON Number.
+                - "prep_time" and "total_time" must be in MINUTES (integer).
+                `
+            }
+        ];
+
+        if (imageFile) {
+            const base64Image = fs.readFileSync(imageFile.path, { encoding: 'base64' });
+            userContent.push({
+                type: "image_url",
+                image_url: {
+                    url: `data:${imageFile.mimetype};base64,${base64Image}`
+                }
+            });
         }
-        
-        IMPORTANT:
-        - Output strictly valid JSON.
-        - Translate all text (instructions, names, category, tags) to GERMAN.
-        - Ensure "amount" is a JSON Number, not a string. Handle ranges or fractions by converting to decimal number.
-        - "prep_time" and "total_time" must be in MINUTES (integer). Parse "1h 30m" to 90.
-        - Wenn bei den Zutaten zusätzliche Angaben stehen (z.B. Möhren (gerieben), Gurken in Scheiben, ...), dann füge einen Schritt VOR den sonstigen Zubereitungsschritten ein, in welchem diese Anweisungen stehen (zB. "Möhren reiben, Gurken in Scheiben schneiden").
-        `;
+
+        messages.push({ role: "user", content: userContent });
 
         const completion = await openai.chat.completions.create({
-            messages: [{ role: "system", content: "You are a recipe parser. Return strictly valid JSON." }, { role: "user", content: prompt }],
+            messages,
             model: "gpt-4o",
             response_format: { type: "json_object" },
         });
 
         const result = JSON.parse(completion.choices[0].message.content);
-        console.log('DEBUG: AI Result Image URL:', result.image_url);
 
-        // Deduct Credits on Success
-        await creditService.deductCredits(req.user.effectiveId, 'TEXT', 'Rezept parsen');
+        // Deduct Credits
+        const creditType = imageFile ? 'IMAGE_TO_TEXT' : 'TEXT';
+        await creditService.deductCredits(req.user.effectiveId, creditType, 'Rezept parsen (Vision)');
+
+        // Cleanup temporary image file
+        if (imageFile && fs.existsSync(imageFile.path)) {
+            fs.unlinkSync(imageFile.path);
+        }
 
         res.json(result);
 
     } catch (err) {
         console.error('AI Parse Error:', err);
+        // Ensure cleanup on error
+        if (req.file && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
         res.status(500).json({ error: err.message });
     }
 });
@@ -570,6 +615,57 @@ Beispiel Output:
     }
 });
 
+// Instagram Post Generation (Admin Only)
+router.post('/insta-post', auth, isAdmin, async (req, res) => {
+    try {
+        const { title, ingredients, instructions } = req.body;
+        if (!title || !ingredients || !instructions) {
+            return res.status(400).json({ error: 'Title, ingredients and instructions are required' });
+        }
+
+        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
+        if (!setting || !setting.value) {
+            return res.status(400).json({ error: 'OpenAI API Key not configured' });
+        }
+
+        const openai = new OpenAI({ apiKey: setting.value });
+
+        const prompt = `
+Du bist ein Social Media Experte für Instagram. Generiere einen Instagram Post für folgendes Rezept:
+Titel: ${title}
+Zutaten: ${ingredients}
+Zubereitung: ${instructions}
+
+Format des Posts:
+${title}
+[Kurzer Einleitungstext warum wir das gerne Kochen, oder wieso uns das gefällt.]
+
+Zutaten
+[Auflistung der Zutaten mit Mengen und vor jeder Zutat ein passendes Emoji - Keine Änderungen am Rezept!!!]
+
+Zubereitung
+[Aufzählende Schritte - OHNE ÄNDERUNGEN]
+
+5 Hashtags
+
+WICHTIG: Nutze KEINE Markdown-Formatierung wie fettgedruckten Text (**), Kursivschrift (*) oder Überschriften (#). Nutze keinen Bindestrich oder "deppenstrich" in Sätzen. Gib nur reinen Text zurück.
+`;
+
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.7
+        });
+
+        const post = completion.choices[0].message.content;
+        res.json({ post });
+
+    } catch (err) {
+        console.error('Insta Post Generation Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 const Jimp = require('jimp');
 
 // Image Generation Endpoint
@@ -903,10 +999,14 @@ router.post('/chat', auth, async (req, res) => {
 });
 
 // Extract Ingredients from Text/URL for Shopping List
-router.post('/extract-list-ingredients', auth, async (req, res) => {
+router.post('/extract-list-ingredients', auth, upload.single('image'), async (req, res) => {
     try {
         let { text } = req.body;
-        if (!text) return res.status(400).json({ error: 'Text is required' });
+        const imageFile = req.file;
+
+        if (!text && !imageFile) {
+            return res.status(400).json({ error: 'Text or image is required' });
+        }
 
         const setting = await Settings.findOne({ where: { key: 'openai_key' } });
         if (!setting || !setting.value) {
@@ -920,24 +1020,18 @@ router.post('/extract-list-ingredients', auth, async (req, res) => {
             }
         }
 
-        // 1. Check for URL
+        let contentToAnalyze = text || "";
         const urlRegex = /(https?:\/\/[^\s]+)/g;
-        const urls = text.match(urlRegex);
+        const urls = text ? text.match(urlRegex) : null;
 
-        let contentToAnalyze = text;
-
-        if (urls && urls.length > 0) {
+        if (urls && urls.length > 0 && !imageFile) {
             const url = urls[0];
-            console.log('Fetching content from URL:', url);
-
             try {
                 const browser = await require('puppeteer').launch({
                     headless: 'new',
                     args: ['--no-sandbox', '--disable-setuid-sandbox']
                 });
                 const page = await browser.newPage();
-
-                // Block images/css for speed
                 await page.setRequestInterception(true);
                 page.on('request', (req) => {
                     if (['image', 'stylesheet', 'font'].includes(req.resourceType())) {
@@ -946,61 +1040,83 @@ router.post('/extract-list-ingredients', auth, async (req, res) => {
                         req.continue();
                     }
                 });
-
                 await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-
-                // Extract text from body
                 const bodyText = await page.evaluate(() => document.body.innerText);
-                contentToAnalyze = `URL: ${url}\n\nCONTENT:\n${bodyText.substring(0, 20000)}`; // Limit content
-
+                contentToAnalyze = `URL: ${url}\n\nCONTENT:\n${bodyText.substring(0, 20000)}`;
                 await browser.close();
             } catch (puppeteerErr) {
                 console.error('Puppeteer Error:', puppeteerErr);
-                // Fallback: Just analyze the URL itself and any surrounding text
                 contentToAnalyze = `URL: ${url} (Fetch failed: ${puppeteerErr.message})\n\nOriginal Text:\n${text}`;
             }
         }
 
         const openai = new OpenAI({ apiKey: setting.value });
 
-        const prompt = `
-        Analyze the following text (which might be a recipe URL content or just plain text).
-        Extract ALL ingredients that should be bought.
+        let userContent = [
+            {
+                type: "text",
+                text: `
+                Analyze the following data (text, URL content, or image of a shopping list).
+                Extract ALL ingredients/products that should be bought.
+                
+                ${contentToAnalyze ? `TEXT/DATA: "${contentToAnalyze.substring(0, 15000)}"` : ""}
         
-        TEXT/DATA:
-        "${contentToAnalyze.substring(0, 15000)}"
+                Return a JSON object with an array "items".
+                Each item must have:
+                - "name": German product name (standardized).
+                - "amount": Number (approximate needed quantity). Default 1 if unclear.
+                - "unit": Best fitting German unit (e.g. Stück, Packung, kg, g, Liter, Glas, Dose).
+                
+                Example:
+                {
+                  "items": [
+                    { "name": "Tomaten", "amount": 500, "unit": "g" },
+                    { "name": "Milch", "amount": 1, "unit": "Liter" }
+                  ]
+                }
+                
+                Ignore conversational text, just get the ingredients/products.
+                `
+            }
+        ];
 
-        Return a JSON object with an array "items".
-        Each item must have:
-        - "name": German product name (standardized).
-        - "amount": Number (approximate needed quantity). Default 1 if unclear.
-        - "unit": Best fitting German unit (e.g. Stück, Packung, kg, g, Liter, Glas, Dose).
-        
-        Example:
-        {
-          "items": [
-            { "name": "Tomaten", "amount": 500, "unit": "g" },
-            { "name": "Milch", "amount": 1, "unit": "Liter" }
-          ]
+        if (imageFile) {
+            const base64Image = fs.readFileSync(imageFile.path, { encoding: 'base64' });
+            userContent.push({
+                type: "image_url",
+                image_url: {
+                    url: `data:${imageFile.mimetype};base64,${base64Image}`
+                }
+            });
         }
-        
-        Ignore conversational text, just get the ingredients/products.
-        `;
 
         const completion = await openai.chat.completions.create({
             messages: [
-                { role: "system", content: "You are a shopping list assistant. Return strictly valid JSON." },
-                { role: "user", content: prompt }
+                { role: "system", content: "You are a shopping list assistant. Return strictly valid JSON in German." },
+                { role: "user", content: userContent }
             ],
             model: "gpt-4o",
             response_format: { type: "json_object" },
         });
 
         const result = JSON.parse(completion.choices[0].message.content);
+
+        // Deduct Credits
+        const creditType = imageFile ? 'IMAGE_TO_TEXT' : 'TEXT';
+        await creditService.deductCredits(req.user.effectiveId, creditType, 'Smart Import (Vision)');
+
+        // Cleanup temporary image file
+        if (imageFile && fs.existsSync(imageFile.path)) {
+            fs.unlinkSync(imageFile.path);
+        }
+
         res.json(result);
 
     } catch (err) {
         console.error('AI List Extraction Error:', err);
+        if (req.file && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
         res.status(500).json({ error: err.message });
     }
 });

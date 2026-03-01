@@ -180,13 +180,13 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
                     >
                         {/* Header */}
                         <div className="p-6 border-b border-border flex items-center justify-between bg-muted/30">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                            <div className="flex items-center gap-4 min-w-0">
+                                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
                                     <User size={24} />
                                 </div>
-                                <div>
-                                    <h2 className="text-xl font-bold">{data?.user?.username || 'Benutzer-Details'}</h2>
-                                    <p className="text-sm text-muted-foreground">{data?.user?.email}</p>
+                                <div className="min-w-0">
+                                    <h2 className="text-xl font-bold truncate">{data?.user?.username || 'Benutzer-Details'}</h2>
+                                    <p className="text-sm text-muted-foreground truncate">{data?.user?.email}</p>
                                 </div>
                             </div>
                             <div className="flex gap-2">

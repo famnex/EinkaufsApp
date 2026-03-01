@@ -8,6 +8,7 @@ import api from '../lib/axios';
 import { cn } from '../lib/utils';
 import { Input } from './Input';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+import { useAuth } from '../contexts/AuthContext';
 
 // Helper to safely get adjustment value
 const getAdj = (prodId, adjustments) => adjustments[prodId] || { quantity: '', unit: '', note: '' };
@@ -129,6 +130,7 @@ function Tooltip({ children, items = [], onToggle }) {
 
 export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }) {
     useLockBodyScroll(isOpen);
+    const { user } = useAuth();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [data, setData] = useState(null); // { range: {start, end}, ingredients: [] }
@@ -176,6 +178,10 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
     };
 
     const fetchConflicts = async (productIds) => {
+        const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+            ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+            user?.tier?.includes('Admin') || user?.role === 'admin';
+        if (!hasSpecialTier) return;
         try {
             const res = await api.post('/intolerances/check', { productIds });
             setConflicts(res.data);

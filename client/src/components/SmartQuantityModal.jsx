@@ -5,9 +5,11 @@ import { Button } from './Button';
 import { cn } from '../lib/utils';
 import api from '../lib/axios';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function SmartQuantityModal({ isOpen, onClose, recipe, menuId, listId, onConfirm, existingItems = [] }) {
     useLockBodyScroll(isOpen);
+    const { user } = useAuth();
     const [selection, setSelection] = useState({});
     const [loading, setLoading] = useState(false);
     const [conflicts, setConflicts] = useState([]);
@@ -28,10 +30,15 @@ export default function SmartQuantityModal({ isOpen, onClose, recipe, menuId, li
             });
             setSelection(initial);
 
-            // Fetch intolerance conflicts
-            api.post('/intolerances/check', { productIds })
-                .then(res => setConflicts(res.data))
-                .catch(err => console.error("Failed to check intolerances in planner", err));
+            // Fetch intolerance conflicts (only for Silbergabel+ users)
+            const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+                ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+                user?.tier?.includes('Admin') || user?.role === 'admin';
+            if (hasSpecialTier) {
+                api.post('/intolerances/check', { productIds })
+                    .then(res => setConflicts(res.data))
+                    .catch(err => console.error("Failed to check intolerances in planner", err));
+            }
         }
     }, [isOpen, recipe, existingItems]);
 
