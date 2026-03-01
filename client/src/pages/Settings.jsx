@@ -558,28 +558,28 @@ export default function SettingsPage() {
             const isAdmin = user?.role === 'admin';
 
             const promises = [
-                api.get('/system/settings')
+                api.get('/system/settings'),
+                api.get('/settings/alexa_key') // Alexa is relevant for all users
             ];
 
             if (isAdmin) {
                 promises.push(api.get('/settings/openai_key'));
                 promises.push(api.get('/settings/registration_enabled'));
                 promises.push(api.get('/settings/system/version'));
-                promises.push(api.get('/settings/alexa_key'));
                 promises.push(api.get('/settings/email'));
             }
 
             const results = await Promise.allSettled(promises);
 
             const systemSettingsRes = results[0]?.status === 'fulfilled' ? results[0].value : { data: {} };
+            const alexaRes = results[1]?.status === 'fulfilled' ? results[1].value : { data: {} };
 
-            let openaiRes = { data: {} }, regRes = { data: {} }, verRes = { data: { version: 'Unknown' } }, alexaRes = { data: {} }, emailRes = { data: {} };
+            let openaiRes = { data: {} }, regRes = { data: {} }, verRes = { data: { version: 'Unknown' } }, emailRes = { data: {} };
 
             if (isAdmin) {
-                openaiRes = results[1]?.status === 'fulfilled' ? results[1].value : { data: {} };
-                regRes = results[2]?.status === 'fulfilled' ? results[2].value : { data: {} };
-                verRes = results[3]?.status === 'fulfilled' ? results[3].value : { data: { version: 'Unknown' } };
-                alexaRes = results[4]?.status === 'fulfilled' ? results[4].value : { data: {} };
+                openaiRes = results[2]?.status === 'fulfilled' ? results[2].value : { data: {} };
+                regRes = results[3]?.status === 'fulfilled' ? results[3].value : { data: {} };
+                verRes = results[4]?.status === 'fulfilled' ? results[4].value : { data: { version: 'Unknown' } };
                 emailRes = results[5]?.status === 'fulfilled' ? results[5].value : { data: {} };
             }
 

@@ -186,6 +186,17 @@ router.post('/token', express.urlencoded({ extended: true }), async (req, res) =
             }
 
             const user = await User.findByPk(data.userId);
+
+            // Mark as linked in database for frontend visibility
+            // We use a fixed value to indicate it was linked via OAuth2
+            const [alexaSetting] = await Settings.findOrCreate({
+                where: { key: 'alexa_key', UserId: user.id },
+                defaults: { value: 'linked_via_oauth2' }
+            });
+            if (alexaSetting.value !== 'linked_via_oauth2') {
+                await alexaSetting.update({ value: 'linked_via_oauth2' });
+            }
+
             // Cleanup code
             await setting.destroy();
 
