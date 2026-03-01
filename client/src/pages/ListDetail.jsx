@@ -154,15 +154,21 @@ export default function ListDetail() {
         fetchStores();
     }, [fetchListDetails, fetchProducts, fetchStores]);
 
-    // Live polling every 5s for collaborative shopping (paused when user is actively interacting)
-    const isPollingPaused = isSettingsOpen || isQuantityModalOpen || substituteModalOpen || aiImportModalOpen || aiConfirmModalOpen || !!searchTerm || !!activeId;
+    // Live polling every 5s for collaborative shopping
+    // Use a ref so the interval callback always reads the latest paused state
+    // without needing to be in the dependency array (which would reset the interval)
+    const isPollingPausedRef = useRef(false);
+    isPollingPausedRef.current = isSettingsOpen || isQuantityModalOpen || substituteModalOpen || aiImportModalOpen || aiConfirmModalOpen || !!searchTerm || !!activeId;
+
     useEffect(() => {
-        if (isPollingPaused) return;
         const interval = setInterval(() => {
-            fetchListDetails();
+            if (!isPollingPausedRef.current) {
+                fetchListDetails();
+            }
         }, 5000);
         return () => clearInterval(interval);
-    }, [isPollingPaused, fetchListDetails]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]); // Re-create interval only when list ID changes
 
     // Close tooltips on click outside
     useEffect(() => {
