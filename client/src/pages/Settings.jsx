@@ -139,9 +139,9 @@ export default function SettingsPage() {
         { name: 'Green', value: '#10b981' },
     ];
 
-    const [activeTab, setActiveTab] = useState('account');
+    const [activeTab, setActiveTab] = useState('');
     const [activeAdminTab, setActiveAdminTab] = useState('');
-    const [activeAccountTab, setActiveAccountTab] = useState('profile_detail');
+    const [activeAccountTab, setActiveAccountTab] = useState('');
     const [activePreferencesTab, setActivePreferencesTab] = useState('');
     const [activeContentTab, setActiveContentTab] = useState('');
     const [activeMarketplaceTab, setActiveMarketplaceTab] = useState('');
@@ -718,41 +718,12 @@ export default function SettingsPage() {
         }
     };
 
+    // Manual Alexa Key generation is no longer used, as linking is handled via OAuth2
+    /*
     const handleGenerateAlexaKey = async () => {
-        if (alexaKey) {
-            const confirmed = window.confirm(
-                'ACHTUNG: Es ist bereits eine Alexa-Verbindung vorhanden.\n\n' +
-                'Wenn Sie eine neue Verbindung herstellen, müssen Sie den Skill erneut in Ihrer Alexa App verknüpfen.\n\n' +
-                'Wollen Sie wirklich eine neue Verbindung generieren?'
-            );
-            if (!confirmed) return;
-        }
-
-        setSavingKey(true);
-        let newKey;
-        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-            newKey = crypto.randomUUID().replace(/-/g, '');
-        } else {
-            newKey = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-        }
-
-        try {
-            await api.post('/settings', {
-                key: 'alexa_key',
-                value: newKey
-            });
-            setAlexaKey(newKey);
-
-            // Open Alexa Skill page in a new tab
-            const alexaSkillUrl = 'https://pitangui.amazon.com/api/skill/link/M362RKZC9G1WL8';
-            window.open(alexaSkillUrl, '_blank');
-        } catch (err) {
-            console.error('Failed to save alexa key', err);
-            alert('Fehler beim Generieren der Verbindung');
-        } finally {
-            setSavingKey(false);
-        }
+        ...
     };
+    */
 
     const handleDeleteAlexaKey = async () => {
         const confirmed = window.confirm(
@@ -4877,7 +4848,7 @@ export default function SettingsPage() {
                             </div>
                         </div>
                         <div className="flex items-center gap-2 w-full sm:w-auto">
-                            {alexaKey ? (
+                            {alexaKey && (
                                 <Button
                                     variant="outline"
                                     onClick={handleDeleteAlexaKey}
@@ -4887,17 +4858,7 @@ export default function SettingsPage() {
                                     {savingKey ? <Loader2 size={16} className="animate-spin" /> : <X size={16} className="mr-2" />}
                                     Verbindung lösen
                                 </Button>
-                            ) : (
-                                <Button
-                                    onClick={handleGenerateAlexaKey}
-                                    disabled={savingKey}
-                                    className="flex-1 sm:flex-initial"
-                                >
-                                    {savingKey ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} className="mr-2" />}
-                                    Jetzt verbinden
-                                </Button>
                             )}
-
                         </div>
                     </div>
                 </div>
@@ -4908,7 +4869,6 @@ export default function SettingsPage() {
                         So funktioniert's
                     </h3>
                     <ol className="text-xs text-muted-foreground space-y-2 list-decimal list-inside leading-relaxed">
-                        <li>Klicken Sie auf <strong>"Jetzt verbinden"</strong>, um Ihr Konto vorzubereiten.</li>
                         <li>Suchen Sie in der <strong>Alexa App</strong> nach dem <strong>"GabelGuru"</strong> Skill.</li>
                         <li>Aktivieren Sie den Skill und folgen Sie den Anweisungen zum <strong>Account Linking</strong>.</li>
                         <li>Melden Sie sich mit Ihren GabelGuru Zugangsdaten an.</li>
