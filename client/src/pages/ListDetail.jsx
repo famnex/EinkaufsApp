@@ -154,6 +154,16 @@ export default function ListDetail() {
         fetchStores();
     }, [fetchListDetails, fetchProducts, fetchStores]);
 
+    // Live polling every 5s for collaborative shopping (paused when user is actively interacting)
+    const isPollingPaused = isSettingsOpen || isQuantityModalOpen || substituteModalOpen || aiImportModalOpen || aiConfirmModalOpen || !!searchTerm || !!activeId;
+    useEffect(() => {
+        if (isPollingPaused) return;
+        const interval = setInterval(() => {
+            fetchListDetails();
+        }, 5000);
+        return () => clearInterval(interval);
+    }, [isPollingPaused, fetchListDetails]);
+
     // Close tooltips on click outside
     useEffect(() => {
         if (!activeNoteId) return;

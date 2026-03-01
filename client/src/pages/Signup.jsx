@@ -232,7 +232,7 @@ export default function SignupPage() {
                                         Wir haben eine Bestätigungs-E-Mail an <span className="text-foreground font-semibold">{email}</span> gesendet.
                                         Bitte klicke auf den Link in der E-Mail, um dein Konto zu aktivieren.
                                     </p>
-                                    <Button as={Link} to="/login" variant="secondary" className="w-full">
+                                    <Button onClick={() => navigate('/login')} variant="secondary" className="w-full">
                                         Zur Anmeldung
                                     </Button>
                                     <p className="mt-6 text-xs text-muted-foreground">
