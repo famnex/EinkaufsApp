@@ -170,7 +170,7 @@ function AppContent() {
       e.preventDefault();
     };
 
-    // 2. Optimized Scale Reset (fixes flickering on scroll)
+    // 2. Optimized Scale Reset (fixes iOS keyboard zoom, skips orientation changes)
     let resetTimeout;
     let lastWidth = window.innerWidth;
     const resetScale = () => {
@@ -180,20 +180,25 @@ function AppContent() {
       const currentWidth = window.innerWidth;
       const isOrientationChange = Math.abs(currentWidth - lastWidth) > 50;
 
-      // Only reset if zoomed in, OR if orientation changed, OR if an input was just blurred
-      // This prevents the flickering during normal scrolling where the address bar hides/shows
-      if (viewport && (viewport.scale !== 1.0 || isOrientationChange)) {
+      // On orientation change, just update lastWidth without resetting viewport
+      // to avoid double layout recalculation that causes flickering
+      if (isOrientationChange) {
+        lastWidth = currentWidth;
+        return;
+      }
+
+      // Only reset if actually zoomed in (e.g. after iOS keyboard)
+      if (viewport && viewport.scale !== 1.0) {
         resetTimeout = setTimeout(() => {
           const metaViewport = document.querySelector('meta[name="viewport"]');
           if (metaViewport) {
-            // "The Reset Trick": Temporarily change content to force browser to recalculate scale
             metaViewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
             setTimeout(() => {
               metaViewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
               lastWidth = window.innerWidth;
             }, 50);
           }
-        }, 150); // Debounce to allow scroll/resize to settle
+        }, 150);
       }
     };
 
