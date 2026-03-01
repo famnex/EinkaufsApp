@@ -211,6 +211,10 @@ export default function SettingsPage() {
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+    // GDPR Export State
+    const [gdprStatus, setGdprStatus] = useState({ exists: false, generatedAt: null });
+    const [requestingGdpr, setRequestingGdpr] = useState(false);
+    const [loadingGdprStatus, setLoadingGdprStatus] = useState(false);
 
     // Compliance State
     const [complianceReports, setComplianceReports] = useState([]);
@@ -238,6 +242,12 @@ export default function SettingsPage() {
     useEffect(() => {
         fetchSettings();
     }, [user?.role]);
+
+    useEffect(() => {
+        if (activeAccountTab === 'gdpr') {
+            fetchGdprStatus();
+        }
+    }, [activeAccountTab]);
 
     // Admin Tabs Fetching
     useEffect(() => {
@@ -678,6 +688,38 @@ export default function SettingsPage() {
             console.error('Failed to leave household', err);
             alert('Fehler beim Verlassen des Haushalts: ' + (err.response?.data?.error || err.message));
         }
+    };
+
+    const fetchGdprStatus = async () => {
+        setLoadingGdprStatus(true);
+        try {
+            const res = await api.get('/auth/gdpr-status');
+            setGdprStatus(res.data);
+        } catch (err) {
+            console.error('Failed to fetch GDPR status:', err);
+        } finally {
+            setLoadingGdprStatus(false);
+        }
+    };
+
+    const handleRequestGdprReport = async () => {
+        setRequestingGdpr(true);
+        try {
+            await api.post('/auth/gdpr-request');
+            const res = await api.get('/auth/gdpr-status');
+            setGdprStatus(res.data);
+            alert('Ihr Datenexport wurde erfolgreich erstellt.');
+        } catch (err) {
+            alert('Fehler bei der Reporterstellung: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setRequestingGdpr(false);
+        }
+    };
+
+    const handleDownloadGdprReport = () => {
+        const token = localStorage.getItem('token');
+        const baseUrl = api.defaults.baseURL || '';
+        window.open(`${baseUrl}/auth/gdpr-download?token=${token}`, '_blank');
     };
 
     const handleRemoveMember = async (member) => {
@@ -1515,7 +1557,8 @@ export default function SettingsPage() {
     const accountTabs = [
         { id: 'profile_detail', label: 'Profil & Sicherheit', icon: User },
         { id: 'subscription', label: 'Abo & Credits', icon: CreditCard },
-        { id: 'household', label: 'Haushalt', icon: Users }
+        { id: 'household', label: 'Haushalt', icon: Users },
+        { id: 'gdpr', label: 'DSGVO-Auskunft', icon: ShieldCheck }
     ];
 
     const preferencesTabs = [
@@ -2122,6 +2165,146 @@ export default function SettingsPage() {
                         </Button>
                     </div>
                 )}
+            </div>
+        </Card>
+    );
+
+    const GdprSection = (
+        <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm print:shadow-none print:border-none print:bg-white text-left">
+            <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                    <ShieldCheck size={20} className="text-primary" />
+                    DSGVO-Selbstauskunft (Art. 15 DSGVO)
+                </h2>
+                <div className="flex gap-2 print:hidden">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => window.print()}
+                    >
+                        <FileText size={14} />
+                        Ansicht drucken
+                    </Button>
+                </div>
+            </div>
+
+            <div className="space-y-6">
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                    Nachfolgend finden Sie eine strukturierte Übersicht der über Ihre Person bei GabelGuru gespeicherten Daten. Diese Auskunft deckt die Anforderungen gemäß Artikel 15 der Datenschutz-Grundverordnung (DSGVO) ab.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-1">Benutzer-ID</label>
+                        <p className="font-mono text-xs">{user?.id}</p>
+                    </div>
+                    <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-1">Benutzername</label>
+                        <p className="font-bold">{user?.username}</p>
+                    </div>
+                    <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-1">E-Mail-Adresse</label>
+                        <p className="font-bold">{user?.email}</p>
+                    </div>
+                    <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-1">Benutzer-Rolle</label>
+                        <p className="font-bold">{user?.role === 'admin' ? 'Administrator' : 'Standard-Nutzer'}</p>
+                    </div>
+                    <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-1">Abonnement-Stufe</label>
+                        <p className="font-bold">{user?.tier || 'Plastikgabel'}</p>
+                    </div>
+                    <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-1">Inhaber des Haushalts</label>
+                        <p className="font-bold">{user?.householdId ? 'Nein' : 'Ja'}</p>
+                    </div>
+                    {user?.householdId && (
+                        <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-1">Vorgesetzter Haushalts-Account-ID</label>
+                            <p className="font-mono text-xs">{user.householdId}</p>
+                        </div>
+                    )}
+                    <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-1">KI-Guthaben</label>
+                        <p className="font-bold italic">{user?.aiCredits} credits</p>
+                    </div>
+                    <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-1">Newsletter angemeldet</label>
+                        <p className="font-bold">{user?.newsletterSignedUp ? 'Ja' : 'Nein'}</p>
+                    </div>
+                    {user?.newsletterSignedUp && (
+                        <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-1">Newsletter Anmeldung am</label>
+                            <p className="font-bold">{new Date(user.newsletterSignupDate).toLocaleDateString('de-DE')}</p>
+                        </div>
+                    )}
+                    <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-1">Öffentlicher Sharing-Key</label>
+                        <p className="font-mono text-[10px] break-all">{user?.sharingKey || 'Nicht aktiviert'}</p>
+                    </div>
+                    {user?.stripeCustomerId && (
+                        <div className="p-4 bg-muted/30 rounded-2xl border border-border/50">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block mb-1">Zahlungsdienstleister ID (Stripe)</label>
+                            <p className="font-mono text-xs">{user.stripeCustomerId}</p>
+                        </div>
+                    )}
+                </div>
+
+                <div className="pt-6 border-t border-border/50 print:hidden">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-4">Maschinenlesbarer Voll-Export</h3>
+                    <div className="p-6 bg-muted/10 rounded-2xl border border-border flex flex-col items-center text-center shadow-inner min-h-[220px] justify-center">
+                        {loadingGdprStatus ? (
+                            <div className="flex flex-col items-center gap-3">
+                                <Loader2 size={32} className="text-primary animate-spin" />
+                                <p className="text-xs text-muted-foreground">Prüfe Status...</p>
+                            </div>
+                        ) : gdprStatus.exists ? (
+                            <div className="space-y-4">
+                                <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-2 animate-in zoom-in duration-300">
+                                    <CloudDownload size={32} />
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="font-bold text-foreground">Datensatz steht bereit</p>
+                                    <p className="text-[10px] text-muted-foreground">
+                                        Letzte Generierung: {new Date(gdprStatus.generatedAt).toLocaleString('de-DE')}
+                                    </p>
+                                </div>
+                                <div className="flex flex-col gap-2 min-w-[240px]">
+                                    <Button onClick={handleDownloadGdprReport} className="gap-2 shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 transition-all active:scale-95">
+                                        <CloudDownload size={18} />
+                                        JSON-Report herunterladen
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={handleRequestGdprReport} disabled={requestingGdpr} className="text-[10px] text-muted-foreground hover:text-primary">
+                                        {requestingGdpr ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                                        Report jetzt aktualisieren
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-2">
+                                    <FileText size={32} />
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="font-bold text-foreground">Kein Export vorhanden</p>
+                                    <p className="text-[10px] text-muted-foreground mt-1 max-w-[320px] leading-normal">
+                                        Sie können hier einen vollständigen Abzug aller Ihrer bei uns gespeicherten Daten anfordern. Die Datei wird im maschinenlesbaren JSON-Format bereitgestellt.
+                                    </p>
+                                </div>
+                                <Button onClick={handleRequestGdprReport} disabled={requestingGdpr} className="gap-2 shadow-lg shadow-primary/20 min-w-[240px] bg-primary hover:bg-primary/90 transition-all active:scale-95">
+                                    {requestingGdpr ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+                                    Datei jetzt generieren
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="p-4 bg-primary/5 text-primary rounded-2xl border border-primary/20 text-[10px] leading-relaxed">
+                    <p className="font-bold mb-1">Rechtlicher Hinweis:</p>
+                    Diese Datenzusammenstellung dient ausschließlich Ihrer persönlichen Information. Sie haben das Recht auf Berichtigung unrichtiger Daten, die Einschränkung der Verarbeitung sowie das Recht auf Löschung (Recht auf Vergessenwerden), sofern keine gesetzlichen Aufbewahrungsfristen entgegenstehen. Kontaktieren Sie uns bei weiteren Fragen über die im Impressum angegebene Email-Adresse.
+                </div>
             </div>
         </Card>
     );
@@ -4896,6 +5079,7 @@ export default function SettingsPage() {
             case 'profile_detail': return ProfileDetailSection;
             case 'subscription': return SubscriptionSection;
             case 'household': return HouseholdSection;
+            case 'gdpr': return GdprSection;
             default: return null;
         }
     };

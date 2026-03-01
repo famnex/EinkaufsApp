@@ -4,7 +4,7 @@ import api from '../lib/axios';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { Package, Plus, Search, Filter, Edit2, Trash2, Factory, Sparkles, Radio, X, Globe, Layers } from 'lucide-react'; // Added icons
+import { Package, Plus, Search, Filter, Edit2, Trash2, Factory, Sparkles, Radio, X, Globe, Layers, Eye } from 'lucide-react'; // Added Eye icon
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProductModal from '../components/ProductModal';
@@ -108,10 +108,12 @@ export default function Products() {
     };
 
     const filteredProducts = useMemo(() => {
-        let list = products.filter(p =>
-            p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.category?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        let list = products.filter(p => {
+            const name = p.name || '';
+            const category = p.category || '';
+            return name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                category.toLowerCase().includes(searchTerm.toLowerCase());
+        });
 
         if (viewTab === 'eigene') {
             // Currently backend only returns user products
@@ -165,28 +167,28 @@ export default function Products() {
             <div className="space-y-6">
                 {/* Header Section */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    {user?.role === 'admin' ? (
-                        <div className="flex bg-muted p-1 rounded-2xl gap-1 w-full sm:w-auto">
-                            <button
-                                onClick={() => setViewTab('eigene')}
-                                className={cn(
-                                    "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2",
-                                    viewTab === 'eigene' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:bg-card/50"
-                                )}
-                            >
-                                <Package size={18} />
-                                Eigene
-                            </button>
-                            <button
-                                onClick={() => setViewTab('global')}
-                                className={cn(
-                                    "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2",
-                                    viewTab === 'global' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:bg-card/50"
-                                )}
-                            >
-                                <Globe size={18} />
-                                Global
-                            </button>
+                    <div className="flex bg-muted p-1 rounded-2xl gap-1 w-full sm:w-auto">
+                        <button
+                            onClick={() => setViewTab('eigene')}
+                            className={cn(
+                                "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2",
+                                viewTab === 'eigene' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:bg-card/50"
+                            )}
+                        >
+                            <Package size={18} />
+                            Eigene
+                        </button>
+                        <button
+                            onClick={() => setViewTab('global')}
+                            className={cn(
+                                "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2",
+                                viewTab === 'global' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:bg-card/50"
+                            )}
+                        >
+                            <Globe size={18} />
+                            Global
+                        </button>
+                        {user?.role === 'admin' && (
                             <button
                                 onClick={() => {
                                     setViewTab('variants');
@@ -200,13 +202,8 @@ export default function Products() {
                                 <Layers size={18} />
                                 Varianten
                             </button>
-                        </div>
-                    ) : (
-                        <h1 className="text-2xl font-bold flex items-center gap-2">
-                            <Package size={24} className="text-primary" />
-                            Produkte
-                        </h1>
-                    )}
+                        )}
+                    </div>
 
                     <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                         {user?.tier !== 'Plastikgabel' && (
@@ -297,32 +294,48 @@ export default function Products() {
                                         </div>
 
                                         <div className="flex items-center gap-1 shrink-0">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleEdit(product);
-                                                }}
-                                                className="h-9 w-9 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-colors"
-                                            >
-                                                <Edit2 size={18} />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (viewTab === 'variants') {
-                                                        handleDeleteVariant(product.id, e);
-                                                    } else {
-                                                        handleDelete(product.id, e);
-                                                    }
-                                                }}
-                                                className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-colors"
-                                            >
-                                                <Trash2 size={18} />
-                                            </Button>
+                                            {product.UserId === null && user?.role !== 'admin' ? (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleEdit(product);
+                                                    }}
+                                                    className="h-9 w-9 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-colors"
+                                                >
+                                                    <Eye size={18} />
+                                                </Button>
+                                            ) : (
+                                                <>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleEdit(product);
+                                                        }}
+                                                        className="h-9 w-9 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-colors"
+                                                    >
+                                                        <Edit2 size={18} />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (viewTab === 'variants') {
+                                                                handleDeleteVariant(product.id, e);
+                                                            } else {
+                                                                handleDelete(product.id, e);
+                                                            }
+                                                        }}
+                                                        className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-colors"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </Button>
+                                                </>
+                                            )}
                                         </div>
                                     </motion.div>
                                 ))}

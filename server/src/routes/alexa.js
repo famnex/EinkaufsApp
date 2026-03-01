@@ -296,7 +296,12 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
                         sequelize.fn('lower', sequelize.col('name')),
                         sequelize.fn('lower', productNameQuery)
                     ),
-                    { UserId: req.user.effectiveId }
+                    {
+                        [Op.or]: [
+                            { UserId: req.user.effectiveId },
+                            { UserId: null }
+                        ]
+                    }
                 ]
             }
         });
@@ -313,7 +318,12 @@ router.post('/add', checkAlexaAuth, async (req, res) => {
                                 sequelize.fn('lower', sequelize.col('name')),
                                 sequelize.fn('lower', variant)
                             ),
-                            { UserId: req.user.effectiveId }
+                            {
+                                [Op.or]: [
+                                    { UserId: req.user.effectiveId },
+                                    { UserId: null }
+                                ]
+                            }
                         ]
                     }
                 });

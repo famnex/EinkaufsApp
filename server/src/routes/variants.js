@@ -7,7 +7,12 @@ const { auth } = require('../middleware/auth');
 router.get('/', auth, async (req, res) => {
     try {
         const variants = await ProductVariant.findAll({
-            where: { UserId: req.user.effectiveId },
+            where: {
+                [require('sequelize').Op.or]: [
+                    { UserId: req.user.effectiveId },
+                    { UserId: null }
+                ]
+            },
             order: [['title', 'ASC']]
         });
         res.json(variants);

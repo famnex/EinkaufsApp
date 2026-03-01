@@ -21,7 +21,10 @@ async function resolveProductForUser(productId, userId) {
     let localProduct = await Product.findOne({
         where: {
             name: sequelize.where(sequelize.fn('LOWER', sequelize.col('name')), originalProduct.name.toLowerCase()),
-            UserId: userId
+            [Op.or]: [
+                { UserId: userId },
+                { UserId: null }
+            ]
         }
     });
     if (localProduct) return localProduct;
@@ -29,7 +32,10 @@ async function resolveProductForUser(productId, userId) {
     // 3. Try synonym match (Fallback in JS)
     const productsWithSynonyms = await Product.findAll({
         where: {
-            UserId: userId,
+            [Op.or]: [
+                { UserId: userId },
+                { UserId: null }
+            ],
             synonyms: { [Op.ne]: null }
         }
     });
@@ -71,7 +77,10 @@ router.post('/:id/items/bulk', auth, async (req, res) => {
             let product = await Product.findOne({
                 where: {
                     name: sequelize.where(sequelize.fn('LOWER', sequelize.col('name')), item.name.toLowerCase()),
-                    UserId: req.user.effectiveId
+                    [Op.or]: [
+                        { UserId: req.user.effectiveId },
+                        { UserId: null }
+                    ]
                 }
             });
 
@@ -142,7 +151,12 @@ router.get('/', auth, async (req, res) => {
                 attributes: ['id', 'quantity'],
                 include: [{
                     model: Product,
-                    where: { UserId: req.user.effectiveId },
+                    where: {
+                        [Op.or]: [
+                            { UserId: req.user.effectiveId },
+                            { UserId: null }
+                        ]
+                    },
                     required: false,
                     attributes: ['category', 'name']
                 }]
@@ -209,7 +223,12 @@ router.get('/:id', auth, async (req, res) => {
                     include: [
                         {
                             model: Product,
-                            where: { UserId: req.user.effectiveId },
+                            where: {
+                                [Op.or]: [
+                                    { UserId: req.user.effectiveId },
+                                    { UserId: null }
+                                ]
+                            },
                             required: false,
                             include: [
                                 { model: Store, where: { UserId: req.user.effectiveId }, required: false }

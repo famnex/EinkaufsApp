@@ -196,7 +196,10 @@ router.post('/cleanup', auth, async (req, res) => {
                 group: ['category'],
                 where: {
                     category: { [require('sequelize').Op.ne]: null },
-                    UserId: req.user.effectiveId
+                    [require('sequelize').Op.or]: [
+                        { UserId: req.user.effectiveId },
+                        { UserId: null }
+                    ]
                 },
                 raw: true
             });

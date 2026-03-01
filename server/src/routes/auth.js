@@ -1001,6 +1001,171 @@ router.get('/registration-status', async (req, res) => {
     }
 });
 
-// Implementation for LDAP would go here...
+// GDPR Data Export (Art. 15 DSGVO)
+const AdmZip = require('adm-zip');
+
+router.post('/gdpr-request', auth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const uploadDir = path.resolve(__dirname, '../../public/uploads/gdpr');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        const reportPath = path.resolve(uploadDir, `report_${userId}.zip`);
+
+        logger.logSystem('DEBUG', `Generating GDPR ZIP report for ${userId} at ${reportPath}`);
+
+        const zip = new AdmZip();
+        const models = require('../models');
+
+        // Mapping of internal model name -> user friendly title
+        const modelMap = [
+            { name: 'User', title: 'Basis_Benutzerprofil', model: models.User, filter: { id: userId } },
+            { name: 'CreditTransaction', title: 'Transaktionsverlauf_Credits', model: models.CreditTransaction },
+            { name: 'SubscriptionLog', title: 'Abonnement_Protokoll', model: models.SubscriptionLog },
+            { name: 'LoginLog', title: 'Anmelde_Protokoll', model: models.LoginLog },
+            { name: 'Store', title: 'Hinterlegte_Geschaefte', model: models.Store },
+            { name: 'Product', title: 'Eigene_Produkte', model: models.Product },
+            { name: 'List', title: 'Einkaufslisten', model: models.List },
+            { name: 'ListItem', title: 'Einkaufslisten_Eintraege', model: models.ListItem },
+            { name: 'Menu', title: 'Menueplaene', model: models.Menu },
+            { name: 'Expense', title: 'Ausgaben_Kassenbons', model: models.Expense },
+            { name: 'Recipe', title: 'Eigene_Rezepte', model: models.Recipe },
+            { name: 'RecipeIngredient', title: 'Rezept_Zutaten', model: models.RecipeIngredient },
+            { name: 'Tag', title: 'Kategorien_Schlagworte', model: models.Tag },
+            { name: 'ProductRelation', title: 'Produkt_Beziehungen', model: models.ProductRelation },
+            { name: 'Settings', title: 'Benutzereinstellungen', model: models.Settings },
+            { name: 'Email', title: 'Interne_Emails', model: models.Email },
+            { name: 'ComplianceReport', title: 'Sicherheitsmeldungen', model: models.ComplianceReport, filter: { accusedUserId: userId }, excludeFields: ['reporterName', 'reporterEmail'] },
+            { name: 'RecipeSubstitution', title: 'Rezept_Anpassungen', model: models.RecipeSubstitution },
+            { name: 'RecipeInstructionOverride', title: 'Rezept_Anleitungs_Korrekturen', model: models.RecipeInstructionOverride },
+            { name: 'UserIntolerance', title: 'Persoenliche_Unvertraeglichkeiten', model: models.UserIntolerance },
+            { name: 'ProductVariant', title: 'Produkt_Varianten_Definitionen', model: models.ProductVariant },
+            { name: 'ProductVariation', title: 'Produkt_Variationen_Zuweisungen', model: models.ProductVariation },
+            { name: 'NewsletterRecipient', title: 'Newsletter_Anmeldestatus', model: models.NewsletterRecipient }
+        ];
+
+
+        const fragmentValue = (val) => {
+            if (val === null || val === undefined) return '';
+            const str = String(val);
+            if (str.length <= 6) return '***' + str.slice(-2);
+            return str.substring(0, 3) + '...' + str.substring(str.length - 3);
+        };
+
+        const sensitiveFields = ['password', 'tokenVersion', 'resetPasswordToken', 'resetPasswordExpires', 'emailVerificationToken', 'stripeSubscriptionId', 'stripeCustomerId', 'alexaApiKey', 'alexaUserId', 'sharingKey'];
+
+        for (const entry of modelMap) {
+            const query = { where: entry.filter || { UserId: userId }, raw: true };
+            const data = await entry.model.findAll(query);
+
+            if (data && data.length > 0) {
+                const headers = Object.keys(data[0]).filter(k => {
+                    if (k === 'id' || k.endsWith('Id')) return false;
+                    if (entry.excludeFields && entry.excludeFields.includes(k)) return false;
+                    return true;
+                });
+                // Add sensitive fields back to headers if they exist in model but were filtered by endsWithId
+                sensitiveFields.forEach(f => {
+                    if (data[0].hasOwnProperty(f) && !headers.includes(f)) {
+                        if (entry.excludeFields && entry.excludeFields.includes(f)) return;
+                        headers.push(f);
+                    }
+                });
+
+                let csvContent = headers.join(',') + '\n';
+
+                data.forEach(item => {
+                    csvContent += headers.map(h => {
+                        let val = item[h];
+                        if (sensitiveFields.includes(h)) {
+                            val = fragmentValue(val);
+                        }
+                        let cell = val === null || val === undefined ? '' : String(val);
+                        if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+                            cell = `"${cell.replace(/"/g, '""')}"`;
+                        }
+                        return cell;
+                    }).join(',') + '\n';
+                });
+
+                zip.addFile(`${entry.title}.csv`, Buffer.from(csvContent, 'utf8'));
+            }
+        }
+
+        const manifest = {
+            generatedAt: new Date(),
+            user: req.user.username,
+            format: 'CSV (ZIP Archive)',
+            legal: 'DSGVO Art. 15 Selbstauskunft GabelGuru'
+        };
+        zip.addFile('META_INFO.json', Buffer.from(JSON.stringify(manifest, null, 2), 'utf8'));
+
+        zip.writeZip(reportPath);
+        res.json({ success: true, generatedAt: manifest.generatedAt });
+    } catch (err) {
+        logger.logError('GDPR Export failed:', err);
+        res.status(500).json({ error: 'Fehler bei der Reporterstellung: ' + err.message });
+    }
+});
+
+router.get('/gdpr-status', auth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const reportPath = path.resolve(__dirname, `../../public/uploads/gdpr/report_${userId}.zip`);
+        logger.logSystem('DEBUG', `Checking GDPR report status for ${userId} at ${reportPath}`);
+
+        if (fs.existsSync(reportPath)) {
+            const stats = fs.statSync(reportPath);
+            const now = new Date();
+            const ageHours = (now - stats.mtime) / (1000 * 60 * 60);
+
+            if (ageHours > 24) {
+                logger.logSystem('DEBUG', `GDPR report for ${userId} is older than 24 hours, deleting.`);
+                fs.unlinkSync(reportPath);
+                return res.json({ exists: false });
+            }
+
+            res.json({ exists: true, generatedAt: stats.mtime });
+        } else {
+            logger.logSystem('DEBUG', `GDPR report for ${userId} does not exist.`);
+            res.json({ exists: false });
+        }
+    } catch (err) {
+        logger.logError('GDPR Status check error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/gdpr-download', auth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const reportPath = path.resolve(__dirname, `../../public/uploads/gdpr/report_${userId}.zip`);
+
+        logger.logSystem('DEBUG', `Attempting stream download for GDPR ZIP report: ${reportPath}`);
+
+        if (fs.existsSync(reportPath)) {
+            const safeUsername = req.user.username.replace(/[^a-z0-9]/gi, '_');
+            res.setHeader('Content-Disposition', `attachment; filename="GabelGuru_Datenexport_${safeUsername}.zip"`);
+            res.setHeader('Content-Type', 'application/zip');
+
+            const fileStream = fs.createReadStream(reportPath);
+            fileStream.on('error', (err) => {
+                logger.logError('GDPR Stream error:', err);
+                if (!res.headersSent) {
+                    res.status(500).json({ error: 'Fehler beim Streamen der Datei' });
+                }
+            });
+
+            fileStream.pipe(res);
+        } else {
+            logger.logSystem('DEBUG', `Download failed: File not found at ${reportPath}`);
+            res.status(404).json({ error: 'Report nicht gefunden' });
+        }
+    } catch (err) {
+        logger.logError('GDPR Download route error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 module.exports = router;

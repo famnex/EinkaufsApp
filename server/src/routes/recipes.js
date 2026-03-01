@@ -80,7 +80,12 @@ router.get('/', auth, async (req, res) => {
                     attributes: ['id'],
                     include: [{
                         model: Product,
-                        where: { UserId: req.user.effectiveId },
+                        where: {
+                            [Op.or]: [
+                                { UserId: req.user.effectiveId },
+                                { UserId: null }
+                            ]
+                        },
                         required: false,
                         attributes: ['name']
                     }]
@@ -154,7 +159,16 @@ router.get('/public/:sharingKey/:id', checkOptionalAuth, async (req, res) => {
                     model: RecipeIngredient,
                     where: { UserId: user.id },
                     required: false,
-                    include: [{ model: Product, where: { UserId: user.id }, required: false }]
+                    include: [{
+                        model: Product,
+                        where: {
+                            [Op.or]: [
+                                { UserId: user.id },
+                                { UserId: null }
+                            ]
+                        },
+                        required: false
+                    }]
                 },
                 { model: Tag, where: { UserId: user.id }, required: false },
                 {
@@ -325,7 +339,16 @@ router.get('/:id', auth, async (req, res) => {
                 {
                     model: RecipeIngredient,
                     required: false,
-                    include: [{ model: Product, required: false }]
+                    include: [{
+                        model: Product,
+                        where: {
+                            [Op.or]: [
+                                { UserId: req.user.effectiveId },
+                                { UserId: null }
+                            ]
+                        },
+                        required: false
+                    }]
                 },
                 { model: Tag, required: false },
                 {
@@ -339,8 +362,28 @@ router.get('/:id', auth, async (req, res) => {
                     where: { UserId: req.user.effectiveId },
                     required: false,
                     include: [
-                        { model: Product, as: 'OriginalProduct' },
-                        { model: Product, as: 'SubstituteProduct' }
+                        {
+                            model: Product,
+                            as: 'OriginalProduct',
+                            where: {
+                                [Op.or]: [
+                                    { UserId: req.user.effectiveId },
+                                    { UserId: null }
+                                ]
+                            },
+                            required: false
+                        },
+                        {
+                            model: Product,
+                            as: 'SubstituteProduct',
+                            where: {
+                                [Op.or]: [
+                                    { UserId: req.user.effectiveId },
+                                    { UserId: null }
+                                ]
+                            },
+                            required: false
+                        }
                     ]
                 },
                 {
@@ -619,7 +662,12 @@ router.post('/:id/ingredients', auth, async (req, res) => {
             where: { id: ingredient.id, UserId: req.user.effectiveId },
             include: [{
                 model: Product,
-                where: { UserId: req.user.effectiveId },
+                where: {
+                    [Op.or]: [
+                        { UserId: req.user.effectiveId },
+                        { UserId: null }
+                    ]
+                },
                 required: false
             }]
         });

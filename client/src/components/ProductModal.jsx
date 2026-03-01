@@ -27,6 +27,7 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
     const [selectedIntoleranceIds, setSelectedIntoleranceIds] = useState([]);
     const [aiIntoleranceProbabilities, setAiIntoleranceProbabilities] = useState({});
     const { user } = useAuth();
+    const isReadOnly = product && product.UserId === null && user?.role !== 'admin';
 
     useLockBodyScroll(isOpen);
 
@@ -248,10 +249,16 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                             </div>
 
                             <form onSubmit={handleSubmit} className="space-y-6">
+                                {isReadOnly && (
+                                    <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl flex items-center gap-3 text-amber-600 dark:text-amber-400">
+                                        <ShieldAlert size={18} />
+                                        <p className="text-sm font-bold">Dieses globale Produkt ist schreibgeschützt.</p>
+                                    </div>
+                                )}
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-center mb-1">
                                         <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Produktname</label>
-                                        {user?.role === 'admin' && (
+                                        {!isReadOnly && user?.role === 'admin' && (
                                             <button
                                                 type="button"
                                                 onClick={handleAnalyzeProduct}
@@ -268,24 +275,31 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                         placeholder="z.B. Bio-Milch"
                                         required
+                                        disabled={isReadOnly}
                                         className="bg-muted/50 border-border h-12"
                                     />
                                 </div>
 
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Synonyme</label>
-                                    <div className="bg-muted/30 border border-border rounded-xl p-2 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                                    <div className={cn(
+                                        "bg-muted/30 border border-border rounded-xl p-2 transition-all",
+                                        !isReadOnly && "focus-within:ring-2 focus-within:ring-primary/20",
+                                        isReadOnly && "opacity-60 cursor-not-allowed"
+                                    )}>
                                         <div className="flex flex-wrap gap-2 mb-2">
                                             {formData.synonyms?.map((syn, idx) => (
                                                 <span key={idx} className="bg-primary/10 text-primary px-2 py-1 rounded-md text-sm flex items-center gap-1 group">
                                                     {syn}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => removeSynonym(syn)}
-                                                        className="hover:bg-primary/20 rounded-full p-0.5"
-                                                    >
-                                                        <X size={12} />
-                                                    </button>
+                                                    {!isReadOnly && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeSynonym(syn)}
+                                                            className="hover:bg-primary/20 rounded-full p-0.5"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    )}
                                                 </span>
                                             ))}
                                         </div>
@@ -293,11 +307,12 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                             value={synonymInput}
                                             onChange={(e) => setSynonymInput(e.target.value)}
                                             onKeyDown={handleAddSynonym}
-                                            placeholder={formData.synonyms?.length > 0 ? "" : "Synonym eingeben und Enter drücken..."}
-                                            className="w-full bg-transparent border-none text-sm focus:outline-none p-1"
+                                            disabled={isReadOnly}
+                                            placeholder={formData.synonyms?.length > 0 || isReadOnly ? "" : "Synonym eingeben und Enter drücken..."}
+                                            className="w-full bg-transparent border-none text-sm focus:outline-none p-1 disabled:cursor-not-allowed"
                                         />
                                     </div>
-                                    <p className="text-[10px] text-muted-foreground ml-1">Drücke Enter zum Hinzufügen</p>
+                                    {!isReadOnly && <p className="text-[10px] text-muted-foreground ml-1">Drücke Enter zum Hinzufügen</p>}
                                 </div>
 
                                 {variations.length > 0 ? (
@@ -306,19 +321,22 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                         <div className="space-y-3">
                                             {variations.map((v, idx) => (
                                                 <div key={idx} className="bg-muted/30 border border-border rounded-xl p-4 relative group">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleRemoveVariation(idx)}
-                                                        className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground p-1.5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all z-10"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
+                                                    {!isReadOnly && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRemoveVariation(idx)}
+                                                            className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground p-1.5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all z-10"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    )}
                                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                                         <div className="space-y-1">
                                                             <label className="text-[10px] font-bold uppercase text-muted-foreground">Variante</label>
                                                             <select
-                                                                className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                                                                 value={v.ProductVariantId}
+                                                                disabled={isReadOnly}
                                                                 onChange={(e) => handleUpdateVariation(idx, 'ProductVariantId', e.target.value)}
                                                             >
                                                                 {availableVariants.map(av => {
@@ -331,8 +349,9 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                                         <div className="space-y-1">
                                                             <label className="text-[10px] font-bold uppercase text-muted-foreground">Kategorie</label>
                                                             <input
-                                                                className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                                                                 value={v.category}
+                                                                disabled={isReadOnly}
                                                                 onChange={(e) => handleUpdateVariation(idx, 'category', e.target.value)}
                                                                 placeholder="z.B. Obst"
                                                                 list="category-suggestions"
@@ -341,8 +360,9 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                                         <div className="space-y-1">
                                                             <label className="text-[10px] font-bold uppercase text-muted-foreground">Einheit</label>
                                                             <input
-                                                                className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                                                                 value={v.unit}
+                                                                disabled={isReadOnly}
                                                                 onChange={(e) => handleUpdateVariation(idx, 'unit', e.target.value)}
                                                                 placeholder="kg, Stück..."
                                                             />
@@ -358,6 +378,7 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                             <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Kategorie</label>
                                             <Input
                                                 value={formData.category}
+                                                disabled={isReadOnly}
                                                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                                                 placeholder="z.B. Milchprodukte"
                                                 className="bg-muted/50 border-border h-12"
@@ -371,6 +392,7 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                             <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Standard-Einheit</label>
                                             <Input
                                                 value={formData.unit}
+                                                disabled={isReadOnly}
                                                 onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                                                 placeholder="z.B. Stück, kg, Packung"
                                                 className="bg-muted/50 border-border h-12"
@@ -385,7 +407,10 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                         Unverträglichkeiten
                                     </label>
 
-                                    <div className="bg-muted/30 border border-border rounded-xl p-3 space-y-3">
+                                    <div className={cn(
+                                        "bg-muted/30 border border-border rounded-xl p-3 space-y-3",
+                                        isReadOnly && "opacity-60 cursor-not-allowed"
+                                    )}>
                                         <div className="flex flex-wrap gap-2">
                                             {selectedIntoleranceIds.map(id => {
                                                 const intol = allIntolerances.find(i => i.id === id);
@@ -403,13 +428,15 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                                                 </span>
                                                             )}
                                                         </span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setSelectedIntoleranceIds(prev => prev.filter(i => i !== id))}
-                                                            className="hover:bg-red-500/20 rounded-full p-0.5 transition-colors"
-                                                        >
-                                                            <X size={12} />
-                                                        </button>
+                                                        {!isReadOnly && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setSelectedIntoleranceIds(prev => prev.filter(i => i !== id))}
+                                                                className="hover:bg-red-500/20 rounded-full p-0.5 transition-colors"
+                                                            >
+                                                                <X size={12} />
+                                                            </button>
+                                                        )}
                                                     </span>
                                                 );
                                             })}
@@ -418,45 +445,49 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                             )}
                                         </div>
 
-                                        <select
-                                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer hover:border-primary/30 transition-colors"
-                                            onChange={(e) => {
-                                                const val = Number(e.target.value);
-                                                if (val && !selectedIntoleranceIds.includes(val)) {
-                                                    setSelectedIntoleranceIds(prev => [...prev, val]);
+                                        {!isReadOnly && (
+                                            <select
+                                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer hover:border-primary/30 transition-colors"
+                                                onChange={(e) => {
+                                                    const val = Number(e.target.value);
+                                                    if (val && !selectedIntoleranceIds.includes(val)) {
+                                                        setSelectedIntoleranceIds(prev => [...prev, val]);
+                                                    }
+                                                    e.target.value = "";
+                                                }}
+                                                value=""
+                                            >
+                                                <option value="" disabled>Unverträglichkeit hinzufügen...</option>
+                                                {allIntolerances
+                                                    .filter(i => !selectedIntoleranceIds.includes(i.id))
+                                                    .map(i => (
+                                                        <option key={i.id} value={i.id}>
+                                                            {i.warningText || i.name}
+                                                        </option>
+                                                    ))
                                                 }
-                                                e.target.value = "";
-                                            }}
-                                            value=""
-                                        >
-                                            <option value="" disabled>Unverträglichkeit hinzufügen...</option>
-                                            {allIntolerances
-                                                .filter(i => !selectedIntoleranceIds.includes(i.id))
-                                                .map(i => (
-                                                    <option key={i.id} value={i.id}>
-                                                        {i.warningText || i.name}
-                                                    </option>
-                                                ))
-                                            }
-                                        </select>
+                                            </select>
+                                        )}
                                     </div>
                                 </div>
 
-                                <div className="flex justify-center">
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={handleAddVariation}
-                                        disabled={availableVariants.length > 0 && variations.length >= availableVariants.length}
-                                        className="text-primary hover:bg-primary/10 gap-2 border border-dashed border-primary/30 w-full py-6 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        <Plus size={16} />
-                                        {availableVariants.length > 0 && variations.length >= availableVariants.length
-                                            ? 'Alle Varianten hinzugefügt'
-                                            : 'Variante hinzufügen'}
-                                    </Button>
-                                </div>
+                                {!isReadOnly && (
+                                    <div className="flex justify-center">
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleAddVariation}
+                                            disabled={availableVariants.length > 0 && variations.length >= availableVariants.length}
+                                            className="text-primary hover:bg-primary/10 gap-2 border border-dashed border-primary/30 w-full py-6 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <Plus size={16} />
+                                            {availableVariants.length > 0 && variations.length >= availableVariants.length
+                                                ? 'Alle Varianten hinzugefügt'
+                                                : 'Variante hinzufügen'}
+                                        </Button>
+                                    </div>
+                                )}
 
                                 <div className="pt-4 flex gap-3">
                                     <Button
@@ -465,19 +496,21 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                         onClick={onClose}
                                         className="h-12 px-6"
                                     >
-                                        Abbrechen
+                                        {isReadOnly ? 'Schließen' : 'Abbrechen'}
                                     </Button>
 
                                     <div className="flex-1" />
 
-                                    <Button
-                                        type="submit"
-                                        disabled={loading}
-                                        className="h-12 gap-2 px-4 sm:px-8"
-                                    >
-                                        <Save size={18} />
-                                        <span className="hidden sm:inline">{loading ? 'Speichern...' : 'Speichern'}</span>
-                                    </Button>
+                                    {!isReadOnly && (
+                                        <Button
+                                            type="submit"
+                                            disabled={loading}
+                                            className="h-12 gap-2 px-4 sm:px-8"
+                                        >
+                                            <Save size={18} />
+                                            <span className="hidden sm:inline">{loading ? 'Speichern...' : 'Speichern'}</span>
+                                        </Button>
+                                    )}
                                 </div>
                             </form>
                         </Card>

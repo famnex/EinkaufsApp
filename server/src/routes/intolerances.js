@@ -186,7 +186,13 @@ router.post('/check', auth, async (req, res) => {
 
         // Fetch products with their global intolerances
         const products = await Product.findAll({
-            where: { id: productIds },
+            where: {
+                id: productIds,
+                [Op.or]: [
+                    { UserId: userId },
+                    { UserId: null }
+                ]
+            },
             include: [{ model: Intolerance, through: { attributes: ['probability'] } }]
         });
 

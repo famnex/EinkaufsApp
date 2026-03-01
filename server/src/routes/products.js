@@ -6,13 +6,24 @@ const { auth, admin } = require('../middleware/auth');
 router.get('/', auth, async (req, res) => {
     try {
         const { search, limit } = req.query;
-        let where = { UserId: req.user.effectiveId };
+        let where = {
+            [sequelize.Sequelize.Op.and]: [
+                {
+                    [sequelize.Sequelize.Op.or]: [
+                        { UserId: req.user.effectiveId },
+                        { UserId: null }
+                    ]
+                }
+            ]
+        };
 
         if (search) {
-            where[sequelize.Sequelize.Op.or] = [
-                { name: { [sequelize.Sequelize.Op.like]: `%${search}%` } },
-                { category: { [sequelize.Sequelize.Op.like]: `%${search}%` } }
-            ];
+            where[sequelize.Sequelize.Op.and].push({
+                [sequelize.Sequelize.Op.or]: [
+                    { name: { [sequelize.Sequelize.Op.like]: `%${search}%` } },
+                    { category: { [sequelize.Sequelize.Op.like]: `%${search}%` } }
+                ]
+            });
         }
 
         const products = await Product.findAll({
@@ -22,7 +33,12 @@ router.get('/', auth, async (req, res) => {
                 { model: HiddenCleanup, where: { UserId: req.user.effectiveId }, required: false },
                 {
                     model: ProductVariation,
-                    where: { UserId: req.user.effectiveId },
+                    where: {
+                        [sequelize.Sequelize.Op.or]: [
+                            { UserId: req.user.effectiveId },
+                            { UserId: null }
+                        ]
+                    },
                     required: false,
                     include: [{ model: ProductVariant }]
                 },
@@ -43,7 +59,10 @@ router.get('/units', auth, async (req, res) => {
         const products = await Product.findAll({
             attributes: ['unit'],
             where: {
-                UserId: req.user.effectiveId,
+                [sequelize.Sequelize.Op.or]: [
+                    { UserId: req.user.effectiveId },
+                    { UserId: null }
+                ],
                 unit: { [sequelize.Sequelize.Op.ne]: null }
             }
         });
@@ -67,7 +86,7 @@ router.post('/', auth, async (req, res) => {
                 await ProductVariation.create({
                     ...v,
                     ProductId: product.id,
-                    UserId: req.user.effectiveId
+                    UserId: product.UserId
                 }, { transaction: t });
             }
         }
@@ -96,10 +115,25 @@ router.put('/:id', auth, async (req, res) => {
     const t = await sequelize.transaction();
     try {
         const { variations, intoleranceIds, intolerances, ...productData } = req.body;
-        const product = await Product.findOne({ where: { id: req.params.id, UserId: req.user.effectiveId } });
+        const product = await Product.findOne({
+            where: {
+                id: req.params.id,
+                [sequelize.Sequelize.Op.or]: [
+                    { UserId: req.user.effectiveId },
+                    { UserId: null }
+                ]
+            }
+        });
+
         if (!product) {
             await t.rollback();
             return res.status(404).json({ error: 'Product not found or unauthorized' });
+        }
+
+        // Permission check: if global (UserId null), only admin can edit
+        if (product.UserId === null && req.user.role !== 'admin') {
+            await t.rollback();
+            return res.status(403).json({ error: 'Nur Administratoren können globale Produkte bearbeiten' });
         }
 
         await product.update(productData, { transaction: t });
@@ -111,7 +145,7 @@ router.put('/:id', auth, async (req, res) => {
                 await ProductVariation.create({
                     ...v,
                     ProductId: product.id,
-                    UserId: req.user.effectiveId
+                    UserId: product.UserId
                 }, { transaction: t });
             }
         } else if (variations === null) {
@@ -143,8 +177,22 @@ router.put('/:id', auth, async (req, res) => {
 
 router.delete('/:id', auth, async (req, res) => {
     try {
-        const product = await Product.findOne({ where: { id: req.params.id, UserId: req.user.effectiveId } });
+        const product = await Product.findOne({
+            where: {
+                id: req.params.id,
+                [sequelize.Sequelize.Op.or]: [
+                    { UserId: req.user.effectiveId },
+                    { UserId: null }
+                ]
+            }
+        });
+
         if (!product) return res.status(404).json({ error: 'Product not found or unauthorized' });
+
+        // Permission check: if global (UserId null), only admin can delete
+        if (product.UserId === null && req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Nur Administratoren können globale Produkte löschen' });
+        }
         await product.destroy();
         res.json({ message: 'Product deleted' });
     } catch (err) {
