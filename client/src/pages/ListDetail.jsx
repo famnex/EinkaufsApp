@@ -68,6 +68,11 @@ export default function ListDetail() {
     const lastTapItemRef = useRef(null);
     const singleTapTimeoutRef = useRef(null);
 
+    // Track locally deleted items to prevent them from reappearing during polling
+    const pendingDeletesRef = useRef(new Set());
+    // Track locally toggled bought states to prevent flickering during polling
+    const pendingTogglesRef = useRef(new Map());
+
     // Track known item IDs to only animate truly new items (not on re-render/rotation)
     const knownItemIdsRef = useRef(new Set());
 
@@ -122,10 +127,24 @@ export default function ListDetail() {
             const { data } = await api.get(`/lists/${id}`, { skipCache: true });
             setActiveStoreId(data.CurrentStoreId || '');
 
-            // Server now handles smart sorting.
+            // Filter out items that were optimistically deleted but server hasn't caught up yet
+            if (pendingDeletesRef.current.size > 0) {
+                data.ListItems = data.ListItems.filter(i => !pendingDeletesRef.current.has(i.id));
+            }
+
+            // Apply pending toggle states over server data
+            if (pendingTogglesRef.current.size > 0) {
+                data.ListItems = data.ListItems.map(i => {
+                    const toggle = pendingTogglesRef.current.get(i.id);
+                    if (toggle) {
+                        return { ...i, is_bought: toggle.is_bought, bought_at: toggle.bought_at };
+                    }
+                    return i;
+                });
+            }
+
             setList(data);
             return data;
-            // Note: Data from server might have store set in DB, but UI starts empty.
         } catch (err) {
             console.error('Failed to fetch list details', err);
         } finally {
@@ -384,6 +403,10 @@ export default function ListDetail() {
         const newBoughtState = !item.is_bought;
         const newBoughtAt = newBoughtState ? new Date().toISOString() : null;
 
+        // Track this toggle so polling doesn't revert the state
+        pendingTogglesRef.current.set(item.id, { is_bought: newBoughtState, bought_at: newBoughtAt });
+        setTimeout(() => pendingTogglesRef.current.delete(item.id), 10000);
+
         // Optimistic UI update
         setList(prev => ({
             ...prev,
@@ -399,6 +422,10 @@ export default function ListDetail() {
     };
 
     const deleteItem = async (itemId) => {
+        // Track this deletion so polling doesn't resurrect the item
+        pendingDeletesRef.current.add(itemId);
+        setTimeout(() => pendingDeletesRef.current.delete(itemId), 10000); // Clear after 10s
+
         // Optimistic UI update
         setList(prev => ({
             ...prev,
