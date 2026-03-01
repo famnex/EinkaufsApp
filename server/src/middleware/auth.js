@@ -40,9 +40,27 @@ const auth = async (req, res, next) => {
     }
 };
 
+const checkOptionalAuth = async (req, res, next) => {
+    const authHeader = req.header('Authorization');
+    if (!authHeader) return next();
+
+    const token = authHeader.replace('Bearer ', '');
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findByPk(decoded.id);
+        if (user) {
+            req.user = user;
+            req.user.effectiveId = user.householdId || user.id;
+        }
+    } catch (err) {
+        // Ignore errors, treating as unauthenticated
+    }
+    next();
+};
+
 const admin = (req, res, next) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied. Admin only.' });
     next();
 };
 
-module.exports = { auth, admin };
+module.exports = { auth, admin, checkOptionalAuth };

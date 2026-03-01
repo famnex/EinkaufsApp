@@ -28,6 +28,8 @@ export default function SharedCookbook() {
     const [allTags, setAllTags] = useState([]);
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [isSlotMachineOpen, setIsSlotMachineOpen] = useState(false);
+    const [followerCount, setFollowerCount] = useState(0);
+    const [isFollowed, setIsFollowed] = useState(false);
 
     // Determine API URL
     const baseURL = import.meta.env.BASE_URL === '/'
@@ -49,6 +51,8 @@ export default function SharedCookbook() {
                     title: data.cookbookTitle || 'MEIN KOCHBUCH',
                     image: data.cookbookImage
                 });
+                setFollowerCount(data.followerCount || 0);
+                setIsFollowed(data.isFollowed || false);
 
                 // Extract Categories
                 const cats = ['Alle', ...new Set(data.recipes.map(r => r.category).filter(Boolean))].sort();
@@ -133,6 +137,24 @@ export default function SharedCookbook() {
         }
     };
 
+    const toggleFollowCookbook = async () => {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            navigate('/login');
+            return;
+        }
+
+        try {
+            const { data } = await axios.post(`${API_URL.replace(/\/$/, '')}/auth/cookbooks/${sharingKey}/follow`, {}, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            setIsFollowed(data.isFollowed);
+            setFollowerCount(data.followerCount);
+        } catch (err) {
+            console.error('Failed to toggle follow', err);
+        }
+    };
+
     const renderImageUrl = (url) => {
         if (!url) return null;
         if (url.startsWith('http')) return url;
@@ -167,6 +189,17 @@ export default function SharedCookbook() {
                     <ArrowLeft size={20} />
                     <span className="text-sm font-bold hidden sm:inline pr-2">Zurück</span>
                 </button>
+
+                {localStorage.getItem('token') && (
+                    <button
+                        onClick={toggleFollowCookbook}
+                        className="fixed top-20 right-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-all z-40 flex items-center gap-2"
+                        title={isFollowed ? "Kochbuch entfolgen" : "Kochbuch folgen"}
+                    >
+                        <Heart size={20} className={cn("transition-colors duration-300", isFollowed ? "fill-rose-500 text-rose-500" : "text-white")} />
+                        <span className="text-sm font-bold hidden sm:inline pr-2">{followerCount} Follower</span>
+                    </button>
+                )}
 
                 <div className="max-w-7xl mx-auto px-4 py-8 md:py-20 relative z-10 flex flex-col items-center text-center">
                     <motion.div

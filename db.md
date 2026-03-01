@@ -29,6 +29,8 @@ Zentrales Benutzermodell.
 - `pendingTier` (ENUM): 'Silbergabel', 'none' - Scheduled downgrade [NEW v0.26.8].
 - `newsletterSignedUp` (BOOLEAN): Newsletter-Status [NEW v0.24.1].
 - `newsletterSignupDate` (DATE): Datum der Newsletter-Anmeldung [NEW v0.24.1].
+- `followNotificationsEnabled` (BOOLEAN): Status für Kochbuch-Benachrichtigungen [NEW v0.32.11].
+- `lastFollowedUpdatesCheck` (DATE): Zeitstempel der letzten Prüfung auf Kochbuch-Updates [NEW v0.32.12].
 - `isEmailVerified` (BOOLEAN): Status der E-Mail-Bestätigung [NEW v0.29.0].
 - `emailVerificationToken` (STRING): Token für E-Mail-Aktivierung [NEW v0.29.0].
 - `isPermanentlyBanned` (BOOLEAN)
@@ -164,7 +166,17 @@ Join-Tabelle zur Kennzeichnung von Produkten mit Unverträglichkeiten (Many-to-M
 
 ## 2. Migrationen & Änderungen
 
-### v0.31.9 - Produktvarianten (Februar 2026)
+### v0.32.12 - Followed Cookbook Updates (Februar 2026)
+1. **Update-Tracking**: Einführung der Spalte `lastFollowedUpdatesCheck` in der `Users` Tabelle.
+2. **Community Updates Feed**: Implementierung eines chronologischen Feeds für neue Rezepte von gefolgten Kochbüchern.
+3. **API Erweiterung**: Neue Endpunkte `/auth/followed-updates` und `/auth/mark-updates-seen`.
+
+### v0.32.11 - Follow Notifications (Februar 2026)
+1. **Benachrichtigungs-System**: Einführung der Spalte `followNotificationsEnabled` in der `Users` Tabelle.
+2. **Opt-in im Signup**: Neue Checkbox im Registrierungsprozess.
+3. **Einstellungen & Verwaltung**: Schalter in den Benutzereinstellungen (umbenannt in "Newsletter & Benachrichtigungen") und in der Admin-Benutzerverwaltung.
+
+### v0.32.10 - Recipe Ingredient Original Name (Februar 2026)
 1. **Produktvarianten-System**: Einführung der Tabellen `ProductVariants` und `ProductVariations` zur flexiblen Verwaltung von Produkt-Ausprägungen.
 2. **Einkaufslisten-Integration**: Erweiterung der `ListItems` um `ProductVariationId`, um die gewählte Variante auf der Liste zu speichern und die sortierung/einheit entsprechend anzupassen.
 3. **Smart Sorting Update**: Das Sorting-System nutzt nun prioritär die Kategorie der gewählten Variation. Erweiterung der `ProductRelations` Tabelle um `PredecessorVariationId` und `SuccessorVariationId`.
@@ -247,6 +259,12 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 10. **Debug Logging (v0.29.6)**:
     - Einführung der globalen Einstellung `system_debug_mode` in der `Settings` Tabelle.
     - Implementierung einer umfassenden Request- und Fehler-Protokollierung in `logs/system.log`.
+
+11. **Follow Notifications (v0.32.11)**: `node server/migrations/migrate_v0.32.11_user_follow_notifications.js`
+    - Fügt `followNotificationsEnabled` Spalte zu `Users` hinzu.
+
+12. **Followed Updates (v0.32.12)**: `node server/migrations/migrate_v0.32.12_user_last_updates_check.js`
+    - Fügt `lastFollowedUpdatesCheck` Spalte zu `Users` hinzu.
 
 ---
 *Diese Dokumentation dient als Basis für zukünftige DB-Update-Scripts.*

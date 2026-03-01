@@ -239,6 +239,12 @@
 - createdAt (DateTime)
 - updatedAt (DateTime)
 
+### UserFollows (M:N User <-> User, Cookbook Following)
+- userId (Integer, Foreign Key -> Users, the follower)
+- followedUserId (Integer, Foreign Key -> Users, the cookbook owner)
+- createdAt (DateTime)
+- updatedAt (DateTime)
+
 ## Changes
 - **v0.31.7**: Removed Manufacturer attribute from Products and dropped Manufacturers table.
 - **v0.31.8**: Moved 'note' from Product to ListItem (Notes are now list-specific).
@@ -249,3 +255,4 @@
 - **v0.32.4**: Added `probability` column to `ProductIntolerances` to store AI-calculated quantification of restrictions.
 - **v0.32.5**: Added `RecipeSubstitutions` table to support persistent ingredient replacements for specific recipes.
 - **v0.32.6**: Added `originalQuantity`, `originalUnit`, `substituteQuantity`, and `substituteUnit` to `RecipeSubstitutions` for precise adjustments.
+- **v0.32.7**: Added `UserFollows` many-to-many relationship for users to follow public/shared cookbooks. Added `followNotificationsEnabled` to `User` table.

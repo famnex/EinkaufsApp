@@ -52,7 +52,9 @@ const User = sequelize.define('User', {
     pendingEmail: { type: DataTypes.STRING, allowNull: true },
     tokenVersion: { type: DataTypes.INTEGER, defaultValue: 0 },
     cookbookClicks: { type: DataTypes.INTEGER, defaultValue: 0 },
-    intoleranceDisclaimerAccepted: { type: DataTypes.BOOLEAN, defaultValue: false }
+    intoleranceDisclaimerAccepted: { type: DataTypes.BOOLEAN, defaultValue: false },
+    followNotificationsEnabled: { type: DataTypes.BOOLEAN, defaultValue: false },
+    lastFollowedUpdatesCheck: { type: DataTypes.DATE, allowNull: true }
 });
 
 const Store = sequelize.define('Store', {
@@ -197,6 +199,9 @@ Newsletter.hasMany(NewsletterRecipient, { foreignKey: 'NewsletterId', onDelete: 
 NewsletterRecipient.belongsTo(Newsletter, { foreignKey: 'NewsletterId' });
 NewsletterRecipient.belongsTo(User, { foreignKey: 'UserId' });
 User.hasMany(NewsletterRecipient, { foreignKey: 'UserId' });
+
+User.belongsToMany(User, { through: 'UserFollows', as: 'FollowedCookbooks', foreignKey: 'userId', otherKey: 'followedUserId' });
+User.belongsToMany(User, { through: 'UserFollows', as: 'CookbookFollowers', foreignKey: 'followedUserId', otherKey: 'userId' });
 
 Recipe.hasMany(Menu);
 Menu.belongsTo(Recipe);

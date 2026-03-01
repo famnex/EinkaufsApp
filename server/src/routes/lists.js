@@ -800,8 +800,43 @@ router.put('/:id/recipe-items', auth, async (req, res) => {
             await ListItem.destroy({ where: { id: toDeleteIds, UserId: req.user.effectiveId } });
         }
 
-        // 3. Identify items to Create or Update
-        const operations = items.map(async (newItem) => {
+        // 3. Identify items to Create or Update with Substitution handling
+        const { RecipeSubstitution } = require('../models');
+        const menu = await require('../models').Menu.findByPk(MenuId, {
+            include: [{
+                model: require('../models').Recipe,
+                include: [{
+                    model: RecipeSubstitution,
+                    where: { UserId: req.user.effectiveId },
+                    required: false
+                }]
+            }]
+        });
+
+        const recipeSubsMap = new Map();
+        if (menu && menu.Recipe && menu.Recipe.RecipeSubstitutions) {
+            menu.Recipe.RecipeSubstitutions.forEach(s => recipeSubsMap.set(s.originalProductId, s));
+        }
+
+        const processedItems = [];
+        for (const item of items) {
+            const sub = recipeSubsMap.get(item.ProductId);
+            if (sub) {
+                if (sub.isOmitted) continue;
+                if (sub.substituteProductId) {
+                    processedItems.push({
+                        ...item,
+                        ProductId: sub.substituteProductId,
+                        quantity: sub.substituteQuantity !== null ? sub.substituteQuantity : item.quantity,
+                        unit: sub.substituteUnit || item.unit
+                    });
+                    continue;
+                }
+            }
+            processedItems.push(item);
+        }
+
+        const operations = processedItems.map(async (newItem) => {
             // Resolve the product to the user's own product list
             const resolvedProduct = await resolveProductForUser(newItem.ProductId, req.user.effectiveId);
             if (!resolvedProduct) return null;
@@ -900,11 +935,22 @@ router.get('/:id/planning-data', auth, async (req, res) => {
                     model: require('../models').Recipe,
                     attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'instructions', 'imageSource', 'bannedAt', 'UserId'],
                     required: false,
-                    include: [{
-                        model: require('../models').RecipeIngredient,
-                        required: false,
-                        include: [{ model: Product, required: false, include: [{ model: Store, where: { UserId: req.user.effectiveId }, required: false }] }]
-                    }]
+                    include: [
+                        {
+                            model: require('../models').RecipeIngredient,
+                            required: false,
+                            include: [{ model: Product, required: false, include: [{ model: Store, where: { UserId: req.user.effectiveId }, required: false }] }]
+                        },
+                        {
+                            model: require('../models').RecipeSubstitution,
+                            where: { UserId: req.user.effectiveId },
+                            required: false,
+                            include: [
+                                { model: Product, as: 'OriginalProduct' },
+                                { model: Product, as: 'SubstituteProduct' }
+                            ]
+                        }
+                    ]
                 }
             ]
         });
@@ -942,11 +988,28 @@ router.get('/:id/planning-data', auth, async (req, res) => {
         for (const menu of menus) {
             if (!menu.Recipe || !menu.Recipe.RecipeIngredients) continue;
 
-            for (const ing of menu.Recipe.RecipeIngredients) {
-                const origProductId = ing.ProductId;
+            const recipeSubs = menu.Recipe.RecipeSubstitutions || [];
+            const recipeSubsMap = new Map(); // originalProductId -> Substitution Object
+            recipeSubs.forEach(s => recipeSubsMap.set(s.originalProductId, s));
 
-                if (!productCache.has(origProductId)) {
-                    productCache.set(origProductId, await Product.findByPk(await resolveProductForUser(origProductId, req.user.effectiveId).then(p => p.id), {
+            for (const ing of menu.Recipe.RecipeIngredients) {
+                let currentProductId = ing.ProductId;
+                let currentQuantity = parseFloat(ing.quantity);
+                let currentUnit = ing.unit;
+
+                // 1. Handle Recipe-Specific Substitution/Omission
+                const recipeSub = recipeSubsMap.get(ing.ProductId);
+                if (recipeSub) {
+                    if (recipeSub.isOmitted) continue; // Skip totally
+                    if (recipeSub.substituteProductId) {
+                        currentProductId = recipeSub.substituteProductId;
+                        currentQuantity = recipeSub.substituteQuantity !== null ? recipeSub.substituteQuantity : currentQuantity;
+                        currentUnit = recipeSub.substituteUnit || currentUnit;
+                    }
+                }
+
+                if (!productCache.has(currentProductId)) {
+                    productCache.set(currentProductId, await Product.findByPk(await resolveProductForUser(currentProductId, req.user.effectiveId).then(p => p.id), {
                         include: [{
                             model: ProductVariation,
                             required: false,
@@ -958,12 +1021,12 @@ router.get('/:id/planning-data', auth, async (req, res) => {
                         }]
                     }));
                 }
-                const resolvedProduct = productCache.get(origProductId);
+                const resolvedProduct = productCache.get(currentProductId);
                 if (!resolvedProduct) continue;
 
                 const resolvedProductId = resolvedProduct.id;
 
-                // Check if there's a substitution for this product
+                // 2. Handle List-Wide Product Substitution
                 const effectiveProductId = subsMap.get(resolvedProductId) || resolvedProductId;
 
                 if (!aggregated[resolvedProductId]) {
@@ -979,14 +1042,14 @@ router.get('/:id/planning-data', auth, async (req, res) => {
                     };
                 }
                 const entry = aggregated[resolvedProductId];
-                const unit = ing.unit || resolvedProduct.unit || 'Stück';
+                const unit = currentUnit || resolvedProduct.unit || 'Stück';
 
-                entry.neededByUnit[unit] = (entry.neededByUnit[unit] || 0) + parseFloat(ing.quantity);
+                entry.neededByUnit[unit] = (entry.neededByUnit[unit] || 0) + currentQuantity;
 
                 entry.sources.push({
                     date: menu.date,
                     recipe: menu.Recipe.title,
-                    amount: ing.quantity,
+                    amount: currentQuantity,
                     unit: unit
                 });
             }

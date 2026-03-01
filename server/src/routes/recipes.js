@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { Recipe, RecipeIngredient, Product, Tag, Menu, RecipeTag, sequelize, User, RecipeSubstitution } = require('../models');
-const { auth } = require('../middleware/auth');
+const { Recipe, RecipeIngredient, Product, Tag, Menu, RecipeTag, sequelize, User, RecipeSubstitution, RecipeInstructionOverride } = require('../models');
+const { auth, checkOptionalAuth } = require('../middleware/auth');
 const { Op } = require('sequelize');
 const multer = require('multer');
 const path = require('path');
@@ -127,7 +127,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // Public recipe details (No Auth)
-router.get('/public/:sharingKey/:id', async (req, res) => {
+router.get('/public/:sharingKey/:id', checkOptionalAuth, async (req, res) => {
     try {
         const { sharingKey, id } = req.params;
         const { User } = require('../models');
@@ -156,7 +156,13 @@ router.get('/public/:sharingKey/:id', async (req, res) => {
                     required: false,
                     include: [{ model: Product, where: { UserId: user.id }, required: false }]
                 },
-                { model: Tag, where: { UserId: user.id }, required: false }
+                { model: Tag, where: { UserId: user.id }, required: false },
+                {
+                    model: require('../models').User,
+                    as: 'FavoritedBy',
+                    attributes: ['id'],
+                    through: { attributes: [] }
+                }
             ]
         });
 
@@ -179,6 +185,10 @@ router.get('/public/:sharingKey/:id', async (req, res) => {
         // Include user info for display
         plain.ownerUsername = user.username;
         plain.cookbookTitle = user.cookbookTitle;
+        plain.likeCount = plain.FavoritedBy ? plain.FavoritedBy.length : 0;
+        plain.isFavorite = req.user ? (plain.FavoritedBy || []).some(u => u.id === req.user.id) : false;
+
+        delete plain.FavoritedBy; // Clean up payload
         res.json(plain);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -189,34 +199,21 @@ router.get('/public/:sharingKey/:id', async (req, res) => {
 // Let's implement a quick inline optional check using the existing jwt logic, or just write it here.
 const jwt = require('jsonwebtoken');
 
-const checkOptionalAuth = async (req, res, next) => {
-    const authHeader = req.header('Authorization');
-    if (!authHeader) return next();
-
-    const token = authHeader.replace('Bearer ', '');
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const { User } = require('../models');
-        const user = await User.findByPk(decoded.id);
-        if (user) {
-            // For households, same logic as auth middleware
-            req.user = {
-                ...user.get({ plain: true }),
-                effectiveId: user.householdId || user.id
-            };
-        }
-    } catch (err) {
-        // Ignore errors, treating as unauthenticated
-    }
-    next();
-};
 
 // Public recipes list (Optional Auth)
 router.get('/public/:sharingKey', checkOptionalAuth, async (req, res) => {
     try {
         const { sharingKey } = req.params;
         const { User } = require('../models');
-        const listOwner = await User.findOne({ where: { sharingKey } });
+        const listOwner = await User.findOne({
+            where: { sharingKey },
+            include: [{
+                model: User,
+                as: 'CookbookFollowers',
+                attributes: ['id'],
+                through: { attributes: [] }
+            }]
+        });
 
         if (!listOwner) return res.status(403).json({ error: 'Ungültiger Freigabe-Link.' });
         if (!listOwner.isPublicCookbook) return res.status(403).json({ error: 'Dieses Kochbuch ist privat.' });
@@ -290,7 +287,9 @@ router.get('/public/:sharingKey', checkOptionalAuth, async (req, res) => {
         res.json({
             recipes: sanitizedRecipes,
             cookbookTitle: listOwner.cookbookTitle,
-            cookbookImage: listOwner.cookbookImage
+            cookbookImage: listOwner.cookbookImage,
+            followerCount: listOwner.CookbookFollowers ? listOwner.CookbookFollowers.length : 0,
+            isFollowed: req.user ? (listOwner.CookbookFollowers && listOwner.CookbookFollowers.some(f => f.id === req.user.id)) : false
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -650,10 +649,18 @@ router.put('/:id/ingredients/:ingredientId', auth, async (req, res) => {
 // Remove ingredient
 router.delete('/:id/ingredients/:ingredientId', auth, async (req, res) => {
     try {
+        console.log(`[RecipeIngredient] Attempting to delete Ingredient ${req.params.ingredientId} from Recipe ${req.params.id} for User ${req.user.effectiveId}`);
         const ingredient = await RecipeIngredient.findOne({
-            where: { id: req.params.ingredientId, RecipeId: req.params.id }
+            where: {
+                id: req.params.ingredientId,
+                RecipeId: req.params.id,
+                UserId: req.user.effectiveId
+            }
         });
-        if (!ingredient) return res.status(404).json({ error: 'Ingredient not found' });
+        if (!ingredient) {
+            console.warn(`[RecipeIngredient] Ingredient ${req.params.ingredientId} not found or unauthorized for Recipe ${req.params.id}`);
+            return res.status(404).json({ error: 'Ingredient not found' });
+        }
 
         const { ProductId, RecipeId } = ingredient;
 
@@ -680,6 +687,7 @@ router.delete('/:id/ingredients/:ingredientId', auth, async (req, res) => {
 
             // Delete the ingredient
             await ingredient.destroy({ transaction: t });
+            console.log(`[RecipeIngredient] Successfully deleted Ingredient ${req.params.ingredientId}`);
         });
 
         res.json({ message: 'Ingredient and coupled substitutions removed' });

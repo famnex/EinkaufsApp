@@ -42,7 +42,8 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
                 cookbookTitle: data.user.cookbookTitle,
                 cookbookImage: data.user.cookbookImage,
                 password: '',
-                newsletterSignedUp: data.user.newsletterSignedUp || false
+                newsletterSignedUp: data.user.newsletterSignedUp || false,
+                followNotificationsEnabled: data.user.followNotificationsEnabled || false
             });
         } catch (err) {
             console.error('Failed to fetch user detail', err);
@@ -282,6 +283,21 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
                                                                 )} />
                                                             </div>
                                                             <span className="text-sm font-medium">{editData.newsletterSignedUp ? 'Abonniert' : 'Nicht abonniert'}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Kochbuch-Follow</label>
+                                                        <div className="flex items-center gap-3 h-12 bg-muted border-transparent rounded-2xl px-4 cursor-pointer" onClick={() => setEditData({ ...editData, followNotificationsEnabled: !editData.followNotificationsEnabled })}>
+                                                            <div className={cn(
+                                                                "w-10 h-6 rounded-full transition-colors flex items-center p-1",
+                                                                editData.followNotificationsEnabled ? "bg-primary" : "bg-muted-foreground/30"
+                                                            )}>
+                                                                <div className={cn(
+                                                                    "w-4 h-4 rounded-full bg-white shadow-sm transition-transform",
+                                                                    editData.followNotificationsEnabled ? "translate-x-4" : "translate-x-0"
+                                                                )} />
+                                                            </div>
+                                                            <span className="text-sm font-medium">{editData.followNotificationsEnabled ? 'Aktiviert' : 'Deaktiviert'}</span>
                                                         </div>
                                                     </div>
                                                 </div>

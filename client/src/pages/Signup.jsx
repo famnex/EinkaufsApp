@@ -85,6 +85,7 @@ export default function SignupPage() {
     const [loadingLegal, setLoadingLegal] = useState(false);
     const [acceptedTerms, setAcceptedTerms] = useState(false);
     const [subscribeNewsletter, setSubscribeNewsletter] = useState(false);
+    const [followNotificationsEnabled, setFollowNotificationsEnabled] = useState(false);
 
     const { signup, user } = useAuth();
     const navigate = useNavigate();
@@ -167,7 +168,7 @@ export default function SignupPage() {
         setIsLoading(true);
         try {
             // Pass newsletter flag to signup
-            const result = await signup(username, password, email, subscribeNewsletter);
+            const result = await signup(username, password, email, subscribeNewsletter, followNotificationsEnabled);
 
             if (result?.needsVerification) {
                 setVerificationSent(true);
@@ -386,6 +387,24 @@ export default function SignupPage() {
                                             </div>
                                             <span className="text-xs text-muted-foreground leading-snug">
                                                 Ich möchte den kostenlosen <span className="font-bold text-foreground">Gabelguru-Newsletter</span> erhalten und über neue Funktionen und Angebote informiert werden. Eine Abmeldung ist jederzeit möglich.
+                                            </span>
+                                        </label>
+
+                                        {/* Optional Follow Notifications */}
+                                        <label className="flex items-start gap-3 p-3 rounded-xl border border-border/50 bg-background/30 cursor-pointer hover:bg-background/50 transition-colors">
+                                            <div className="relative flex items-center mt-0.5">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={followNotificationsEnabled}
+                                                    onChange={(e) => setFollowNotificationsEnabled(e.target.checked)}
+                                                    className="peer sr-only"
+                                                />
+                                                <div className="w-5 h-5 rounded border border-muted-foreground/30 peer-checked:bg-primary peer-checked:border-primary transition-all flex items-center justify-center text-primary-foreground">
+                                                    <Check size={14} className="opacity-0 peer-checked:opacity-100" />
+                                                </div>
+                                            </div>
+                                            <span className="text-xs text-muted-foreground leading-snug">
+                                                Ich stimme zu, dass das System mir <span className="font-bold text-foreground">Benachrichtigungen über Kochbücher</span> sendet, denen ich folge.
                                             </span>
                                         </label>
                                     </div>

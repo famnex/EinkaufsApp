@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { User, Settings, LoginLog, Recipe } = require('../models');
-const { auth } = require('../middleware/auth');
+const { User, Settings, LoginLog, Recipe, sequelize } = require('../models');
+const { auth, admin, checkOptionalAuth } = require('../middleware/auth');
 const logger = require('../utils/logger');
 const { sendSystemEmail } = require('../services/emailService');
 const multer = require('multer');
@@ -34,22 +34,30 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // Get all public cookbooks (for community page)
-router.get('/public-cookbooks', async (req, res) => {
+router.get('/public-cookbooks', checkOptionalAuth, async (req, res) => {
     try {
         logger.logSystem('DEBUG', 'Fetching public cookbooks...');
         const users = await User.findAll({
             where: { isCommunityVisible: true, bannedAt: null },
-            attributes: ['id', 'username', 'cookbookTitle', 'cookbookImage', 'sharingKey', 'cookbookClicks'],
-            include: [{
-                model: Recipe,
-                attributes: ['id', 'image_url'],
-                include: [{
+            attributes: ['id', 'username', 'cookbookTitle', 'cookbookImage', 'sharingKey', 'cookbookClicks', 'householdId'],
+            include: [
+                {
+                    model: Recipe,
+                    attributes: ['id', 'image_url', 'UserId'],
+                    include: [{
+                        model: User,
+                        as: 'FavoritedBy',
+                        attributes: ['id'],
+                        through: { attributes: [] }
+                    }]
+                },
+                {
                     model: User,
-                    as: 'FavoritedBy',
+                    as: 'CookbookFollowers',
                     attributes: ['id'],
                     through: { attributes: [] }
-                }]
-            }]
+                }
+            ]
         });
 
         logger.logSystem('DEBUG', `Found ${users.length} public users.`);
@@ -76,6 +84,8 @@ router.get('/public-cookbooks', async (req, res) => {
             }
 
             return {
+                id: user.id,
+                householdId: user.householdId,
                 username: user.username,
                 cookbookTitle: user.cookbookTitle,
                 cookbookImage: user.cookbookImage,
@@ -83,7 +93,9 @@ router.get('/public-cookbooks', async (req, res) => {
                 sharingKey: user.sharingKey,
                 recipeCount: user.Recipes ? user.Recipes.length : 0,
                 totalFavorites: totalFavorites,
-                cookbookClicks: user.cookbookClicks || 0
+                cookbookClicks: user.cookbookClicks || 0,
+                followerCount: user.CookbookFollowers ? user.CookbookFollowers.length : 0,
+                isFollowed: req.user ? (user.CookbookFollowers && user.CookbookFollowers.some(f => f.id === req.user.id)) : false
             };
         });
 
@@ -125,7 +137,7 @@ router.get('/check-username', async (req, res) => {
 router.get('/me', auth, async (req, res) => {
     try {
         const user = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
+            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'followNotificationsEnabled', 'lastFollowedUpdatesCheck', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
         });
         if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -144,7 +156,14 @@ router.get('/me', auth, async (req, res) => {
             }
         }
 
-        res.json(user);
+        const userData = user.get({ plain: true });
+
+        // Follower Count
+        const targetUserId = user.householdId || user.id;
+        const targetUserForFollowers = targetUserId === user.id ? user : await User.findByPk(targetUserId);
+        userData.followerCount = await targetUserForFollowers.countCookbookFollowers();
+
+        res.json(userData);
     } catch (err) {
         logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
@@ -186,7 +205,7 @@ router.get('/credits', auth, async (req, res) => {
 // Update Profile (Title & Image)
 router.put('/profile', auth, upload.single('image'), async (req, res) => {
     try {
-        const { cookbookTitle, isPublicCookbook, isCommunityVisible, newsletterSignedUp } = req.body;
+        const { cookbookTitle, isPublicCookbook, isCommunityVisible, newsletterSignedUp, followNotificationsEnabled } = req.body;
         const updates = {};
         if (cookbookTitle !== undefined) updates.cookbookTitle = cookbookTitle;
         if (isPublicCookbook !== undefined) {
@@ -197,6 +216,7 @@ router.put('/profile', auth, upload.single('image'), async (req, res) => {
             }
         }
         if (isCommunityVisible !== undefined) updates.isCommunityVisible = isCommunityVisible;
+        if (followNotificationsEnabled !== undefined) updates.followNotificationsEnabled = followNotificationsEnabled;
         if (newsletterSignedUp !== undefined) {
             updates.newsletterSignedUp = newsletterSignedUp;
             updates.newsletterSignupDate = newsletterSignedUp ? new Date() : null;
@@ -209,26 +229,116 @@ router.put('/profile', auth, upload.single('image'), async (req, res) => {
 
         await User.update(updates, { where: { id: req.user.id } });
         const updatedUser = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
+            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'followNotificationsEnabled', 'lastFollowedUpdatesCheck', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
         });
-        res.json(updatedUser);
+        const userData = updatedUser.get({ plain: true });
+        const targetUserId = updatedUser.householdId || updatedUser.id;
+        const targetUserForFollowers = targetUserId === updatedUser.id ? updatedUser : await User.findByPk(targetUserId);
+        userData.followerCount = await targetUserForFollowers.countCookbookFollowers();
+
+        res.json(userData);
     } catch (err) {
         logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
     }
 });
 
-// Regenerate Sharing Key
-router.post('/regenerate-sharing-key', auth, async (req, res) => {
+// Toggle Follow Cookbook
+router.post('/cookbooks/:sharingKey/follow', auth, async (req, res) => {
     try {
-        const newKey = crypto.randomBytes(8).toString('hex');
-        await User.update({ sharingKey: newKey }, { where: { id: req.user.id } });
-        res.json({ sharingKey: newKey });
+        const { sharingKey } = req.params;
+        const targetUser = await User.findOne({ where: { sharingKey } });
+
+        if (!targetUser) {
+            return res.status(404).json({ error: 'Cookbook not found' });
+        }
+
+        if (targetUser.id === req.user.id || (req.user.householdId && targetUser.householdId === req.user.householdId)) {
+            return res.status(400).json({ error: 'You cannot follow your own cookbook' });
+        }
+
+        const isFollowing = await req.user.hasFollowedCookbook(targetUser);
+
+        if (isFollowing) {
+            await req.user.removeFollowedCookbook(targetUser);
+            res.json({ isFollowed: false, followerCount: await targetUser.countCookbookFollowers() });
+        } else {
+            await req.user.addFollowedCookbook(targetUser);
+            res.json({ isFollowed: true, followerCount: await targetUser.countCookbookFollowers() });
+        }
     } catch (err) {
-        logger.logError('Error in auth route:', err);
+        logger.logError('Follow toggle failed:', err);
         res.status(500).json({ error: err.message });
     }
 });
+
+// Get Updates from Followed Cookbooks
+router.get('/followed-updates', auth, async (req, res) => {
+    try {
+        const { Recipe } = require('../models'); // Assuming Recipe model is available
+        const followedUsers = await req.user.getFollowedCookbooks({
+            attributes: ['id', 'username', 'cookbookTitle', 'sharingKey']
+        });
+
+        if (followedUsers.length === 0) {
+            return res.json({ updates: [], lastFollowedUpdatesCheck: req.user.lastFollowedUpdatesCheck });
+        }
+
+        const updates = [];
+        for (const followedUser of followedUsers) {
+            const recipes = await Recipe.findAll({
+                where: { UserId: followedUser.id },
+                attributes: ['id', 'title', 'image_url', 'createdAt'],
+                include: [{
+                    model: require('../models').User,
+                    as: 'FavoritedBy',
+                    attributes: ['id'],
+                    through: { attributes: [] }
+                }],
+                limit: 5,
+                order: [['createdAt', 'DESC']]
+            });
+
+            recipes.forEach(recipe => {
+                const plain = recipe.get({ plain: true });
+                updates.push({
+                    id: plain.id,
+                    name: plain.title,
+                    image_url: plain.image_url,
+                    createdAt: plain.createdAt,
+                    likeCount: plain.FavoritedBy ? plain.FavoritedBy.length : 0,
+                    username: followedUser.username,
+                    cookbookTitle: followedUser.cookbookTitle,
+                    sharingKey: followedUser.sharingKey
+                });
+            });
+        }
+
+        // Sort by date DESC
+        updates.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        res.json({
+            updates,
+            lastFollowedUpdatesCheck: req.user.lastFollowedUpdatesCheck
+        });
+    } catch (err) {
+        logger.logError('Followed updates fetch failed:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Mark Updates as Seen
+router.post('/mark-updates-seen', auth, async (req, res) => {
+    try {
+        await req.user.update({ lastFollowedUpdatesCheck: new Date() });
+        res.json({ success: true, lastFollowedUpdatesCheck: req.user.lastFollowedUpdatesCheck });
+    } catch (err) {
+        logger.logError('Mark updates seen failed:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Regenerate Sharing Key
 
 // Change Email
 router.put('/email', auth, async (req, res) => {
@@ -677,7 +787,14 @@ router.post('/login', async (req, res) => {
 
         const token = jwt.sign({ id: user.id, role: user.role, version: user.tokenVersion }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-        res.json({ token, user: { id: user.id, username: user.username, email: user.email, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId } });
+        const userData = { id: user.id, username: user.username, email: user.email, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, followNotificationsEnabled: user.followNotificationsEnabled, lastFollowedUpdatesCheck: user.lastFollowedUpdatesCheck, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId };
+
+        // Follower Count
+        const targetUserId = user.householdId || user.id;
+        const targetUserForFollowers = targetUserId === user.id ? user : await User.findByPk(targetUserId);
+        userData.followerCount = await targetUserForFollowers.countCookbookFollowers();
+
+        res.json({ token, user: userData });
     } catch (err) {
         logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
@@ -717,6 +834,7 @@ router.post('/signup', async (req, res) => {
             role: isFirstUser ? 'admin' : 'user', // First user is always admin
             newsletterSignedUp: !!newsletter,
             newsletterSignupDate: newsletter ? new Date() : null,
+            followNotificationsEnabled: req.body.followNotificationsEnabled || false,
             isEmailVerified: isFirstUser, // Admin (first user) is auto-verified
             emailVerificationToken: isFirstUser ? null : verificationToken
         });
@@ -746,7 +864,7 @@ router.post('/signup', async (req, res) => {
 
         const token = jwt.sign({ id: user.id, role: user.role, version: user.tokenVersion }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-        res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId } });
+        res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, followNotificationsEnabled: user.followNotificationsEnabled, lastFollowedUpdatesCheck: user.lastFollowedUpdatesCheck, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId, followerCount: 0 } });
     } catch (err) {
         console.error('Signup Error:', err); // Debug Log
         if (!process.env.JWT_SECRET) console.error('CRITICAL: JWT_SECRET is missing!');

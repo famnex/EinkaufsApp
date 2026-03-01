@@ -58,8 +58,8 @@ export const AuthProvider = ({ children }) => {
         return data.user;
     };
 
-    const signup = async (username, password, email, newsletter = false) => {
-        const { data } = await api.post('/auth/signup', { username, password, email, newsletter });
+    const signup = async (username, password, email, newsletter = false, followNotificationsEnabled = false) => {
+        const { data } = await api.post('/auth/signup', { username, password, email, newsletter, followNotificationsEnabled });
 
         if (data.needsVerification) {
             return data;

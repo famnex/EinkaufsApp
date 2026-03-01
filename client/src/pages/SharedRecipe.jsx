@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ChefHat, Clock, Play, User, Users, ShieldCheck, ArrowLeft, AlertTriangle, AlertCircle, HelpCircle } from 'lucide-react';
+import { ChefHat, Clock, Play, User, Users, ShieldCheck, ArrowLeft, AlertTriangle, AlertCircle, HelpCircle, Heart } from 'lucide-react';
 import IntoleranceIcon from '../components/IntoleranceIcon';
 import { Card } from '../components/Card';
 import SharedCookingMode from '../components/SharedCookingMode';
@@ -20,18 +20,12 @@ export default function SharedRecipe() {
     const [conflicts, setConflicts] = useState([]);
     const [activeTooltip, setActiveTooltip] = useState(null); // productId or nulll
 
-    // Determine API URL based on environment and base path
-    const baseURL = import.meta.env.BASE_URL === '/'
-        ? '/api'
-        : `${import.meta.env.BASE_URL}api`.replace('//', '/');
-    const API_URL = import.meta.env.VITE_API_URL || baseURL;
 
     useEffect(() => {
         const fetchRecipe = async () => {
             try {
-                // Ensure we don't have double slashes if API_URL ends with /
-                const url = `${API_URL.replace(/\/$/, '')}/recipes/public/${sharingKey}/${id}`;
-                const { data } = await axios.get(url);
+                // Use authenticated API instance if token exists to see like status
+                const { data } = await api.get(`/recipes/public/${sharingKey}/${id}`);
                 setRecipe(data);
 
                 // Check for intolerances if logged in
@@ -43,7 +37,6 @@ export default function SharedRecipe() {
 
                     if (productIds.length > 0) {
                         try {
-                            const checkUrl = `${API_URL.replace(/\/$/, '')}/intolerances/check`;
                             const { data: conflictData } = await api.post('/intolerances/check', { productIds });
                             setConflicts(conflictData);
                         } catch (err) {
@@ -59,7 +52,7 @@ export default function SharedRecipe() {
             }
         };
         fetchRecipe();
-    }, [id, API_URL, sharingKey]);
+    }, [id, sharingKey]);
 
     useEffect(() => {
         if (!activeTooltip) return;
@@ -93,6 +86,25 @@ export default function SharedRecipe() {
         const cleanBase = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
 
         return `${cleanBase}/${cleanUrl}`;
+    };
+
+    const toggleLike = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                // Potential placeholder for login redirect or message
+                return;
+            }
+
+            const { data } = await api.post(`/recipes/${id}/favorite`);
+            setRecipe(prev => ({
+                ...prev,
+                isFavorite: data.isFavorite,
+                likeCount: data.isFavorite ? (prev.likeCount || 0) + 1 : Math.max(0, (prev.likeCount || 0) - 1)
+            }));
+        } catch (err) {
+            console.error('Failed to toggle like', err);
+        }
     };
 
     const getConflictForProduct = (productId) => {
@@ -166,14 +178,28 @@ export default function SharedRecipe() {
                         </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                    <div className="absolute top-4 left-4 z-20">
+                    <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
                         <button
                             onClick={() => navigate(-1)}
-                            className="fixed top-20 left-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-all z-40 flex items-center gap-2"
+                            className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-all flex items-center gap-2"
                         >
                             <ArrowLeft size={20} />
                             <span className="text-sm font-bold hidden sm:inline pr-2">Zurück</span>
                         </button>
+
+                        {localStorage.getItem('token') && (
+                            <button
+                                onClick={toggleLike}
+                                className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-all flex items-center gap-2"
+                                title={recipe.isFavorite ? "Gefällt mir entfernen" : "Gefällt mir"}
+                            >
+                                <Heart
+                                    size={20}
+                                    className={cn("transition-colors duration-300", recipe.isFavorite ? "fill-rose-500 text-rose-500" : "fill-none text-white")}
+                                />
+                                {recipe.likeCount > 0 && <span className="text-sm font-bold pr-1">{recipe.likeCount}</span>}
+                            </button>
+                        )}
                     </div>
                     <div className="absolute bottom-0 left-0 right-0 p-6 pt-20 text-white">
                         <span className="px-2 py-1 bg-primary/20 text-primary-foreground text-xs uppercase font-bold rounded-full backdrop-blur-md border border-white/10 mb-2 inline-block">

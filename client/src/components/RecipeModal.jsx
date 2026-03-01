@@ -274,7 +274,9 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
 
     const removeIngredient = (index) => {
         const item = ingredients[index];
+        console.log(`[RecipeModal] Removing ingredient at index ${index}:`, item);
         if (item.id) {
+            console.log(`[RecipeModal] Queuing for backend deletion, ID: ${item.id}`);
             setDeletedIngredients([...deletedIngredients, item.id]);
         }
         const newIng = [...ingredients];

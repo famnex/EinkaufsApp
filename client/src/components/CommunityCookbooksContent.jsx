@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChefHat, Search, ArrowRight, BookOpen, User, Star, TrendingUp, Users, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { ChefHat, Search, ArrowRight, BookOpen, User, Star, TrendingUp, Users, ShieldCheck, ArrowLeft, Heart, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card } from './Card';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -33,6 +33,24 @@ export default function CommunityCookbooksContent() {
         }
     };
 
+    const toggleFollow = async (e, cb) => {
+        e.stopPropagation();
+        if (!user) {
+            navigate('/login');
+            return;
+        }
+        try {
+            const { data } = await api.post(`/auth/cookbooks/${cb.sharingKey}/follow`);
+            setCookbooks(prev => prev.map(c =>
+                c.sharingKey === cb.sharingKey
+                    ? { ...c, isFollowed: data.isFollowed, followerCount: data.followerCount }
+                    : c
+            ));
+        } catch (error) {
+            console.error('Failed to toggle follow', error);
+        }
+    };
+
     const filteredCookbooks = cookbooks
         .filter(cb => {
             const title = cb.cookbookTitle || '';
@@ -55,7 +73,42 @@ export default function CommunityCookbooksContent() {
             return 0;
         });
 
+    const [updates, setUpdates] = useState([]);
+    const [lastCheck, setLastCheck] = useState(user?.lastFollowedUpdatesCheck);
+    const [isUpdatesExpanded, setIsUpdatesExpanded] = useState(false);
+
+    useEffect(() => {
+        if (user) {
+            fetchFollowedUpdates();
+        }
+    }, [user]);
+
+    const fetchFollowedUpdates = async () => {
+        try {
+            const { data } = await api.get('/auth/followed-updates');
+            setUpdates(data.updates);
+            setLastCheck(data.lastFollowedUpdatesCheck);
+        } catch (error) {
+            console.error('Failed to fetch followed updates', error);
+        }
+    };
+
+    const markUpdatesAsSeen = async () => {
+        try {
+            const { data } = await api.post('/auth/mark-updates-seen');
+            setLastCheck(data.lastFollowedUpdatesCheck);
+            // Optionally update user in context if needed, but lastCheck local is enough for UI
+        } catch (error) {
+            console.error('Failed to mark updates as seen', error);
+        }
+    };
+
+    const unseenUpdates = updates.filter(u => !lastCheck || new Date(u.createdAt) > new Date(lastCheck));
+    const unseenCount = unseenUpdates.length;
+
     const totalRecipes = cookbooks.reduce((acc, curr) => acc + (parseInt(curr.recipeCount) || 0), 0);
+    const totalFollowers = cookbooks.reduce((acc, curr) => acc + (curr.followerCount || 0), 0);
+    const hasFollows = cookbooks.some(cb => cb.isFollowed);
 
     const container = {
         hidden: { opacity: 0 },
@@ -164,27 +217,156 @@ export default function CommunityCookbooksContent() {
                 </header>
 
                 {/* Stats Row */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <Card className="p-4 flex flex-col items-center justify-center bg-card/50 border-border/50">
+                <div className="grid grid-cols-2 md:grid-cols-8 gap-4 items-start">
+                    <Card className="p-4 flex flex-col items-center justify-center bg-card/50 border-border/50 md:col-span-1">
                         <BookOpen className="text-primary mb-2" size={24} />
                         <span className="text-2xl font-bold">{cookbooks.length}</span>
-                        <span className="text-xs text-muted-foreground">Kochbücher</span>
+                        <span className="text-xs text-muted-foreground text-center">Kochbücher</span>
                     </Card>
-                    <Card className="p-4 flex flex-col items-center justify-center bg-card/50 border-border/50">
+                    <Card className="p-4 flex flex-col items-center justify-center bg-card/50 border-border/50 md:col-span-1">
                         <ChefHat className="text-orange-500 mb-2" size={24} />
                         <span className="text-2xl font-bold">{totalRecipes}</span>
-                        <span className="text-xs text-muted-foreground">Rezepte</span>
+                        <span className="text-xs text-muted-foreground text-center">Rezepte</span>
                     </Card>
-                    <Card className="p-4 flex flex-col items-center justify-center bg-card/50 border-border/50">
-                        <TrendingUp className="text-green-500 mb-2" size={24} />
-                        <span className="text-2xl font-bold">{cookbooks.length > 0 ? Math.round(totalRecipes / cookbooks.length) : 0}</span>
-                        <span className="text-xs text-muted-foreground">Ø Rezepte / Buch</span>
-                    </Card>
-                    <Card className="p-4 flex flex-col items-center justify-center bg-card/50 border-border/50">
-                        <Star className="text-yellow-500 mb-2" size={24} />
-                        <span className="text-2xl font-bold">New</span>
-                        <span className="text-xs text-muted-foreground">Täglich Updates</span>
-                    </Card>
+                    {user && (
+                        <Card className="p-4 flex flex-col items-center justify-center bg-card/50 border-border/50 md:col-span-1">
+                            <Heart className="text-red-500 mb-2" size={24} />
+                            <span className="text-2xl font-bold">{user?.followerCount || 0}</span>
+                            <span className="text-xs text-muted-foreground text-center">Follower</span>
+                        </Card>
+                    )}
+
+
+                    {/* Updates Card Wrapper (Maintains Grid Space) */}
+                    <div className={cn(
+                        "relative h-[115px]",
+                        user ? "col-span-2 md:col-span-5" : "col-span-2 md:col-span-6"
+                    )}>
+                        <Card className={cn(
+                            "p-3 bg-card border-border transition-all duration-500 overflow-hidden shadow-xl",
+                            isUpdatesExpanded
+                                ? "absolute top-0 left-0 w-full z-50 h-auto ring-1 ring-primary/20"
+                                : "relative w-full h-full bg-card/50 border-border/50"
+                        )}>
+                            <div className="flex items-center justify-between mb-1.5">
+                                <div className="flex items-center gap-2">
+                                    <TrendingUp size={16} className="text-green-500" />
+                                    <h3 className="font-bold text-xs text-foreground uppercase tracking-wider">Updates</h3>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    {unseenCount > 0 && (
+                                        <div className="bg-primary text-primary-foreground text-[9px] font-black px-1.5 py-0.5 rounded-full animate-bounce">
+                                            {unseenCount}
+                                        </div>
+                                    )}
+                                    {updates.length > 0 && (
+                                        <button
+                                            onClick={() => {
+                                                const nextState = !isUpdatesExpanded;
+                                                setIsUpdatesExpanded(nextState);
+                                                if (nextState && unseenCount > 0) {
+                                                    setTimeout(markUpdatesAsSeen, 2000);
+                                                }
+                                            }}
+                                            className="p-1 hover:bg-white/5 rounded-lg transition-colors text-muted-foreground hover:text-foreground"
+                                        >
+                                            {isUpdatesExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {!user ? (
+                                <div className="flex flex-col items-center justify-center h-16 text-muted-foreground text-xs min-[400px]:text-sm font-bold italic text-center px-4 leading-relaxed">
+                                    Melde dich an um Updates zu erhalten.
+                                </div>
+                            ) : !hasFollows ? (
+                                <div className="flex flex-col items-center justify-center h-16 text-muted-foreground text-xs min-[400px]:text-sm font-bold italic text-center px-4 leading-relaxed">
+                                    Folge einem Kochbuch um Updates zu erhalten.
+                                </div>
+                            ) : updates.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-16 text-muted-foreground text-xs min-[400px]:text-sm font-bold italic text-center px-4 leading-relaxed">
+                                    Keine neuen Updates.
+                                </div>
+                            ) : (
+                                <div className="space-y-1.5">
+                                    {(isUpdatesExpanded ? updates : [updates[0]]).map((update, idx) => {
+                                        const isNew = !lastCheck || new Date(update.createdAt) > new Date(lastCheck);
+                                        return (
+                                            <motion.div
+                                                key={`${update.id}-${idx}`}
+                                                initial={{ opacity: 0, x: -10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                className={cn(
+                                                    "group flex items-center gap-3 rounded-xl border transition-all",
+                                                    isUpdatesExpanded ? "p-3" : "p-2",
+                                                    isNew
+                                                        ? "bg-primary/5 border-primary/20"
+                                                        : "bg-black/5 dark:bg-white/5 border-transparent"
+                                                )}
+                                            >
+                                                {/* Recipe Image Circle */}
+                                                <div className="relative">
+                                                    <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-background shadow-inner flex-shrink-0 bg-muted">
+                                                        {update.image_url ? (
+                                                            <img
+                                                                src={getImageUrl(update.image_url)}
+                                                                alt={update.name}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                                                                <ChefHat size={24} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {isNew && (
+                                                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border-2 border-background" />
+                                                    )}
+                                                </div>
+
+                                                {/* Content */}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                        <p className="text-sm text-foreground leading-tight">
+                                                            <span className="font-black text-primary hover:underline cursor-pointer">@{update.username}</span>
+                                                            {" hat bei "}
+                                                            <span className="font-bold italic">{update.cookbookTitle}</span>
+                                                            {" ein neues Rezept hinzugefügt: "}
+                                                            <span className="font-black text-foreground">{update.name}</span>
+                                                        </p>
+                                                        <div className="flex items-center gap-3 shrink-0">
+                                                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                                <Heart size={14} className={cn(update.likeCount > 0 ? "text-red-500 fill-red-500" : "")} />
+                                                                <span className="font-bold">{update.likeCount}</span>
+                                                            </div>
+                                                            <span className="text-[10px] text-muted-foreground font-medium bg-black/5 dark:bg-white/5 px-2 py-1 rounded-lg">
+                                                                {new Date(update.createdAt).toLocaleString('de-DE', {
+                                                                    day: '2-digit',
+                                                                    month: '2-digit',
+                                                                    year: 'numeric',
+                                                                    hour: '2-digit',
+                                                                    minute: '2-digit'
+                                                                })}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    onClick={() => navigate(`/shared/${update.sharingKey || ''}/recipe/${update.id}`)}
+                                                    className="p-2 opacity-0 group-hover:opacity-100 bg-primary/10 text-primary rounded-xl transition-all hover:bg-primary hover:text-primary-foreground"
+                                                >
+                                                    <ArrowRight size={18} />
+                                                </button>
+                                            </motion.div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </Card>
+                    </div>
                 </div>
 
                 {/* Grid */}
@@ -229,6 +411,20 @@ export default function CommunityCookbooksContent() {
                                             <ChefHat size={12} />
                                             {cb.recipeCount || 0}
                                         </div>
+
+                                        {/* Follow Button */}
+                                        {user && cb.sharingKey && cb.id !== user.id && (!user.householdId || cb.householdId !== user.householdId) && (
+                                            <button
+                                                onClick={(e) => toggleFollow(e, cb)}
+                                                className="absolute top-4 left-4 p-2 rounded-full backdrop-blur-sm bg-black/20 hover:bg-black/40 text-white transition-all duration-200 focus:outline-none z-10"
+                                                title="Kochbuch folgen/entfolgen"
+                                            >
+                                                <Heart
+                                                    size={20}
+                                                    className={cn("transition-colors duration-300", cb.isFollowed ? "fill-rose-500 text-rose-500" : "text-white")}
+                                                />
+                                            </button>
+                                        )}
                                         {/* Cookbook avatar — shown below recipe count */}
                                         {cb.cookbookImage ? (
                                             <div className="absolute top-12 right-2">
@@ -254,10 +450,10 @@ export default function CommunityCookbooksContent() {
                                             <div className="flex items-center gap-4">
                                                 <div className="flex flex-col items-center">
                                                     <div className="flex items-center gap-1.5 text-rose-500 mb-0.5">
-                                                        <Star size={16} className="fill-rose-500/20" />
-                                                        <span className="text-lg font-black">{cb.totalFavorites || 0}</span>
+                                                        <Heart size={16} className={cn(cb.isFollowed ? "fill-rose-500" : "fill-rose-500/20")} />
+                                                        <span className="text-lg font-black">{cb.followerCount || 0}</span>
                                                     </div>
-                                                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Favoriten</span>
+                                                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Follower</span>
                                                 </div>
                                                 <div className="w-px h-8 bg-border/50" />
                                                 <div className="flex flex-col items-center">
