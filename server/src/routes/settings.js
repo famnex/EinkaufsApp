@@ -77,6 +77,10 @@ router.get('/logs', auth, async (req, res) => {
                 order: [['createdAt', 'DESC']]
             });
             total = await CreditTransaction.count({ where, include: [{ model: User }] });
+        } else if (type === 'alexa') {
+            const alexaLogs = await logger.readAlexaLogs(1000); // Get more to allow client-side filtering/search if needed, or just enough
+            logs = alexaLogs.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
+            total = alexaLogs.length;
         }
 
         res.json({ logs, total });
@@ -316,6 +320,26 @@ router.post('/', auth, async (req, res) => {
         }
 
         res.json(setting);
+    } catch (err) {
+        logger.logError('Error in settings route:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Delete a setting
+router.delete('/:key', auth, async (req, res) => {
+    try {
+        const deleted = await Settings.destroy({
+            where: {
+                key: req.params.key,
+                UserId: req.user.effectiveId
+            }
+        });
+        if (deleted) {
+            res.json({ success: true, message: 'Setting deleted' });
+        } else {
+            res.status(444).json({ error: 'Setting not found' });
+        }
     } catch (err) {
         logger.logError('Error in settings route:', err);
         res.status(500).json({ error: err.message });

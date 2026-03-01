@@ -10,7 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useEditMode } from '../contexts/EditModeContext';
 import StoreModal from '../components/StoreModal';
 import UpdateModal from '../components/UpdateModal';
-import AlexaLogsModal from '../components/AlexaLogsModal';
+
 import UserDetailModal from '../components/UserDetailModal';
 import SubscriptionModal from '../components/SubscriptionModal';
 import SubscriptionCancelModal from '../components/SubscriptionCancelModal';
@@ -51,7 +51,6 @@ export default function SettingsPage() {
     const [updateInfo, setUpdateInfo] = useState(null);
     const [checkingUpdate, setCheckingUpdate] = useState(false);
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
-    const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
     const [generatingInvite, setGeneratingInvite] = useState(false);
     const [householdMembers, setHouseholdMembers] = useState([]);
     const [fetchingMembers, setFetchingMembers] = useState(false);
@@ -140,17 +139,24 @@ export default function SettingsPage() {
         { name: 'Green', value: '#10b981' },
     ];
 
-    const [activeTab, setActiveTab] = useState('');
+    const [activeTab, setActiveTab] = useState('account');
     const [activeAdminTab, setActiveAdminTab] = useState('');
+    const [activeAccountTab, setActiveAccountTab] = useState('profile_detail');
+    const [activePreferencesTab, setActivePreferencesTab] = useState('');
+    const [activeContentTab, setActiveContentTab] = useState('');
+    const [activeMarketplaceTab, setActiveMarketplaceTab] = useState('');
     const [activeProfileTab, setActiveProfileTab] = useState('');
 
 
     useEffect(() => {
         // Auto-open defaults only on desktop if nothing matches
         if (window.innerWidth >= 640) {
-            if (!activeTab) setActiveTab('profile');
-            if (!activeAdminTab) setActiveAdminTab('users');
-            if (!activeProfileTab) setActiveProfileTab('general');
+            if (!activeTab) setActiveTab('account');
+            if (activeTab === 'admin' && !activeAdminTab) setActiveAdminTab('users');
+            if (activeTab === 'account' && !activeAccountTab) setActiveAccountTab('profile_detail');
+            if (activeTab === 'preferences' && !activePreferencesTab) setActivePreferencesTab('intolerances');
+            if (activeTab === 'content' && !activeContentTab) setActiveContentTab('cookbook');
+            if (activeTab === 'marketplace' && !activeMarketplaceTab) setActiveMarketplaceTab('products');
         }
     }, [activeTab]);
 
@@ -163,7 +169,8 @@ export default function SettingsPage() {
                 api.post('/subscription/checkout/canceled', { tier: 'unknown' }).catch(() => { });
             }
             if (paymentStatus === 'success') {
-                setActiveTab('subscription');
+                setActiveTab('account');
+                setActiveAccountTab('subscription');
                 refreshUser();
             }
             // Clean up the URL
@@ -173,7 +180,22 @@ export default function SettingsPage() {
 
         const tab = searchParams.get('tab');
         if (tab) {
-            setActiveTab(tab);
+            // Map legacy tabs to new structure
+            if (['profile', 'subscription', 'household'].includes(tab)) {
+                setActiveTab('account');
+                setActiveAccountTab(tab === 'profile' ? 'profile_detail' : tab);
+            } else if (['intolerances', 'alexa'].includes(tab)) {
+                setActiveTab('preferences');
+                setActivePreferencesTab(tab);
+            } else if (tab === 'cookbook') {
+                setActiveTab('content');
+                setActiveContentTab(tab);
+            } else if (['products', 'stores'].includes(tab)) {
+                setActiveTab('marketplace');
+                setActiveMarketplaceTab(tab);
+            } else {
+                setActiveTab(tab);
+            }
             // Clean up the URL (optional but cleaner)
             searchParams.delete('tab');
             setSearchParams(searchParams, { replace: true });
@@ -699,17 +721,14 @@ export default function SettingsPage() {
     const handleGenerateAlexaKey = async () => {
         if (alexaKey) {
             const confirmed = window.confirm(
-                'ACHTUNG: Es ist bereits ein Alexa API Key vorhanden.\n\n' +
-                'Wenn Sie einen neuen generieren, müssen Sie diesen auch in Ihrem Alexa Skill aktualisieren, ' +
-                'sonst funktioniert die Verbindung nicht mehr.\n\n' +
-                'Wollen Sie wirklich einen neuen Key generieren?'
+                'ACHTUNG: Es ist bereits eine Alexa-Verbindung vorhanden.\n\n' +
+                'Wenn Sie eine neue Verbindung herstellen, müssen Sie den Skill erneut in Ihrer Alexa App verknüpfen.\n\n' +
+                'Wollen Sie wirklich eine neue Verbindung generieren?'
             );
             if (!confirmed) return;
         }
 
         setSavingKey(true);
-        // Generate a random UUID-like string and remove hyphens for a cleaner key, or keep them.
-        // Using native crypto.randomUUID() if available, else a fallback.
         let newKey;
         if (typeof crypto !== 'undefined' && crypto.randomUUID) {
             newKey = crypto.randomUUID().replace(/-/g, '');
@@ -723,10 +742,32 @@ export default function SettingsPage() {
                 value: newKey
             });
             setAlexaKey(newKey);
-            // alert('Neuer Alexa API Key generiert: ' + newKey); // Optional, field is visible
+
+            // Open Alexa Skill page in a new tab
+            const alexaSkillUrl = 'https://pitangui.amazon.com/api/skill/link/M362RKZC9G1WL8';
+            window.open(alexaSkillUrl, '_blank');
         } catch (err) {
             console.error('Failed to save alexa key', err);
-            alert('Fehler beim Generieren des Keys');
+            alert('Fehler beim Generieren der Verbindung');
+        } finally {
+            setSavingKey(false);
+        }
+    };
+
+    const handleDeleteAlexaKey = async () => {
+        const confirmed = window.confirm(
+            'Möchten Sie die Verbindung zu Alexa wirklich trennen?\n\n' +
+            'Die hinterlegten Daten werden vollständig gelöscht und der Skill wird nicht mehr funktionieren, bis Sie ihn erneut verbinden.'
+        );
+        if (!confirmed) return;
+
+        setSavingKey(true);
+        try {
+            await api.delete('/settings/alexa_key');
+            setAlexaKey('');
+        } catch (err) {
+            console.error('Failed to delete alexa key', err);
+            alert('Fehler beim Trennen der Verbindung');
         } finally {
             setSavingKey(false);
         }
@@ -1036,7 +1077,7 @@ export default function SettingsPage() {
     const [loadingLogs, setLoadingLogs] = useState(false);
     const [logsPage, setLogsPage] = useState(0);
     const [logsTotal, setLogsTotal] = useState(0);
-    const [activeLogType, setActiveLogType] = useState('login'); // 'login', 'subscription', 'credit'
+    const [activeLogType, setActiveLogType] = useState('login'); // 'login', 'subscription', 'credit', 'alexa'
     const [logSearch, setLogSearch] = useState('');
 
     // Legal Texts State
@@ -1058,7 +1099,7 @@ export default function SettingsPage() {
 
 
     useEffect(() => {
-        if (activeTab === 'subscription') {
+        if (activeTab === 'account' && activeAccountTab === 'subscription') {
             fetchCreditHistory();
             refreshUserStatus();
         }
@@ -1068,12 +1109,14 @@ export default function SettingsPage() {
             if (activeAdminTab === 'cleanup') fetchCleanupStats();
         }
 
-        // Desktop default for profile/admin sub-tabs
         if (window.innerWidth >= 640) {
             if (activeTab === 'admin' && !activeAdminTab) setActiveAdminTab('users');
-            if (activeTab === 'profile' && !activeProfileTab) setActiveProfileTab('general');
+            if (activeTab === 'account' && !activeAccountTab) setActiveAccountTab('profile_detail');
+            if (activeTab === 'preferences' && !activePreferencesTab) setActivePreferencesTab('intolerances');
+            if (activeTab === 'content' && !activeContentTab) setActiveContentTab('cookbook');
+            if (activeTab === 'marketplace' && !activeMarketplaceTab) setActiveMarketplaceTab('products');
         }
-    }, [activeTab, activeAdminTab, activeProfileTab]);
+    }, [activeTab, activeAdminTab, activeAccountTab, activePreferencesTab, activeContentTab, activeMarketplaceTab]);
 
     const fetchCreditHistory = async () => {
         setLoadingCredits(true);
@@ -1485,8 +1528,12 @@ export default function SettingsPage() {
         fetchEmails(folder);
     };
 
+    const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+        ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+        user?.tier?.includes('Admin') || user?.role === 'admin';
+
     // Tab Definitions
-    const profileTabs = [
+    const profileDetailTabs = [
         { id: 'general', label: 'Benutzerprofil', icon: User },
         { id: 'newsletter', label: 'Newsletter & Benachrichtigungen', icon: Mail },
         { id: 'email', label: 'E-Mail-Adresse ändern', icon: Mail },
@@ -1494,18 +1541,33 @@ export default function SettingsPage() {
         { id: 'strikes', label: 'Sicherheitsstatus & Verstöße', icon: ShieldCheck }
     ];
 
-    const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
-        ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier);
+    const accountTabs = [
+        { id: 'profile_detail', label: 'Profil & Sicherheit', icon: User },
+        { id: 'subscription', label: 'Abo & Credits', icon: CreditCard },
+        { id: 'household', label: 'Haushalt', icon: Users }
+    ];
+
+    const preferencesTabs = [
+        { id: 'intolerances', label: 'Unverträglichkeiten', icon: ShieldAlert },
+        ...(hasSpecialTier ? [{ id: 'alexa', label: 'Alexa', icon: Building2 }] : [])
+    ];
+
+    const contentTabs = [
+        { id: 'cookbook', label: 'Öffentliches Kochbuch', icon: ChefHat }
+    ];
+
+    const marketplaceTabs = [
+        { id: 'products', label: 'Produkte', icon: Package },
+        { id: 'stores', label: 'Geschäfte', icon: StoreIcon }
+    ];
+
+
 
     const tabs = [
-        { id: 'profile', label: 'Profil & Sicherheit', icon: User },
-        { id: 'subscription', label: 'Abo & Credits', icon: CreditCard },
-        { id: 'household', label: 'Haushalt', icon: Users },
-        { id: 'cookbook', label: 'Öffentliches Kochbuch', icon: ChefHat },
-        { id: 'products', label: 'Produkte', icon: Package },
-        { id: 'stores', label: 'Geschäfte', icon: StoreIcon },
-        { id: 'intolerances', label: 'Unverträglichkeiten', icon: ShieldAlert },
-        ...(hasSpecialTier ? [{ id: 'alexa', label: 'Alexa', icon: Building2 }] : []),
+        { id: 'account', label: 'Account', icon: User },
+        { id: 'preferences', label: 'Präferenzen', icon: SettingsIcon },
+        { id: 'content', label: 'Inhalte', icon: Sparkles },
+        { id: 'marketplace', label: 'Marktplatz', icon: StoreIcon },
         ...(user?.role === 'admin' ? [
             { id: 'admin', label: 'Verwaltung', icon: Shield }
         ] : [])
@@ -1819,9 +1881,9 @@ export default function SettingsPage() {
         }
     };
 
-    const ProfileSection = (
+    const ProfileDetailSection = (
         <div className="space-y-3">
-            {profileTabs.map((sub) => {
+            {profileDetailTabs.map((sub) => {
                 const isActive = activeProfileTab === sub.id;
                 return (
                     <div key={sub.id} className="border border-border/50 rounded-2xl overflow-hidden bg-card/30 shadow-sm transition-all duration-300">
@@ -2125,7 +2187,8 @@ export default function SettingsPage() {
                     {[
                         { id: 'login', label: 'Anmelde-Logs' },
                         { id: 'subscription', label: 'Abo-Logs' },
-                        { id: 'credit', label: 'Credit-Logs' }
+                        { id: 'credit', label: 'Credit-Logs' },
+                        { id: 'alexa', label: 'ALEXA.LOG' }
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -2167,6 +2230,14 @@ export default function SettingsPage() {
                                 <th className="p-4">Betrag</th>
                                 <th className="p-4">Details</th>
                             </tr>
+                        ) : activeLogType === 'alexa' ? (
+                            <tr>
+                                <th className="p-4">Zeitpunkt</th>
+                                <th className="p-4">Level</th>
+                                <th className="p-4">Typ</th>
+                                <th className="p-4">Nachricht</th>
+                                <th className="p-4">Details</th>
+                            </tr>
                         ) : (
                             <tr>
                                 <th className="p-4">Zeitpunkt</th>
@@ -2183,9 +2254,9 @@ export default function SettingsPage() {
                         ) : logs.length === 0 ? (
                             <tr><td colSpan="6" className="p-8 text-center text-muted-foreground">Keine Logs vorhanden.</td></tr>
                         ) : (
-                            logs.map(log => (
-                                <tr key={log.id} className="hover:bg-muted/30">
-                                    <td className="p-4 whitespace-nowrap">{new Date(log.createdAt).toLocaleString()}</td>
+                            logs.map((log, index) => (
+                                <tr key={log.id || index} className="hover:bg-muted/30">
+                                    <td className="p-4 whitespace-nowrap">{new Date(log.createdAt || log.timestamp).toLocaleString()}</td>
 
                                     {activeLogType === 'login' && (
                                         <>
@@ -2238,6 +2309,26 @@ export default function SettingsPage() {
                                                 <span className="px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-600">
                                                     {log.type}
                                                 </span>
+                                            </td>
+                                        </>
+                                    )}
+
+                                    {activeLogType === 'alexa' && (
+                                        <>
+                                            <td className="p-4">
+                                                <span className={cn(
+                                                    "px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                                                    log.level === 'error' ? "bg-rose-100 text-rose-700" :
+                                                        log.level === 'warn' ? "bg-amber-100 text-amber-700" :
+                                                            "bg-blue-100 text-blue-700"
+                                                )}>
+                                                    {log.level || 'info'}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 font-mono text-xs text-primary">{log.type || '-'}</td>
+                                            <td className="p-4 max-w-sm truncate" title={log.message}>{log.message}</td>
+                                            <td className="p-4 max-w-xs truncate text-xs text-muted-foreground" title={JSON.stringify(log.meta)}>
+                                                {log.meta ? JSON.stringify(log.meta) : '-'}
                                             </td>
                                         </>
                                     )}
@@ -4759,6 +4850,74 @@ export default function SettingsPage() {
         { id: 'system', label: 'System', icon: SettingsIcon }
     ];
 
+    const ApiSection = (
+        <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                <Building2 size={20} className="text-primary" />
+                Alexa Integration
+            </h2>
+            <div className="space-y-6">
+                <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4 block">Status der Verbindung</label>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-muted/30 rounded-2xl border border-border/50">
+                        <div className="flex items-center gap-3 flex-1">
+                            <div className={cn(
+                                "w-3 h-3 rounded-full animate-pulse",
+                                alexaKey ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "bg-muted-foreground/30"
+                            )} />
+                            <div className="overflow-hidden">
+                                <p className="font-bold text-foreground">
+                                    {alexaKey ? 'Verbunden' : 'Nicht verbunden'}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground truncate">
+                                    {alexaKey
+                                        ? 'Ihr GabelGuru Konto ist mit Alexa verknüpft.'
+                                        : 'Aktivieren Sie den GabelGuru Skill in der Alexa App.'}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                            {alexaKey ? (
+                                <Button
+                                    variant="outline"
+                                    onClick={handleDeleteAlexaKey}
+                                    disabled={savingKey}
+                                    className="flex-1 sm:flex-initial text-destructive hover:bg-destructive/10 border-destructive/20"
+                                >
+                                    {savingKey ? <Loader2 size={16} className="animate-spin" /> : <X size={16} className="mr-2" />}
+                                    Verbindung lösen
+                                </Button>
+                            ) : (
+                                <Button
+                                    onClick={handleGenerateAlexaKey}
+                                    disabled={savingKey}
+                                    className="flex-1 sm:flex-initial"
+                                >
+                                    {savingKey ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} className="mr-2" />}
+                                    Jetzt verbinden
+                                </Button>
+                            )}
+
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                    <h3 className="text-sm font-bold text-primary mb-2 flex items-center gap-2">
+                        <ShieldCheck size={16} />
+                        So funktioniert's
+                    </h3>
+                    <ol className="text-xs text-muted-foreground space-y-2 list-decimal list-inside leading-relaxed">
+                        <li>Klicken Sie auf <strong>"Jetzt verbinden"</strong>, um Ihr Konto vorzubereiten.</li>
+                        <li>Suchen Sie in der <strong>Alexa App</strong> nach dem <strong>"GabelGuru"</strong> Skill.</li>
+                        <li>Aktivieren Sie den Skill und folgen Sie den Anweisungen zum <strong>Account Linking</strong>.</li>
+                        <li>Melden Sie sich mit Ihren GabelGuru Zugangsdaten an.</li>
+                    </ol>
+                </div>
+            </div>
+        </Card>
+    );
+
     const getAdminContent = (id) => {
         switch (id) {
             case 'users': return UsersSection;
@@ -4768,6 +4927,38 @@ export default function SettingsPage() {
             case 'logs': return LogsSection;
             case 'texts': return TextsSection;
             case 'system': return SystemSection;
+            default: return null;
+        }
+    };
+
+    const getAccountContent = (id) => {
+        switch (id) {
+            case 'profile_detail': return ProfileDetailSection;
+            case 'subscription': return SubscriptionSection;
+            case 'household': return HouseholdSection;
+            default: return null;
+        }
+    };
+
+    const getPreferencesContent = (id) => {
+        switch (id) {
+            case 'intolerances': return IntolerancesSection;
+            case 'alexa': return ApiSection;
+            default: return null;
+        }
+    };
+
+    const getContentContent = (id) => {
+        switch (id) {
+            case 'cookbook': return CookbookSection;
+            default: return null;
+        }
+    };
+
+    const getMarketplaceContent = (id) => {
+        switch (id) {
+            case 'products': return <Products />;
+            case 'stores': return StoresSection;
             default: return null;
         }
     };
@@ -4823,7 +5014,7 @@ export default function SettingsPage() {
 
             {/* Desktop Tabs for Admin Submenu */}
             <div className="hidden sm:block">
-                <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2">
+                <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2 border-b border-border/30">
                     {adminTabs.map(sub => (
                         <button
                             key={sub.id}
@@ -4852,6 +5043,7 @@ export default function SettingsPage() {
                     initial={{ opacity: 0, y: 5 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2 }}
+                    className="mt-6"
                 >
                     {getAdminContent(activeAdminTab)}
                 </motion.div>
@@ -4859,45 +5051,271 @@ export default function SettingsPage() {
         </div>
     );
 
-    const ApiSection = (
-        <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
-            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
-                <Building2 size={20} className="text-primary" />
-                Alexa
-            </h2>
-            <div className="space-y-6">
-                <div>
-                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Alexa API Key</label>
-                    <div className="flex gap-2">
-                        <Input
-                            type="text"
-                            readOnly
-                            disabled
-                            value={alexaKey}
-                            placeholder="Nicht generiert"
-                            className="bg-muted border-transparent focus:bg-background transition-colors font-mono text-sm cursor-text select-text disabled:opacity-70 disabled:cursor-text"
-                            onClick={(e) => e.target.select()}
-                        />
-                        <Button
-                            onClick={handleGenerateAlexaKey}
-                            disabled={savingKey}
-                            className="min-w-[140px]"
+    const AccountSection = (
+        <div className="space-y-6">
+            <div className="sm:hidden space-y-2">
+                {accountTabs.map((sub) => {
+                    const isActive = activeAccountTab === sub.id;
+                    return (
+                        <div key={sub.id} className="border border-border/50 rounded-lg overflow-hidden bg-card/30">
+                            <button
+                                onClick={() => setActiveAccountTab(isActive ? '' : sub.id)}
+                                className={cn(
+                                    "w-full flex items-center justify-between p-3 text-sm font-bold text-left transition-colors",
+                                    isActive ? "bg-primary/5 text-primary" : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <sub.icon size={16} />
+                                    <span>{sub.label}</span>
+                                </div>
+                                <ChevronDown
+                                    size={16}
+                                    className={cn("text-muted-foreground transition-transform duration-300", isActive && "rotate-180 text-primary")}
+                                />
+                            </button>
+                            <AnimatePresence initial={false}>
+                                {isActive && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                    >
+                                        <div className="p-3 border-t border-border/50">
+                                            {getAccountContent(sub.id)}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="hidden sm:block">
+                <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2 border-b border-border/30">
+                    {accountTabs.map(sub => (
+                        <button
+                            key={sub.id}
+                            onClick={() => setActiveAccountTab(sub.id)}
+                            className={cn(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all text-xs font-bold",
+                                activeAccountTab === sub.id
+                                    ? "bg-primary/10 text-primary border border-primary/20"
+                                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                            )}
                         >
-                            {savingKey ? 'Verarbeite...' : 'Generiere API-Key'}
-                        </Button>
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsLogsModalOpen(true)}
-                            title="Logs ansehen"
-                        >
-                            <Terminal size={18} />
-                        </Button>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-2">Für die Nutzung mit dem Alexa Skill. Vorsicht: Bei Neugenerierung muss der Key in der Alexa App aktualisiert werden.</p>
+                            <sub.icon size={14} />
+                            {sub.label}
+                        </button>
+                    ))}
+                </div>
+                <div className="mt-6">
+                    {getAccountContent(activeAccountTab)}
                 </div>
             </div>
-        </Card>
+        </div>
     );
+
+    const PreferencesSection = (
+        <div className="space-y-6">
+            <div className="sm:hidden space-y-2">
+                {preferencesTabs.map((sub) => {
+                    const isActive = activePreferencesTab === sub.id;
+                    return (
+                        <div key={sub.id} className="border border-border/50 rounded-lg overflow-hidden bg-card/30">
+                            <button
+                                onClick={() => setActivePreferencesTab(isActive ? '' : sub.id)}
+                                className={cn(
+                                    "w-full flex items-center justify-between p-3 text-sm font-bold text-left transition-colors",
+                                    isActive ? "bg-primary/5 text-primary" : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <sub.icon size={16} />
+                                    <span>{sub.label}</span>
+                                </div>
+                                <ChevronDown
+                                    size={16}
+                                    className={cn("text-muted-foreground transition-transform duration-300", isActive && "rotate-180 text-primary")}
+                                />
+                            </button>
+                            <AnimatePresence initial={false}>
+                                {isActive && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                    >
+                                        <div className="p-3 border-t border-border/50">
+                                            {getPreferencesContent(sub.id)}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="hidden sm:block">
+                <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2 border-b border-border/30">
+                    {preferencesTabs.map(sub => (
+                        <button
+                            key={sub.id}
+                            onClick={() => setActivePreferencesTab(sub.id)}
+                            className={cn(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all text-xs font-bold",
+                                activePreferencesTab === sub.id
+                                    ? "bg-primary/10 text-primary border border-primary/20"
+                                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                            )}
+                        >
+                            <sub.icon size={14} />
+                            {sub.label}
+                        </button>
+                    ))}
+                </div>
+                <div className="mt-6">
+                    {getPreferencesContent(activePreferencesTab)}
+                </div>
+            </div>
+        </div>
+    );
+
+    const ContentSection = (
+        <div className="space-y-6">
+            <div className="sm:hidden space-y-2">
+                {contentTabs.map((sub) => {
+                    const isActive = activeContentTab === sub.id;
+                    return (
+                        <div key={sub.id} className="border border-border/50 rounded-lg overflow-hidden bg-card/30">
+                            <button
+                                onClick={() => setActiveContentTab(isActive ? '' : sub.id)}
+                                className={cn(
+                                    "w-full flex items-center justify-between p-3 text-sm font-bold text-left transition-colors",
+                                    isActive ? "bg-primary/5 text-primary" : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <sub.icon size={16} />
+                                    <span>{sub.label}</span>
+                                </div>
+                                <ChevronDown
+                                    size={16}
+                                    className={cn("text-muted-foreground transition-transform duration-300", isActive && "rotate-180 text-primary")}
+                                />
+                            </button>
+                            <AnimatePresence initial={false}>
+                                {isActive && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                    >
+                                        <div className="p-3 border-t border-border/50">
+                                            {getContentContent(sub.id)}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="hidden sm:block">
+                <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2 border-b border-border/30">
+                    {contentTabs.map(sub => (
+                        <button
+                            key={sub.id}
+                            onClick={() => setActiveContentTab(sub.id)}
+                            className={cn(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all text-xs font-bold",
+                                activeContentTab === sub.id
+                                    ? "bg-primary/10 text-primary border border-primary/20"
+                                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                            )}
+                        >
+                            <sub.icon size={14} />
+                            {sub.label}
+                        </button>
+                    ))}
+                </div>
+                <div className="mt-6">
+                    {getContentContent(activeContentTab)}
+                </div>
+            </div>
+        </div>
+    );
+
+    const MarketplaceSection = (
+        <div className="space-y-6">
+            <div className="sm:hidden space-y-2">
+                {marketplaceTabs.map((sub) => {
+                    const isActive = activeMarketplaceTab === sub.id;
+                    return (
+                        <div key={sub.id} className="border border-border/50 rounded-lg overflow-hidden bg-card/30">
+                            <button
+                                onClick={() => setActiveMarketplaceTab(isActive ? '' : sub.id)}
+                                className={cn(
+                                    "w-full flex items-center justify-between p-3 text-sm font-bold text-left transition-colors",
+                                    isActive ? "bg-primary/5 text-primary" : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <sub.icon size={16} />
+                                    <span>{sub.label}</span>
+                                </div>
+                                <ChevronDown
+                                    size={16}
+                                    className={cn("text-muted-foreground transition-transform duration-300", isActive && "rotate-180 text-primary")}
+                                />
+                            </button>
+                            <AnimatePresence initial={false}>
+                                {isActive && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                    >
+                                        <div className="p-3 border-t border-border/50">
+                                            {getMarketplaceContent(sub.id)}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="hidden sm:block">
+                <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2 border-b border-border/30">
+                    {marketplaceTabs.map(sub => (
+                        <button
+                            key={sub.id}
+                            onClick={() => setActiveMarketplaceTab(sub.id)}
+                            className={cn(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all text-xs font-bold",
+                                activeMarketplaceTab === sub.id
+                                    ? "bg-primary/10 text-primary border border-primary/20"
+                                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                            )}
+                        >
+                            <sub.icon size={14} />
+                            {sub.label}
+                        </button>
+                    ))}
+                </div>
+                <div className="mt-6">
+                    {getMarketplaceContent(activeMarketplaceTab)}
+                </div>
+            </div>
+        </div>
+    );
+
+
 
 
     return (
@@ -4937,14 +5355,10 @@ export default function SettingsPage() {
                                         transition={{ duration: 0.3, ease: "easeInOut" }}
                                     >
                                         <div className="p-4 border-t border-border/50">
-                                            {tab.id === 'profile' && ProfileSection}
-                                            {tab.id === 'household' && HouseholdSection}
-                                            {tab.id === 'cookbook' && CookbookSection}
-                                            {tab.id === 'products' && <Products />}
-                                            {tab.id === 'stores' && StoresSection}
-                                            {tab.id === 'intolerances' && IntolerancesSection}
-                                            {tab.id === 'subscription' && SubscriptionSection}
-                                            {tab.id === 'alexa' && ApiSection}
+                                            {tab.id === 'account' && AccountSection}
+                                            {tab.id === 'preferences' && PreferencesSection}
+                                            {tab.id === 'content' && ContentSection}
+                                            {tab.id === 'marketplace' && MarketplaceSection}
                                             {tab.id === 'admin' && AdminSection}
                                         </div>
                                     </motion.div>
@@ -4989,14 +5403,10 @@ export default function SettingsPage() {
                     transition={{ duration: 0.2 }}
                     className="max-w-4xl mx-auto"
                 >
-                    {activeTab === 'profile' && ProfileSection}
-                    {activeTab === 'household' && HouseholdSection}
-                    {activeTab === 'cookbook' && CookbookSection}
-                    {activeTab === 'products' && <Products />}
-                    {activeTab === 'stores' && StoresSection}
-                    {activeTab === 'intolerances' && IntolerancesSection}
-                    {activeTab === 'subscription' && SubscriptionSection}
-                    {activeTab === 'alexa' && ApiSection}
+                    {activeTab === 'account' && AccountSection}
+                    {activeTab === 'preferences' && PreferencesSection}
+                    {activeTab === 'content' && ContentSection}
+                    {activeTab === 'marketplace' && MarketplaceSection}
                     {activeTab === 'admin' && AdminSection}
                 </motion.div>
             </div>
@@ -5015,10 +5425,7 @@ export default function SettingsPage() {
                 updateInfo={updateInfo}
             />
 
-            <AlexaLogsModal
-                isOpen={isLogsModalOpen}
-                onClose={() => setIsLogsModalOpen(false)}
-            />
+
 
             <UserDetailModal
                 isOpen={isUserDetailModalOpen}

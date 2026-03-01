@@ -67,6 +67,8 @@ const checkAlexaAuth = async (req, res, next) => {
 router.get('/authorize', (req, res) => {
     const { client_id, response_type, state, redirect_uri } = req.query;
 
+    logAlexa('INFO', 'AUTH', 'Authorize GET Request received', { client_id, response_type, redirect_uri });
+
     // Optional: Validate client_id against .env (e.g., ALEXA_CLIENT_ID)
 
     // Simple HTML Login Form
@@ -110,8 +112,11 @@ router.post('/authorize', async (req, res) => {
     try {
         const user = await User.findOne({ where: { [Op.or]: [{ email }, { username: email }] } });
         if (!user || !(await bcrypt.compare(password, user.password))) {
+            logAlexa('WARN', 'AUTH', 'Invalid credentials on authorize', { email });
             return res.send('Ungültige Anmeldedaten. Bitte versuche es erneut.');
         }
+
+        logAlexa('INFO', 'AUTH', 'User authenticated for authorize', { userId: user.id });
 
         // Generate a temporary auth code
         const authCode = crypto.randomBytes(16).toString('hex');
@@ -137,7 +142,18 @@ router.post('/authorize', async (req, res) => {
 
 // POST Token: Exchange code for refresh/access tokens
 router.post('/token', express.urlencoded({ extended: true }), async (req, res) => {
-    const { grant_type, code, client_id, client_secret } = req.body;
+    let { grant_type, code, client_id, client_secret } = req.body;
+
+    // Handle Basic Auth header if present
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Basic ')) {
+        const base64 = authHeader.split(' ')[1];
+        const [hId, hSecret] = Buffer.from(base64, 'base64').toString().split(':');
+        client_id = client_id || hId;
+        client_secret = client_secret || hSecret;
+    }
+
+    logAlexa('INFO', 'TOKEN', 'Token Request received', { grant_type, client_id });
 
     // Optional: Validate Client ID and Secret if configured in .env
     if (process.env.ALEXA_CLIENT_ID && client_id !== process.env.ALEXA_CLIENT_ID) {
