@@ -109,7 +109,14 @@ router.get('/authorize', (req, res) => {
 router.post('/authorize', async (req, res) => {
     const { email, password, state, redirect_uri } = req.body;
 
+    logAlexa('INFO', 'AUTH', 'Authorize POST Request received', { email, state, redirect_uri });
+
     try {
+        if (!redirect_uri) {
+            logAlexa('WARN', 'AUTH', 'Missing redirect_uri in POST body');
+            return res.status(400).send('Fehlende Redirect URI. Bitte beginne den Prozess erneut in der Alexa App.');
+        }
+
         const user = await User.findOne({ where: { [Op.or]: [{ email }, { username: email }] } });
         if (!user || !(await bcrypt.compare(password, user.password))) {
             logAlexa('WARN', 'AUTH', 'Invalid credentials on authorize', { email });
@@ -133,10 +140,12 @@ router.post('/authorize', async (req, res) => {
         redirectUrl.searchParams.append('code', authCode);
         redirectUrl.searchParams.append('state', state);
 
+        logAlexa('INFO', 'AUTH', 'Redirecting back to Alexa', { url: redirectUrl.toString() });
         res.redirect(redirectUrl.toString());
     } catch (err) {
+        logAlexa('ERROR', 'AUTH', 'Alexa Authorize Error', { error: err.message, stack: err.stack });
         console.error('Alexa Authorize Error:', err);
-        res.status(500).send('Ein Fehler ist aufgetreten.');
+        res.status(500).send('Ein Fehler ist aufgetreten: ' + err.message);
     }
 });
 
