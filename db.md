@@ -166,6 +166,11 @@ Join-Tabelle zur Kennzeichnung von Produkten mit Unverträglichkeiten (Many-to-M
 
 ## 2. Migrationen & Änderungen
 
+### v0.34.5 - Alexa Unlinking (März 2026)
+1. **alexaUserId Spalte**: Neue Spalte `alexaUserId` (STRING, nullable) in `Users` Tabelle hinzugefügt, um die Alexa-User-ID zu speichern.
+2. **Token-Invalidierung**: Beim Trennen der Alexa-Verbindung (DELETE `/settings/alexa_key`) wird `tokenVersion` des Benutzers erhöht. `checkAlexaAuth` prüft nun die `tokenVersion` im JWT, sodass vorhandene Alexa-Tokens sofort ungültig werden.
+3. **Migration**: `server/migrations/add_alexa_user_id.js`
+
 ### v0.32.12 - Followed Cookbook Updates (Februar 2026)
 1. **Update-Tracking**: Einführung der Spalte `lastFollowedUpdatesCheck` in der `Users` Tabelle.
 2. **Community Updates Feed**: Implementierung eines chronologischen Feeds für neue Rezepte von gefolgten Kochbüchern.

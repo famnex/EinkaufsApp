@@ -335,6 +335,21 @@ router.delete('/:key', auth, async (req, res) => {
                 UserId: req.user.effectiveId
             }
         });
+
+        // If the Alexa key is deleted, also invalidate active Alexa JWTs
+        // by incrementing tokenVersion so existing tokens are rejected
+        if (req.params.key === 'alexa_key' && deleted) {
+            try {
+                const user = await User.findByPk(req.user.id);
+                if (user) {
+                    await user.increment('tokenVersion');
+                    logger.logSystem('INFO', `Alexa unlink: tokenVersion incremented for user ${req.user.id}`);
+                }
+            } catch (unlinkErr) {
+                logger.logError('Failed to increment tokenVersion on alexa unlink:', unlinkErr);
+            }
+        }
+
         if (deleted) {
             res.json({ success: true, message: 'Setting deleted' });
         } else {

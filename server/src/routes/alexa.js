@@ -31,6 +31,11 @@ const checkAlexaAuth = async (req, res, next) => {
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
             const user = await User.findByPk(decoded.id);
             if (user) {
+                // Validate tokenVersion to ensure the token hasn't been revoked
+                if (decoded.version !== undefined && decoded.version !== user.tokenVersion) {
+                    logAlexa('WARN', 'AUTH', 'JWT rejected: tokenVersion mismatch (likely unlinked)', { userId: user.id });
+                    return res.status(401).json({ error: 'Token revoked. Please re-link your account in the Alexa App.' });
+                }
                 req.user = user;
                 req.user.effectiveId = user.householdId || user.id;
                 return next();

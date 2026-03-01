@@ -18,6 +18,7 @@ const User = sequelize.define('User', {
     role: { type: DataTypes.ENUM('admin', 'user'), defaultValue: 'user' },
     isLdap: { type: DataTypes.BOOLEAN, defaultValue: false },
     alexaApiKey: { type: DataTypes.STRING, allowNull: true },
+    alexaUserId: { type: DataTypes.STRING, allowNull: true },
     sharingKey: { type: DataTypes.STRING, allowNull: true, unique: true },
     cookbookTitle: { type: DataTypes.STRING, defaultValue: 'MEIN KOCHBUCH' },
     isPublicCookbook: { type: DataTypes.BOOLEAN, defaultValue: false },
