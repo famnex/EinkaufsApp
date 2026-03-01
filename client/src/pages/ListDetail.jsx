@@ -68,6 +68,9 @@ export default function ListDetail() {
     const lastTapItemRef = useRef(null);
     const singleTapTimeoutRef = useRef(null);
 
+    // Track known item IDs to only animate truly new items (not on re-render/rotation)
+    const knownItemIdsRef = useRef(new Set());
+
     // DnD State
     const [activeId, setActiveId] = useState(null);
     const sensors = useSensors(
@@ -116,7 +119,7 @@ export default function ListDetail() {
 
     const fetchListDetails = useCallback(async () => {
         try {
-            const { data } = await api.get(`/lists/${id}`);
+            const { data } = await api.get(`/lists/${id}`, { skipCache: true });
             setActiveStoreId(data.CurrentStoreId || '');
 
             // Server now handles smart sorting.
@@ -155,19 +158,21 @@ export default function ListDetail() {
     }, [fetchListDetails, fetchProducts, fetchStores]);
 
     // Live polling every 5s for collaborative shopping
-    // Use a ref so the interval callback always reads the latest paused state
-    // without needing to be in the dependency array (which would reset the interval)
+    // Use refs so the interval callback always reads the latest state and function
     const isPollingPausedRef = useRef(false);
     isPollingPausedRef.current = isSettingsOpen || isQuantityModalOpen || substituteModalOpen || aiImportModalOpen || aiConfirmModalOpen || !!searchTerm || !!activeId;
+
+    const fetchListDetailsRef = useRef(fetchListDetails);
+    fetchListDetailsRef.current = fetchListDetails;
 
     useEffect(() => {
         const interval = setInterval(() => {
             if (!isPollingPausedRef.current) {
-                fetchListDetails();
+                console.log('[ListDetail] Polling list...');
+                fetchListDetailsRef.current();
             }
         }, 5000);
         return () => clearInterval(interval);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]); // Re-create interval only when list ID changes
 
     // Close tooltips on click outside
@@ -645,218 +650,228 @@ export default function ListDetail() {
                                     zoomLevel === 1 && "grid-cols-2 md:grid-cols-4 lg:grid-cols-5",
                                     zoomLevel === 2 && "grid-cols-1 md:grid-cols-3 lg:grid-cols-4"
                                 )}>
-                                    {uncommittedItems.map((item) => (
-                                        <motion.div
-                                            key={item.id}
-                                            layout
-                                            initial={false}
-                                            transition={{
-                                                layout: {
-                                                    duration: 0.4,
-                                                    ease: [0.4, 0, 0.2, 1]
-                                                }
-                                            }}
-                                            className="relative group w-full aspect-square"
-                                        >
-                                            <SortableItem
-                                                id={item.id}
-                                                disabled={editMode !== 'view'}
-                                                className="w-full h-full"
-                                            >
+                                    <AnimatePresence mode="popLayout">
+                                        {uncommittedItems.map((item) => {
+                                            const isNew = !knownItemIdsRef.current.has(item.id);
+                                            if (isNew) knownItemIdsRef.current.add(item.id);
+                                            return (
+                                                <motion.div
+                                                    key={item.id}
+                                                    layout
+                                                    initial={isNew ? { opacity: 0, scale: 0.8 } : false}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.25 } }}
+                                                    transition={{
+                                                        layout: {
+                                                            duration: 0.4,
+                                                            ease: [0.4, 0, 0.2, 1]
+                                                        },
+                                                        opacity: { duration: 0.3 },
+                                                        scale: { duration: 0.3 }
+                                                    }}
+                                                    className="relative group w-full aspect-square"
+                                                >
+                                                    <SortableItem
+                                                        id={item.id}
+                                                        disabled={editMode !== 'view'}
+                                                        className="w-full h-full"
+                                                    >
 
-                                                {/* Card Content - Restored Visual Identity */}
-                                                <div
-                                                    onClick={() => {
-                                                        if (activeId) return; // Ignore during drag
+                                                        {/* Card Content - Restored Visual Identity */}
+                                                        <div
+                                                            onClick={() => {
+                                                                if (activeId) return; // Ignore during drag
 
-                                                        // DOUBLE-TAP DETECTION (only in view mode)
-                                                        if (editMode === 'view') {
-                                                            const now = Date.now();
+                                                                // DOUBLE-TAP DETECTION (only in view mode)
+                                                                if (editMode === 'view') {
+                                                                    const now = Date.now();
 
-                                                            // Check for double-tap
-                                                            if (lastTapTimeRef.current && now - lastTapTimeRef.current < 300 && lastTapItemRef.current === item.id) {
-                                                                // DOUBLE TAP DETECTED!
-                                                                // Cancel pending single-tap action
-                                                                if (singleTapTimeoutRef.current) {
-                                                                    clearTimeout(singleTapTimeoutRef.current);
-                                                                    singleTapTimeoutRef.current = null;
+                                                                    // Check for double-tap
+                                                                    if (lastTapTimeRef.current && now - lastTapTimeRef.current < 300 && lastTapItemRef.current === item.id) {
+                                                                        // DOUBLE TAP DETECTED!
+                                                                        // Cancel pending single-tap action
+                                                                        if (singleTapTimeoutRef.current) {
+                                                                            clearTimeout(singleTapTimeoutRef.current);
+                                                                            singleTapTimeoutRef.current = null;
+                                                                        }
+
+                                                                        handleOpenSubstituteModal(item);
+                                                                        lastTapTimeRef.current = null;
+                                                                        lastTapItemRef.current = null;
+                                                                        return;
+                                                                    }
+
+                                                                    // SINGLE TAP - Delayed execution (wait for potential 2nd tap)
+                                                                    lastTapTimeRef.current = now;
+                                                                    lastTapItemRef.current = item.id;
+
+                                                                    // Clear any existing timeout
+                                                                    if (singleTapTimeoutRef.current) {
+                                                                        clearTimeout(singleTapTimeoutRef.current);
+                                                                    }
+
+                                                                    // Execute after 300ms (if no 2nd tap arrives)
+                                                                    singleTapTimeoutRef.current = setTimeout(() => {
+                                                                        toggleBought(item);
+                                                                        singleTapTimeoutRef.current = null;
+                                                                    }, 300);
+                                                                    return;
                                                                 }
 
-                                                                handleOpenSubstituteModal(item);
-                                                                lastTapTimeRef.current = null;
-                                                                lastTapItemRef.current = null;
-                                                                return;
-                                                            }
-
-                                                            // SINGLE TAP - Delayed execution (wait for potential 2nd tap)
-                                                            lastTapTimeRef.current = now;
-                                                            lastTapItemRef.current = item.id;
-
-                                                            // Clear any existing timeout
-                                                            if (singleTapTimeoutRef.current) {
-                                                                clearTimeout(singleTapTimeoutRef.current);
-                                                            }
-
-                                                            // Execute after 300ms (if no 2nd tap arrives)
-                                                            singleTapTimeoutRef.current = setTimeout(() => {
-                                                                toggleBought(item);
-                                                                singleTapTimeoutRef.current = null;
-                                                            }, 300);
-                                                            return;
-                                                        }
-
-                                                        // Other modes (edit, delete) - immediate action
-                                                        if (editMode === 'edit') {
-                                                            setSelectedItem(item);
-                                                            setIsSettingsOpen(true);
-                                                        }
-                                                        if (editMode === 'delete') {
-                                                            if (window.confirm("Artikel wirklich löschen?")) deleteItem(item.id);
-                                                        }
-                                                    }}
-                                                    className={cn(
-                                                        "w-full h-full rounded-3xl p-4 flex flex-col justify-between transition-all cursor-pointer shadow-sm border relative isolate group/tile select-none",
-                                                        item.is_bought
-                                                            ? "product-tile-teal" // Teal for bought
-                                                            : "product-tile-red", // Red for unbought
-                                                        editMode !== 'view' && "hover:scale-[1.02]", // Subtle hover in edit/delete
-                                                        activeId === item.id && "opacity-30", // Dragging feedback
-                                                        "hover:z-50" // Elevate tile on hover for tooltip overlap
-                                                    )}
-                                                >
-                                                    {/* Background Layer - To handle clipping of watermarks while allowing tooltips to overflow the main card */}
-                                                    <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none z-0">
-                                                        {/* Mobile: Large Watermark (Base style for all) */}
-                                                        <div className={cn(
-                                                            "transition-all duration-300 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 flex items-center justify-center opacity-[0.15] scale-150 text-white",
-                                                            zoomLevel > 0 && "md:hidden" // Hide mobile watermark on desktop if zoom is active
-                                                        )}>
-                                                            <ShoppingCart className="w-full h-full p-6" />
-                                                        </div>
-
-                                                        {/* Bought Overlay Indicator */}
-                                                        {item.is_bought && (
-                                                            <div className="absolute inset-0 flex items-center justify-center opacity-10">
-                                                                <CheckCircle2 className="w-full h-full p-8 text-white" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {/* Note Indicator - Direct child for clean stacking. Only show in view mode to avoid overlapping with edit/delete icons. */}
-                                                    {item.note && editMode === 'view' && (
-                                                        <div
-                                                            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white shadow-lg z-30 cursor-pointer group/note"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setActiveNoteId(activeNoteId === item.id ? null : item.id);
+                                                                // Other modes (edit, delete) - immediate action
+                                                                if (editMode === 'edit') {
+                                                                    setSelectedItem(item);
+                                                                    setIsSettingsOpen(true);
+                                                                }
+                                                                if (editMode === 'delete') {
+                                                                    if (window.confirm("Artikel wirklich löschen?")) deleteItem(item.id);
+                                                                }
                                                             }}
-                                                            onTouchStart={(e) => {
-                                                                e.stopPropagation();
-                                                                e.preventDefault();
-                                                                setActiveNoteId(activeNoteId === item.id ? null : item.id);
-                                                            }}
-                                                            onPointerDown={(e) => e.stopPropagation()}
+                                                            className={cn(
+                                                                "w-full h-full rounded-3xl p-4 flex flex-col justify-between transition-all cursor-pointer shadow-sm border relative isolate group/tile select-none",
+                                                                item.is_bought
+                                                                    ? "product-tile-teal" // Teal for bought
+                                                                    : "product-tile-red", // Red for unbought
+                                                                editMode !== 'view' && "hover:scale-[1.02]", // Subtle hover in edit/delete
+                                                                activeId === item.id && "opacity-30", // Dragging feedback
+                                                                "hover:z-50" // Elevate tile on hover for tooltip overlap
+                                                            )}
                                                         >
-                                                            <svg
-                                                                xmlns="http://www.w3.org/2000/svg"
-                                                                viewBox="0 0 24 24"
-                                                                fill="none"
-                                                                stroke="currentColor"
-                                                                strokeWidth="2.5"
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                                className="w-4 h-4 animate-pulse"
-                                                            >
-                                                                <circle cx="12" cy="12" r="10" />
-                                                                <line x1="12" y1="8" x2="12" y2="12" />
-                                                                <line x1="12" y1="16" x2="12.01" y2="16" />
-                                                            </svg>
+                                                            {/* Background Layer - To handle clipping of watermarks while allowing tooltips to overflow the main card */}
+                                                            <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none z-0">
+                                                                {/* Mobile: Large Watermark (Base style for all) */}
+                                                                <div className={cn(
+                                                                    "transition-all duration-300 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 flex items-center justify-center opacity-[0.15] scale-150 text-white",
+                                                                    zoomLevel > 0 && "md:hidden" // Hide mobile watermark on desktop if zoom is active
+                                                                )}>
+                                                                    <ShoppingCart className="w-full h-full p-6" />
+                                                                </div>
 
+                                                                {/* Bought Overlay Indicator */}
+                                                                {item.is_bought && (
+                                                                    <div className="absolute inset-0 flex items-center justify-center opacity-10">
+                                                                        <CheckCircle2 className="w-full h-full p-8 text-white" />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            {/* Note Indicator - Direct child for clean stacking. Only show in view mode to avoid overlapping with edit/delete icons. */}
+                                                            {item.note && editMode === 'view' && (
+                                                                <div
+                                                                    className="absolute top-2 right-2 w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white shadow-lg z-30 cursor-pointer group/note"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setActiveNoteId(activeNoteId === item.id ? null : item.id);
+                                                                    }}
+                                                                    onTouchStart={(e) => {
+                                                                        e.stopPropagation();
+                                                                        e.preventDefault();
+                                                                        setActiveNoteId(activeNoteId === item.id ? null : item.id);
+                                                                    }}
+                                                                    onPointerDown={(e) => e.stopPropagation()}
+                                                                >
+                                                                    <svg
+                                                                        xmlns="http://www.w3.org/2000/svg"
+                                                                        viewBox="0 0 24 24"
+                                                                        fill="none"
+                                                                        stroke="currentColor"
+                                                                        strokeWidth="2.5"
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        className="w-4 h-4 animate-pulse"
+                                                                    >
+                                                                        <circle cx="12" cy="12" r="10" />
+                                                                        <line x1="12" y1="8" x2="12" y2="12" />
+                                                                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                                                                    </svg>
+
+                                                                    <div className={cn(
+                                                                        "absolute top-full mt-3 z-50 pointer-events-none transition-all duration-200",
+                                                                        "bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-2xl shadow-2xl border border-white/10 translate-y-2",
+                                                                        "whitespace-normal break-words",
+                                                                        // Mobile: nudge right and slightly narrower to stay on screen. Desktop: centered.
+                                                                        "right-[-20px] w-[200px] sm:w-[240px] sm:right-auto sm:left-1/2 sm:-translate-x-1/2",
+                                                                        (activeNoteId === item.id) ? "opacity-100 translate-y-0" : "opacity-0 group-hover/note:opacity-100 group-hover/note:translate-y-0"
+                                                                    )}>
+                                                                        {/* Tooltip Arrow - Responsive centering to icon */}
+                                                                        <div className="absolute -top-1.5 right-9 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 w-3 h-3 bg-slate-900 rotate-45 border-l border-t border-white/10" />
+                                                                        <div className="text-[10px] font-bold uppercase tracking-wider text-orange-400 mb-1">Hinweis</div>
+                                                                        <div className="text-sm font-medium leading-relaxed">
+                                                                            {item.note}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            {/* Top Row: Icon + Indicator */}
+                                                            <div className="flex justify-between items-start z-10 md:relative pointer-events-none"> {/* Icon is purely visual now on mobile */}
+                                                                {/* Desktop: Standard Icon (ONLY if NOT small zoom) */}
+                                                                {zoomLevel > 0 && (
+                                                                    <div className="hidden md:relative md:flex md:w-10 md:h-10 md:rounded-full md:bg-white/20 md:opacity-100 md:scale-100 md:z-10 md:items-center md:justify-center">
+                                                                        <ShoppingCart className="w-full h-full p-2 text-white" />
+                                                                    </div>
+                                                                )}
+                                                                <div className="flex-grow" />
+
+                                                                {/* Note Indicator + Mode Indicators - Always visible and on top */}
+                                                                <div className="ml-auto flex gap-2 items-center pointer-events-auto">
+
+                                                                    {/* Mode Indicators */}
+                                                                    {editMode === 'edit' && (
+                                                                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white backdrop-blur-sm">
+                                                                            <Settings size={18} />
+                                                                        </div>
+                                                                    )}
+                                                                    {editMode === 'delete' && (
+                                                                        <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center animate-pulse shadow-lg">
+                                                                            <Trash2 size={18} />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Center: Name */}
                                                             <div className={cn(
-                                                                "absolute top-full mt-3 z-50 pointer-events-none transition-all duration-200",
-                                                                "bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-2xl shadow-2xl border border-white/10 translate-y-2",
-                                                                "whitespace-normal break-words",
-                                                                // Mobile: nudge right and slightly narrower to stay on screen. Desktop: centered.
-                                                                "right-[-20px] w-[200px] sm:w-[240px] sm:right-auto sm:left-1/2 sm:-translate-x-1/2",
-                                                                (activeNoteId === item.id) ? "opacity-100 translate-y-0" : "opacity-0 group-hover/note:opacity-100 group-hover/note:translate-y-0"
+                                                                "text-center px-1 z-10 relative mt-0 flex flex-col justify-center flex-grow pt-2 md:pt-0",
+                                                                zoomLevel === 0 ? "pb-8" : "mb-auto" // Add bottom padding for quantity in small tiles
                                                             )}>
-                                                                {/* Tooltip Arrow - Responsive centering to icon */}
-                                                                <div className="absolute -top-1.5 right-9 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 w-3 h-3 bg-slate-900 rotate-45 border-l border-t border-white/10" />
-                                                                <div className="text-[10px] font-bold uppercase tracking-wider text-orange-400 mb-1">Hinweis</div>
-                                                                <div className="text-sm font-medium leading-relaxed">
-                                                                    {item.note}
+                                                                <div className={cn(
+                                                                    "font-bold leading-none tracking-wide text-white line-clamp-2 break-words text-shadow-sm hyphens-auto",
+                                                                    zoomLevel === 0 ? "text-sm md:text-lg" : "text-xl md:text-2xl"
+                                                                )} lang="de">
+                                                                    {item.Product?.name}
+                                                                    {item.ProductVariation?.ProductVariant?.title && (
+                                                                        <span className="text-[0.7em] block opacity-90 mt-0.5 leading-tight">
+                                                                            {item.ProductVariation.ProductVariant.title}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="text-xs text-white/80 mt-1 font-medium tracking-wider uppercase truncate">
+                                                                    {item.ProductVariation?.category || item.Product?.category || 'Sonstiges'}
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                    )}
-                                                    {/* Top Row: Icon + Indicator */}
-                                                    <div className="flex justify-between items-start z-10 md:relative pointer-events-none"> {/* Icon is purely visual now on mobile */}
-                                                        {/* Desktop: Standard Icon (ONLY if NOT small zoom) */}
-                                                        {zoomLevel > 0 && (
-                                                            <div className="hidden md:relative md:flex md:w-10 md:h-10 md:rounded-full md:bg-white/20 md:opacity-100 md:scale-100 md:z-10 md:items-center md:justify-center">
-                                                                <ShoppingCart className="w-full h-full p-2 text-white" />
+
+                                                            {/* Bottom: Quantity */}
+                                                            <div
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setQuantityItem(item);
+                                                                }}
+                                                                className={cn(
+                                                                    "mx-auto bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider transition-colors z-10 backdrop-blur-sm",
+                                                                    zoomLevel === 0
+                                                                        ? "absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap" // Fixed bottom in small tiles
+                                                                        : "relative mt-2" // Standard flow for larger tiles
+                                                                )}
+                                                            >
+                                                                {item.quantity} <span className="text-[10px] opacity-80">{(item.unit || item.Product?.unit) === 'Stück' ? 'Stk' : (item.unit || item.Product?.unit)}</span>
                                                             </div>
-                                                        )}
-                                                        <div className="flex-grow" />
 
-                                                        {/* Note Indicator + Mode Indicators - Always visible and on top */}
-                                                        <div className="ml-auto flex gap-2 items-center pointer-events-auto">
 
-                                                            {/* Mode Indicators */}
-                                                            {editMode === 'edit' && (
-                                                                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white backdrop-blur-sm">
-                                                                    <Settings size={18} />
-                                                                </div>
-                                                            )}
-                                                            {editMode === 'delete' && (
-                                                                <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center animate-pulse shadow-lg">
-                                                                    <Trash2 size={18} />
-                                                                </div>
-                                                            )}
                                                         </div>
-                                                    </div>
-
-                                                    {/* Center: Name */}
-                                                    <div className={cn(
-                                                        "text-center px-1 z-10 relative mt-0 flex flex-col justify-center flex-grow pt-2 md:pt-0",
-                                                        zoomLevel === 0 ? "pb-8" : "mb-auto" // Add bottom padding for quantity in small tiles
-                                                    )}>
-                                                        <div className={cn(
-                                                            "font-bold leading-none tracking-wide text-white line-clamp-2 break-words text-shadow-sm hyphens-auto",
-                                                            zoomLevel === 0 ? "text-sm md:text-lg" : "text-xl md:text-2xl"
-                                                        )} lang="de">
-                                                            {item.Product?.name}
-                                                            {item.ProductVariation?.ProductVariant?.title && (
-                                                                <span className="text-[0.7em] block opacity-90 mt-0.5 leading-tight">
-                                                                    {item.ProductVariation.ProductVariant.title}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <div className="text-xs text-white/80 mt-1 font-medium tracking-wider uppercase truncate">
-                                                            {item.ProductVariation?.category || item.Product?.category || 'Sonstiges'}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Bottom: Quantity */}
-                                                    <div
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setQuantityItem(item);
-                                                        }}
-                                                        className={cn(
-                                                            "mx-auto bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider transition-colors z-10 backdrop-blur-sm",
-                                                            zoomLevel === 0
-                                                                ? "absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap" // Fixed bottom in small tiles
-                                                                : "relative mt-2" // Standard flow for larger tiles
-                                                        )}
-                                                    >
-                                                        {item.quantity} <span className="text-[10px] opacity-80">{(item.unit || item.Product?.unit) === 'Stück' ? 'Stk' : (item.unit || item.Product?.unit)}</span>
-                                                    </div>
-
-
-                                                </div>
-                                            </SortableItem>
-                                        </motion.div>
-                                    ))}
+                                                    </SortableItem>
+                                                </motion.div>
+                                            );
+                                        })}
+                                    </AnimatePresence>
                                 </motion.div>
                             </SortableContext>
 
