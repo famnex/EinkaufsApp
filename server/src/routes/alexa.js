@@ -2,7 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { List, ListItem, Product, Settings, User, sequelize } = require('../models');
 const { Op } = require('sequelize');
-const { logAlexa } = require('../utils/logger'); // Import Logger
+const { logAlexa } = require('../utils/logger');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 // Helper: Title Case (capitalize fitst letter of every word)
 const toTitleCase = (str) => {
@@ -12,42 +15,176 @@ const toTitleCase = (str) => {
     });
 };
 
-// Middleware to check Alexa Auth
+// Middleware to check Alexa Auth (Standard JWT or legacy API Key)
 const checkAlexaAuth = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             logAlexa('WARN', 'AUTH', 'Missing or invalid Auth Header');
-            console.warn('[Alexa] Missing or invalid Auth Header');
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
         const token = authHeader.split(' ')[1];
-        const setting = await Settings.findOne({ where: { key: 'alexa_key', value: token } });
 
+        // 1. Try JWT (OAuth2 / Handshake)
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const user = await User.findByPk(decoded.id);
+            if (user) {
+                req.user = user;
+                req.user.effectiveId = user.householdId || user.id;
+                return next();
+            }
+        } catch (jwtErr) {
+            // Not a valid JWT or expired, fall back to legacy key check
+        }
+
+        // 2. Try Legacy API Key (alexa_key)
+        const setting = await Settings.findOne({ where: { key: 'alexa_key', value: token } });
         if (!setting) {
-            logAlexa('WARN', 'AUTH', 'Invalid API Key attempt', { providedToken: token.substring(0, 5) + '...' });
-            console.warn('[Alexa] Invalid API Key attempt');
+            logAlexa('WARN', 'AUTH', 'Invalid Token or API Key');
             return res.status(403).json({ error: 'Forbidden' });
         }
 
         const user = await User.findByPk(setting.UserId);
         if (!user) {
-            logAlexa('WARN', 'AUTH', 'User associated with key not found');
+            logAlexa('WARN', 'AUTH', 'User associated with legacy key not found');
             return res.status(401).json({ error: 'User not found' });
         }
 
-        // Attach user info for subsequent queries
         req.user = user;
         req.user.effectiveId = user.householdId || user.id;
-
         next();
     } catch (err) {
         logAlexa('ERROR', 'AUTH', 'Internal Auth Error', { error: err.message });
-        console.error('[Alexa Auth Error]', err);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
+// --- OAuth2 Handshake Endpoints ---
+
+// GET Authorize: Show Login Form
+router.get('/authorize', (req, res) => {
+    const { client_id, response_type, state, redirect_uri } = req.query;
+
+    // Optional: Validate client_id against .env (e.g., ALEXA_CLIENT_ID)
+
+    // Simple HTML Login Form
+    res.send(`
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>GabelGuru Alexa Verbindung</title>
+            <style>
+                body { font-family: sans-serif; background: #f9fafb; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+                .card { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); width: 100%; max-width: 400px; }
+                h1 { font-size: 1.5rem; margin-bottom: 1rem; color: #4f46e5; }
+                input { width: 100%; padding: 0.75rem; margin-bottom: 1rem; border: 1px solid #d1d5db; border-radius: 0.5rem; box-sizing: border-box; }
+                button { width: 100%; padding: 0.75rem; background: #4f46e5; color: white; border: none; border-radius: 0.5rem; font-weight: bold; cursor: pointer; }
+                p { font-size: 0.875rem; color: #6b7280; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h1>Alexa verbinden</h1>
+                <p>Melde dich an, um GabelGuru mit Alexa zu nutzen.</p>
+                <form action="" method="POST">
+                    <input type="hidden" name="state" value="${state || ''}">
+                    <input type="hidden" name="redirect_uri" value="${redirect_uri || ''}">
+                    <input type="text" name="email" placeholder="Email oder Benutzername" required autofocus>
+                    <input type="password" name="password" placeholder="Passwort" required>
+                    <button type="submit">Verbinden</button>
+                </form>
+            </div>
+        </body>
+        </html>
+    `);
+});
+
+// POST Authorize: Handle Login and Redirect with code
+router.post('/authorize', async (req, res) => {
+    const { email, password, state, redirect_uri } = req.body;
+
+    try {
+        const user = await User.findOne({ where: { [Op.or]: [{ email }, { username: email }] } });
+        if (!user || !(await bcrypt.compare(password, user.password))) {
+            return res.send('Ungültige Anmeldedaten. Bitte versuche es erneut.');
+        }
+
+        // Generate a temporary auth code
+        const authCode = crypto.randomBytes(16).toString('hex');
+
+        // Save auth code in Settings with expiration (e.g., 5 min)
+        await Settings.create({
+            key: `alexa_auth_code_${authCode}`,
+            value: JSON.stringify({ userId: user.id, expiresAt: Date.now() + 5 * 60 * 1000 }),
+            UserId: user.id
+        });
+
+        // Redirect back to Alexa with the code and original state
+        const redirectUrl = new URL(redirect_uri);
+        redirectUrl.searchParams.append('code', authCode);
+        redirectUrl.searchParams.append('state', state);
+
+        res.redirect(redirectUrl.toString());
+    } catch (err) {
+        console.error('Alexa Authorize Error:', err);
+        res.status(500).send('Ein Fehler ist aufgetreten.');
+    }
+});
+
+// POST Token: Exchange code for refresh/access tokens
+router.post('/token', express.urlencoded({ extended: true }), async (req, res) => {
+    const { grant_type, code, client_id, client_secret } = req.body;
+
+    // Optional: Validate Client ID and Secret if configured in .env
+    if (process.env.ALEXA_CLIENT_ID && client_id !== process.env.ALEXA_CLIENT_ID) {
+        logAlexa('WARN', 'TOKEN', 'Invalid Client ID', { client_id });
+        return res.status(401).json({ error: 'invalid_client' });
+    }
+    if (process.env.ALEXA_CLIENT_SECRET && client_secret !== process.env.ALEXA_CLIENT_SECRET) {
+        logAlexa('WARN', 'TOKEN', 'Invalid Client Secret');
+        return res.status(401).json({ error: 'invalid_client' });
+    }
+
+    try {
+        if (grant_type === 'authorization_code') {
+            const setting = await Settings.findOne({ where: { key: `alexa_auth_code_${code}` } });
+            if (!setting) return res.status(400).json({ error: 'invalid_grant' });
+
+            const data = JSON.parse(setting.value);
+            if (Date.now() > data.expiresAt) {
+                await setting.destroy();
+                return res.status(400).json({ error: 'invalid_grant' });
+            }
+
+            const user = await User.findByPk(data.userId);
+            // Cleanup code
+            await setting.destroy();
+
+            // Generate Access Token (JWT)
+            const accessToken = jwt.sign(
+                { id: user.id, role: user.role, version: user.tokenVersion },
+                process.env.JWT_SECRET,
+                { expiresIn: '180d' }
+            );
+
+            // Alexa expected response
+            return res.json({
+                access_token: accessToken,
+                token_type: 'Bearer',
+                expires_in: 15552000 // 180 days in seconds
+            });
+        }
+
+        res.status(400).json({ error: 'unsupported_grant_type' });
+    } catch (err) {
+        console.error('Alexa Token Error:', err);
+        res.status(500).json({ error: 'server_error' });
+    }
+});
 
 router.post('/add', checkAlexaAuth, async (req, res) => {
     try {

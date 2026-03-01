@@ -35,6 +35,7 @@ import { PullToRefresh } from './components/PullToRefresh';
 import { LoadingScreen } from './components/LoadingScreen';
 import ScrollToTop from './components/ScrollToTop';
 import ReloadPrompt from './components/ReloadPrompt';
+import InstallPWAOverlay from './components/InstallPWAOverlay';
 
 // Helper to convert hex to HSL for Tailwind variables
 const hexToHsl = (hex) => {
@@ -223,6 +224,7 @@ function AppContent() {
   return (
     <>
       <ReloadPrompt />
+      <InstallPWAOverlay />
       <LoadingScreen isVisible={loading} message="GabelGuru wird geladen" />
 
       {!loading && (
