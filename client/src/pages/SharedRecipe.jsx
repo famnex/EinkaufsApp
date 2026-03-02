@@ -142,29 +142,6 @@ export default function SharedRecipe() {
 
     return (
         <>
-            {/* Fixed back button – stays below navbar on scroll */}
-            <button
-                onClick={() => navigate(-1)}
-                className="fixed top-[72px] left-4 z-50 p-2 bg-background/80 hover:bg-muted text-foreground border border-border rounded-full backdrop-blur-md shadow-md transition-all flex items-center gap-2 print:hidden"
-            >
-                <ArrowLeft size={20} />
-                <span className="text-sm font-bold hidden sm:inline pr-1">Zurück</span>
-            </button>
-
-            {/* Fixed like button – right side */}
-            {localStorage.getItem('token') && (
-                <button
-                    onClick={toggleLike}
-                    className="fixed top-[72px] right-4 z-50 p-2 bg-background/80 hover:bg-muted text-foreground border border-border rounded-full backdrop-blur-md shadow-md transition-all flex items-center gap-2 print:hidden"
-                    title={recipe.isFavorite ? "Gefällt mir entfernen" : "Gefällt mir"}
-                >
-                    <Heart
-                        size={20}
-                        className={cn("transition-colors duration-300", recipe.isFavorite ? "fill-rose-500 text-rose-500" : "fill-none text-foreground")}
-                    />
-                    {recipe.likeCount > 0 && <span className="text-sm font-bold pr-1">{recipe.likeCount}</span>}
-                </button>
-            )}
 
             <main className="max-w-3xl mx-auto p-4 space-y-6 flex-1 w-full print:max-w-none print:p-0">
                 {/* Print Title Header */}
@@ -234,22 +211,38 @@ export default function SharedRecipe() {
                             )}
                         </div>
                     </div>
-                    <div className="absolute top-4 right-4 z-20">
+                </div>
+
+                {/* Mobile Actions Row */}
+                <div className="flex md:hidden items-center gap-3 print:hidden">
+                    {localStorage.getItem('token') && (
                         <button
-                            onClick={() => setIsCooking(true)}
-                            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-2 px-4 rounded-full shadow-lg flex items-center gap-2 transition-transform active:scale-95 mb-2"
+                            onClick={toggleLike}
+                            className={cn(
+                                "flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border-2 transition-all font-bold",
+                                recipe.isFavorite
+                                    ? "bg-rose-500/10 border-rose-500/20 text-rose-500"
+                                    : "bg-card border-border text-muted-foreground"
+                            )}
                         >
-                            <Play size={20} fill="currentColor" />
-                            <span className="hidden sm:inline">Kochmodus</span>
+                            <Heart size={20} className={cn(recipe.isFavorite ? "fill-current" : "")} />
+                            <span>{recipe.likeCount || 0}</span>
                         </button>
-                        <button
-                            onClick={() => navigate(`/compliance?url=${encodeURIComponent(window.location.href)}`)}
-                            className="text-xs text-white/60 hover:text-white hover:underline flex items-center justify-end gap-1 w-full"
-                        >
-                            <ShieldCheck size={12} />
-                            Inhalt melden
-                        </button>
-                    </div>
+                    )}
+                    <button
+                        onClick={() => setIsCooking(true)}
+                        className="flex-3 flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 rounded-2xl font-black shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+                    >
+                        <Play size={18} fill="currentColor" />
+                        KOCHMODUS
+                    </button>
+                    <button
+                        onClick={() => navigate(`/compliance?url=${encodeURIComponent(window.location.href)}`)}
+                        className="flex-none p-3 bg-muted/50 text-muted-foreground rounded-2xl border border-border"
+                        title="Inhalt melden"
+                    >
+                        <ShieldCheck size={20} />
+                    </button>
                 </div>
 
                 {isCooking && (

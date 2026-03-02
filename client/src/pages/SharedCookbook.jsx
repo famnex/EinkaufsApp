@@ -182,24 +182,6 @@ export default function SharedCookbook() {
                     style={{ backgroundImage: `url(${import.meta.env.BASE_URL}pattern.svg)` }}
                 />
 
-                <button
-                    onClick={() => navigate(-1)}
-                    className="fixed top-[72px] left-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-all z-40 flex items-center gap-2"
-                >
-                    <ArrowLeft size={20} />
-                    <span className="text-sm font-bold hidden sm:inline pr-2">Zurück</span>
-                </button>
-
-                {localStorage.getItem('token') && (
-                    <button
-                        onClick={toggleFollowCookbook}
-                        className="fixed top-[72px] right-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-md transition-all z-40 flex items-center gap-2"
-                        title={isFollowed ? "Kochbuch entfolgen" : "Kochbuch folgen"}
-                    >
-                        <Heart size={20} className={cn("transition-colors duration-300", isFollowed ? "fill-rose-500 text-rose-500" : "text-white")} />
-                        <span className="text-sm font-bold hidden sm:inline pr-2">{followerCount} Follower</span>
-                    </button>
-                )}
 
                 <div className="hidden md:flex max-w-7xl mx-auto px-4 py-8 md:py-20 relative z-10 flex-col items-center text-center">
                     <motion.div

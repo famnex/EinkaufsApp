@@ -297,7 +297,7 @@ export default function SharedCookingMode({ recipe, conflicts = [], onClose }) {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="fixed inset-0 z-[200] bg-background flex flex-col md:flex-row overflow-hidden select-none text-foreground"
+                className="fixed inset-0 z-[2000] bg-background flex flex-col md:flex-row overflow-hidden select-none text-foreground"
             >
                 {/* --- MOBILE HEADER (Shared, Sticky, Safe Area Aware) --- */}
                 <div
