@@ -10,7 +10,8 @@ import { cn, getImageUrl } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import AiActionConfirmModal from './AiActionConfirmModal';
 import AiLockedModal from './AiLockedModal';
-import { Lock } from 'lucide-react';
+import AiRecipeModifyModal from './AiRecipeModifyModal';
+import { Lock, AlertTriangle } from 'lucide-react';
 import {
     DndContext,
     closestCenter,
@@ -106,6 +107,10 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
     const [products, setProducts] = useState([]);
     const [substitutions, setSubstitutions] = useState([]);
     const [hasInstructionOverride, setHasInstructionOverride] = useState(false);
+    const [isAiModifyOpen, setIsAiModifyOpen] = useState(false);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [showExitWarning, setShowExitWarning] = useState(false);
+    const [lockedFeatureName, setLockedFeatureName] = useState('KI-Funktion');
 
     // Tab 1: Basics
     const [basics, setBasics] = useState({
@@ -172,7 +177,8 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                             ProductId: ri.ProductId,
                             name: ri.Product?.name,
                             quantity: ri.quantity,
-                            unit: ri.unit || ri.Product?.unit
+                            unit: ri.unit || ri.Product?.unit,
+                            isOptional: !!ri.isOptional
                         })) || [];
                         setIngredients(apiIngredients);
 
@@ -193,6 +199,86 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
             }
         }
     }, [isOpen, recipe]);
+
+    const initialLoadDone = useRef(false);
+
+    useEffect(() => {
+        if (!isOpen) {
+            initialLoadDone.current = false;
+        }
+    }, [isOpen]);
+
+    // Track changes
+    useEffect(() => {
+        if (isOpen && !loading) {
+            if (!initialLoadDone.current) {
+                initialLoadDone.current = true;
+                return;
+            }
+            setHasUnsavedChanges(true);
+        }
+    }, [basics, ingredients, steps]);
+
+    const handleAiSuccess = (data) => {
+        console.log('AI Logic Success:', data);
+        // Map basics
+        setBasics(prev => ({
+            ...prev,
+            title: data.title || prev.title,
+            category: data.category || prev.category,
+            prep_time: data.prep_time || prev.prep_time,
+            duration: data.duration || prev.duration,
+            servings: data.servings || prev.servings,
+            tags: data.tags || prev.tags
+        }));
+
+        // Map ingredients
+        if (data.ingredients) {
+            // Synchronously capture existing DB ingredient IDs BEFORE state update
+            // to avoid stale closure issues
+            const oldIngredientIds = ingredients.filter(i => i.id != null).map(i => i.id);
+            if (oldIngredientIds.length > 0) {
+                setDeletedIngredients(prev => [...new Set([...prev, ...oldIngredientIds])]);
+            }
+
+            const newIngs = data.ingredients.map(aiIng => {
+                const existingProduct = products.find(p => p.name.toLowerCase() === aiIng.name.toLowerCase());
+                return {
+                    id: null,
+                    ProductId: existingProduct?.id || null,
+                    name: aiIng.name,
+                    quantity: aiIng.quantity,
+                    unit: aiIng.unit,
+                    isOptional: !!aiIng.isOptional
+                };
+            });
+            setIngredients(newIngs);
+        }
+
+        // Map steps
+        if (data.steps) {
+            setSteps(data.steps.map((text, idx) => ({
+                id: `ai-step-${idx}-${Date.now()}`,
+                text
+            })));
+        }
+
+        setHasUnsavedChanges(true);
+    };
+
+    const handleModalClose = () => {
+        if (hasUnsavedChanges) {
+            setShowExitWarning(true);
+        } else {
+            onClose();
+        }
+    };
+
+    const forceClose = () => {
+        setShowExitWarning(false);
+        setHasUnsavedChanges(false);
+        onClose();
+    };
 
     // Reset deleted ingredients when opening/changing recipe
     useEffect(() => {
@@ -269,7 +355,8 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
             ProductId: product.id,
             name: product.name,
             quantity: 1,
-            unit: product.unit
+            unit: product.unit,
+            isOptional: false
         }]);
         setIngredientSearch('');
         setIngredientSuggestions([]);
@@ -348,7 +435,10 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                     try {
                         await api.delete(`/recipes/${recipeId}/ingredients/${delId}`);
                     } catch (e) {
-                        console.error('Failed to delete ingredient', delId, e);
+                        // Silently ignore 404 (already deleted or never saved)
+                        if (e.response?.status !== 404) {
+                            console.error('Failed to delete ingredient', delId, e);
+                        }
                     }
                 }
             }
@@ -356,17 +446,21 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
             // 2. Additions/Updates
             console.log('Processing ingredients updates/additions...');
             for (const ing of ingredients) {
+                const qty = ing.quantity === '' ? 0 : parseFloat(ing.quantity);
                 if (!ing.id) { // New link
                     await api.post(`/recipes/${recipeId}/ingredients`, {
                         ProductId: ing.ProductId,
-                        quantity: parseFloat(ing.quantity) || 0,
-                        unit: ing.unit
+                        quantity: qty,
+                        unit: ing.unit,
+                        originalName: ing.name, // Ensure name is passed for new items
+                        isOptional: ing.isOptional
                     });
                 } else {
                     // Update existing
                     await api.put(`/recipes/${recipeId}/ingredients/${ing.id}`, {
-                        quantity: parseFloat(ing.quantity) || 0,
-                        unit: ing.unit
+                        quantity: qty,
+                        unit: ing.unit,
+                        isOptional: ing.isOptional
                     });
                 }
             }
@@ -428,9 +522,26 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                 </h2>
                                 <p className="text-sm text-muted-foreground">{tabs[activeTab].label}</p>
                             </div>
-                            <button onClick={onClose} className="p-2 hover:bg-muted rounded-full transition-colors">
-                                <X size={24} className="text-muted-foreground" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                        if (user?.tier === 'Plastikgabel') {
+                                            setLockedFeatureName('KI Rezept-Änderung');
+                                            setIsAiLockedOpen(true);
+                                        } else {
+                                            setIsAiModifyOpen(true);
+                                        }
+                                    }}
+                                    className="h-9 px-3 gap-2 border-indigo-500/30 text-indigo-500 hover:bg-indigo-500/5 text-xs font-bold"
+                                >
+                                    <Sparkles size={14} />
+                                    KI Änderung
+                                </Button>
+                                <button onClick={handleModalClose} className="p-2 hover:bg-muted rounded-full transition-colors">
+                                    <X size={24} className="text-muted-foreground" />
+                                </button>
+                            </div>
                         </div>
 
                         {/* Content */}
@@ -560,7 +671,10 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                                         type="button"
                                                         size="sm"
                                                         className="w-full gap-2 text-[10px] bg-muted text-muted-foreground border-2 border-border shadow-none"
-                                                        onClick={() => setIsAiLockedOpen(true)}
+                                                        onClick={() => {
+                                                            setLockedFeatureName('KI-Bilderstellung');
+                                                            setIsAiLockedOpen(true);
+                                                        }}
                                                     >
                                                         <Sparkles size={14} className="opacity-50" />
                                                         {basics.imagePreview ? 'AI Variante' : 'AI Neu'}
@@ -684,7 +798,8 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
 
                                     <div className="space-y-2">
                                         <div className="grid grid-cols-12 gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground px-2">
-                                            <div className="col-span-6">Zutat</div>
+                                            <div className="col-span-1 text-center">Opt.</div>
+                                            <div className="col-span-5">Zutat</div>
                                             <div className="col-span-3">Menge</div>
                                             <div className="col-span-2">Einh.</div>
                                             <div className="col-span-1"></div>
@@ -696,7 +811,16 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                                     "grid grid-cols-12 gap-2 items-center p-2 rounded-xl transition-colors",
                                                     sub ? "bg-amber-500/10 border border-amber-500/20" : "bg-muted/30"
                                                 )}>
-                                                    <div className="col-span-6 font-medium text-foreground flex flex-col">
+                                                    <div className="col-span-1 border-r border-border/50 h-full flex items-center justify-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={ing.isOptional}
+                                                            onChange={e => updateIngredient(idx, 'isOptional', e.target.checked)}
+                                                            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                                            title="Optional?"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-5 font-medium text-foreground flex flex-col">
                                                         <span>{ing.name}</span>
                                                         {sub && (
                                                             <span className={cn(
@@ -816,7 +940,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                 ))}
                             </div>
                             <div className="flex gap-2 w-full md:w-auto">
-                                <Button variant="ghost" onClick={onClose} className="flex-1 md:flex-none">Abbrechen</Button>
+                                <Button variant="ghost" onClick={handleModalClose} className="flex-1 md:flex-none">Abbrechen</Button>
                                 <Button onClick={handleSave} disabled={loading || isSaving || isGeneratingImage} className="flex-1 md:flex-none min-w-[120px]">
                                     {isSaving ? 'Speichert...' : 'Speichern'}
                                 </Button>
@@ -840,8 +964,63 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
             <AiLockedModal
                 isOpen={isAiLockedOpen}
                 onClose={() => setIsAiLockedOpen(false)}
-                featureName="KI-Bilderstellung"
+                featureName={lockedFeatureName}
             />
+
+            <AiRecipeModifyModal
+                isOpen={isAiModifyOpen}
+                onClose={() => setIsAiModifyOpen(false)}
+                recipe={{
+                    title: basics.title,
+                    category: basics.category,
+                    prep_time: basics.prep_time,
+                    duration: basics.duration,
+                    servings: basics.servings,
+                    ingredients: ingredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit, isOptional: ing.isOptional })),
+                    steps: steps.map(s => s.text),
+                    tags: basics.tags
+                }}
+                onSuccess={handleAiSuccess}
+                credits={user?.aiCredits}
+                userTier={user?.tier}
+            />
+
+            {/* Exit Warning Overay */}
+            <AnimatePresence>
+                {showExitWarning && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                            onClick={() => setShowExitWarning(false)}
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="relative w-full max-w-sm bg-background p-6 rounded-3xl border border-border shadow-2xl space-y-4"
+                        >
+                            <div className="flex items-center gap-3 text-amber-500">
+                                <AlertTriangle size={24} />
+                                <h3 className="text-lg font-bold">Nicht gespeichert!</h3>
+                            </div>
+                            <p className="text-sm text-muted-foreground leading-relaxed">
+                                Du hast Änderungen vorgenommen, die noch nicht gespeichert wurden. Wenn du jetzt gehst, gehen alle Anpassungen (auch KI-Änderungen) verloren.
+                            </p>
+                            <div className="flex flex-col gap-2 pt-2">
+                                <Button onClick={() => setShowExitWarning(false)} className="w-full">
+                                    Weiter bearbeiten
+                                </Button>
+                                <Button onClick={forceClose} variant="ghost" className="w-full text-destructive hover:bg-destructive/10">
+                                    Verwerfen und schließen
+                                </Button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </AnimatePresence>
     );
 }

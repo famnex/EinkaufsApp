@@ -278,84 +278,158 @@ export default function SharedRecipe() {
                 {/* Screen-only Grid Layout */}
                 <div className="print:hidden grid md:grid-cols-[1fr_1.5fr] gap-6">
                     {/* Ingredients */}
-                    <div className="space-y-4">
-                        <h2 className="text-xl font-bold flex items-center gap-2">
-                            <span className="w-8 h-8 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center text-sm">1</span>
-                            Zutaten
-                        </h2>
-                        <Card className="divide-y divide-border">
-                            {recipe.RecipeIngredients && recipe.RecipeIngredients.length > 0 ? (
-                                recipe.RecipeIngredients.map((ri) => {
-                                    const productConflicts = getConflictForProduct(ri.ProductId);
-                                    return (
-                                        <div
-                                            key={ri.id}
-                                            className={cn(
-                                                "p-3 flex items-center justify-between hover:bg-muted/30 transition-colors relative",
-                                                activeTooltip === ri.id ? "z-40" : "z-0"
-                                            )}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-medium">
-                                                    {ri.Product?.name || 'Unbekanntes Produkt'}
-                                                </span>
-                                                {productConflicts && (
-                                                    <div className="z-50 shrink-0">
-                                                        <div
-                                                            className={cn(
-                                                                "w-10 h-10 flex items-center justify-center rounded-full transition-all cursor-pointer",
-                                                                productConflicts.maxProbability >= 80 ? "bg-destructive/10 text-destructive animate-pulse ring-1 ring-destructive/20" : "bg-orange-500/10 text-orange-500 ring-1 ring-orange-500/20"
-                                                            )}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setActiveTooltip(activeTooltip === ri.id ? null : ri.id);
-                                                            }}
-                                                        >
-                                                            {productConflicts.maxProbability >= 80 ? (
-                                                                <AlertCircle size={20} />
-                                                            ) : (
-                                                                <HelpCircle size={20} />
+                    <div className="space-y-6">
+                        {/* Mandatory Ingredients */}
+                        <div className="space-y-4">
+                            <h2 className="text-xl font-bold flex items-center gap-2">
+                                <span className="w-8 h-8 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center text-sm">1</span>
+                                Zutaten
+                            </h2>
+                            <Card className="divide-y divide-border">
+                                {recipe.RecipeIngredients && recipe.RecipeIngredients.filter(ri => !ri.isOptional).length > 0 ? (
+                                    recipe.RecipeIngredients.filter(ri => !ri.isOptional).map((ri) => {
+                                        const productConflicts = getConflictForProduct(ri.ProductId);
+                                        return (
+                                            <div
+                                                key={ri.id}
+                                                className={cn(
+                                                    "p-3 flex items-center justify-between hover:bg-muted/30 transition-colors relative",
+                                                    activeTooltip === ri.id ? "z-40" : "z-0"
+                                                )}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-medium">
+                                                        {ri.Product?.name || 'Unbekanntes Produkt'}
+                                                    </span>
+                                                    {productConflicts && (
+                                                        <div className="z-50 shrink-0">
+                                                            <div
+                                                                className={cn(
+                                                                    "w-10 h-10 flex items-center justify-center rounded-full transition-all cursor-pointer",
+                                                                    productConflicts.maxProbability >= 80 ? "bg-destructive/10 text-destructive animate-pulse ring-1 ring-destructive/20" : "bg-orange-500/10 text-orange-500 ring-1 ring-orange-500/20"
+                                                                )}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setActiveTooltip(activeTooltip === ri.id ? null : ri.id);
+                                                                }}
+                                                            >
+                                                                {productConflicts.maxProbability >= 80 ? <AlertCircle size={20} /> : <HelpCircle size={20} />}
+                                                            </div>
+
+                                                            {activeTooltip === ri.id && (
+                                                                <div
+                                                                    className="absolute right-0 bottom-full mb-3 w-64 p-4 bg-popover text-popover-foreground rounded-2xl shadow-2xl border border-border z-50 animate-in fade-in slide-in-from-bottom-2 duration-200"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    <div className={cn("font-bold mb-2 flex items-center gap-2", productConflicts.maxProbability >= 80 ? "text-destructive" : "text-orange-500")}>
+                                                                        {productConflicts.maxProbability >= 80 ? <AlertCircle size={16} /> : <HelpCircle size={16} />}
+                                                                        {productConflicts.maxProbability >= 80 ? 'Achtung!' : 'Hinweis'}
+                                                                    </div>
+                                                                    <div className="text-muted-foreground mb-2 text-xs">Unverträglichkeit erkannt ({productConflicts.maxProbability}%):</div>
+                                                                    <div className="space-y-1">
+                                                                        {productConflicts.messages.map((msg, i) => (
+                                                                            <div key={i} className={cn(
+                                                                                "text-xs font-semibold p-2 rounded-lg border",
+                                                                                productConflicts.maxProbability >= 80 ? "bg-destructive/5 text-destructive border-destructive/10" : "bg-orange-500/5 text-orange-500 border-orange-500/10"
+                                                                            )}>
+                                                                                {msg}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                    <div className="absolute top-full right-4 w-3 h-3 bg-popover border-r border-b border-border rotate-45 -translate-y-1/2" />
+                                                                </div>
                                                             )}
                                                         </div>
-
-                                                        {activeTooltip === ri.id && (
-                                                            <div
-                                                                className="absolute right-0 bottom-full mb-3 w-64 p-4 bg-popover text-popover-foreground rounded-2xl shadow-2xl border border-border z-50 animate-in fade-in slide-in-from-bottom-2 duration-200"
-                                                                onClick={(e) => e.stopPropagation()}
-                                                            >
-                                                                <div className={cn("font-bold mb-2 flex items-center gap-2", productConflicts.maxProbability >= 80 ? "text-destructive" : "text-orange-500")}>
-                                                                    {productConflicts.maxProbability >= 80 ? <AlertCircle size={16} /> : <HelpCircle size={16} />}
-                                                                    {productConflicts.maxProbability >= 80 ? 'Achtung!' : 'Hinweis'}
-                                                                </div>
-                                                                <div className="text-muted-foreground mb-2 text-xs">Unverträglichkeit erkannt ({productConflicts.maxProbability}%):</div>
-                                                                <div className="space-y-1">
-                                                                    {productConflicts.messages.map((msg, i) => (
-                                                                        <div key={i} className={cn(
-                                                                            "text-xs font-semibold p-2 rounded-lg border",
-                                                                            productConflicts.maxProbability >= 80 ? "bg-destructive/5 text-destructive border-destructive/10" : "bg-orange-500/5 text-orange-500 border-orange-500/10"
-                                                                        )}>
-                                                                            {msg}
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                                <div className="absolute top-full right-4 w-3 h-3 bg-popover border-r border-b border-border rotate-45 -translate-y-1/2" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
+                                                    )}
+                                                </div>
+                                                <span className="text-sm text-muted-foreground font-semibold bg-muted px-2 py-0.5 rounded-md">
+                                                    {ri.quantity > 0 && <span className="mr-1">{ri.quantity.toLocaleString('de-DE')}</span>}
+                                                    {ri.unit}
+                                                </span>
                                             </div>
-                                            <span className="text-sm text-muted-foreground font-semibold bg-muted px-2 py-0.5 rounded-md">
-                                                {ri.quantity} {ri.unit}
-                                            </span>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <div className="p-4 text-center text-muted-foreground text-sm italic">
-                                    Keine Zutaten gelistet.
-                                </div>
-                            )}
-                        </Card>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="p-4 text-center text-muted-foreground text-sm italic">
+                                        Keine Zutaten gelistet.
+                                    </div>
+                                )}
+                            </Card>
+                        </div>
+
+                        {/* Optional Ingredients */}
+                        {recipe.RecipeIngredients && recipe.RecipeIngredients.some(ri => ri.isOptional) && (
+                            <div className="space-y-4">
+                                <h2 className="text-xl font-bold flex items-center gap-2">
+                                    <span className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-sm">+</span>
+                                    Optionale Zutaten
+                                </h2>
+                                <Card className="divide-y divide-border">
+                                    {recipe.RecipeIngredients.filter(ri => ri.isOptional).map((ri) => {
+                                        const productConflicts = getConflictForProduct(ri.ProductId);
+                                        return (
+                                            <div
+                                                key={ri.id}
+                                                className={cn(
+                                                    "p-3 flex items-center justify-between hover:bg-muted/30 transition-colors relative",
+                                                    activeTooltip === ri.id ? "z-40" : "z-0"
+                                                )}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-medium">
+                                                        {ri.Product?.name || 'Unbekanntes Produkt'}
+                                                    </span>
+                                                    {productConflicts && (
+                                                        <div className="z-50 shrink-0">
+                                                            <div
+                                                                className={cn(
+                                                                    "w-10 h-10 flex items-center justify-center rounded-full transition-all cursor-pointer",
+                                                                    productConflicts.maxProbability >= 80 ? "bg-destructive/10 text-destructive animate-pulse ring-1 ring-destructive/20" : "bg-orange-500/10 text-orange-500 ring-1 ring-orange-500/20"
+                                                                )}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setActiveTooltip(activeTooltip === ri.id ? null : ri.id);
+                                                                }}
+                                                            >
+                                                                {productConflicts.maxProbability >= 80 ? <AlertCircle size={20} /> : <HelpCircle size={20} />}
+                                                            </div>
+
+                                                            {activeTooltip === ri.id && (
+                                                                <div
+                                                                    className="absolute right-0 bottom-full mb-3 w-64 p-4 bg-popover text-popover-foreground rounded-2xl shadow-2xl border border-border z-50 animate-in fade-in slide-in-from-bottom-2 duration-200"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    <div className={cn("font-bold mb-2 flex items-center gap-2", productConflicts.maxProbability >= 80 ? "text-destructive" : "text-orange-500")}>
+                                                                        {productConflicts.maxProbability >= 80 ? <AlertCircle size={16} /> : <HelpCircle size={16} />}
+                                                                        {productConflicts.maxProbability >= 80 ? 'Achtung!' : 'Hinweis'}
+                                                                    </div>
+                                                                    <div className="text-muted-foreground mb-2 text-xs">Unverträglichkeit erkannt ({productConflicts.maxProbability}%):</div>
+                                                                    <div className="space-y-1">
+                                                                        {productConflicts.messages.map((msg, i) => (
+                                                                            <div key={i} className={cn(
+                                                                                "text-xs font-semibold p-2 rounded-lg border",
+                                                                                productConflicts.maxProbability >= 80 ? "bg-destructive/5 text-destructive border-destructive/10" : "bg-orange-500/5 text-orange-500 border-orange-500/10"
+                                                                            )}>
+                                                                                {msg}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                    <div className="absolute top-full right-4 w-3 h-3 bg-popover border-r border-b border-border rotate-45 -translate-y-1/2" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <span className="text-sm text-muted-foreground font-semibold bg-muted px-2 py-0.5 rounded-md">
+                                                    {ri.quantity > 0 && <span className="mr-1">{ri.quantity.toLocaleString('de-DE')}</span>}
+                                                    {ri.unit}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </Card>
+                            </div>
+                        )}
                     </div>
 
                     {/* Instructions */}
@@ -391,38 +465,78 @@ export default function SharedRecipe() {
                         <tr>
                             <td className="w-[35%] align-top pr-8 pb-4 border-none">
                                 {/* Ingredients Column */}
-                                <h2 className="text-xl font-bold mb-4 text-black flex items-center gap-2">
-                                    <span className="w-6 h-6 rounded-md border border-gray-300 flex items-center justify-center text-sm">1</span>
-                                    Zutaten
-                                </h2>
-                                <div className="border border-gray-200 rounded-xl overflow-visible">
-                                    {recipe.RecipeIngredients && recipe.RecipeIngredients.length > 0 ? (
-                                        recipe.RecipeIngredients.map((ri) => {
-                                            const productConflicts = getConflictForProduct(ri.ProductId);
-                                            return (
-                                                <div key={ri.id} className="p-3 border-b border-gray-100 last:border-0">
-                                                    <div className="flex items-center justify-between mb-1">
-                                                        <span className="font-medium text-black">
-                                                            {ri.Product?.name || 'Unbekanntes Produkt'}
-                                                        </span>
-                                                        <span className="text-xs font-semibold text-black border border-gray-200 px-2 py-0.5 rounded-md">
-                                                            {ri.quantity} {ri.unit}
-                                                        </span>
-                                                    </div>
-                                                    {productConflicts && (
-                                                        <div className={cn(
-                                                            "text-[10px] font-bold leading-tight",
-                                                            productConflicts.maxProbability >= 80 ? "text-red-600" : "text-orange-600"
-                                                        )}>
-                                                            {productConflicts.messages.join(' | ')}
+                                <div className="space-y-6">
+                                    <div className="space-y-4">
+                                        <h2 className="text-xl font-bold text-black flex items-center gap-2">
+                                            <span className="w-6 h-6 rounded-md border border-gray-300 flex items-center justify-center text-sm">1</span>
+                                            Zutaten
+                                        </h2>
+                                        <div className="border border-gray-200 rounded-xl overflow-visible">
+                                            {recipe.RecipeIngredients && recipe.RecipeIngredients.filter(ri => !ri.isOptional).length > 0 ? (
+                                                recipe.RecipeIngredients.filter(ri => !ri.isOptional).map((ri) => {
+                                                    const productConflicts = getConflictForProduct(ri.ProductId);
+                                                    return (
+                                                        <div key={ri.id} className="p-3 border-b border-gray-100 last:border-0">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <span className="font-medium text-black">
+                                                                    {ri.Product?.name || 'Unbekanntes Produkt'}
+                                                                </span>
+                                                                <span className="text-xs font-semibold text-black border border-gray-200 px-2 py-0.5 rounded-md">
+                                                                    {ri.quantity > 0 && <span className="mr-1">{ri.quantity.toLocaleString('de-DE')}</span>}
+                                                                    {ri.unit}
+                                                                </span>
+                                                            </div>
+                                                            {productConflicts && (
+                                                                <div className={cn(
+                                                                    "text-[10px] font-bold leading-tight",
+                                                                    productConflicts.maxProbability >= 80 ? "text-red-600" : "text-orange-600"
+                                                                )}>
+                                                                    {productConflicts.messages.join(' | ')}
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    )}
+                                                    );
+                                                })
+                                            ) : (
+                                                <div className="p-4 text-center text-gray-400 text-sm italic">
+                                                    Keine Zutaten.
                                                 </div>
-                                            );
-                                        })
-                                    ) : (
-                                        <div className="p-4 text-center text-gray-400 text-sm italic">
-                                            Keine Zutaten.
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {recipe.RecipeIngredients && recipe.RecipeIngredients.some(ri => ri.isOptional) && (
+                                        <div className="space-y-4">
+                                            <h2 className="text-xl font-bold text-black flex items-center gap-2">
+                                                <span className="w-6 h-6 rounded-md border border-gray-300 flex items-center justify-center text-sm">+</span>
+                                                Optionale Zutaten
+                                            </h2>
+                                            <div className="border border-gray-200 rounded-xl overflow-visible">
+                                                {recipe.RecipeIngredients.filter(ri => ri.isOptional).map((ri) => {
+                                                    const productConflicts = getConflictForProduct(ri.ProductId);
+                                                    return (
+                                                        <div key={ri.id} className="p-3 border-b border-gray-100 last:border-0">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <span className="font-medium text-black">
+                                                                    {ri.Product?.name || 'Unbekanntes Produkt'}
+                                                                </span>
+                                                                <span className="text-xs font-semibold text-black border border-gray-200 px-2 py-0.5 rounded-md">
+                                                                    {ri.quantity > 0 && <span className="mr-1">{ri.quantity.toLocaleString('de-DE')}</span>}
+                                                                    {ri.unit}
+                                                                </span>
+                                                            </div>
+                                                            {productConflicts && (
+                                                                <div className={cn(
+                                                                    "text-[10px] font-bold leading-tight",
+                                                                    productConflicts.maxProbability >= 80 ? "text-red-600" : "text-orange-600"
+                                                                )}>
+                                                                    {productConflicts.messages.join(' | ')}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
                                     )}
                                 </div>

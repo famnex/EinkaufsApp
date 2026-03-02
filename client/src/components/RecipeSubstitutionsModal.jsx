@@ -116,7 +116,8 @@ export default function RecipeSubstitutionsModal({ isOpen, onClose, recipeId, re
                                             <div className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Original</div>
                                             <div className="font-bold text-foreground">{sub.OriginalProduct?.name}</div>
                                             <div className="text-xs text-muted-foreground">
-                                                {sub.originalQuantity} {sub.originalUnit}
+                                                {sub.originalQuantity > 0 && <span className="mr-1">{sub.originalQuantity}</span>}
+                                                {sub.originalUnit}
                                             </div>
                                         </div>
                                         <div className="pt-6">

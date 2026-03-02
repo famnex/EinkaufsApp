@@ -296,9 +296,10 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
 
                 await api.post(`/recipes/${recipe.id}/ingredients`, {
                     ProductId: productId,
-                    quantity: rawIng.amount || 1,
+                    quantity: rawIng.amount || 0,
                     unit: rawIng.unit || 'Stück',
-                    originalName: rawIng.name
+                    originalName: rawIng.name,
+                    isOptional: !!rawIng.isOptional
                 });
             }
 
@@ -330,7 +331,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                 <Sparkles size={24} />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-bebas tracking-wide">AI Rezept Assistent</h2>
+                                <h2 className="text-2xl font-bebas tracking-wide">AI Rezept Import</h2>
                                 <p className="text-sm text-muted-foreground font-medium">Importiere Rezepte aus Text oder Links</p>
                             </div>
                         </div>
@@ -383,7 +384,6 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                                     <input
                                                         type="file"
                                                         accept="image/*"
-                                                        capture="environment"
                                                         className="absolute inset-0 opacity-0 cursor-pointer"
                                                         onChange={handleInputImageUpload}
                                                     />
@@ -421,7 +421,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                         className="h-12 px-8 text-lg gap-2 shadow-lg shadow-primary/20"
                                     >
                                         <Sparkles size={18} />
-                                        {inputText.trim() ? 'Analysieren' : 'Foto Scannen'}
+                                        Import Starten
                                         {user?.tier === 'Silbergabel' && (
                                             <span className="ml-1 opacity-70 text-xs bg-white/20 px-2 py-0.5 rounded-full">
                                                 ({inputImage ? '15' : '5'} Coins)
@@ -571,7 +571,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
 
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                             <div>
-                                                <label className="text-[10px] uppercase font-bold text-muted-foreground">Haus-Kategorie</label>
+                                                <label className="text-[10px] uppercase font-bold text-muted-foreground">Kategorie</label>
                                                 <Input
                                                     className="h-8 text-sm"
                                                     value={parsedData.category || ''}
@@ -670,8 +670,13 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                             return (
                                                 <div key={idx} className="p-3 bg-card border border-border rounded-xl flex items-center gap-3 shadow-sm text-sm">
                                                     <div className="w-1/3 shrink-0">
-                                                        <p className="font-bold truncate" title={ing.name}>{ing.name}</p>
-                                                        <p className="text-xs text-muted-foreground">{ing.amount} {ing.unit}</p>
+                                                        <p className="font-bold truncate" title={ing.name}>
+                                                            {ing.name}
+                                                            {ing.isOptional && <span className="text-[10px] text-muted-foreground ml-1 font-normal">(optional)</span>}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground italic">
+                                                            {ing.amount > 0 ? `${ing.amount} ${ing.unit}` : ing.unit}
+                                                        </p>
                                                     </div>
                                                     <ArrowRight size={14} className="text-muted-foreground shrink-0" />
                                                     <div className="flex-1 min-w-0">

@@ -153,7 +153,10 @@ export default function Layout({ children }) {
                             </AnimatePresence>
                         </div>
 
-                        {location.pathname !== '/settings' && <EditModeSelector editMode={editMode} setEditMode={setEditMode} />}
+                        {location.pathname !== '/settings' &&
+                            location.pathname !== '/recipes' &&
+                            location.pathname !== '/community-cookbooks' &&
+                            <EditModeSelector editMode={editMode} setEditMode={setEditMode} />}
 
                         <button
                             onClick={toggleTheme}

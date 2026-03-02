@@ -14,6 +14,7 @@ module.exports = (sequelize) => {
             defaultValue: 'scraped'
         },
         clicks: { type: DataTypes.INTEGER, defaultValue: 0 },
+        isPublic: { type: DataTypes.BOOLEAN, defaultValue: true },
         bannedAt: { type: DataTypes.DATE, allowNull: true }
     });
 };

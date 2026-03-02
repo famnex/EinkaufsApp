@@ -27,6 +27,11 @@ const creditService = {
             'Plastikgabel': 0,
             'Silbergabel': 0,
             'Goldgabel': 0
+        },
+        'RECIPE_MODIFY': {
+            'Plastikgabel': 0, // Blocked at UI level
+            'Silbergabel': 10,
+            'Goldgabel': 0
         }
     },
 

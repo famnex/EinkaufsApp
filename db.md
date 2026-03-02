@@ -105,6 +105,7 @@ Protokollierung aller Abonnements-bezogenen Aktivitäten.
 ### `Recipes` / `RecipeIngredients`
 - `sharingKey` der `Users` erlaubt Zugriff auf Rezepte des jeweiligen Users.
 - `RecipeIngredients` verknüpft `Recipe` mit `Product` für einen spezifischen `UserId`.
+- `isOptional` (BOOLEAN): Kennzeichnet Zutaten als optional [NEW v0.36.1].
 
 ### `FavoriteRecipes` (Join Table) [NEW v0.30.13]
 - Verknüpft `Users` und `Recipes`.
@@ -165,6 +166,14 @@ Join-Tabelle zur Kennzeichnung von Produkten mit Unverträglichkeiten (Many-to-M
 ---
 
 ## 2. Migrationen & Änderungen
+
+### v0.36.1 - Optionale Zutaten (März 2026)
+1. **isOptional Spalte**: Neue Spalte `isOptional` (BOOLEAN, default: false) in `RecipeIngredients` Tabelle hinzugefügt.
+2. **Migration**: `server/migrations/migrate_v0.36.1_optional_ingredients.js`
+
+### v0.36.2 - Quantitative Textangaben (März 2026)
+1. **quantityText Spalte**: Neue Spalte `quantityText` (STRING, nullable) in `RecipeIngredients` Tabelle hinzugefügt, um Mengen wie "etwas" oder "eine Prise" zu unterstützen.
+2. **Migration**: `server/migrations/migrate_v0.36.2_ingredient_quantity_text.js`
 
 ### v0.34.5 - Alexa Unlinking (März 2026)
 1. **alexaUserId Spalte**: Neue Spalte `alexaUserId` (STRING, nullable) in `Users` Tabelle hinzugefügt, um die Alexa-User-ID zu speichern.

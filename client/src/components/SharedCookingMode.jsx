@@ -68,7 +68,8 @@ export default function SharedCookingMode({ recipe, conflicts = [], onClose }) {
             originalName: originalName,
             isSubstituted: !!sub,
             amount: sub && sub.quantity !== null ? sub.quantity : ri.quantity,
-            unit: (sub && sub.unit) ? sub.unit : (ri.unit || ri.Product?.unit)
+            unit: (sub && sub.unit) ? sub.unit : (ri.unit || ri.Product?.unit),
+            isOptional: !!ri.isOptional
         };
     }) || [], [recipe, substitutions]);
 
@@ -367,63 +368,132 @@ export default function SharedCookingMode({ recipe, conflicts = [], onClose }) {
                             onTouchMove={(e) => e.stopPropagation()}
                             onTouchEnd={(e) => e.stopPropagation()}
                         >
-                            <h3 className="font-bold text-lg uppercase tracking-wider text-muted-foreground">Zutaten</h3>
-                            <div className="space-y-2">
-                                {ingredients.map((ing) => ( // Use ID
-                                    <div
-                                        key={ing.id} // Use ID
-                                        onClick={() => toggleIngredient(ing.id)} // Use ID
-                                        className={cn(
-                                            "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 border relative group",
-                                            checkedIngredients.has(ing.id) // Use ID
-                                                ? "bg-muted text-muted-foreground border-transparent line-through opacity-60"
-                                                : "bg-card border-border hover:border-primary/50 shadow-sm"
-                                        )}
-                                    >
-                                        <div className={cn(
-                                            "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
-                                            checkedIngredients.has(ing.id) ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"
-                                        )}>
-                                            {checkedIngredients.has(ing.id) && <Check size={14} strokeWidth={3} />}
-                                        </div>
-                                        <span className="font-medium text-lg flex-1">
-                                            {ing.amount > 0 && <span className="font-bold mr-1">{ing.amount} {ing.unit}</span>}
-                                            <span className={cn(ing.isSubstituted && "text-primary italic")}>{ing.name}</span>
-                                            {ing.isSubstituted && (
-                                                <div className="flex flex-col gap-0.5 mt-0.5">
-                                                    <span className="text-xs text-muted-foreground line-through opacity-60">Original: {ing.originalName}</span>
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-primary">Ersetzt</span>
-                                                </div>
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <h3 className="font-bold text-xs uppercase tracking-[0.2em] text-muted-foreground/60 mb-2 px-1">Zutaten</h3>
+                                    {ingredients.filter(ing => !ing.isOptional).map((ing) => (
+                                        <div
+                                            key={ing.id}
+                                            onClick={() => toggleIngredient(ing.id)}
+                                            className={cn(
+                                                "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 border relative group",
+                                                checkedIngredients.has(ing.id)
+                                                    ? "bg-muted text-muted-foreground border-transparent line-through opacity-60"
+                                                    : "bg-card border-border hover:border-primary/50 shadow-sm"
                                             )}
-                                        </span>
-                                        {(() => {
-                                            const conflictsForProduct = getConflictForProduct(recipe.RecipeIngredients?.find(ri => ri.id === ing.id)?.ProductId);
-                                            return conflictsForProduct && !ing.isSubstituted ? (
-                                                <div
-                                                    className="z-10 p-2 -m-2 shrink-0"
-                                                    onMouseEnter={(e) => handleTooltipShow(e, conflictsForProduct)}
-                                                    onMouseLeave={handleTooltipHide}
-                                                    onTouchStart={(e) => {
-                                                        e.stopPropagation();
-                                                        handleTooltipShow(e, conflictsForProduct);
-                                                    }}
-                                                    onTouchEnd={(e) => {
-                                                        e.stopPropagation();
-                                                        handleTooltipHide();
-                                                    }}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                >
-                                                    <div className={cn(
-                                                        "w-8 h-8 flex items-center justify-center rounded-full ring-1 transition-all",
-                                                        conflictsForProduct.maxProbability >= 80 ? "text-destructive bg-destructive/10 animate-pulse ring-destructive/20" : "text-orange-500 bg-orange-500/10 ring-orange-500/20"
-                                                    )}>
-                                                        {conflictsForProduct.maxProbability >= 80 ? <AlertCircle size={18} /> : <HelpCircle size={18} />}
+                                        >
+                                            <div className={cn(
+                                                "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+                                                checkedIngredients.has(ing.id) ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"
+                                            )}>
+                                                {checkedIngredients.has(ing.id) && <Check size={14} strokeWidth={3} />}
+                                            </div>
+                                            <span className="font-medium text-lg flex-1">
+                                                {ing.amount > 0 && <span className="font-bold mr-1">{ing.amount.toLocaleString('de-DE')}</span>}
+                                                {ing.unit && <span className="font-bold mr-1">{ing.unit}</span>}
+                                                <span className={cn(ing.isSubstituted && "text-primary italic")}>{ing.name}</span>
+                                                {ing.isSubstituted && (
+                                                    <div className="flex flex-col gap-0.5 mt-0.5">
+                                                        <span className="text-xs text-muted-foreground line-through opacity-60">Original: {ing.originalName}</span>
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1">
+                                                            Achtung! Ersetzt
+                                                        </span>
                                                     </div>
+                                                )}
+                                            </span>
+                                            {(() => {
+                                                const conflictsForProduct = getConflictForProduct(recipe?.RecipeIngredients?.find(ri => ri.id === ing.id)?.ProductId);
+                                                return conflictsForProduct && !ing.isSubstituted ? (
+                                                    <div
+                                                        className="z-10 p-2 -m-2 shrink-0"
+                                                        onMouseEnter={(e) => handleTooltipShow(e, conflictsForProduct)}
+                                                        onMouseLeave={handleTooltipHide}
+                                                        onTouchStart={(e) => {
+                                                            e.stopPropagation();
+                                                            handleTooltipShow(e, conflictsForProduct);
+                                                        }}
+                                                        onTouchEnd={(e) => {
+                                                            e.stopPropagation();
+                                                            handleTooltipHide();
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        <div className={cn(
+                                                            "w-8 h-8 flex items-center justify-center rounded-full ring-1 transition-all",
+                                                            conflictsForProduct.maxProbability >= 80 ? "text-destructive bg-destructive/10 animate-pulse ring-destructive/20" : "text-orange-500 bg-orange-500/10 ring-orange-500/20"
+                                                        )}>
+                                                            {conflictsForProduct.maxProbability >= 80 ? <AlertCircle size={18} /> : <HelpCircle size={18} />}
+                                                        </div>
+                                                    </div>
+                                                ) : null;
+                                            })()}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {ingredients.some(ing => ing.isOptional) && (
+                                    <div className="space-y-2">
+                                        <h3 className="font-bold text-xs uppercase tracking-[0.2em] text-muted-foreground/60 mb-2 px-1">Optionale Zutaten</h3>
+                                        {ingredients.filter(ing => ing.isOptional).map((ing) => (
+                                            <div
+                                                key={ing.id}
+                                                onClick={() => toggleIngredient(ing.id)}
+                                                className={cn(
+                                                    "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 border relative group",
+                                                    checkedIngredients.has(ing.id)
+                                                        ? "bg-muted text-muted-foreground border-transparent line-through opacity-60"
+                                                        : "bg-card border-border hover:border-primary/50 shadow-sm"
+                                                )}
+                                            >
+                                                <div className={cn(
+                                                    "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+                                                    checkedIngredients.has(ing.id) ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"
+                                                )}>
+                                                    {checkedIngredients.has(ing.id) && <Check size={14} strokeWidth={3} />}
                                                 </div>
-                                            ) : null;
-                                        })()}
+                                                <span className="font-medium text-lg flex-1">
+                                                    {ing.amount > 0 && <span className="font-bold mr-1">{ing.amount.toLocaleString('de-DE')}</span>}
+                                                    {ing.unit && <span className="font-bold mr-1">{ing.unit}</span>}
+                                                    <span className={cn(ing.isSubstituted && "text-primary italic")}>{ing.name}</span>
+                                                    {ing.isSubstituted && (
+                                                        <div className="flex flex-col gap-0.5 mt-0.5">
+                                                            <span className="text-xs text-muted-foreground line-through opacity-60">Original: {ing.originalName}</span>
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1">
+                                                                Achtung! Ersetzt
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </span>
+                                                {(() => {
+                                                    const conflictsForProduct = getConflictForProduct(recipe?.RecipeIngredients?.find(ri => ri.id === ing.id)?.ProductId);
+                                                    return conflictsForProduct && !ing.isSubstituted ? (
+                                                        <div
+                                                            className="z-10 p-2 -m-2 shrink-0"
+                                                            onMouseEnter={(e) => handleTooltipShow(e, conflictsForProduct)}
+                                                            onMouseLeave={handleTooltipHide}
+                                                            onTouchStart={(e) => {
+                                                                e.stopPropagation();
+                                                                handleTooltipShow(e, conflictsForProduct);
+                                                            }}
+                                                            onTouchEnd={(e) => {
+                                                                e.stopPropagation();
+                                                                handleTooltipHide();
+                                                            }}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            <div className={cn(
+                                                                "w-8 h-8 flex items-center justify-center rounded-full ring-1 transition-all",
+                                                                conflictsForProduct.maxProbability >= 80 ? "text-destructive bg-destructive/10 animate-pulse ring-destructive/20" : "text-orange-500 bg-orange-500/10 ring-orange-500/20"
+                                                            )}>
+                                                                {conflictsForProduct.maxProbability >= 80 ? <AlertCircle size={18} /> : <HelpCircle size={18} />}
+                                                            </div>
+                                                        </div>
+                                                    ) : null;
+                                                })()}
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
+                                )}
                             </div>
                         </div>
                     </div>
@@ -478,6 +548,7 @@ export default function SharedCookingMode({ recipe, conflicts = [], onClose }) {
                                                     )}
                                                 >
                                                     {frag.ingredient.isSubstituted ? frag.ingredient.name : frag.text}
+                                                    {frag.ingredient.isOptional && <span className="text-[0.6em] ml-1 opacity-70">(optional)</span>}
                                                 </span>
                                             )
                                         ))}
@@ -541,6 +612,7 @@ export default function SharedCookingMode({ recipe, conflicts = [], onClose }) {
                             </div>
                             <div className="text-xs text-muted-foreground whitespace-nowrap opacity-80 mb-1">
                                 {ingredientTooltip.ingredient.name}
+                                {ingredientTooltip.ingredient.isOptional && <span className="ml-1 text-[10px]">(optional)</span>}
                             </div>
                             {ingredientTooltip.conflicts && (
                                 <div className="mt-2 pt-2 border-t border-border/50 space-y-1">

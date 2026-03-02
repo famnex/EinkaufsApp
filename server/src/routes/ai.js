@@ -154,9 +154,10 @@ router.post('/parse', auth, upload.single('image'), async (req, res) => {
                     "total_time": 60, // integer (minutes).
                     "ingredients": [
                         {
-                            "amount": 2,    // number.
-                            "unit": "Stück", // Standardized German unit
-                            "name": "Eier", // Standardized German ingredient name
+                            "amount": 2,    // number. IMPORTANT: Set to 0 if the quantity is non-numeric like "etwas", "eine Prise" etc.
+                            "unit": "Stück", // Standardized German unit. OR a text quantity like "etwas", "eine Prise", "nach Belieben" IF amount is 0.
+                            "name": "Eier",  // Standardized German ingredient name
+                            "isOptional": false, // boolean. Set to true if ingredient is marked as optional in text
                             "alternative_names": ["Ei", "Eier", "Hühnerei"]
                         }
                     ],
@@ -170,6 +171,8 @@ router.post('/parse', auth, upload.single('image'), async (req, res) => {
                 - Output strictly valid JSON.
                 - Translate all text to GERMAN.
                 - Ensure "amount" is a JSON Number.
+                - If the quantity is non-numeric (e.g., "etwas", "eine Prise", "nach Belieben"), set "amount" to 0 and put the entire text quantity into "unit".
+                - Identify ingredients marked as "optional" or "(optional)" and set "isOptional": true.
                 - "prep_time" and "total_time" must be in MINUTES (integer).
                 `
             }
@@ -212,6 +215,81 @@ router.post('/parse', auth, upload.single('image'), async (req, res) => {
         if (req.file && fs.existsSync(req.file.path)) {
             fs.unlinkSync(req.file.path);
         }
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// AI Recipe Modification
+router.post('/modify', auth, async (req, res) => {
+    try {
+        const { recipe, input } = req.body;
+        if (!recipe || !input) {
+            return res.status(400).json({ error: 'Recipe and input (prompt) are required' });
+        }
+
+        // Get API Key
+        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
+        if (!setting || !setting.value) {
+            return res.status(400).json({ error: 'OpenAI API Key not configured in Settings' });
+        }
+
+        const openai = new OpenAI({ apiKey: setting.value });
+
+        const systemMessage = "Du bist ein professioneller Koch und Rezept-Assistent. Deine Aufgabe ist es, ein bestehendes Rezept basierend auf Benutzerwünschen anzupassen. Gib das Ergebnis ausschließlich als valides JSON in Deutsch zurück.";
+
+        const prompt = `
+        Hier ist das aktuelle Rezept:
+        JSON: ${JSON.stringify(recipe)}
+
+        Änderungswunsch des Benutzers: "${input}"
+
+        Passe das Rezept basierend auf diesem Wunsch an. Behalte die Struktur exakt bei.
+        Das Ergebnis muss ein JSON-Objekt mit folgender Struktur sein:
+        {
+            "title": "Angepasster Titel",
+            "category": "Gleichbleibende oder angepasste Kategorie",
+            "prep_time": 20, // Ganzzahl in Minuten
+            "duration": 60, // Ganzzahl in Minuten
+            "servings": 4, // Ganzzahl
+            "ingredients": [
+                {
+                    "name": "Zutat",
+                    "quantity": 2, // Zahl
+                    "unit": "Stück", // Deutsche Einheit
+                    "isOptional": false // Optional markiert?
+                }
+            ],
+            "steps": [
+                "Schritt 1...",
+                "Schritt 2..."
+            ],
+            "tags": ["Tag1", "Tag2"]
+        }
+
+        Wichtig:
+        - Wenn Mengen umgerechnet werden sollen (z.B. "für 6 Personen"), berechne alle Zutatensmengen neu.
+        - Wenn Zutaten ersetzt werden, passe auch die Zubereitungsschritte ("steps") entsprechend an.
+        - Antworte NUR mit dem JSON-Objekt. Keine Einleitung, keine Erklärung.
+        `;
+
+        const completion = await openai.chat.completions.create({
+            messages: [
+                { role: "system", content: systemMessage },
+                { role: "user", content: prompt }
+            ],
+            model: "gpt-4o",
+            response_format: { type: "json_object" },
+        });
+
+        const result = JSON.parse(completion.choices[0].message.content);
+
+        // Deduct Credits
+        await creditService.deductCredits(req.user.effectiveId, 'RECIPE_MODIFY', 'Rezept per KI anpassen');
+
+        res.json(result);
+
+    } catch (err) {
+        console.error('AI Modify Error:', err);
         res.status(500).json({ error: err.message });
     }
 });

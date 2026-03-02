@@ -131,7 +131,10 @@ export default function SmartQuantityModal({ isOpen, onClose, recipe, menuId, li
                                     </div>
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2">
-                                            <div className="font-bold text-sm text-foreground">{ri.Product.name}</div>
+                                            <div className="font-bold text-sm text-foreground">
+                                                {ri.Product.name}
+                                                {ri.isOptional && <span className="text-muted-foreground text-[10px] ml-1 font-normal">(optional)</span>}
+                                            </div>
                                             {(() => {
                                                 const conflict = conflicts.find(c => Number(c.productId) === Number(ri.Product.id));
                                                 if (!conflict || !conflict.warnings || conflict.warnings.length === 0) return null;
@@ -146,7 +149,10 @@ export default function SmartQuantityModal({ isOpen, onClose, recipe, menuId, li
                                                 );
                                             })()}
                                         </div>
-                                        <div className="text-xs text-muted-foreground">{ri.amount} {ri.unit}</div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {ri.amount > 0 && <span className="mr-1">{ri.amount.toLocaleString('de-DE')}</span>}
+                                            {ri.unit}
+                                        </div>
                                     </div>
                                 </div>
                             );

@@ -216,8 +216,6 @@ Recipe.belongsToMany(User, { through: 'FavoriteRecipes', as: 'FavoritedBy' });
 Menu.hasMany(ListItem);
 ListItem.belongsTo(Menu);
 
-Recipe.belongsToMany(Product, { through: RecipeIngredient });
-Product.belongsToMany(Recipe, { through: RecipeIngredient });
 Recipe.hasMany(RecipeIngredient);
 RecipeIngredient.belongsTo(Recipe);
 RecipeIngredient.belongsTo(Product);

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import api from '../lib/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices, ShieldAlert, Edit, Heart, RefreshCw, Menu, ArrowUpDown, ChevronDown, Lock, Instagram, Copy, X, Check } from 'lucide-react';
+import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices, ShieldAlert, Edit, Heart, RefreshCw, Menu, ArrowUpDown, ChevronDown, Lock, Instagram, Copy, X, Check, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
@@ -450,6 +450,17 @@ export default function Recipes() {
         }
     };
 
+    const handleToggleVisibility = async (e, recipe) => {
+        e.stopPropagation();
+        try {
+            const { data } = await api.patch(`/recipes/${recipe.id}/visibility`);
+            setRecipes(prev => prev.map(r => r.id === data.id ? { ...r, isPublic: data.isPublic } : r));
+        } catch (err) {
+            console.error('Failed to toggle visibility', err);
+            alert('Fehler beim Ändern der Sichtbarkeit.');
+        }
+    };
+
     const toggleFavorite = async (e, recipe) => {
         e.stopPropagation(); // prevent opening the recipe or other clicks
         try {
@@ -473,15 +484,17 @@ export default function Recipes() {
                     {/* Search Field */}
                     <div
                         className={cn(
-                            "relative transition-all duration-300 ease-in-out overflow-hidden md:flex-1",
-                            mobileActiveFilter === 'search' ? "flex-1" : "w-12 bg-muted/50 md:bg-transparent rounded-xl cursor-pointer"
+                            "relative transition-all duration-300 ease-in-out overflow-hidden bg-muted/50 rounded-xl cursor-pointer md:bg-transparent md:cursor-default",
+                            mobileActiveFilter === 'search' ? "flex-1" : "w-12",
+                            "md:flex-1 md:w-auto"
                         )}
-                        onClick={() => setMobileActiveFilter('search')}
+                        onClick={() => { if (window.innerWidth < 768) setMobileActiveFilter('search'); }}
                     >
                         <Search
                             className={cn(
                                 "absolute top-1/2 -translate-y-1/2 text-muted-foreground transition-all duration-300",
-                                mobileActiveFilter !== 'search' ? "left-1/2 -translate-x-1/2" : "left-4"
+                                mobileActiveFilter !== 'search' ? "left-1/2 -translate-x-1/2" : "left-4",
+                                "md:left-4 md:translate-x-0"
                             )}
                             size={20}
                         />
@@ -489,10 +502,11 @@ export default function Recipes() {
                             placeholder="Rezept suchen..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            onFocus={() => setMobileActiveFilter('search')}
+                            onFocus={() => { if (window.innerWidth < 768) setMobileActiveFilter('search'); }}
                             className={cn(
-                                "pl-12 h-12 bg-card border-border shadow-sm transition-all duration-300",
-                                mobileActiveFilter !== 'search' ? "opacity-0 pointer-events-none" : "opacity-100"
+                                "pl-12 h-12 bg-card border-border shadow-sm transition-all duration-300 w-full",
+                                mobileActiveFilter !== 'search' ? "opacity-0 pointer-events-none" : "opacity-100",
+                                "md:opacity-100 md:pointer-events-auto"
                             )}
                         />
                     </div>
@@ -500,10 +514,11 @@ export default function Recipes() {
                     {/* Category Dropdown */}
                     <div
                         className={cn(
-                            "relative transition-all duration-300 ease-in-out md:w-64",
-                            mobileActiveFilter === 'category' ? "flex-1" : "w-12 bg-muted/50 md:bg-transparent rounded-xl cursor-pointer"
+                            "relative transition-all duration-300 ease-in-out bg-muted/50 rounded-xl cursor-pointer md:bg-transparent md:cursor-default",
+                            mobileActiveFilter === 'category' ? "flex-1" : "w-12",
+                            "md:w-64"
                         )}
-                        onClick={() => setMobileActiveFilter('category')}
+                        onClick={() => { if (window.innerWidth < 768) setMobileActiveFilter('category'); }}
                     >
                         {/* Collapsed Icon (Mobile) */}
                         <div className={cn(
@@ -520,14 +535,15 @@ export default function Recipes() {
 
                         <select
                             value={selectedCategory}
-                            onFocus={() => setMobileActiveFilter('category')}
+                            onFocus={() => { if (window.innerWidth < 768) setMobileActiveFilter('category'); }}
                             onChange={(e) => {
                                 setSelectedCategory(e.target.value);
                                 e.target.blur();
                             }}
                             className={cn(
                                 "h-12 w-full bg-card border border-border rounded-xl shadow-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none px-4 transition-all duration-300 md:pl-12",
-                                mobileActiveFilter !== 'category' ? "opacity-0 md:opacity-100 pointer-events-none md:pointer-events-auto" : "opacity-100"
+                                mobileActiveFilter !== 'category' ? "opacity-0 pointer-events-none" : "opacity-100",
+                                "md:opacity-100 md:pointer-events-auto"
                             )}
                         >
                             {categories.map(cat => <option key={cat} value={cat}>{cat === 'All' ? 'Alle Kategorien' : cat}</option>)}
@@ -535,8 +551,9 @@ export default function Recipes() {
 
                         {/* Chevron for expanded state */}
                         <div className={cn(
-                            "absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none md:block",
-                            mobileActiveFilter === 'category' ? "block" : "hidden"
+                            "absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none transition-opacity duration-300",
+                            mobileActiveFilter === 'category' ? "opacity-100" : "opacity-0",
+                            "md:opacity-100"
                         )}>
                             <ChevronDown size={16} className="text-muted-foreground" />
                         </div>
@@ -545,10 +562,11 @@ export default function Recipes() {
                     {/* Sorting Dropdown */}
                     <div
                         className={cn(
-                            "relative transition-all duration-300 ease-in-out md:w-64",
-                            mobileActiveFilter === 'sort' ? "flex-1" : "w-12 bg-muted/50 md:bg-transparent rounded-xl cursor-pointer"
+                            "relative transition-all duration-300 ease-in-out bg-muted/50 rounded-xl cursor-pointer md:bg-transparent md:cursor-default",
+                            mobileActiveFilter === 'sort' ? "flex-1" : "w-12",
+                            "md:w-64"
                         )}
-                        onClick={() => setMobileActiveFilter('sort')}
+                        onClick={() => { if (window.innerWidth < 768) setMobileActiveFilter('sort'); }}
                     >
                         {/* Collapsed Icon (Mobile) */}
                         <div className={cn(
@@ -565,14 +583,15 @@ export default function Recipes() {
 
                         <select
                             value={sortBy}
-                            onFocus={() => setMobileActiveFilter('sort')}
+                            onFocus={() => { if (window.innerWidth < 768) setMobileActiveFilter('sort'); }}
                             onChange={(e) => {
                                 setSortBy(e.target.value);
                                 e.target.blur();
                             }}
                             className={cn(
                                 "h-12 w-full bg-card border border-border rounded-xl shadow-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none px-4 transition-all duration-300 md:pl-12 pr-10",
-                                mobileActiveFilter !== 'sort' ? "opacity-0 md:opacity-100 pointer-events-none md:pointer-events-auto" : "opacity-100"
+                                mobileActiveFilter !== 'sort' ? "opacity-0 pointer-events-none" : "opacity-100",
+                                "md:opacity-100 md:pointer-events-auto"
                             )}
                         >
                             {['A-Z', 'Am Meisten gekocht', 'Meiste in Favoriten', 'Meiste Klicks', 'Wenigste Zutaten', 'Schnellste Kochzeit'].map(s => (
@@ -580,8 +599,9 @@ export default function Recipes() {
                             ))}
                         </select>
                         <div className={cn(
-                            "absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none md:block",
-                            mobileActiveFilter === 'sort' ? "block" : "hidden"
+                            "absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none transition-opacity duration-300",
+                            mobileActiveFilter === 'sort' ? "opacity-100" : "opacity-0",
+                            "md:opacity-100"
                         )}>
                             <ChevronDown size={16} className="text-muted-foreground" />
                         </div>
@@ -589,54 +609,8 @@ export default function Recipes() {
 
                     <div className="h-12 w-px bg-border mx-1 hidden md:block" />
 
-                    {/* Desktop Action Buttons */}
-                    <div className="hidden md:flex gap-2">
-                        <Button
-                            onClick={() => {
-                                handleShareRequest(
-                                    'Mein Kochbuch',
-                                    'Schau dir mein Kochbuch an!',
-                                    `${window.location.origin}${import.meta.env.BASE_URL}shared/${user?.sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1")
-                                );
-                            }}
-                            variant="ghost"
-                            size="icon"
-                            className="h-12 w-12 bg-card border border-border text-muted-foreground hover:text-foreground shrink-0"
-                        >
-                            <Share2 size={20} />
-                        </Button>
-
-                        <Button
-                            onClick={() => setIsSlotMachineOpen(true)}
-                            className="h-12 px-6 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:via-orange-600 hover:to-rose-600 text-white border-none shadow-xl shadow-orange-500/20 active:scale-95 transition-all group overflow-hidden relative shrink-0"
-                        >
-                            <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-12" />
-                            <Dices size={24} className="w-[18px] h-[18px] mr-2 group-hover:rotate-180 transition-transform duration-500" />
-                            <span className="font-bold">Zufalls-Roulette</span>
-                        </Button>
-
-                        {user?.tier !== 'Plastikgabel' ? (
-                            <Button
-                                onClick={() => setIsAiModalOpen(true)}
-                                className="h-12 px-6 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 shrink-0 select-none pb-safe-0"
-                            >
-                                <Sparkles size={18} className="mr-2" />
-                                <span>AI Assistant</span>
-                            </Button>
-                        ) : (
-                            <Button
-                                onClick={() => setIsAiLockedOpen(true)}
-                                className="h-12 px-6 bg-muted text-muted-foreground shadow-none shrink-0 select-none opacity-60 hover:opacity-80 transition-opacity relative"
-                            >
-                                <Sparkles size={18} className="mr-2 opacity-50" />
-                                <span>AI Assistant</span>
-                                <Lock size={13} className="absolute top-1 right-1 opacity-70" />
-                            </Button>
-                        )}
-                    </div>
-
-                    {/* Mobile Burger Menu */}
-                    <div className="md:hidden relative">
+                    {/* Burger Menu (Always visible now) */}
+                    <div className="relative">
                         <Button
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -661,6 +635,21 @@ export default function Recipes() {
                                     className="absolute right-0 top-full mt-2 w-56 py-2 rounded-2xl bg-popover/95 backdrop-blur-xl border border-border shadow-2xl z-[100] overflow-hidden"
                                     onClick={(e) => e.stopPropagation()}
                                 >
+                                    {/* Order: Rezept erstellen, AI Import, Zufalls-Rezept, ---, Kochbuch teilen */}
+                                    <button
+                                        className="w-full text-left px-4 py-3 text-sm hover:bg-muted flex items-center gap-3 transition-colors text-foreground font-medium"
+                                        onClick={() => {
+                                            setIsModalOpen(true);
+                                            setSelectedRecipe(null);
+                                            setIsMobileMenuOpen(false);
+                                        }}
+                                    >
+                                        <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                                            <Plus size={18} />
+                                        </div>
+                                        Rezept erstellen
+                                    </button>
+
                                     {user?.tier !== 'Plastikgabel' ? (
                                         <button
                                             className="w-full text-left px-4 py-3 text-sm hover:bg-muted flex items-center gap-3 transition-colors text-foreground font-medium"
@@ -672,7 +661,7 @@ export default function Recipes() {
                                             <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
                                                 <Sparkles size={18} />
                                             </div>
-                                            AI Assistant
+                                            AI Import
                                         </button>
                                     ) : (
                                         <button
@@ -685,10 +674,11 @@ export default function Recipes() {
                                             <div className="p-1.5 rounded-lg bg-muted text-muted-foreground">
                                                 <Sparkles size={18} />
                                             </div>
-                                            AI Assistant
+                                            AI Import
                                             <Lock size={13} className="ml-auto opacity-70" />
                                         </button>
                                     )}
+
                                     <button
                                         className="w-full text-left px-4 py-3 text-sm hover:bg-muted flex items-center gap-3 transition-colors text-foreground font-medium"
                                         onClick={() => {
@@ -701,7 +691,9 @@ export default function Recipes() {
                                         </div>
                                         Zufalls-Rezept
                                     </button>
+
                                     <div className="h-px bg-border mx-2 my-1" />
+
                                     <button
                                         className="w-full text-left px-4 py-3 text-sm hover:bg-muted flex items-center gap-3 transition-colors text-foreground font-medium"
                                         onClick={() => {
@@ -763,10 +755,10 @@ export default function Recipes() {
                                             handleOpenCookingMode(recipe);
                                         }
                                     }}
-                                    className={`cursor-pointer group relative ${editMode === 'delete' ? 'ring-2 ring-destructive ring-offset-2 rounded-3xl' : ''}`}
+                                    className={`cursor-pointer group relative ${editMode === 'delete' ? 'ring-2 ring-destructive ring-offset-2 rounded-3xl' : ''} ${openMenuId === recipe.id ? 'z-[40]' : 'z-10'}`}
                                 >
-                                    <Card className="h-full overflow-hidden hover:shadow-xl transition-all duration-300 border-border bg-card flex flex-col">
-                                        <div className="aspect-video relative bg-muted shrink-0">
+                                    <Card className="h-full hover:shadow-xl transition-all duration-300 border-border bg-card flex flex-col relative">
+                                        <div className="aspect-video relative bg-muted shrink-0 overflow-hidden rounded-t-2xl">
                                             {recipe.image_url ? (
                                                 <div className="w-full h-full relative">
                                                     <img
@@ -796,169 +788,15 @@ export default function Recipes() {
                                             )}
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60" />
 
-                                            {recipe.imageSource === 'scraped' && (
-                                                <div className="absolute bottom-2 right-2 z-20 group/tooltip">
-                                                    <div className="bg-red-500/90 backdrop-blur-md p-1.5 rounded-lg shadow-lg border border-red-400/30 text-white cursor-help">
-                                                        <ShieldAlert size={16} />
-                                                    </div>
-                                                    <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded-xl shadow-xl border border-border opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-50">
-                                                        Achtung: Dieses Bild wird im Shared Modus nicht angezeigt (Urheberrecht unklar).
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {recipe.hasSubstitutions && (
-                                                <div className="absolute top-2 left-2 z-20">
-                                                    <div className="bg-amber-500/90 backdrop-blur-md px-2 py-1 rounded-lg shadow-lg border border-amber-400/30 text-white flex items-center gap-1.5 pointer-events-none">
-                                                        <RefreshCw size={12} className="animate-spin-slow" />
-                                                        <span className="text-[10px] font-bold uppercase tracking-wider">Ersetzungen aktiv</span>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Action Menu Trigger - Prevent card click propagation */}
-                                            <div
-                                                className="absolute top-2 right-2 z-20"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    // Toggle this menu
-                                                    setOpenMenuId(openMenuId === recipe.id ? null : recipe.id);
-                                                }}
-                                            >
-                                                <div className="relative">
-                                                    <button
-                                                        className={cn(
-                                                            "p-2 rounded-full backdrop-blur-sm text-white transition-all duration-200",
-                                                            openMenuId === recipe.id ? "bg-black/60" : "bg-black/20 hover:bg-black/40"
-                                                        )}
-                                                    >
-                                                        <MoreHorizontal size={20} />
-                                                    </button>
-                                                    <div onClick={(e) => e.stopPropagation()}>
-                                                        <button
-                                                            onClick={(e) => toggleFavorite(e, recipe)}
-                                                            className="absolute top-12 right-0 p-2 rounded-full backdrop-blur-sm bg-black/20 hover:bg-black/40 text-white transition-all duration-200 focus:outline-none"
-                                                            title="Zu Favoriten hinzufügen/entfernen"
-                                                        >
-                                                            <Heart
-                                                                size={20}
-                                                                className={cn("transition-colors duration-300", recipe.isFavorite ? "fill-rose-500 text-rose-500" : "text-white")}
-                                                            />
-                                                        </button>
-                                                    </div>
-
-                                                    {/* Menu Dropdown */}
-                                                    <AnimatePresence>
-                                                        {openMenuId === recipe.id && (
-                                                            <motion.div
-                                                                initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                                                                animate={{ opacity: 1, scale: 1, y: 0 }}
-                                                                exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                                                                transition={{ duration: 0.1 }}
-                                                                className="absolute right-0 top-full mt-2 w-48 py-1 rounded-xl bg-popover/95 backdrop-blur-xl border border-white/10 shadow-xl z-30 overflow-hidden"
-                                                            >
-                                                                <button
-                                                                    className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        const baseUrl = import.meta.env.BASE_URL;
-                                                                        const link = `${window.location.origin}${baseUrl}shared/${user?.sharingKey}/recipe/${recipe.id}`.replace(/([^:]\/)\//g, "$1");
-
-                                                                        handleShareRequest(
-                                                                            recipe.title,
-                                                                            `Schau mal, ich habe ein Rezept für dich: ${recipe.title}`,
-                                                                            link
-                                                                        );
-                                                                        setOpenMenuId(null);
-                                                                    }}
-                                                                >
-                                                                    <Share2 size={16} />
-                                                                    Teilen
-                                                                </button>
-                                                                <button
-                                                                    className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setSelectedRecipe(recipe);
-                                                                        setIsModalOpen(true);
-                                                                        setOpenMenuId(null);
-                                                                    }}
-                                                                >
-                                                                    <Edit size={16} />
-                                                                    Bearbeiten
-                                                                </button>
-                                                                {recipe.hasSubstitutions && (
-                                                                    <button
-                                                                        className="w-full text-left px-4 py-3 text-sm text-amber-500 hover:bg-white/10 flex items-center gap-3 transition-colors font-bold"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            setSubstitutionsRecipe(recipe);
-                                                                            setOpenMenuId(null);
-                                                                        }}
-                                                                    >
-                                                                        <RefreshCw size={16} />
-                                                                        Ersetzungen
-                                                                    </button>
-                                                                )}
-                                                                <button
-                                                                    className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handlePlanClick(recipe);
-                                                                        setOpenMenuId(null);
-                                                                    }}
-                                                                >
-                                                                    <Calendar size={16} />
-                                                                    Einplanen
-                                                                </button>
-                                                                <button
-                                                                    className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        const baseUrl = import.meta.env.BASE_URL;
-                                                                        const link = `${window.location.origin}${baseUrl}shared/${user?.sharingKey}/recipe/${recipe.id}`.replace(/([^:]\/)\/+/g, "$1");
-                                                                        window.open(link, '_blank');
-                                                                        setOpenMenuId(null);
-                                                                    }}
-                                                                >
-                                                                    <Printer size={16} />
-                                                                    Drucken
-                                                                </button>
-                                                                {user?.role === 'admin' && (
-                                                                    <button
-                                                                        className="w-full text-left px-4 py-3 text-sm text-pink-500 hover:bg-white/10 flex items-center gap-3 transition-colors font-bold"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            handleGenerateInstaPost(recipe);
-                                                                            setOpenMenuId(null);
-                                                                        }}
-                                                                    >
-                                                                        <Instagram size={16} />
-                                                                        Instagram Post
-                                                                    </button>
-                                                                )}
-                                                            </motion.div>
-                                                        )}
-                                                    </AnimatePresence>
-                                                </div>
-                                            </div>
-
-                                            {/* Recipe Status Badge (Future or Past) */}
-                                            {status.nextPlanned ? (
-                                                <div className="absolute top-2 left-2 px-2 py-1 bg-emerald-500/90 backdrop-blur-md text-white text-xs font-bold rounded-lg shadow-sm border border-emerald-400/20 z-10 flex items-center gap-1.5">
-                                                    <ArrowRight size={12} className="text-white" />
-                                                    <span>{status.nextPlanned.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>
-                                                </div>
-                                            ) : status.lastCooked ? (
-                                                <div className="absolute top-2 left-2 px-2 py-1 bg-orange-500/90 backdrop-blur-md text-white text-xs font-bold rounded-lg shadow-sm border border-orange-400/20 z-10 flex items-center gap-1.5">
-                                                    <ArrowLeft size={12} className="text-white" />
-                                                    <span>{status.lastCooked.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
-                                                </div>
-                                            ) : null}
-
                                             <div className="absolute bottom-4 left-4 right-4 flex flex-col gap-1">
                                                 <div className="flex items-center gap-2">
                                                     <h3 className="text-xl font-bold text-white line-clamp-1">{recipe.title}</h3>
+                                                    {recipe.isPublic === false && (
+                                                        <div className="bg-black/40 backdrop-blur-md px-1.5 py-0.5 rounded-md border border-white/10 flex items-center gap-1 shrink-0" title="Dieses Rezept ist nicht öffentlich sichtbar">
+                                                            <EyeOff size={12} className="text-white/70" />
+                                                            <span className="text-[10px] text-white/70 font-bold uppercase tracking-tighter">Versteckt</span>
+                                                        </div>
+                                                    )}
                                                     {recipe.hasSubstitutions && (
                                                         <Sparkles size={16} className="text-amber-400 shrink-0" />
                                                     )}
@@ -966,6 +804,7 @@ export default function Recipes() {
                                                 <p className="text-white/80 text-sm">{recipe.category || 'Allgemein'}</p>
                                             </div>
                                         </div>
+
                                         <div className="p-4 flex flex-col justify-between flex-1 gap-4">
                                             <div className="flex items-center justify-between text-muted-foreground text-sm">
                                                 <div className="flex items-center gap-1">
@@ -994,6 +833,195 @@ export default function Recipes() {
                                                     ))}
                                                 </div>
                                             )}
+                                        </div>
+
+                                        {/* Floating elements outside overflow-hidden */}
+                                        {recipe.imageSource === 'scraped' && (
+                                            <div className="absolute bottom-2 right-2 z-20 group/tooltip">
+                                                <div className="bg-red-500/90 backdrop-blur-md p-1.5 rounded-lg shadow-lg border border-red-400/30 text-white cursor-help">
+                                                    <ShieldAlert size={16} />
+                                                </div>
+                                                <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-popover text-popover-foreground text-xs rounded-xl shadow-xl border border-border opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-50">
+                                                    Achtung: Dieses Bild wird im Shared Modus nicht angezeigt (Urheberrecht unklar).
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {recipe.hasSubstitutions && (
+                                            <div className="absolute top-2 left-2 z-20">
+                                                <div className="bg-amber-500/90 backdrop-blur-md px-2 py-1 rounded-lg shadow-lg border border-amber-400/30 text-white flex items-center gap-1.5 pointer-events-none">
+                                                    <RefreshCw size={12} className="animate-spin-slow" />
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider">Ersetzungen aktiv</span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Recipe Status Badge (Future or Past) */}
+                                        {status.nextPlanned ? (
+                                            <div className="absolute top-2 left-2 px-2 py-1 bg-emerald-500/90 backdrop-blur-md text-white text-xs font-bold rounded-lg shadow-sm border border-emerald-400/20 z-10 flex items-center gap-1.5">
+                                                <ArrowRight size={12} className="text-white" />
+                                                <span>{status.nextPlanned.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>
+                                            </div>
+                                        ) : status.lastCooked ? (
+                                            <div className="absolute top-2 left-2 px-2 py-1 bg-orange-500/90 backdrop-blur-md text-white text-xs font-bold rounded-lg shadow-sm border border-orange-400/20 z-10 flex items-center gap-1.5">
+                                                <ArrowLeft size={12} className="text-white" />
+                                                <span>{status.lastCooked.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
+                                            </div>
+                                        ) : null}
+
+                                        {/* Action Menu Trigger - Outside overflow-hidden */}
+                                        <div
+                                            className="absolute top-2 right-2 z-20"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setOpenMenuId(openMenuId === recipe.id ? null : recipe.id);
+                                            }}
+                                        >
+                                            <div className="relative">
+                                                <button
+                                                    className={cn(
+                                                        "p-2 rounded-full backdrop-blur-sm text-white transition-all duration-200",
+                                                        openMenuId === recipe.id ? "bg-black/60" : "bg-black/20 hover:bg-black/40"
+                                                    )}
+                                                >
+                                                    <MoreHorizontal size={20} />
+                                                </button>
+                                                <div onClick={(e) => e.stopPropagation()}>
+                                                    <button
+                                                        onClick={(e) => toggleFavorite(e, recipe)}
+                                                        className="absolute top-12 right-0 p-2 rounded-full backdrop-blur-sm bg-black/20 hover:bg-black/40 text-white transition-all duration-200 focus:outline-none"
+                                                        title="Zu Favoriten hinzufügen/entfernen"
+                                                    >
+                                                        <Heart
+                                                            size={20}
+                                                            className={cn("transition-colors duration-300", recipe.isFavorite ? "fill-rose-500 text-rose-500" : "text-white")}
+                                                        />
+                                                    </button>
+                                                </div>
+
+                                                <AnimatePresence>
+                                                    {openMenuId === recipe.id && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                                                            transition={{ duration: 0.1 }}
+                                                            className="absolute right-0 top-full mt-2 w-48 py-1 rounded-xl bg-popover/95 backdrop-blur-xl border border-white/10 shadow-xl z-50 overflow-hidden"
+                                                        >
+                                                            <button
+                                                                className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedRecipe(recipe);
+                                                                    setIsModalOpen(true);
+                                                                    setOpenMenuId(null);
+                                                                }}
+                                                            >
+                                                                <Edit size={16} />
+                                                                Bearbeiten
+                                                            </button>
+
+                                                            {recipe.hasSubstitutions && (
+                                                                <button
+                                                                    className="w-full text-left px-4 py-3 text-sm text-amber-500 hover:bg-white/10 flex items-center gap-3 transition-colors font-bold"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSubstitutionsRecipe(recipe);
+                                                                        setOpenMenuId(null);
+                                                                    }}
+                                                                >
+                                                                    <RefreshCw size={16} />
+                                                                    Ersetzungen
+                                                                </button>
+                                                            )}
+
+                                                            <button
+                                                                className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handlePlanClick(recipe);
+                                                                    setOpenMenuId(null);
+                                                                }}
+                                                            >
+                                                                <Calendar size={16} />
+                                                                Einplanen
+                                                            </button>
+
+                                                            {user?.role === 'admin' && (
+                                                                <button
+                                                                    className="w-full text-left px-4 py-3 text-sm text-pink-500 hover:bg-white/10 flex items-center gap-3 transition-colors font-bold"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleGenerateInstaPost(recipe);
+                                                                        setOpenMenuId(null);
+                                                                    }}
+                                                                >
+                                                                    <Instagram size={16} />
+                                                                    Instagram Post
+                                                                </button>
+                                                            )}
+
+                                                            <button
+                                                                className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    const baseUrl = import.meta.env.BASE_URL;
+                                                                    const link = `${window.location.origin}${baseUrl}shared/${user?.sharingKey}/recipe/${recipe.id}?print=true`.replace(/([^:]\/)\/+/g, "$1");
+                                                                    window.open(link, '_blank');
+                                                                    setOpenMenuId(null);
+                                                                }}
+                                                            >
+                                                                <Printer size={16} />
+                                                                Drucken
+                                                            </button>
+
+                                                            <button
+                                                                className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
+                                                                onClick={(e) => {
+                                                                    handleToggleVisibility(e, recipe);
+                                                                    setOpenMenuId(null);
+                                                                }}
+                                                            >
+                                                                {recipe.isPublic !== false ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                                {recipe.isPublic !== false ? 'Verstecken' : 'Veröffentlichen'}
+                                                            </button>
+
+                                                            <button
+                                                                className="w-full text-left px-4 py-3 text-sm text-destructive hover:bg-destructive/10 flex items-center gap-3 transition-colors font-bold"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDelete(recipe.id, recipe.title);
+                                                                    setOpenMenuId(null);
+                                                                }}
+                                                            >
+                                                                <X size={16} />
+                                                                Löschen
+                                                            </button>
+
+                                                            <div className="h-px bg-white/10 mx-2 my-1" />
+
+                                                            <button
+                                                                className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    const baseUrl = import.meta.env.BASE_URL;
+                                                                    const link = `${window.location.origin}${baseUrl}shared/${user?.sharingKey}/recipe/${recipe.id}`.replace(/([^:]\/)\/+/g, "$1");
+
+                                                                    handleShareRequest(
+                                                                        recipe.title,
+                                                                        `Schau mal, ich habe ein Rezept für dich: ${recipe.title}`,
+                                                                        link
+                                                                    );
+                                                                    setOpenMenuId(null);
+                                                                }}
+                                                            >
+                                                                <Share2 size={16} />
+                                                                Teilen
+                                                            </button>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
                                         </div>
                                     </Card>
                                 </motion.div>
@@ -1092,7 +1120,7 @@ export default function Recipes() {
                 <AiLockedModal
                     isOpen={isAiLockedOpen}
                     onClose={() => setIsAiLockedOpen(false)}
-                    featureName="AI Assistant"
+                    featureName="AI Import"
                 />
 
                 {/* Instagram Post Modal */}

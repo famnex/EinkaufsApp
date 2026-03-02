@@ -14,10 +14,11 @@ module.exports = (sequelize) => {
         },
         ProductId: {
             type: DataTypes.INTEGER,
-            allowNull: false
+            allowNull: true
         },
         quantity: { type: DataTypes.FLOAT, allowNull: false },
         unit: { type: DataTypes.STRING },
-        originalName: { type: DataTypes.STRING, allowNull: true }
+        originalName: { type: DataTypes.STRING, allowNull: true },
+        isOptional: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }
     });
 };

@@ -330,7 +330,7 @@ export default function RecipeIntoleranceResolverModal({
                                                         </div>
                                                         {(s.substituteQuantity || s.substituteUnit) && (
                                                             <div className="text-[10px] font-bold text-primary/80 bg-primary/5 px-2 py-0.5 rounded-lg w-fit">
-                                                                Empfehlung: {s.substituteQuantity} {s.substituteUnit}
+                                                                Empfehlung: {s.substituteQuantity > 0 && <span className="mr-1">{s.substituteQuantity}</span>}{s.substituteUnit}
                                                             </div>
                                                         )}
                                                         <div className="text-[10px] text-muted-foreground line-clamp-2 leading-snug">

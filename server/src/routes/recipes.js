@@ -86,7 +86,7 @@ router.get('/', auth, async (req, res) => {
             ];
         } else {
             // phase === 'basic' or default
-            attributes = ['id', 'title', 'category', 'prep_time', 'duration', 'servings', 'imageSource', 'createdAt', 'updatedAt', 'UserId', 'clicks'];
+            attributes = ['id', 'title', 'category', 'prep_time', 'duration', 'servings', 'imageSource', 'isPublic', 'createdAt', 'updatedAt', 'UserId', 'clicks'];
             include = [
                 {
                     model: Menu,
@@ -460,9 +460,9 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
     if (req.file) console.log('File:', req.file.filename);
 
     try {
-        const { title, category, prep_time, duration, servings, instructions, tags } = req.body;
-
+        const { title, category, prep_time, duration, servings, instructions, tags, isPublic } = req.body;
         console.log('Title:', title);
+        console.log('isPublic:', isPublic);
         console.log('Instructions Type:', typeof instructions);
 
         let finalImageUrl = null;
@@ -497,6 +497,7 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
             servings: parseInt(servings) || 1,
             instructions: parsedInstructions,
             image_url: finalImageUrl,
+            isPublic: isPublic === 'false' || isPublic === false ? false : true,
             imageSource: req.body.imageSource || (finalImageUrl ? (req.file ? 'upload' : 'scraped') : 'none'),
             UserId: req.user.effectiveId
         });
@@ -549,13 +550,14 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
             return res.status(404).json({ error: 'Recipe not found or unauthorized' });
         }
 
-        const { title, category, prep_time, duration, servings, instructions, tags } = req.body;
+        const { title, category, prep_time, duration, servings, instructions, tags, isPublic } = req.body;
         const updates = {
             title, category,
-            prep_time: parseInt(prep_time) || 0,
-            duration: parseInt(duration) || 0,
-            servings: parseInt(servings) || 1,
+            prep_time: prep_time !== undefined ? (parseInt(prep_time) || 0) : undefined,
+            duration: duration !== undefined ? (parseInt(duration) || 0) : undefined,
+            servings: servings !== undefined ? (parseInt(servings) || 1) : undefined,
             instructions: instructions ? JSON.parse(instructions) : undefined,
+            isPublic: isPublic !== undefined ? (isPublic === 'false' || isPublic === false ? false : true) : undefined,
             imageSource: req.body.imageSource
         };
 
@@ -617,6 +619,19 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
     }
 });
 
+// Toggle visibility
+router.patch('/:id/visibility', auth, async (req, res) => {
+    try {
+        const recipe = await Recipe.findOne({ where: { id: req.params.id, UserId: req.user.effectiveId } });
+        if (!recipe) return res.status(404).json({ error: 'Recipe not found' });
+
+        await recipe.update({ isPublic: !recipe.isPublic });
+        res.json(recipe);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Toggle Favorite
 router.post('/:id/favorite', auth, async (req, res) => {
     try {
@@ -651,27 +666,32 @@ router.post('/:id/favorite', auth, async (req, res) => {
 // Add ingredient
 router.post('/:id/ingredients', auth, async (req, res) => {
     try {
-        const { ProductId, quantity, unit, originalName } = req.body;
+        const { ProductId, quantity, unit, originalName, isOptional } = req.body;
         const ingredient = await RecipeIngredient.create({
             RecipeId: req.params.id,
             UserId: req.user.effectiveId,
-            ProductId,
-            quantity,
+            ProductId: ProductId || null,
+            quantity: quantity ?? 0,
             unit,
-            originalName
+            originalName,
+            isOptional: !!isOptional
         });
+
+        // Only include Product association if we have a ProductId
+        const includeProduct = ProductId ? [{
+            model: Product,
+            where: {
+                [Op.or]: [
+                    { UserId: req.user.effectiveId },
+                    { UserId: null }
+                ]
+            },
+            required: false
+        }] : [];
+
         const withProduct = await RecipeIngredient.findOne({
             where: { id: ingredient.id, UserId: req.user.effectiveId },
-            include: [{
-                model: Product,
-                where: {
-                    [Op.or]: [
-                        { UserId: req.user.effectiveId },
-                        { UserId: null }
-                    ]
-                },
-                required: false
-            }]
+            include: includeProduct
         });
         res.status(201).json(withProduct);
     } catch (err) {
@@ -683,13 +703,18 @@ router.post('/:id/ingredients', auth, async (req, res) => {
 // Update ingredient
 router.put('/:id/ingredients/:ingredientId', auth, async (req, res) => {
     try {
-        const { quantity, unit, originalName } = req.body;
+        const { quantity, unit, originalName, isOptional } = req.body;
         const ingredient = await RecipeIngredient.findOne({
             where: { id: req.params.ingredientId, RecipeId: req.params.id }
         });
         if (!ingredient) return res.status(404).json({ error: 'Ingredient not found' });
 
-        await ingredient.update({ quantity, unit, originalName });
+        await ingredient.update({
+            quantity,
+            unit,
+            originalName,
+            isOptional: isOptional !== undefined ? !!isOptional : ingredient.isOptional
+        });
         res.json(ingredient);
     } catch (err) {
         res.status(500).json({ error: err.message });

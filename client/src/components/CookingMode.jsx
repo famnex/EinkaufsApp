@@ -41,6 +41,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
     const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
     const [isExitModalOpen, setIsExitModalOpen] = useState(false);
     const [isAiLockedOpen, setIsAiLockedOpen] = useState(false);
+    const [showServingsControls, setShowServingsControls] = useState(false);
 
     // Swipe Logic for Steps
     const [touchStart, setTouchStart] = useState(null);
@@ -103,7 +104,8 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
             isSubstituted: !!sub,
             amount: (sub && sub.quantity !== null ? sub.quantity : ri.quantity) * scaleFactor,
             unit: (sub && sub.unit) ? sub.unit : (ri.unit || ri.Product?.unit),
-            synonyms: Array.isArray(synonyms) ? synonyms : []
+            synonyms: Array.isArray(synonyms) ? synonyms : [],
+            isOptional: !!ri.isOptional
         };
     }) || [], [recipe, substitutions, scaleFactor]);
 
@@ -271,6 +273,9 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                     // Safety: ignore everything <= today or >= next list date
                     if (menu.date <= todayStr) continue;
                     if (nextShoppingList && menu.date >= nextShoppingList.date) break;
+
+                    // Exclude current recipe being cooked
+                    if (menu.RecipeId === recipe.id) continue;
 
                     if (!menu.Recipe || !menu.Recipe.RecipeIngredients) continue;
 
@@ -523,6 +528,15 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
         }
     };
 
+    const handleServingsChange = (delta) => {
+        resumeAudio();
+        const currentServings = Math.round(recipe.servings * scaleFactor);
+        const newServings = Math.max(1, currentServings + delta);
+        if (newServings === currentServings) return;
+
+        setScaleFactor(newServings / recipe.servings);
+    };
+
     // Share Logic Consolidation
     const [shareModalConfig, setShareModalConfig] = useState(null);
     const { setUser } = useAuth(); // Ensure we can update user state locally if needed
@@ -684,10 +698,35 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                             />
                             <div className="absolute bottom-4 left-4 right-4 text-white">
                                 <h2 className="hidden md:block text-2xl font-bold leading-tight drop-shadow-md">{recipe.title}</h2>
-                                <p className="opacity-90 text-sm font-medium drop-shadow-sm">
-                                    {(recipe.servings * scaleFactor).toLocaleString('de-DE')} Portionen • {recipe.duration} Min
-                                    {scaleFactor !== 1 && <span className="ml-2 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-sm">Skaliert {scaleFactor}x</span>}
-                                </p>
+                                <div className="opacity-90 text-sm font-medium drop-shadow-sm flex items-center gap-2">
+                                    <span
+                                        className={cn("cursor-pointer border-b border-white/50 hover:border-white transition-colors", showServingsControls && "border-white")}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowServingsControls(!showServingsControls);
+                                        }}
+                                    >
+                                        {(recipe.servings * scaleFactor).toLocaleString('de-DE')} Portionen
+                                    </span>
+                                    {showServingsControls && (
+                                        <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md rounded-lg p-1 animate-in fade-in zoom-in duration-200">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleServingsChange(-1); }}
+                                                className="w-6 h-6 flex items-center justify-center hover:bg-white/20 rounded-md transition-colors"
+                                            >
+                                                <Minus size={14} />
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleServingsChange(1); }}
+                                                className="w-6 h-6 flex items-center justify-center hover:bg-white/20 rounded-md transition-colors"
+                                            >
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
+                                    )}
+                                    <span>• {recipe.duration} Min</span>
+                                    {scaleFactor !== 1 && <span className="ml-2 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-sm">Skaliert {scaleFactor.toFixed(2)}x</span>}
+                                </div>
                             </div>
 
                             {/* Expand/Collapse Hint */}
@@ -703,73 +742,53 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                             onTouchMove={(e) => e.stopPropagation()}
                             onTouchEnd={(e) => e.stopPropagation()}
                         >
-                            <h3 className="font-bold text-lg uppercase tracking-wider text-muted-foreground">Zutaten</h3>
-                            <div className="space-y-2">
-                                {ingredients.map((ing) => ( // Note: we use ing.id for key ideally
-                                    <div
-                                        key={ing.id} // Changed to ID from index for safety with sorting
-                                        onClick={() => toggleIngredient(ing.id)} // Use ID
-                                        className={cn(
-                                            "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 border relative group",
-                                            checkedIngredients.has(ing.id) // Use ID
-                                                ? "bg-muted text-muted-foreground border-transparent line-through opacity-60"
-                                                : "bg-card border-border hover:border-primary/50 shadow-sm"
-                                        )}
-                                    >
-                                        <div className={cn(
-                                            "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
-                                            checkedIngredients.has(ing.id) ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"
-                                        )}>
-                                            {checkedIngredients.has(ing.id) && <Check size={14} strokeWidth={3} />}
-                                        </div>
-                                        <span className="font-medium text-lg flex-1">
-                                            {ing.amount > 0 && <span className={cn("font-bold mr-1", scaleFactor !== 1 && "text-primary")}>
-                                                {Number(ing.amount.toFixed(2)).toLocaleString('de-DE')} {ing.unit}
-                                            </span>}
-                                            <span className={cn(ing.isSubstituted && "text-primary italic")}>{ing.name}</span>
-                                            {ing.isSubstituted && (
-                                                <div className="flex flex-col gap-0.5 mt-0.5">
-                                                    <span className="text-xs text-muted-foreground line-through opacity-60">Original: {ing.originalName}</span>
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1">
-                                                        <Sparkles size={10} className="fill-current" /> Ersetzt
-                                                    </span>
-                                                </div>
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <h3 className="font-bold text-xs uppercase tracking-[0.2em] text-muted-foreground/60 mb-2 px-1">Zutaten</h3>
+                                    {ingredients.filter(ing => !ing.isOptional).map((ing) => (
+                                        <div
+                                            key={ing.id}
+                                            onClick={() => toggleIngredient(ing.id)}
+                                            className={cn(
+                                                "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 border relative group",
+                                                checkedIngredients.has(ing.id)
+                                                    ? "bg-muted text-muted-foreground border-transparent line-through opacity-60"
+                                                    : "bg-card border-border hover:border-primary/50 shadow-sm"
                                             )}
-                                        </span>
-
-                                        {/* Future Usage Warning */}
-                                        {futureUsage[ing.productId] && (
-                                            <div
-                                                className="z-10 p-2 -m-2 shrink-0"
-                                                onMouseEnter={(e) => handleTooltipShow(e, futureUsage[ing.productId])}
-                                                onMouseLeave={handleTooltipHide}
-                                                onTouchStart={(e) => {
-                                                    e.stopPropagation(); // Prevent card check logic
-                                                    handleTooltipShow(e, futureUsage[ing.productId]);
-                                                }}
-                                                onTouchEnd={(e) => {
-                                                    e.stopPropagation();
-                                                    handleTooltipHide();
-                                                }}
-                                                onClick={(e) => e.stopPropagation()} // Prevent card check
-                                            >
-                                                <div className="w-8 h-8 flex items-center justify-center text-amber-500 bg-amber-500/10 rounded-full animate-pulse ring-1 ring-amber-500/20">
-                                                    <AlertTriangle size={18} />
-                                                </div>
+                                        >
+                                            <div className={cn(
+                                                "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+                                                checkedIngredients.has(ing.id) ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"
+                                            )}>
+                                                {checkedIngredients.has(ing.id) && <Check size={14} strokeWidth={3} />}
                                             </div>
-                                        )}
+                                            <span className="font-medium text-lg flex-1">
+                                                {ing.amount > 0 && (
+                                                    <span className={cn("font-bold mr-1", scaleFactor !== 1 && "text-primary")}>
+                                                        {Number(ing.amount.toFixed(2)).toLocaleString('de-DE')}
+                                                    </span>
+                                                )}
+                                                {ing.unit && <span className="font-bold mr-1">{ing.unit}</span>}
+                                                <span className={cn(ing.isSubstituted && "text-primary italic")}>{ing.name}</span>
+                                                {ing.isSubstituted && (
+                                                    <div className="flex flex-col gap-0.5 mt-0.5">
+                                                        <span className="text-xs text-muted-foreground line-through opacity-60">Original: {ing.originalName}</span>
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1">
+                                                            <Sparkles size={10} className="fill-current" /> Ersetzt
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </span>
 
-                                        {/* Intolerance Warning */}
-                                        {(() => {
-                                            const conflict = getConflictForProduct(ing.productId);
-                                            return conflict && !ing.isSubstituted && (
+                                            {/* Future Usage Warning */}
+                                            {futureUsage[ing.productId] && (
                                                 <div
                                                     className="z-10 p-2 -m-2 shrink-0"
-                                                    onMouseEnter={(e) => handleTooltipShow(e, conflict)}
+                                                    onMouseEnter={(e) => handleTooltipShow(e, futureUsage[ing.productId])}
                                                     onMouseLeave={handleTooltipHide}
                                                     onTouchStart={(e) => {
                                                         e.stopPropagation();
-                                                        handleTooltipShow(e, conflict);
+                                                        handleTooltipShow(e, futureUsage[ing.productId]);
                                                     }}
                                                     onTouchEnd={(e) => {
                                                         e.stopPropagation();
@@ -777,17 +796,134 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                                                     }}
                                                     onClick={(e) => e.stopPropagation()}
                                                 >
-                                                    <div className={cn(
-                                                        "w-8 h-8 flex items-center justify-center rounded-full ring-1 transition-all",
-                                                        conflict.maxProbability >= 80 ? "text-destructive bg-destructive/10 animate-pulse ring-destructive/20" : "text-orange-500 bg-orange-500/10 ring-orange-500/20"
-                                                    )}>
-                                                        {conflict.maxProbability >= 80 ? <AlertCircle size={18} /> : <HelpCircle size={18} />}
+                                                    <div className="w-8 h-8 flex items-center justify-center text-amber-500 bg-amber-500/10 rounded-full animate-pulse ring-1 ring-amber-500/20">
+                                                        <AlertTriangle size={18} />
                                                     </div>
                                                 </div>
-                                            );
-                                        })()}
+                                            )}
+
+                                            {/* Intolerance Warning */}
+                                            {(() => {
+                                                const conflict = getConflictForProduct(ing.productId);
+                                                return conflict && !ing.isSubstituted && (
+                                                    <div
+                                                        className="z-10 p-2 -m-2 shrink-0"
+                                                        onMouseEnter={(e) => handleTooltipShow(e, conflict)}
+                                                        onMouseLeave={handleTooltipHide}
+                                                        onTouchStart={(e) => {
+                                                            e.stopPropagation();
+                                                            handleTooltipShow(e, conflict);
+                                                        }}
+                                                        onTouchEnd={(e) => {
+                                                            e.stopPropagation();
+                                                            handleTooltipHide();
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        <div className={cn(
+                                                            "w-8 h-8 flex items-center justify-center rounded-full ring-1 transition-all",
+                                                            conflict.maxProbability >= 80 ? "text-destructive bg-destructive/10 animate-pulse ring-destructive/20" : "text-orange-500 bg-orange-500/10 ring-orange-500/20"
+                                                        )}>
+                                                            {conflict.maxProbability >= 80 ? <AlertCircle size={18} /> : <HelpCircle size={18} />}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {ingredients.some(ing => ing.isOptional) && (
+                                    <div className="space-y-2">
+                                        <h3 className="font-bold text-xs uppercase tracking-[0.2em] text-muted-foreground/60 mb-2 px-1">Optionale Zutaten</h3>
+                                        {ingredients.filter(ing => ing.isOptional).map((ing) => (
+                                            <div
+                                                key={ing.id}
+                                                onClick={() => toggleIngredient(ing.id)}
+                                                className={cn(
+                                                    "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 border relative group",
+                                                    checkedIngredients.has(ing.id)
+                                                        ? "bg-muted text-muted-foreground border-transparent line-through opacity-60"
+                                                        : "bg-card border-border hover:border-primary/50 shadow-sm"
+                                                )}
+                                            >
+                                                <div className={cn(
+                                                    "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+                                                    checkedIngredients.has(ing.id) ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"
+                                                )}>
+                                                    {checkedIngredients.has(ing.id) && <Check size={14} strokeWidth={3} />}
+                                                </div>
+                                                <span className="font-medium text-lg flex-1">
+                                                    {ing.amount > 0 && (
+                                                        <span className={cn("font-bold mr-1", scaleFactor !== 1 && "text-primary")}>
+                                                            {Number(ing.amount.toFixed(2)).toLocaleString('de-DE')}
+                                                        </span>
+                                                    )}
+                                                    {ing.unit && <span className="font-bold mr-1">{ing.unit}</span>}
+                                                    <span className={cn(ing.isSubstituted && "text-primary italic")}>{ing.name}</span>
+                                                    {ing.isSubstituted && (
+                                                        <div className="flex flex-col gap-0.5 mt-0.5">
+                                                            <span className="text-xs text-muted-foreground line-through opacity-60">Original: {ing.originalName}</span>
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1">
+                                                                <Sparkles size={10} className="fill-current" /> Ersetzt
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </span>
+
+                                                {/* Future Usage Warning */}
+                                                {futureUsage[ing.productId] && (
+                                                    <div
+                                                        className="z-10 p-2 -m-2 shrink-0"
+                                                        onMouseEnter={(e) => handleTooltipShow(e, futureUsage[ing.productId])}
+                                                        onMouseLeave={handleTooltipHide}
+                                                        onTouchStart={(e) => {
+                                                            e.stopPropagation();
+                                                            handleTooltipShow(e, futureUsage[ing.productId]);
+                                                        }}
+                                                        onTouchEnd={(e) => {
+                                                            e.stopPropagation();
+                                                            handleTooltipHide();
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        <div className="w-8 h-8 flex items-center justify-center text-amber-500 bg-amber-500/10 rounded-full animate-pulse ring-1 ring-amber-500/20">
+                                                            <AlertTriangle size={18} />
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Intolerance Warning */}
+                                                {(() => {
+                                                    const conflict = getConflictForProduct(ing.productId);
+                                                    return conflict && !ing.isSubstituted && (
+                                                        <div
+                                                            className="z-10 p-2 -m-2 shrink-0"
+                                                            onMouseEnter={(e) => handleTooltipShow(e, conflict)}
+                                                            onMouseLeave={handleTooltipHide}
+                                                            onTouchStart={(e) => {
+                                                                e.stopPropagation();
+                                                                handleTooltipShow(e, conflict);
+                                                            }}
+                                                            onTouchEnd={(e) => {
+                                                                e.stopPropagation();
+                                                                handleTooltipHide();
+                                                            }}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            <div className={cn(
+                                                                "w-8 h-8 flex items-center justify-center rounded-full ring-1 transition-all",
+                                                                conflict.maxProbability >= 80 ? "text-destructive bg-destructive/10 animate-pulse ring-destructive/20" : "text-orange-500 bg-orange-500/10 ring-orange-500/20"
+                                                            )}>
+                                                                {conflict.maxProbability >= 80 ? <AlertCircle size={18} /> : <HelpCircle size={18} />}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
+                                )}
                             </div>
                         </div>
                     </div>
@@ -841,6 +977,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                                                     )}
                                                 >
                                                     {frag.ingredient.isSubstituted ? frag.ingredient.name : frag.text}
+                                                    {frag.ingredient.isOptional && <span className="text-[0.6em] ml-1 opacity-70">(optional)</span>}
                                                 </span>
                                             ) : (
                                                 <span
@@ -1074,10 +1211,16 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                         >
                             <div className="flex-1">
                                 <div className="font-bold text-lg whitespace-nowrap">
-                                    {Number(ingredientTooltip.ingredient.amount.toFixed(2)).toLocaleString('de-DE')} {ingredientTooltip.ingredient.unit}
+                                    {ingredientTooltip.ingredient.amount > 0 && (
+                                        <span className="mr-1">
+                                            {Number(ingredientTooltip.ingredient.amount.toFixed(2)).toLocaleString('de-DE')}
+                                        </span>
+                                    )}
+                                    {ingredientTooltip.ingredient.unit}
                                 </div>
                                 <div className="text-xs text-muted-foreground whitespace-nowrap opacity-80">
                                     {ingredientTooltip.ingredient.name}
+                                    {ingredientTooltip.ingredient.isOptional && <span className="ml-1 text-[10px]">(optional)</span>}
                                 </div>
                             </div>
 
