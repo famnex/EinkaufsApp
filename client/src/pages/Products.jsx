@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import api from '../lib/axios';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { Package, Plus, Search, Filter, Edit2, Trash2, Factory, Sparkles, Radio, X, Globe, Layers, Eye } from 'lucide-react'; // Added Eye icon
+import { Package, Plus, Search, Filter, Edit2, Trash2, Factory, Sparkles, Radio, X, Globe, Layers, Eye, Menu, MoreVertical, MoreHorizontal, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProductModal from '../components/ProductModal';
@@ -28,6 +28,38 @@ export default function Products() {
     const [variants, setVariants] = useState([]);
     const [isVariantModalOpen, setIsVariantModalOpen] = useState(false);
     const [selectedVariant, setSelectedVariant] = useState(null);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [globalizing, setGlobalizing] = useState(false);
+    const menuRef = useRef(null);
+
+    // Globalizing own products
+    const handleGlobalizeProducts = async () => {
+        if (!confirm('Möchtest du wirklich alle deine eigenen Produkte zu globalen Produkten machen? Die UserId wird dabei auf null gesetzt. Dieser Vorgang kann nicht rückgängig gemacht werden.')) return;
+
+        setGlobalizing(true);
+        try {
+            const { data } = await api.post('/products/bulk-globalize');
+            alert(data.message);
+            fetchProducts();
+            setIsMenuOpen(false);
+        } catch (err) {
+            console.error(err);
+            alert('Fehler beim Globalisieren: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setGlobalizing(false);
+        }
+    };
+
+    // Close on click outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (menuRef.current && !menuRef.current.contains(event.target)) {
+                setIsMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     useEffect(() => {
         fetchProducts();
@@ -205,24 +237,74 @@ export default function Products() {
                         )}
                     </div>
 
-                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                        {user?.role === 'admin' && user?.tier !== 'Plastikgabel' && (
-                            <Button
-                                variant="outline"
-                                onClick={() => setIsAiCleanupOpen(true)}
-                                className="h-11 rounded-xl bg-gradient-to-r from-indigo-500/10 to-purple-600/10 border-indigo-500/20 text-indigo-600 hover:from-indigo-500/20 hover:to-purple-600/20"
-                            >
-                                <Sparkles size={18} className="mr-2" />
-                                Cleanup
-                            </Button>
-                        )}
-                        <Button
-                            onClick={handleAdd}
-                            className="h-11 px-6 rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-95"
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end relative" ref={menuRef}>
+                        <button
+                            onClick={() => setIsMenuOpen(!isMenuOpen)}
+                            className={cn(
+                                "flex items-center justify-center w-11 h-11 rounded-xl transition-all active:scale-95 border-2",
+                                isMenuOpen ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:border-primary/50"
+                            )}
                         >
-                            <Plus size={18} className="mr-2" />
-                            Neu
-                        </Button>
+                            <Menu size={20} />
+                        </button>
+
+                        <AnimatePresence>
+                            {isMenuOpen && (
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                                    className="absolute top-full right-0 mt-2 w-64 bg-card border border-border shadow-2xl rounded-2xl z-50 overflow-hidden"
+                                >
+                                    <div className="p-2 space-y-1">
+                                        <button
+                                            onClick={() => {
+                                                handleAdd();
+                                                setIsMenuOpen(false);
+                                            }}
+                                            className="w-full flex items-center gap-3 p-3 text-sm font-bold text-foreground hover:bg-primary/10 rounded-xl transition-all text-left"
+                                        >
+                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                                                <Plus size={18} />
+                                            </div>
+                                            <span>Neu</span>
+                                        </button>
+
+                                        {/* Cleanup - show only for non-plastic admins or special tier */}
+                                        {user?.role === 'admin' && user?.tier !== 'Plastikgabel' && (
+                                            <button
+                                                onClick={() => {
+                                                    setIsAiCleanupOpen(true);
+                                                    setIsMenuOpen(false);
+                                                }}
+                                                className="w-full flex items-center gap-3 p-3 text-sm font-bold text-foreground hover:bg-indigo-500/10 rounded-xl transition-all text-left"
+                                            >
+                                                <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600">
+                                                    <Sparkles size={18} />
+                                                </div>
+                                                <span>Cleanup</span>
+                                            </button>
+                                        )}
+
+                                        {/* Globalize Own Products - ADMIN ONLY */}
+                                        {user?.role === 'admin' && (
+                                            <button
+                                                onClick={handleGlobalizeProducts}
+                                                disabled={globalizing}
+                                                className="w-full flex items-center gap-3 p-3 text-sm font-bold text-foreground hover:bg-emerald-500/10 rounded-xl transition-all text-left"
+                                            >
+                                                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                                                    {globalizing ? <Loader2 className="animate-spin" /> : <Globe size={18} />}
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span>Eigene Produkte globalisieren</span>
+                                                </div>
+                                            </button>
+                                        )}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </div>
 

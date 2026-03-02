@@ -255,7 +255,6 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
                                                 <input
                                                     type="file"
                                                     accept="image/*"
-                                                    capture="environment"
                                                     className="absolute inset-0 opacity-0 cursor-pointer"
                                                     onChange={handleImageUpload}
                                                 />

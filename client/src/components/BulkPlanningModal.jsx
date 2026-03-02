@@ -178,15 +178,18 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
     };
 
     const fetchConflicts = async (productIds) => {
-        const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
-            ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+        const canAccessCheck = ['Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+            ['Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
             user?.tier?.includes('Admin') || user?.role === 'admin';
-        if (!hasSpecialTier) return;
+        if (!canAccessCheck) return;
         try {
             const res = await api.post('/intolerances/check', { productIds });
             setConflicts(res.data);
         } catch (err) {
             console.error('Failed to fetch intolerance conflicts:', err);
+            if (err.response?.status === 429) {
+                alert(err.response.data.error);
+            }
         }
     };
 

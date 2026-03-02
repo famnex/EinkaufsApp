@@ -207,10 +207,10 @@ export default function Recipes() {
                 .filter(pid => pid && !substitutedProductIds.has(pid)) || [])];
 
             if (productIds.length > 0) {
-                const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
-                    ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+                const canAccessCheck = ['Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+                    ['Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
                     user?.tier?.includes('Admin') || user?.role === 'admin';
-                if (!hasSpecialTier) {
+                if (!canAccessCheck) {
                     setCookingConflicts([]);
                 } else {
                     try {
@@ -218,6 +218,9 @@ export default function Recipes() {
                         setCookingConflicts(conflictData);
                     } catch (err) {
                         console.error('Failed to check intolerances', err);
+                        if (err.response?.status === 429) {
+                            alert(err.response.data.error);
+                        }
                         setCookingConflicts([]);
                     }
                 }
@@ -244,17 +247,26 @@ export default function Recipes() {
                 .filter(pid => pid && !substitutedProductIds.has(pid)) || [];
 
             if (productIdsToCheck.length > 0) {
-                const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
-                    ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+                const canAccessCheck = ['Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+                    ['Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
                     user?.tier?.includes('Admin') || user?.role === 'admin';
-                if (hasSpecialTier) {
-                    const { data: conflicts } = await api.post('/intolerances/check', { productIds: productIdsToCheck });
-                    const severeConflicts = conflicts.filter(c => c.maxProbability >= 30);
+                if (canAccessCheck) {
+                    try {
+                        const { data: conflicts } = await api.post('/intolerances/check', { productIds: productIdsToCheck });
+                        const severeConflicts = conflicts.filter(c => c.maxProbability >= 30);
 
-                    if (severeConflicts.length > 0) {
-                        setResolvingRecipe(fullRecipe);
-                        setResolvingConflicts(severeConflicts);
-                        return;
+                        if (severeConflicts.length > 0) {
+                            setResolvingRecipe(fullRecipe);
+                            setResolvingConflicts(severeConflicts);
+                            return;
+                        }
+                    } catch (err) {
+                        console.error('Failed to check intolerances before planning', err);
+                        if (err.response?.status === 429) {
+                            alert(err.response.data.error);
+                            // Optional: abort planning if critical? 
+                            // But usually we just let them continue without check if it's fair use.
+                        }
                     }
                 }
             }

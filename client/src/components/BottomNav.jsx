@@ -23,7 +23,7 @@ export default function BottomNav() {
 
     return (
         <div
-            className="fixed bottom-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-xl border-t border-border h-20 shadow-xl"
+            className="fixed bottom-0 left-0 right-0 z-[1000] bg-card/80 backdrop-blur-xl border-t border-border h-20 shadow-xl"
             style={{ WebkitBackdropFilter: 'blur(20px)' }}
         >
             <div className="max-w-7xl mx-auto h-full grid grid-cols-5 relative px-2">

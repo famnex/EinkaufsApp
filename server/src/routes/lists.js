@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { List, ListItem, Product, Store, ProductRelation, ProductSubstitution, ProductVariation, ProductVariant, sequelize } = require('../models');
+const { List, ListItem, Product, Store, ProductRelation, ProductSubstitution, ProductVariation, ProductVariant, Menu, Recipe, RecipeIngredient, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { auth } = require('../middleware/auth');
 
@@ -205,6 +205,74 @@ router.post('/', auth, async (req, res) => {
         const list = await List.create({ ...req.body, UserId: req.user.effectiveId });
         res.status(201).json(list);
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * Get ingredient sources for a list.
+ * Identifies recipes planned between this list and the next one.
+ */
+router.get('/:id/ingredient-sources', auth, async (req, res) => {
+    try {
+        const listId = req.params.id;
+        const currentList = await List.findOne({ where: { id: listId, UserId: req.user.effectiveId } });
+        if (!currentList) return res.status(404).json({ error: 'List not found' });
+
+        // Find next list to define timeframe
+        const nextList = await List.findOne({
+            where: {
+                UserId: req.user.effectiveId,
+                date: { [Op.gt]: currentList.date },
+                status: { [Op.ne]: 'archived' }
+            },
+            order: [['date', 'ASC']]
+        });
+
+        const startDate = currentList.date;
+        const endDate = nextList ? nextList.date : new Date(new Date(startDate).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        // Find all menus in this range
+        const menus = await Menu.findAll({
+            where: {
+                UserId: req.user.effectiveId,
+                date: { [Op.between]: [startDate, endDate] }
+            },
+            include: [{
+                model: Recipe,
+                include: [{
+                    model: RecipeIngredient,
+                    include: [Product]
+                }]
+            }]
+        });
+
+        // Current list items to know which products to track
+        const listItems = await ListItem.findAll({
+            where: { ListId: listId, UserId: req.user.effectiveId }
+        });
+        const trackedProductIds = new Set(listItems.map(i => i.ProductId));
+
+        const sources = {};
+
+        menus.forEach(menu => {
+            if (!menu.Recipe) return;
+            menu.Recipe.RecipeIngredients.forEach(ri => {
+                if (trackedProductIds.has(ri.ProductId)) {
+                    if (!sources[ri.ProductId]) sources[ri.ProductId] = [];
+                    sources[ri.ProductId].push({
+                        recipeTitle: menu.Recipe.title,
+                        date: menu.date,
+                        quantity: ri.quantity,
+                        unit: ri.unit
+                    });
+                }
+            });
+        });
+
+        res.json(sources);
+    } catch (err) {
+        console.error('Ingredient Sources Error:', err);
         res.status(500).json({ error: err.message });
     }
 });

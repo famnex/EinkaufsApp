@@ -30,12 +30,12 @@ export default function SharedRecipe() {
                 const { data } = await api.get(`/recipes/public/${sharingKey}/${id}`);
                 setRecipe(data);
 
-                // Check for intolerances if logged in AND has special tier
+                // Check for intolerances if logged in AND can access check
                 const token = localStorage.getItem('token');
-                const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
-                    ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+                const canAccessCheck = ['Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+                    ['Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
                     user?.tier?.includes('Admin') || user?.role === 'admin';
-                if (token && hasSpecialTier && data.RecipeIngredients?.length > 0) {
+                if (token && canAccessCheck && data.RecipeIngredients?.length > 0) {
                     const productIds = data.RecipeIngredients
                         .map(ri => ri.ProductId)
                         .filter(Boolean);
@@ -46,6 +46,9 @@ export default function SharedRecipe() {
                             setConflicts(conflictData);
                         } catch (err) {
                             console.error('Intolerance check failed', err);
+                            if (err.response?.status === 429) {
+                                alert(err.response.data.error);
+                            }
                         }
                     }
                 }

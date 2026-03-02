@@ -82,7 +82,7 @@ export default function Layout({ children }) {
     return (
         <div className="min-h-screen bg-background pb-24">
             <header
-                className="sticky top-0 z-40 w-full bg-background/80 backdrop-blur-xl border-b border-border"
+                className="sticky top-0 z-[1000] w-full bg-background/80 backdrop-blur-xl border-b border-border"
                 style={{
                     paddingTop: 'env(safe-area-inset-top)',
                     paddingLeft: 'env(safe-area-inset-left)',

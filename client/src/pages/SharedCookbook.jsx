@@ -201,7 +201,7 @@ export default function SharedCookbook() {
                     </button>
                 )}
 
-                <div className="max-w-7xl mx-auto px-4 py-8 md:py-20 relative z-10 flex flex-col items-center text-center">
+                <div className="hidden md:flex max-w-7xl mx-auto px-4 py-8 md:py-20 relative z-10 flex-col items-center text-center">
                     <motion.div
                         initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -275,6 +275,62 @@ export default function SharedCookbook() {
                             Inhalt melden
                         </button>
                     </motion.div>
+                </div>
+
+                {/* Mobile Hero View - Compact */}
+                <div className="flex md:hidden flex-col gap-4 px-4 pt-16 pb-6 relative z-10 animate-in fade-in slide-in-from-top-4 duration-700">
+                    <div className="flex items-center gap-4">
+                        <div className="shrink-0">
+                            {cookbookInfo.image ? (
+                                <img
+                                    src={renderImageUrl(cookbookInfo.image)}
+                                    alt={cookbookInfo.title}
+                                    className="w-20 h-20 rounded-2xl border-2 border-white/20 object-cover shadow-lg"
+                                />
+                            ) : (
+                                <div className="w-20 h-20 rounded-2xl border-2 border-white/20 bg-white/10 backdrop-blur-md flex items-center justify-center">
+                                    <ChefHat className="text-white/60" size={32} />
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <h1 className="text-2xl font-black tracking-tight text-white uppercase line-clamp-2 leading-none mb-1 drop-shadow-md">
+                                {cookbookInfo.title}
+                            </h1>
+                            <p className="text-xs text-white/60 font-medium">
+                                {recipes.length} Rezepte • {followerCount} Follower
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        <div className="relative w-full flex items-center bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-3 py-2.5 focus-within:bg-white/20 shadow-lg">
+                            <Search className="text-gray-400 mr-2" size={18} />
+                            <input
+                                type="text"
+                                placeholder="Rezepte suchen..."
+                                className="bg-transparent border-none outline-none text-white text-sm w-full placeholder:text-gray-400"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                onClick={() => setIsSlotMachineOpen(true)}
+                                className="flex-1 h-10 rounded-xl bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 text-white border-none text-xs font-bold gap-2 shadow-lg"
+                            >
+                                <Dices size={16} />
+                                Roulette
+                            </Button>
+                            <button
+                                onClick={() => navigate(`/compliance?url=${encodeURIComponent(window.location.href)}`)}
+                                className="p-2.5 bg-white/5 rounded-xl border border-white/10 text-white/50"
+                                title="Inhalt melden"
+                            >
+                                <ShieldCheck size={18} />
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 

@@ -30,14 +30,19 @@ export default function SmartQuantityModal({ isOpen, onClose, recipe, menuId, li
             });
             setSelection(initial);
 
-            // Fetch intolerance conflicts (only for Silbergabel+ users)
-            const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
-                ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+            // Fetch intolerance conflicts (only for canAccessCheck users)
+            const canAccessCheck = ['Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+                ['Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
                 user?.tier?.includes('Admin') || user?.role === 'admin';
-            if (hasSpecialTier) {
+            if (canAccessCheck) {
                 api.post('/intolerances/check', { productIds })
                     .then(res => setConflicts(res.data))
-                    .catch(err => console.error("Failed to check intolerances in planner", err));
+                    .catch(err => {
+                        console.error("Failed to check intolerances in planner", err);
+                        if (err.response?.status === 429) {
+                            alert(err.response.data.error);
+                        }
+                    });
             }
         }
     }, [isOpen, recipe, existingItems]);

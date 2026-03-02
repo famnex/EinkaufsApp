@@ -10,8 +10,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { optimizeImage } = require('../utils/imageOptimizer');
-
-// Configure multer for AI image analysis (temporary storage)
+const { checkFairUse } = require('../utils/fairUse');
 const aiStorage = multer.diskStorage({
     destination: function (req, file, cb) {
         const userId = req.user ? req.user.effectiveId : 'unknown';
@@ -28,22 +27,7 @@ const aiStorage = multer.diskStorage({
 });
 const upload = multer({ storage: aiStorage });
 
-// In-Memory Fair Use Tracking for free AI endpoints (Plastikgabel)
-const fairUseLog = new Map();
-
-function checkFairUse(userId) {
-    const now = Date.now();
-    const windowMs = 60 * 60 * 1000; // 1 hour
-    let userLog = fairUseLog.get(userId) || [];
-    userLog = userLog.filter(ts => (now - ts) < windowMs);
-    if (userLog.length >= 10) {
-        fairUseLog.set(userId, userLog);
-        return false;
-    }
-    userLog.push(now);
-    fairUseLog.set(userId, userLog);
-    return true;
-}
+// (Removed local checkFairUse in favor of central utility)
 
 router.post('/cleanup/toggle-hidden', auth, async (req, res) => {
     try {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/axios';
 import { Card } from '../components/Card';
@@ -49,6 +50,10 @@ export default function ListDetail() {
     const [quantityItem, setQuantityItem] = useState(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [activeNoteId, setActiveNoteId] = useState(null);
+    const [ingredientSources, setIngredientSources] = useState({});
+    const [activeSourceId, setActiveSourceId] = useState(null);
+    const [anchorRect, setAnchorRect] = useState(null);
+    const [bubbleDirection, setBubbleDirection] = useState('up');
 
     // Product Substitution State
     const [substituteModalOpen, setSubstituteModalOpen] = useState(false);
@@ -163,6 +168,16 @@ export default function ListDetail() {
         }
     }, []);
 
+    const fetchIngredientSources = useCallback(async () => {
+        if (!id) return;
+        try {
+            const { data } = await api.get(`/lists/${id}/ingredient-sources`);
+            setIngredientSources(data);
+        } catch (err) {
+            console.error('Failed to fetch ingredient sources', err);
+        }
+    }, [id]);
+
     const fetchProducts = useCallback(async () => {
         try {
             const { data } = await api.get('/products');
@@ -176,7 +191,8 @@ export default function ListDetail() {
         fetchListDetails();
         fetchProducts();
         fetchStores();
-    }, [fetchListDetails, fetchProducts, fetchStores]);
+        fetchIngredientSources();
+    }, [fetchListDetails, fetchProducts, fetchStores, fetchIngredientSources]);
 
     // Live polling every 5s for collaborative shopping
     // Use refs so the interval callback always reads the latest state and function
@@ -196,7 +212,6 @@ export default function ListDetail() {
         return () => clearInterval(interval);
     }, [id]); // Re-create interval only when list ID changes
 
-    // Close tooltips on click outside
     useEffect(() => {
         if (!activeNoteId) return;
         const handleGlobalClick = () => setActiveNoteId(null);
@@ -204,12 +219,24 @@ export default function ListDetail() {
         return () => document.removeEventListener('click', handleGlobalClick);
     }, [activeNoteId]);
 
+    // Close ingredient source bubble on scroll or click outside
+    useEffect(() => {
+        if (!activeSourceId) return;
+        const handleClose = () => setActiveSourceId(null);
+        window.addEventListener('scroll', handleClose, { passive: true });
+        document.addEventListener('click', handleClose);
+        return () => {
+            window.removeEventListener('scroll', handleClose);
+            document.removeEventListener('click', handleClose);
+        };
+    }, [activeSourceId]);
+
     const fetchIntoleranceConflicts = useCallback(async (productId) => {
         if (!productId) return { messages: [], maxProbability: 0 };
-        const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
-            ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+        const canAccessCheck = ['Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+            ['Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
             user?.tier?.includes('Admin') || user?.role === 'admin';
-        if (!hasSpecialTier) return { messages: [], maxProbability: 0 };
+        if (!canAccessCheck) return { messages: [], maxProbability: 0 };
         try {
             const { data: conflicts } = await api.post('/intolerances/check', { productIds: [productId] });
             if (conflicts && conflicts.length > 0) {
@@ -232,6 +259,9 @@ export default function ListDetail() {
             }
         } catch (err) {
             console.error('Failed to check intolerances', err);
+            if (err.response?.status === 429) {
+                alert(err.response.data.error);
+            }
         }
         return { messages: [], maxProbability: 0 };
     }, [user?.username, user?.tier, user?.householdOwnerTier, user?.role]);
@@ -335,13 +365,18 @@ export default function ListDetail() {
 
                 if (matchingProducts.length > 0) {
                     const productIds = matchingProducts.map(p => p.id);
-                    const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
-                        ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
+                    const canAccessCheck = ['Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
+                        ['Plastikgabel', 'Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
                         user?.tier?.includes('Admin') || user?.role === 'admin';
-                    if (hasSpecialTier) {
+                    if (canAccessCheck) {
                         api.post('/intolerances/check', { productIds })
                             .then(res => setConflicts(res.data))
-                            .catch(err => console.error("Failed to check substitute intolerances", err));
+                            .catch(err => {
+                                console.error("Failed to check substitute intolerances", err);
+                                if (err.response?.status === 429) {
+                                    alert(err.response.data.error);
+                                }
+                            });
                     }
                 }
             }
@@ -559,13 +594,13 @@ export default function ListDetail() {
                     </div>
 
                     {/* Store Selector & AI Import */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 md:gap-3 shrink-0">
                         <button
                             onClick={() => setAiImportModalOpen(true)}
-                            className="w-12 h-12 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 rounded-xl flex items-center justify-center transition-colors border border-indigo-500/20"
+                            className="w-10 h-10 md:w-12 md:h-12 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 rounded-xl flex items-center justify-center transition-colors border border-indigo-500/20 shrink-0"
                             title="Smart Import"
                         >
-                            <Import size={24} />
+                            <Import size={20} className="md:size-[24px]" />
                         </button>
 
                         {(() => {
@@ -575,24 +610,24 @@ export default function ListDetail() {
                                     <img
                                         src={getImageUrl(activeStore.logo_url)}
                                         alt={activeStore.name}
-                                        className="w-12 h-12 object-contain bg-white rounded-xl p-1 shadow-sm border border-border"
+                                        className="w-10 h-10 md:w-12 md:h-12 object-contain bg-white rounded-xl p-1 shadow-sm border border-border shrink-0"
                                     />
                                 );
                             }
                             return null;
                         })()}
-                        <div className="relative group">
+                        <div className="relative group max-w-[110px] sm:max-w-[140px] md:max-w-none">
                             <select
                                 value={activeStoreId}
                                 onChange={(e) => updateCurrentStore(e.target.value)}
-                                className="appearance-none bg-muted/50 border border-border rounded-xl px-4 pr-10 h-12 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer"
+                                className="w-full appearance-none bg-muted/50 border border-border rounded-xl px-3 md:px-4 pr-8 md:pr-10 h-10 md:h-12 text-[11px] md:text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer truncate"
                             >
-                                <option value="">Kein Geschäft</option>
+                                <option value="">Geschäft...</option>
                                 {stores.map(s => (
                                     <option key={s.id} value={s.id}>{s.name}</option>
                                 ))}
                             </select>
-                            <StoreIcon size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                            <StoreIcon size={14} className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none md:size-4" />
                         </div>
                     </div>
                 </div>
@@ -707,7 +742,10 @@ export default function ListDetail() {
                                                         opacity: { duration: 0.3 },
                                                         scale: { duration: 0.3 }
                                                     }}
-                                                    className="relative group w-full aspect-square"
+                                                    className={cn(
+                                                        "relative group w-full aspect-square",
+                                                        (activeNoteId === item.id || activeSourceId === item.id) && "z-[150]"
+                                                    )}
                                                 >
                                                     <SortableItem
                                                         id={item.id}
@@ -772,7 +810,8 @@ export default function ListDetail() {
                                                                     : "product-tile-red", // Red for unbought
                                                                 editMode !== 'view' && "hover:scale-[1.02]", // Subtle hover in edit/delete
                                                                 activeId === item.id && "opacity-30", // Dragging feedback
-                                                                "hover:z-50" // Elevate tile on hover for tooltip overlap
+                                                                (activeNoteId === item.id || activeSourceId === item.id) && "z-[100]", // Elevate active tile
+                                                                "hover:z-50" // Elevate tile on hover
                                                             )}
                                                         >
                                                             {/* Background Layer - To handle clipping of watermarks while allowing tooltips to overflow the main card */}
@@ -900,7 +939,37 @@ export default function ListDetail() {
                                                                         : "relative mt-2" // Standard flow for larger tiles
                                                                 )}
                                                             >
-                                                                {item.quantity} <span className="text-[10px] opacity-80">{(item.unit || item.Product?.unit) === 'Stück' ? 'Stk' : (item.unit || item.Product?.unit)}</span>
+                                                                <div className="flex items-center justify-center gap-1.5">
+                                                                    <span>{item.quantity}</span>
+                                                                    <span className="text-[10px] opacity-80">{(item.unit || item.Product?.unit) === 'Stück' ? 'Stk' : (item.unit || item.Product?.unit)}</span>
+                                                                    {ingredientSources[item.ProductId] && (() => {
+                                                                        const sources = ingredientSources[item.ProductId];
+                                                                        const totalRecipeQty = sources.reduce((sum, src) => sum + Number(src.quantity), 0);
+                                                                        const firstUnit = sources[0]?.unit;
+                                                                        const sameQty = Math.abs(totalRecipeQty - Number(item.quantity)) < 0.001 && firstUnit === item.unit;
+                                                                        if (sameQty) return null;
+
+                                                                        return (
+                                                                            <div className="relative isolate flex items-center">
+                                                                                <Search
+                                                                                    size={12}
+                                                                                    className={cn(
+                                                                                        "cursor-pointer transition-all hover:scale-125 z-50",
+                                                                                        activeSourceId === item.id ? "text-primary opacity-100" : "opacity-50 hover:opacity-100"
+                                                                                    )}
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        const rect = e.currentTarget.getBoundingClientRect();
+                                                                                        setAnchorRect(rect);
+                                                                                        const spaceAbove = rect.top;
+                                                                                        setBubbleDirection(spaceAbove < 250 ? 'down' : 'up');
+                                                                                        setActiveSourceId(activeSourceId === item.id ? null : item.id);
+                                                                                    }}
+                                                                                />
+                                                                            </div>
+                                                                        );
+                                                                    })()}
+                                                                </div>
                                                             </div>
 
 
@@ -973,15 +1042,18 @@ export default function ListDetail() {
                             </div>
                         )}
                     </>
-                )}
+                )
+                }
 
-                {list.ListItems?.length === 0 && !loading && (
-                    <div className="w-full py-20 text-center border-2 border-dashed border-border rounded-3xl">
-                        <ShoppingCart size={48} className="mx-auto text-muted-foreground/20 mb-4" />
-                        <p className="text-muted-foreground font-medium px-10">Deine Liste ist noch leer. Suche Artikel zum Hinzufügen.</p>
-                    </div>
-                )}
-            </div>
+                {
+                    list.ListItems?.length === 0 && !loading && (
+                        <div className="w-full py-20 text-center border-2 border-dashed border-border rounded-3xl">
+                            <ShoppingCart size={48} className="mx-auto text-muted-foreground/20 mb-4" />
+                            <p className="text-muted-foreground font-medium px-10">Deine Liste ist noch leer. Suche Artikel zum Hinzufügen.</p>
+                        </div>
+                    )
+                }
+            </div >
 
 
             <AiListUrlModal
@@ -1075,6 +1147,49 @@ export default function ListDetail() {
                 onClose={() => setIsAiLockedOpen(false)}
                 featureName="Smart Import"
             />
+
+            {/* Ingredient Source Portal */}
+            {activeSourceId && anchorRect && createPortal(
+                <div
+                    className="fixed z-[900] pointer-events-none"
+                    style={{
+                        top: bubbleDirection === 'up' ? anchorRect.top : anchorRect.bottom,
+                        left: anchorRect.left + anchorRect.width / 2,
+                        transform: 'translateX(-50%)',
+                    }}
+                >
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={activeSourceId}
+                            initial={{ opacity: 0, y: bubbleDirection === 'up' ? 10 : -10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: bubbleDirection === 'up' ? 10 : -10, scale: 0.95 }}
+                            className={cn(
+                                "relative w-48 bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-2xl shadow-2xl border border-white/10 pointer-events-auto",
+                                bubbleDirection === 'up' ? "-translate-y-full mb-3" : "mt-3"
+                            )}
+                        >
+                            <div className={cn(
+                                "absolute left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 rotate-45 border-white/10",
+                                bubbleDirection === 'up' ? "-bottom-1.5 border-r border-b" : "-top-1.5 border-l border-t"
+                            )} />
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-primary mb-2 border-b border-white/10 pb-1">Verwendung</div>
+                            <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                                {ingredientSources[list.ListItems.find(i => i.id === activeSourceId)?.ProductId]?.map((src, idx) => (
+                                    <div key={idx} className="text-[11px] leading-tight flex flex-col gap-0.5 whitespace-normal">
+                                        <div className="font-bold text-white/90 line-clamp-2 text-left">{src.recipeTitle}</div>
+                                        <div className="flex justify-between items-center text-white/50 text-[10px]">
+                                            <span>{new Date(src.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</span>
+                                            <span className="font-mono bg-white/5 px-1 rounded whitespace-nowrap">{src.quantity} {src.unit}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.div>
+                    </AnimatePresence>
+                </div>,
+                document.body
+            )}
         </div >
     );
 }

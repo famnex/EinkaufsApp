@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChefHat, Search, ArrowRight, BookOpen, User, Star, TrendingUp, Users, ShieldCheck, ArrowLeft, Heart, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChefHat, Search, ArrowRight, BookOpen, User, Star, TrendingUp, Users, ShieldCheck, ArrowLeft, Heart, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { Card } from './Card';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -138,8 +138,8 @@ export default function CommunityCookbooksContent() {
                     <span className="text-sm font-bold hidden sm:inline pr-2">Zurück</span>
                 </button>
 
-                {/* Header Section */}
-                <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-background to-accent/5 border border-border/50 p-8 md:p-12">
+                {/* Header Section - Desktop Only */}
+                <header className="hidden md:block relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-background to-accent/5 border border-border/50 p-8 md:p-12">
                     <div className="absolute top-0 right-0 p-12 opacity-5">
                         <BookOpen size={200} />
                     </div>
@@ -184,7 +184,7 @@ export default function CommunityCookbooksContent() {
                             <div className="relative flex-1 w-full">
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
                                 <Input
-                                    placeholder="Suche nach Titel, Koch oder Thema..."
+                                    placeholder="Suche..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="pl-12 h-14 rounded-2xl bg-background/80 backdrop-blur-sm border-2 border-primary/10 focus:border-primary/30 text-lg shadow-xl shadow-primary/5"
@@ -216,8 +216,95 @@ export default function CommunityCookbooksContent() {
                     </div>
                 </header>
 
-                {/* Stats Row */}
-                <div className="grid grid-cols-2 md:grid-cols-8 gap-4 items-start">
+                {/* Mobile Header - Compact */}
+                <div className="block md:hidden space-y-4">
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                            <Input
+                                placeholder="Suchen..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-9 h-11 rounded-xl bg-background border-border text-sm shadow-sm"
+                            />
+                        </div>
+                        <div className="flex bg-muted/50 p-1 rounded-xl border border-border/50 h-11 items-center gap-1">
+                            {[
+                                { id: 'favorites', icon: Star, title: 'Favoriten' },
+                                { id: 'recipes', icon: ChefHat, title: 'Rezepte' },
+                                { id: 'clicks', icon: TrendingUp, title: 'Klicks' }
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setSortBy(tab.id)}
+                                    title={tab.title}
+                                    className={cn(
+                                        "w-9 h-9 flex items-center justify-center rounded-lg transition-all",
+                                        sortBy === tab.id
+                                            ? "bg-primary text-primary-foreground shadow-md"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    <tab.icon size={16} />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2">
+                        <Card className="p-2 flex flex-col items-center justify-center bg-card/50 border-border/50 aspect-square">
+                            <BookOpen className="text-primary mb-1" size={18} />
+                            <span className="text-sm font-bold leading-none">{cookbooks.length}</span>
+                            <span className="text-[8px] text-muted-foreground text-center mt-1 uppercase font-black">Bücher</span>
+                        </Card>
+                        <Card className="p-2 flex flex-col items-center justify-center bg-card/50 border-border/50 aspect-square">
+                            <ChefHat className="text-orange-500 mb-1" size={18} />
+                            <span className="text-sm font-bold leading-none">{totalRecipes}</span>
+                            <span className="text-[8px] text-muted-foreground text-center mt-1 uppercase font-black">Rezepte</span>
+                        </Card>
+                        {user ? (
+                            <Card className="p-2 flex flex-col items-center justify-center bg-card/50 border-border/50 aspect-square">
+                                <Heart className="text-red-500 mb-1" size={18} />
+                                <span className="text-sm font-bold leading-none">{user?.followerCount || 0}</span>
+                                <span className="text-[8px] text-muted-foreground text-center mt-1 uppercase font-black">Follower</span>
+                            </Card>
+                        ) : (
+                            <Card className="p-2 flex flex-col items-center justify-center bg-muted/20 border-border/50 aspect-square opacity-50">
+                                <User className="text-muted-foreground mb-1" size={18} />
+                                <span className="text-xs font-bold leading-none">-</span>
+                                <span className="text-[8px] text-muted-foreground text-center mt-1 uppercase font-black">User</span>
+                            </Card>
+                        )}
+                        <Card
+                            onClick={() => {
+                                if (updates.length > 0) {
+                                    const nextState = !isUpdatesExpanded;
+                                    setIsUpdatesExpanded(nextState);
+                                    if (nextState && unseenCount > 0) {
+                                        setTimeout(markUpdatesAsSeen, 2000);
+                                    }
+                                }
+                            }}
+                            className={cn(
+                                "p-2 flex flex-col items-center justify-center border-border/50 aspect-square relative cursor-pointer active:scale-95 transition-transform",
+                                isUpdatesExpanded ? "bg-primary/20 border-primary" : "bg-card/50",
+                                updates.length === 0 && "opacity-50 cursor-default"
+                            )}
+                        >
+                            <TrendingUp className={cn("mb-1", unseenCount > 0 ? "text-primary animate-pulse" : "text-green-500")} size={18} />
+                            <span className="text-sm font-bold leading-none">{updates.length}</span>
+                            <span className="text-[8px] text-muted-foreground text-center mt-1 uppercase font-black">Updates</span>
+                            {unseenCount > 0 && (
+                                <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[8px] font-black w-4 h-4 flex items-center justify-center rounded-full">
+                                    {unseenCount}
+                                </div>
+                            )}
+                        </Card>
+                    </div>
+                </div>
+
+                {/* Desktop Stats Row */}
+                <div className="hidden md:grid grid-cols-8 gap-4 items-start">
                     <Card className="p-4 flex flex-col items-center justify-center bg-card/50 border-border/50 md:col-span-1">
                         <BookOpen className="text-primary mb-2" size={24} />
                         <span className="text-2xl font-bold">{cookbooks.length}</span>
@@ -240,7 +327,7 @@ export default function CommunityCookbooksContent() {
                     {/* Updates Card Wrapper (Maintains Grid Space) */}
                     <div className={cn(
                         "relative h-[115px]",
-                        user ? "col-span-2 md:col-span-5" : "col-span-2 md:col-span-6"
+                        user ? "col-span-5" : "col-span-6"
                     )}>
                         <Card className={cn(
                             "p-3 bg-card border-border transition-all duration-500 overflow-hidden shadow-xl",
@@ -368,6 +455,52 @@ export default function CommunityCookbooksContent() {
                         </Card>
                     </div>
                 </div>
+
+                {/* Mobile Expansion List (Shown when isUpdatesExpanded is true on Mobile) */}
+                {isUpdatesExpanded && (
+                    <div className="block md:hidden">
+                        <Card className="p-3 bg-card border-primary/20 shadow-xl rounded-2xl">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-bold text-sm text-foreground uppercase tracking-wider flex items-center gap-2">
+                                    <TrendingUp size={16} className="text-green-500" />
+                                    Neueste Updates
+                                </h3>
+                                <button
+                                    onClick={() => setIsUpdatesExpanded(false)}
+                                    className="p-1.5 hover:bg-muted rounded-full"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            <div className="space-y-2">
+                                {updates.length === 0 ? (
+                                    <p className="text-center text-xs text-muted-foreground py-4">Keine Updates vorhanden.</p>
+                                ) : (
+                                    updates.map((update, idx) => (
+                                        <div key={idx} className="flex items-center gap-3 p-2 rounded-xl bg-muted/30 border border-transparent">
+                                            <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-muted">
+                                                {update.image_url ? (
+                                                    <img src={getImageUrl(update.image_url)} alt="" className="w-full h-full object-cover" />
+                                                ) : <ChefHat size={20} className="m-auto text-muted-foreground" />}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs line-clamp-2">
+                                                    <span className="font-bold">@{update.username}</span> hat <span className="italic">{update.name}</span> geteilt.
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => navigate(`/shared/${update.sharingKey}/recipe/${update.id}`)}
+                                                className="p-1.5 bg-primary/10 text-primary rounded-lg"
+                                            >
+                                                <ArrowRight size={14} />
+                                            </button>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </Card>
+                    </div>
+                )}
 
                 {/* Grid */}
                 <motion.div

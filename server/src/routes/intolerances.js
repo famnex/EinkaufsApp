@@ -3,6 +3,7 @@ const router = express.Router();
 const { Intolerance, User, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { auth } = require('../middleware/auth');
+const { checkFairUse } = require('../utils/fairUse');
 
 // GET /intolerances - Get all global intolerances with "selected" status for the current user
 router.get('/', auth, async (req, res) => {
@@ -170,6 +171,13 @@ router.post('/check', auth, async (req, res) => {
 
         const userId = req.user.effectiveId;
         const currentUser = await User.findByPk(userId);
+
+        // Fair-Use Rate Limit for Plastikgabel
+        if (currentUser.tier === 'Plastikgabel') {
+            if (!checkFairUse(userId)) {
+                return res.status(429).json({ error: 'Fair-Use Limit erreicht: Bitte warte ein wenig, bevor du diese kostenlose Funktion erneut nutzt (Maximal 10 Anfragen pro Stunde).' });
+            }
+        }
 
         // Find all household members
         const householdMembers = await User.findAll({

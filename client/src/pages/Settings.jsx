@@ -130,6 +130,11 @@ export default function SettingsPage() {
     const [productSearchQuery, setProductSearchQuery] = useState('');
     const [productSearchResults, setProductSearchResults] = useState([]);
     const [searchingProducts, setSearchingProducts] = useState(false);
+    const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
+    const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
+    const [deleteAccountConfirmCheck, setDeleteAccountConfirmCheck] = useState(false);
+    const [deletingAccount, setDeletingAccount] = useState(false);
+    const [showDeletePassword, setShowDeletePassword] = useState(false);
 
     // Design State
     const primaryColors = [
@@ -759,6 +764,35 @@ export default function SettingsPage() {
         const token = localStorage.getItem('token');
         const baseUrl = api.defaults.baseURL || '';
         window.open(`${baseUrl}/auth/gdpr-download?token=${token}`, '_blank');
+    };
+
+    const handleDeleteAccount = async () => {
+        if (!deleteAccountConfirmCheck) {
+            alert('Bitte bestätigen Sie, dass Sie die Folgen verstanden haben.');
+            return;
+        }
+        if (!deleteAccountPassword) {
+            alert('Bitte geben Sie Ihr Passwort zur Bestätigung ein.');
+            return;
+        }
+
+        if (!confirm('Möchtest du dein Konto wirklich unwiderruflich löschen? Alle Daten gehen verloren!')) return;
+
+        setDeletingAccount(true);
+        try {
+            await api.delete('/auth/account', { data: { password: deleteAccountPassword } });
+
+            // Success! Clear auth and redirect
+            localStorage.removeItem('token');
+            setUser(null);
+            navigate('/');
+            alert('Ihr Konto wurde erfolgreich gelöscht. Auf Wiedersehen!');
+        } catch (err) {
+            console.error('Account deletion failed:', err);
+            alert('Fehler beim Löschen des Kontos: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setDeletingAccount(false);
+        }
     };
 
     const handleRemoveMember = async (member) => {
@@ -1597,7 +1631,8 @@ export default function SettingsPage() {
         { id: 'profile_detail', label: 'Profil & Sicherheit', icon: User },
         { id: 'subscription', label: 'Abo & Credits', icon: CreditCard },
         { id: 'household', label: 'Haushalt', icon: Users },
-        { id: 'gdpr', label: 'DSGVO-Auskunft', icon: ShieldCheck }
+        { id: 'gdpr', label: 'DSGVO-Auskunft', icon: ShieldCheck },
+        { id: 'delete_account', label: 'Konto löschen', icon: Trash2 }
     ];
 
     const preferencesTabs = [
@@ -2344,6 +2379,76 @@ export default function SettingsPage() {
                 <div className="p-4 bg-primary/5 text-primary rounded-2xl border border-primary/20 text-[10px] leading-relaxed">
                     <p className="font-bold mb-1">Rechtlicher Hinweis:</p>
                     Diese Datenzusammenstellung dient ausschließlich Ihrer persönlichen Information. Sie haben das Recht auf Berichtigung unrichtiger Daten, die Einschränkung der Verarbeitung sowie das Recht auf Löschung (Recht auf Vergessenwerden), sofern keine gesetzlichen Aufbewahrungsfristen entgegenstehen. Kontaktieren Sie uns bei weiteren Fragen über die im Impressum angegebene Email-Adresse.
+                </div>
+            </div>
+        </Card>
+    );
+
+    const DeleteAccountSection = (
+        <Card className="p-8 border-red-500/20 bg-red-500/5 shadow-lg backdrop-blur-sm">
+            <h2 className="text-xl font-bold text-red-500 mb-6 flex items-center gap-2">
+                <Trash2 size={20} />
+                Konto unwiderruflich löschen
+            </h2>
+
+            <div className="space-y-6">
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-700 dark:text-red-400 space-y-3">
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle className="shrink-0 mt-0.5" size={18} />
+                        <div className="text-sm leading-relaxed">
+                            <p className="font-bold mb-1">Achtung: Dies ist eine endgültige Aktion!</p>
+                            <ul className="list-disc ml-4 space-y-1 mt-2">
+                                <li>Alle Ihre Rezepte werden gelöscht.</li>
+                                <li>Alle Ihre Einkaufslisten und Verläufe werden entfernt.</li>
+                                <li>Wenn Sie Haushaltsinhaber sind, verlieren alle Mitglieder Zugriff auf die gemeinsamen Daten.</li>
+                                <li>Ihre Abonnements und Credits verfallen sofort.</li>
+                                <li>Dieser Vorgang kann <strong>nicht</strong> rückgängig gemacht werden.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-2xl border border-border/50 cursor-pointer hover:bg-muted transition-colors"
+                        onClick={() => setDeleteAccountConfirmCheck(!deleteAccountConfirmCheck)}>
+                        <div className={cn(
+                            "w-5 h-5 rounded border-2 flex items-center justify-center transition-all",
+                            deleteAccountConfirmCheck ? "bg-red-500 border-red-500" : "border-muted-foreground/30"
+                        )}>
+                            {deleteAccountConfirmCheck && <Check size={14} className="text-white" />}
+                        </div>
+                        <span className="text-sm font-medium">Ich bin mir der Folgen bewusst und möchte mein Konto löschen.</span>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Passwort bestätigen</label>
+                        <div className="relative">
+                            <Input
+                                type={showDeletePassword ? "text" : "password"}
+                                placeholder="Geben Sie Ihr Passwort ein"
+                                value={deleteAccountPassword}
+                                onChange={(e) => setDeleteAccountPassword(e.target.value)}
+                                className="pr-12"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowDeletePassword(!showDeletePassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
+                            >
+                                {showDeletePassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
+                    </div>
+
+                    <Button
+                        variant="destructive"
+                        className="w-full py-6 text-lg font-bold shadow-lg shadow-red-500/20 gap-2"
+                        disabled={!deleteAccountConfirmCheck || !deleteAccountPassword || deletingAccount}
+                        onClick={handleDeleteAccount}
+                    >
+                        {deletingAccount ? <Loader2 className="animate-spin" /> : <Trash2 size={20} />}
+                        {deletingAccount ? 'Wird gelöscht...' : 'Konto jetzt dauerhaft löschen'}
+                    </Button>
                 </div>
             </div>
         </Card>
@@ -5125,6 +5230,7 @@ export default function SettingsPage() {
             case 'subscription': return SubscriptionSection;
             case 'household': return HouseholdSection;
             case 'gdpr': return GdprSection;
+            case 'delete_account': return DeleteAccountSection;
             default: return null;
         }
     };

@@ -311,4 +311,34 @@ router.get('/:id/usage', auth, async (req, res) => {
     }
 });
 
+// Admin command: Globalize own products
+router.post('/bulk-globalize', auth, admin, async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        // Use transaction for safety
+        await sequelize.transaction(async (t) => {
+            // 1. Globalize products
+            await Product.update(
+                { UserId: null },
+                { where: { UserId: userId }, transaction: t }
+            );
+
+            // 2. Globalize variations
+            await ProductVariation.update(
+                { UserId: null },
+                { where: { UserId: userId }, transaction: t }
+            );
+
+            // 3. Optional: Globalize Store specific associations if needed
+            // But usually User stores are distinct. 
+        });
+
+        res.json({ message: 'Alle Ihre Produkte wurden erfolgreich globalisiert.' });
+    } catch (err) {
+        console.error('Globalize Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

@@ -1168,4 +1168,105 @@ router.get('/gdpr-download', auth, async (req, res) => {
     }
 });
 
+// DELETE /account - Delete own account
+router.delete('/account', auth, async (req, res) => {
+    try {
+        const { password } = req.body;
+        if (!password) {
+            return res.status(400).json({ error: 'Passwort ist erforderlich' });
+        }
+
+        const user = await User.findByPk(req.user.id);
+        if (!user) {
+            return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+        }
+
+        // Verify password
+        const validPass = await bcrypt.compare(password, user.password);
+        if (!validPass) {
+            return res.status(401).json({ error: 'Aktuelles Passwort ist falsch' });
+        }
+
+        // Prevent admin self-deletion if they are the only admin (optional safety)
+        if (user.role === 'admin') {
+            const adminCount = await User.count({ where: { role: 'admin' } });
+            if (adminCount <= 1) {
+                return res.status(400).json({ error: 'Der letzte Administrator kann sein Konto nicht löschen. Bitte ernenne zuerst einen anderen Administrator.' });
+            }
+        }
+
+        const models = require('../models');
+        const transaction = await sequelize.transaction();
+
+        try {
+            // 1. Handle Household Members if user is the owner
+            // If this user is an owner (householdId is NULL)
+            // Current members who point to this user as owner will be detached (become owners themselves)
+            await models.User.update(
+                { householdId: null },
+                { where: { householdId: user.id }, transaction }
+            );
+
+            // 2. Cascading Delete for user's data
+            const dOpt = { where: { UserId: user.id }, transaction };
+
+            // Tier 1: Leaf dependencies
+            await models.ListItem.destroy(dOpt);
+            await models.ProductSubstitution.destroy(dOpt);
+            await models.RecipeSubstitution.destroy(dOpt);
+            await models.ProductRelation.destroy(dOpt);
+            await models.HiddenCleanup.destroy(dOpt);
+            await models.RecipeIngredient.destroy(dOpt);
+            await models.RecipeTag.destroy(dOpt);
+            await models.RecipeInstructionOverride.destroy(dOpt);
+            if (models.UserProductIntolerance) await models.UserProductIntolerance.destroy({ where: { UserId: user.id }, transaction });
+            if (models.UserIntolerance) await models.UserIntolerance.destroy({ where: { UserId: user.id }, transaction });
+
+            // Tier 2: Mid-level entities
+            await models.List.destroy(dOpt);
+            await models.Menu.destroy(dOpt);
+            await models.Expense.destroy(dOpt);
+            await models.Settings.destroy(dOpt);
+            await models.CreditTransaction.destroy(dOpt);
+            await models.LoginLog.destroy(dOpt);
+            await models.SubscriptionLog.destroy(dOpt);
+            await models.Email.destroy(dOpt);
+            await models.NewsletterRecipient.destroy(dOpt);
+            if (models.PublicVisit) await models.PublicVisit.destroy({ where: { [require('sequelize').Op.or]: [{ visitorUserId: user.id }, { cookbookOwnerId: user.id }] }, transaction }).catch(() => { });
+
+            try {
+                // Remove strikes (where accused)
+                await models.ComplianceReport.destroy({ where: { accusedUserId: user.id }, transaction });
+            } catch (e) { /* ignore */ }
+
+            // Tier 3: Core Entities
+            await models.Recipe.destroy(dOpt);
+            if (models.ProductVariation) await models.ProductVariation.destroy(dOpt);
+            if (models.ProductVariant) await models.ProductVariant.destroy(dOpt);
+            await models.Product.destroy(dOpt);
+
+            // Tier 4: Parents / Groups
+            await models.Store.destroy(dOpt);
+            await models.Tag.destroy(dOpt);
+
+            // Cleanup joins (FavoriteRecipes, Follows)
+            await models.sequelize.query(`DELETE FROM FavoriteRecipes WHERE UserId = ${user.id}`, { transaction }).catch(() => { });
+            await models.sequelize.query(`DELETE FROM UserFollows WHERE userId = ${user.id} OR followedUserId = ${user.id}`, { transaction }).catch(() => { });
+
+            // 3. Final: Destroy the user
+            await user.destroy({ transaction });
+
+            await transaction.commit();
+            res.json({ message: 'Dein Konto wurde erfolgreich gelöscht.' });
+
+        } catch (innerErr) {
+            await transaction.rollback();
+            throw innerErr;
+        }
+    } catch (err) {
+        logger.logError(`Account deletion failed for user ${req.user.id}:`, err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
