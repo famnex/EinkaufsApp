@@ -50,7 +50,7 @@ export default function InstallPWAOverlay() {
     return (
         <AnimatePresence>
             {show && (
-                <div className="fixed inset-0 z-[100] flex flex-col justify-end pointer-events-none p-4 pb-12 sm:pb-24">
+                <div className="fixed inset-0 z-[9999] flex flex-col justify-end pointer-events-none p-4 pb-12 sm:pb-24">
                     {/* Backdrop (semi-transparent) */}
                     <motion.div
                         initial={{ opacity: 0 }}

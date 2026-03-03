@@ -93,10 +93,14 @@ function TimerItem({ timer, onUpdate, onDelete, audioContext }) {
         }
     };
 
+    const hasSentPush = useRef(false);
+
     // Countdown Logic
     useEffect(() => {
         let interval = null;
         if (timer.isRunning && timeLeft > 0) {
+            // Reset push flag if timer is reset/restarted with time
+            hasSentPush.current = false;
             interval = setInterval(() => {
                 setTimeLeft((prev) => Math.max(0, prev - 1));
             }, 1000);
@@ -111,6 +115,20 @@ function TimerItem({ timer, onUpdate, onDelete, audioContext }) {
         if (timeLeft === 0 && timer.isRunning) {
             startAlarm();
             setIsExpanded(true); // Auto-expand when finished
+
+            // Send push notification once
+            if (!hasSentPush.current) {
+                hasSentPush.current = true;
+                const sendPush = async () => {
+                    try {
+                        const api = (await import('../lib/axios')).default;
+                        await api.post('/notifications/timer-expired', { label: timer.label });
+                    } catch (err) {
+                        console.error('Failed to send timer push', err);
+                    }
+                };
+                sendPush();
+            }
         } else {
             stopAlarm();
         }

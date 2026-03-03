@@ -170,4 +170,63 @@ router.post('/admin/send-broadcast', auth, async (req, res) => {
     }
 });
 
+// POST /timer-expired - Send push notification when a cooking timer expires
+router.post('/timer-expired', auth, async (req, res) => {
+    try {
+        const { label } = req.body;
+        const displayLabel = label || 'Timer';
+
+        const subscriptions = await PushSubscription.findAll({
+            where: { UserId: req.user.id }
+        });
+
+        if (subscriptions.length === 0) {
+            return res.json({ success: true, message: 'No subscriptions found' });
+        }
+
+        const payload = JSON.stringify({
+            title: 'GabelGuru',
+            body: `⏰ Timer "${displayLabel}" ist abgelaufen!`,
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/badge-96x96.png',
+            data: {
+                url: '/recipes' // Redirect to recipes/cooking mode if possible
+            },
+            tag: `timer-${req.user.id}-${Date.now()}`, // Unique tag to avoid collapsing if multiple timers end
+            renotify: true,
+            vibrate: [200, 100, 200]
+        });
+
+        const pushOptions = {
+            TTL: 10, // Expire after 10 seconds as requested
+            urgency: 'high' // Deliver immediately
+        };
+
+        const results = await Promise.allSettled(subscriptions.map(sub => {
+            const pushConfig = {
+                endpoint: sub.endpoint,
+                keys: {
+                    auth: sub.auth,
+                    p256dh: sub.p256dh
+                }
+            };
+            return webpush.sendNotification(pushConfig, payload, pushOptions);
+        }));
+
+        // Cleanup invalid subscriptions
+        for (const result of results) {
+            if (result.status === 'rejected') {
+                if (result.reason?.statusCode === 404 || result.reason?.statusCode === 410) {
+                    await PushSubscription.destroy({ where: { endpoint: result.reason.endpoint } }).catch(() => { });
+                }
+            }
+        }
+
+        res.json({ success: true, sentTo: subscriptions.length });
+    } catch (error) {
+        logger.logError('Timer push failed:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;

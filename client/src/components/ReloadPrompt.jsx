@@ -37,7 +37,7 @@ export default function ReloadPrompt() {
                     initial={{ y: 50, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: 50, opacity: 0 }}
-                    className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 z-[100] bg-foreground text-background dark:bg-card dark:text-foreground p-4 rounded-xl shadow-2xl border border-border flex items-center gap-4 max-w-md"
+                    className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 z-[9999] bg-foreground text-background dark:bg-card dark:text-foreground p-4 rounded-xl shadow-2xl border border-border flex items-center gap-4 max-w-md"
                 >
                     <div className="bg-primary/20 p-2 rounded-lg text-primary">
                         <Smartphone size={24} />
