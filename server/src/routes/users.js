@@ -307,7 +307,8 @@ router.post('/:id/ban', async (req, res) => {
             bannedAt: new Date(),
             banReason: reason || 'Kein Grund angegeben',
             banExpiresAt: expiresAt,
-            isPermanentlyBanned: !!permanent
+            isPermanentlyBanned: !!permanent,
+            tokenVersion: (user.tokenVersion || 0) + 1
         });
 
         // Send Email

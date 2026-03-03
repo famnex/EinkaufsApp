@@ -13,7 +13,7 @@ router.get('/status', auth, async (req, res) => {
     try {
         const effectiveUserId = req.user.householdId || req.user.id;
         const user = await User.findByPk(effectiveUserId, {
-            attributes: ['id', 'tier', 'aiCredits', 'subscriptionStatus', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
+            attributes: ['id', 'tier', 'aiCredits', 'subscriptionStatus', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId', 'isTrialUsed']
         });
         res.json(user);
     } catch (err) {
@@ -577,6 +577,51 @@ router.post('/terminate', auth, async (req, res) => {
         });
 
         res.json({ message: 'Abo wurde sofort beendet. Du kannst nun einem Haushalt beitreten.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * POST /activate-trial - Activate 7-day trial of Silbergabel
+ */
+router.post('/activate-trial', auth, async (req, res) => {
+    try {
+        const user = await User.findByPk(req.user.id);
+
+        if (user.tier !== 'Plastikgabel') {
+            return res.status(400).json({ error: 'Testzeitraum ist nur für Plastikgabel-Nutzer verfügbar.' });
+        }
+
+        if (user.isTrialUsed) {
+            return res.status(400).json({ error: 'Du hast deinen Testzeitraum bereits genutzt.' });
+        }
+
+        // Activate Silbergabel for 7 days
+        await user.update({
+            tier: 'Silbergabel',
+            subscriptionStatus: 'canceled', // So it doesn't renew automatically
+            subscriptionExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+            isTrialUsed: true,
+            cancelAtPeriodEnd: true // VISUAL UI hint that it's temporary
+        });
+
+        // Add 100 trial credits? Or just let them use the Silbergabel features?
+        // Let's add some trial credits so they can actually try AI features.
+        const trialCredits = 100;
+        await creditService.addCredits(user.id, trialCredits, 'Testzeitraum-Startbonus');
+
+        await SubscriptionLog.create({
+            UserId: user.id,
+            username: user.username,
+            event: 'trial_activated',
+            tier: 'Silbergabel',
+            details: '7-Tage Testzeitraum aktiviert (+100 Trial Credits)',
+            ipHash: req.ip || 'unknown',
+            userAgent: req.headers['user-agent'] || 'unknown'
+        });
+
+        res.json({ message: 'Dein 7-Tage Testzeitraum für die Silbergabel wurde aktiviert! Viel Spaß beim Ausprobieren.', user });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

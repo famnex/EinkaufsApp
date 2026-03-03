@@ -33,6 +33,7 @@ Zentrales Benutzermodell.
 - `lastFollowedUpdatesCheck` (DATE): Zeitstempel der letzten Prüfung auf Kochbuch-Updates [NEW v0.32.12].
 - `isEmailVerified` (BOOLEAN): Status der E-Mail-Bestätigung [NEW v0.29.0].
 - `emailVerificationToken` (STRING): Token für E-Mail-Aktivierung [NEW v0.29.0].
+- `isTrialUsed` (BOOLEAN): Ob der Benutzer den Silbergabel-Testzeitraum bereits genutzt hat [NEW v0.23.9].
 - `isPermanentlyBanned` (BOOLEAN)
 - `cookbookClicks` (INT): Anzahl der Aufrufe des öffentlichen Kochbuchs/Rezepte [NEW v0.30.15].
 - `resetPasswordToken` / `resetPasswordExpires` (STRING/DATE)
@@ -166,6 +167,11 @@ Join-Tabelle zur Kennzeichnung von Produkten mit Unverträglichkeiten (Many-to-M
 ---
 
 ## 2. Migrationen & Änderungen
+
+### v0.23.9 - Silbergabel Testzeitraum (März 2026)
+1. **isTrialUsed Spalte**: Neue Spalte `isTrialUsed` (BOOLEAN, default: false) in `Users` Tabelle hinzugefügt.
+2. **Features**: Kostenloser 7-Tage Testzeitraum für die Silbergabel (einmalig aktivierbar für Plastikgabel-Nutzer).
+3. **Migration**: `server/migrations/migrate_v0.23.9_subscription_trial.js`
 
 ### v0.36.1 - Optionale Zutaten (März 2026)
 1. **isOptional Spalte**: Neue Spalte `isOptional` (BOOLEAN, default: false) in `RecipeIngredients` Tabelle hinzugefügt.

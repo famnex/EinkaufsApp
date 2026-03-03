@@ -1,6 +1,6 @@
 # Update-System Dokumentation
 
-## Aktuelle Version: v0.23.7
+## Aktuelle Version: v0.23.8
 
 ### Changelog v0.22.0
 - **Feature (Admin):** Erweiterte Benutzerverwaltung in den Einstellungen. 👥⚙️
@@ -9,6 +9,10 @@
 - **Feature (Admin):** Manuelles Buchungssystem für AI-Credits inkl. Transaktions-Historie. 💰📈
 - **Fix (PWA):** Beseitigung von Bildschirm-Flackern auf iOS durch optimierte Zoom-Prävention (Debouncing & Scale-aware Reset). 📱🚫✨
 - **DB:** Migration v0.22.0 ausgeführt (Tiers, Credits, Transactions). 🗄️✅
+
+### Changelog v0.23.8
+- **Feature (Admin):** Neuer Reiter "Inbox" in der Marktplatz-Produktübersicht (Settings > Marktplatz > Produkte). Admins können hier User-Produkte sichten, bearbeiten und über den neuen Button **"Als global übernehmen"** direkt in den globalen Marktplatz überführen (UserId wird dabei auf `null` gesetzt). 📥🏢💼🌍
+- **API:** Neuer Admin-Endpunkt `POST /api/products/:id/globalize` zum Umwandeln von User-Produkten in globale Produkte. 🛠️
 
 ### Changelog v0.23.7
 - **Fix (Layout):** Logo im eingeloggten Bereich korrigiert (Safe Area Padding & Position). 📐✅

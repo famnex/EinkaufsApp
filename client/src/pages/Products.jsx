@@ -4,7 +4,7 @@ import api from '../lib/axios';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { Package, Plus, Search, Filter, Edit2, Trash2, Factory, Sparkles, Radio, X, Globe, Layers, Eye, Menu, MoreVertical, MoreHorizontal, Loader2 } from 'lucide-react';
+import { Package, Plus, Search, Filter, Edit2, Trash2, Factory, Sparkles, Radio, X, Globe, Layers, Eye, Menu, MoreVertical, MoreHorizontal, Loader2, Inbox, Download } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProductModal from '../components/ProductModal';
@@ -24,7 +24,7 @@ export default function Products() {
     const [selectedProduct, setSelectedProduct] = useState(null);
     const { user } = useAuth();
     const { editMode, setEditMode } = useEditMode();
-    const [viewTab, setViewTab] = useState('eigene'); // 'eigene', 'global', 'variants'
+    const [viewTab, setViewTab] = useState('eigene'); // 'eigene', 'inbox', 'global', 'variants'
     const [variants, setVariants] = useState([]);
     const [isVariantModalOpen, setIsVariantModalOpen] = useState(false);
     const [selectedVariant, setSelectedVariant] = useState(null);
@@ -64,7 +64,7 @@ export default function Products() {
     useEffect(() => {
         fetchProducts();
         fetchVariants();
-    }, []);
+    }, [viewTab]);
 
     useEffect(() => {
         if (editMode === 'create') {
@@ -75,7 +75,8 @@ export default function Products() {
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            const { data } = await api.get('/products');
+            const url = viewTab === 'inbox' ? '/products/inbox' : '/products';
+            const { data } = await api.get(url);
             setProducts(data);
         } catch (err) {
             console.error('Failed to fetch products', err);
@@ -113,7 +114,7 @@ export default function Products() {
             setSelectedVariant(product);
             setIsVariantModalOpen(true);
         } else {
-            setSelectedProduct(product);
+            setSelectedProduct(viewTab === 'inbox' ? { ...product, isInbox: true } : product);
             setIsModalOpen(true);
         }
     };
@@ -150,6 +151,9 @@ export default function Products() {
         if (viewTab === 'eigene') {
             // Currently backend only returns user products
             list = list.filter(p => p.UserId);
+        } else if (viewTab === 'inbox') {
+            // Backend already filtered for UserId != null
+            return list.sort((a, b) => a.name.localeCompare(b.name));
         } else if (viewTab === 'global') {
             list = list.filter(p => !p.UserId);
         } else if (viewTab === 'variants') {
@@ -208,8 +212,20 @@ export default function Products() {
                             )}
                         >
                             <Package size={18} />
-                            Eigene
+                            <span className={cn(viewTab !== 'eigene' && "hidden sm:inline")}>Eigene</span>
                         </button>
+                        {user?.role === 'admin' && (
+                            <button
+                                onClick={() => setViewTab('inbox')}
+                                className={cn(
+                                    "flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2",
+                                    viewTab === 'inbox' ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:bg-card/50"
+                                )}
+                            >
+                                <Inbox size={18} />
+                                <span className={cn(viewTab !== 'inbox' && "hidden sm:inline")}>Inbox</span>
+                            </button>
+                        )}
                         <button
                             onClick={() => setViewTab('global')}
                             className={cn(
@@ -218,7 +234,7 @@ export default function Products() {
                             )}
                         >
                             <Globe size={18} />
-                            Global
+                            <span className={cn(viewTab !== 'global' && "hidden sm:inline")}>Global</span>
                         </button>
                         {user?.role === 'admin' && (
                             <button
@@ -232,80 +248,95 @@ export default function Products() {
                                 )}
                             >
                                 <Layers size={18} />
-                                Varianten
+                                <span className={cn(viewTab !== 'variants' && "hidden sm:inline")}>Varianten</span>
                             </button>
                         )}
                     </div>
 
-                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end relative" ref={menuRef}>
-                        <button
-                            onClick={() => setIsMenuOpen(!isMenuOpen)}
-                            className={cn(
-                                "flex items-center justify-center w-11 h-11 rounded-xl transition-all active:scale-95 border-2",
-                                isMenuOpen ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:border-primary/50"
-                            )}
-                        >
-                            <Menu size={20} />
-                        </button>
+                    {/* Burger Menu Container */}
+                    {(() => {
+                        const hasNeu = viewTab === 'eigene' || (user?.role === 'admin' && viewTab !== 'inbox');
+                        const hasCleanup = user?.role === 'admin' && user?.tier !== 'Plastikgabel';
+                        const hasGlobalize = user?.role === 'admin' && viewTab === 'eigene'; // Only show globalize in 'eigene' tab
+                        const hasMenuItems = hasNeu || hasCleanup || hasGlobalize;
 
-                        <AnimatePresence>
-                            {isMenuOpen && (
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                                    className="absolute top-full right-0 mt-2 w-64 bg-card border border-border shadow-2xl rounded-2xl z-50 overflow-hidden"
+                        if (!hasMenuItems) return null;
+
+                        return (
+                            <div className="flex items-center gap-2 w-full sm:w-auto justify-end relative" ref={menuRef}>
+                                <button
+                                    onClick={() => setIsMenuOpen(!isMenuOpen)}
+                                    className={cn(
+                                        "flex items-center justify-center w-11 h-11 rounded-xl transition-all active:scale-95 border-2",
+                                        isMenuOpen ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:border-primary/50"
+                                    )}
                                 >
-                                    <div className="p-2 space-y-1">
-                                        <button
-                                            onClick={() => {
-                                                handleAdd();
-                                                setIsMenuOpen(false);
-                                            }}
-                                            className="w-full flex items-center gap-3 p-3 text-sm font-bold text-foreground hover:bg-primary/10 rounded-xl transition-all text-left"
+                                    <Menu size={20} />
+                                </button>
+
+                                <AnimatePresence>
+                                    {isMenuOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                                            className="absolute top-full right-0 mt-2 w-64 bg-card border border-border shadow-2xl rounded-2xl z-50 overflow-hidden"
                                         >
-                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                                                <Plus size={18} />
+                                            <div className="p-2 space-y-1">
+                                                {/* Neu Button - restricted to Eigene for users, plus Global/Variants for admins (meaning Not Inbox) */}
+                                                {(viewTab === 'eigene' || (user?.role === 'admin' && viewTab !== 'inbox')) && (
+                                                    <button
+                                                        onClick={() => {
+                                                            handleAdd();
+                                                            setIsMenuOpen(false);
+                                                        }}
+                                                        className="w-full flex items-center gap-3 p-3 text-sm font-bold text-foreground hover:bg-primary/10 rounded-xl transition-all text-left"
+                                                    >
+                                                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                                                            <Plus size={18} />
+                                                        </div>
+                                                        <span>Neu</span>
+                                                    </button>
+                                                )}
+
+                                                {/* Cleanup - show only for non-plastic admins or special tier */}
+                                                {user?.role === 'admin' && user?.tier !== 'Plastikgabel' && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setIsAiCleanupOpen(true);
+                                                            setIsMenuOpen(false);
+                                                        }}
+                                                        className="w-full flex items-center gap-3 p-3 text-sm font-bold text-foreground hover:bg-indigo-500/10 rounded-xl transition-all text-left"
+                                                    >
+                                                        <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600">
+                                                            <Sparkles size={18} />
+                                                        </div>
+                                                        <span>Cleanup</span>
+                                                    </button>
+                                                )}
+
+                                                {/* Globalize Own Products - ADMIN ONLY */}
+                                                {user?.role === 'admin' && (
+                                                    <button
+                                                        onClick={handleGlobalizeProducts}
+                                                        disabled={globalizing}
+                                                        className="w-full flex items-center gap-3 p-3 text-sm font-bold text-foreground hover:bg-emerald-500/10 rounded-xl transition-all text-left"
+                                                    >
+                                                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                                                            {globalizing ? <Loader2 className="animate-spin" /> : <Globe size={18} />}
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span>Eigene Produkte globalisieren</span>
+                                                        </div>
+                                                    </button>
+                                                )}
                                             </div>
-                                            <span>Neu</span>
-                                        </button>
-
-                                        {/* Cleanup - show only for non-plastic admins or special tier */}
-                                        {user?.role === 'admin' && user?.tier !== 'Plastikgabel' && (
-                                            <button
-                                                onClick={() => {
-                                                    setIsAiCleanupOpen(true);
-                                                    setIsMenuOpen(false);
-                                                }}
-                                                className="w-full flex items-center gap-3 p-3 text-sm font-bold text-foreground hover:bg-indigo-500/10 rounded-xl transition-all text-left"
-                                            >
-                                                <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600">
-                                                    <Sparkles size={18} />
-                                                </div>
-                                                <span>Cleanup</span>
-                                            </button>
-                                        )}
-
-                                        {/* Globalize Own Products - ADMIN ONLY */}
-                                        {user?.role === 'admin' && (
-                                            <button
-                                                onClick={handleGlobalizeProducts}
-                                                disabled={globalizing}
-                                                className="w-full flex items-center gap-3 p-3 text-sm font-bold text-foreground hover:bg-emerald-500/10 rounded-xl transition-all text-left"
-                                            >
-                                                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600">
-                                                    {globalizing ? <Loader2 className="animate-spin" /> : <Globe size={18} />}
-                                                </div>
-                                                <div className="flex flex-col">
-                                                    <span>Eigene Produkte globalisieren</span>
-                                                </div>
-                                            </button>
-                                        )}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        )
+                    })()}
                 </div>
 
                 <motion.div
@@ -348,7 +379,7 @@ export default function Products() {
                                         initial={{ opacity: 0, scale: 0.95 }}
                                         animate={{ opacity: 1, scale: 1 }}
                                         onClick={() => {
-                                            if (editMode === 'edit') {
+                                            if (editMode === 'edit' || viewTab === 'inbox') {
                                                 handleEdit(product);
                                             } else if (editMode === 'delete') {
                                                 handleDelete(product.id, { stopPropagation: () => { } });
@@ -356,7 +387,7 @@ export default function Products() {
                                         }}
                                         className={cn(
                                             "bg-card border p-4 rounded-2xl flex items-center justify-between group transition-all",
-                                            "hover:shadow-lg hover:border-primary/20 cursor-grab active:cursor-grabbing"
+                                            viewTab === 'inbox' ? "hover:shadow-lg hover:border-primary/20 cursor-pointer" : "hover:shadow-lg hover:border-primary/20 cursor-grab active:cursor-grabbing"
                                         )}
                                     >
                                         <div className="flex-1 min-w-0 text-left pointer-events-none">
@@ -376,7 +407,7 @@ export default function Products() {
                                         </div>
 
                                         <div className="flex items-center gap-1 shrink-0">
-                                            {product.UserId === null && user?.role !== 'admin' ? (
+                                            {(product.UserId === null && user?.role !== 'admin') ? (
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
@@ -399,23 +430,25 @@ export default function Products() {
                                                         }}
                                                         className="h-9 w-9 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-colors"
                                                     >
-                                                        <Edit2 size={18} />
+                                                        {viewTab === 'inbox' ? <Download size={18} /> : <Edit2 size={18} />}
                                                     </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (viewTab === 'variants') {
-                                                                handleDeleteVariant(product.id, e);
-                                                            } else {
-                                                                handleDelete(product.id, e);
-                                                            }
-                                                        }}
-                                                        className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-colors"
-                                                    >
-                                                        <Trash2 size={18} />
-                                                    </Button>
+                                                    {viewTab !== 'inbox' && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (viewTab === 'variants') {
+                                                                    handleDeleteVariant(product.id, e);
+                                                                } else {
+                                                                    handleDelete(product.id, e);
+                                                                }
+                                                            }}
+                                                            className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-colors"
+                                                        >
+                                                            <Trash2 size={18} />
+                                                        </Button>
+                                                    )}
                                                 </>
                                             )}
                                         </div>
@@ -510,19 +543,21 @@ function VariantModal({ isOpen, onClose, variant, onSave }) {
                         initial={{ opacity: 0, scale: 0.9, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                        className="w-full max-w-md relative z-10"
+                        className="w-full max-w-md relative z-10 max-h-[80vh] flex flex-col"
                     >
-                        <Card className="p-8 border-border shadow-2xl bg-card">
-                            <h2 className="text-2xl font-bold mb-6">{variant ? 'Variante bearbeiten' : 'Neue Variante'}</h2>
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                <Input
-                                    value={title}
-                                    onChange={(e) => setTitle(e.target.value)}
-                                    placeholder="Titel der Variante"
-                                    required
-                                    autoFocus
-                                />
-                                <div className="flex justify-end gap-2 pt-4">
+                        <Card className="p-4 sm:p-8 border-border shadow-2xl bg-card flex flex-col overflow-hidden">
+                            <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 shrink-0">{variant ? 'Variante bearbeiten' : 'Neue Variante'}</h2>
+                            <form onSubmit={handleSubmit} className="flex flex-col min-h-0 overflow-hidden">
+                                <div className="space-y-4 overflow-y-auto pr-1 -mr-1 pb-2">
+                                    <Input
+                                        value={title}
+                                        onChange={(e) => setTitle(e.target.value)}
+                                        placeholder="Titel der Variante"
+                                        required
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="flex justify-end gap-2 pt-4 shrink-0 border-t border-border mt-4">
                                     <Button type="button" variant="ghost" onClick={onClose}>Abbrechen</Button>
                                     <Button type="submit" disabled={loading}>{loading ? 'Speichern...' : 'Speichern'}</Button>
                                 </div>

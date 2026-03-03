@@ -111,6 +111,12 @@ router.get('/', auth, async (req, res) => {
             attributes: phase === 'basic' || !phase ? ['id', 'username'] : ['id']
         });
 
+        // Also include the original owner of the recipe to get their sharing key
+        include.push({
+            model: User,
+            attributes: ['id', 'username', 'sharingKey']
+        });
+
         const recipes = await Recipe.findAll({
             where: {
                 [Op.or]: [
@@ -133,6 +139,12 @@ router.get('/', auth, async (req, res) => {
             plain.favoritedBy = plain.FavoritedBy ? plain.FavoritedBy.map(u => u.username) : [];
             plain.cookCount = plain.Menus ? plain.Menus.length : 0;
             plain.hasSubstitutions = plain.RecipeSubstitutions && plain.RecipeSubstitutions.length > 0;
+            // Map owner sharing key
+            if (plain.User) {
+                plain.ownerSharingKey = plain.User.sharingKey;
+                plain.ownerUsername = plain.User.username;
+            }
+            delete plain.User;
             delete plain.FavoritedBy;
             delete plain.Menus;
             delete plain.RecipeSubstitutions;
@@ -166,7 +178,7 @@ router.get('/public/:sharingKey/:id', checkOptionalAuth, async (req, res) => {
         }
 
         const recipe = await Recipe.findOne({
-            where: { id: id, UserId: user.id },
+            where: { id: id, UserId: user.id, isPublic: true },
             attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'instructions', 'clicks'],
             include: [
                 {
@@ -281,9 +293,10 @@ router.get('/public/:sharingKey', checkOptionalAuth, async (req, res) => {
         const recipes = await Recipe.findAll({
             where: {
                 UserId: listOwner.id,
+                isPublic: true,
                 bannedAt: null // Exclude banned recipes from list
             },
-            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'clicks'],
+            attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'clicks', 'createdAt'],
             include: includeArr,
             order: [['title', 'ASC']]
         });

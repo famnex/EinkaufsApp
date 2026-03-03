@@ -137,14 +137,14 @@ router.get('/check-username', async (req, res) => {
 router.get('/me', auth, async (req, res) => {
     try {
         const user = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'followNotificationsEnabled', 'lastFollowedUpdatesCheck', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
+            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'followNotificationsEnabled', 'lastFollowedUpdatesCheck', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId', 'isTrialUsed']
         });
         if (!user) return res.status(404).json({ error: 'User not found' });
 
         // If user is a member, provide owner's subscription data
         if (user.householdId) {
             const owner = await User.findByPk(user.householdId, {
-                attributes: ['tier', 'aiCredits', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
+                attributes: ['tier', 'aiCredits', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId', 'sharingKey']
             });
             if (owner) {
                 user.tier = owner.tier;
@@ -153,6 +153,8 @@ router.get('/me', auth, async (req, res) => {
                 user.cancelAtPeriodEnd = owner.cancelAtPeriodEnd;
                 user.stripeSubscriptionId = owner.stripeSubscriptionId;
                 user.stripeCustomerId = owner.stripeCustomerId;
+                // Add household owner's sharing key for easier access in frontend
+                user.setDataValue('householdSharingKey', owner.sharingKey);
             }
         }
 
@@ -229,7 +231,7 @@ router.put('/profile', auth, upload.single('image'), async (req, res) => {
 
         await User.update(updates, { where: { id: req.user.id } });
         const updatedUser = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'followNotificationsEnabled', 'lastFollowedUpdatesCheck', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId']
+            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'followNotificationsEnabled', 'lastFollowedUpdatesCheck', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId', 'isTrialUsed']
         });
         const userData = updatedUser.get({ plain: true });
         const targetUserId = updatedUser.householdId || updatedUser.id;
@@ -787,7 +789,15 @@ router.post('/login', async (req, res) => {
 
         const token = jwt.sign({ id: user.id, role: user.role, version: user.tokenVersion }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-        const userData = { id: user.id, username: user.username, email: user.email, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, followNotificationsEnabled: user.followNotificationsEnabled, lastFollowedUpdatesCheck: user.lastFollowedUpdatesCheck, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId };
+        const userData = { id: user.id, username: user.username, email: user.email, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, followNotificationsEnabled: user.followNotificationsEnabled, lastFollowedUpdatesCheck: user.lastFollowedUpdatesCheck, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId, isTrialUsed: user.isTrialUsed };
+
+        // If user is a member, get owner's sharing key
+        if (user.householdId) {
+            const owner = await User.findByPk(user.householdId, { attributes: ['sharingKey'] });
+            if (owner) {
+                userData.householdSharingKey = owner.sharingKey;
+            }
+        }
 
         // Follower Count
         const targetUserId = user.householdId || user.id;

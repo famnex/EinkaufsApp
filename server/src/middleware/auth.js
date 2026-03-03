@@ -26,6 +26,28 @@ const auth = async (req, res, next) => {
                 return res.status(401).json({ error: 'Session expired due to account changes. Please log in again.' });
             }
 
+            // Check if user is banned
+            if (user.bannedAt) {
+                // If it's a temporary ban, check if it has expired
+                if (!user.isPermanentlyBanned && user.banExpiresAt && new Date(user.banExpiresAt) < new Date()) {
+                    // Ban expired, but we let the banService clean it up or clean it here
+                    // For now, if it's still marked as banned in DB, we block it to be safe 
+                    // and wait for the cron job to reactivate.
+                    // Or we could auto-reactivate here:
+                    /* 
+                    await user.update({ bannedAt: null, banReason: null, banExpiresAt: null, isPermanentlyBanned: false });
+                    */
+                } else {
+                    console.warn(`Auth failed: User ${user.id} (${user.username}) is banned. Reason: ${user.banReason}`);
+                    return res.status(401).json({
+                        error: 'Dein Konto wurde gesperrt.',
+                        reason: user.banReason,
+                        expiresAt: user.banExpiresAt,
+                        isPermanent: user.isPermanentlyBanned
+                    });
+                }
+            }
+
             req.user = user;
             // Use householdId if set, otherwise fallback to own id for data scoping
             req.user.effectiveId = user.householdId || user.id;

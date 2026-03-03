@@ -52,9 +52,9 @@ export default function MergeProductModal({ isOpen, onClose, sourceProduct, targ
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
-                        className="relative w-full max-w-lg bg-card border border-border rounded-xl shadow-xl overflow-hidden"
+                        className="relative w-full max-w-lg bg-card border border-border rounded-xl shadow-xl overflow-hidden max-h-[80vh] flex flex-col"
                     >
-                        <div className="p-4 border-b border-border flex items-center justify-between">
+                        <div className="p-4 border-b border-border flex items-center justify-between shrink-0">
                             <h3 className="font-bold text-lg flex items-center gap-2">
                                 Produkte zusammenführen
                             </h3>
@@ -63,18 +63,18 @@ export default function MergeProductModal({ isOpen, onClose, sourceProduct, targ
                             </button>
                         </div>
 
-                        <div className="p-6 space-y-6">
-                            <div className="flex items-center justify-center gap-4 text-center">
-                                <div className="p-4 bg-muted/50 rounded-xl border border-destructive/20 min-w-[120px]">
-                                    <div className="text-destructive font-bold text-lg mb-1">{sourceProduct.name}</div>
-                                    <div className="text-xs text-muted-foreground uppercase">Wird gelöscht</div>
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
+                                <div className="p-4 bg-muted/50 rounded-xl border border-destructive/20 min-w-[120px] w-full sm:w-auto">
+                                    <div className="text-destructive font-bold text-base sm:text-lg mb-1">{sourceProduct.name}</div>
+                                    <div className="text-[10px] sm:text-xs text-muted-foreground uppercase">Wird gelöscht</div>
                                 </div>
 
-                                <ArrowRight className="text-muted-foreground animate-pulse" />
+                                <ArrowRight className="text-muted-foreground animate-pulse rotate-90 sm:rotate-0" />
 
-                                <div className="p-4 bg-primary/10 rounded-xl border border-primary/20 min-w-[120px]">
-                                    <div className="text-primary font-bold text-lg mb-1">{targetProduct.name}</div>
-                                    <div className="text-xs text-muted-foreground uppercase">Bleibt erhalten</div>
+                                <div className="p-4 bg-primary/10 rounded-xl border border-primary/20 min-w-[120px] w-full sm:w-auto">
+                                    <div className="text-primary font-bold text-base sm:text-lg mb-1">{targetProduct.name}</div>
+                                    <div className="text-[10px] sm:text-xs text-muted-foreground uppercase">Bleibt erhalten</div>
                                 </div>
                             </div>
 
@@ -92,11 +92,11 @@ export default function MergeProductModal({ isOpen, onClose, sourceProduct, targ
                             </div>
                         </div>
 
-                        <div className="p-4 bg-muted/50 border-t border-border flex justify-end gap-3">
+                        <div className="p-4 bg-muted/50 border-t border-border flex justify-end gap-3 shrink-0">
                             <Button variant="ghost" onClick={onClose} disabled={loading}>
                                 Abbrechen
                             </Button>
-                            <Button onClick={handleMerge} disabled={loading} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                            <Button onClick={handleMerge} disabled={loading} className="bg-primary hover:bg-primary/90 text-primary-foreground min-w-[140px]">
                                 {loading ? 'Wird verarbeitet...' : 'Zusammenführen & Migrieren'}
                             </Button>
                         </div>

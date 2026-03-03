@@ -15,6 +15,7 @@ import UserDetailModal from '../components/UserDetailModal';
 import SubscriptionModal from '../components/SubscriptionModal';
 import SubscriptionCancelModal from '../components/SubscriptionCancelModal';
 import HouseholdConfirmModal from '../components/HouseholdConfirmModal';
+import SubscriptionTrialModal from '../components/SubscriptionTrialModal';
 import api from '../lib/axios';
 import { Search, Package, Bell } from 'lucide-react';
 import RichTextEditor from '../components/RichTextEditor';
@@ -71,6 +72,7 @@ export default function SettingsPage() {
     const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
     const [isHouseholdModalOpen, setIsHouseholdModalOpen] = useState(false);
+    const [isTrialModalOpen, setIsTrialModalOpen] = useState(false);
     const [householdModalType, setHouseholdModalType] = useState('leave'); // 'leave' | 'remove'
     const [selectedMember, setSelectedMember] = useState(null);
     const [initialDetailTab, setInitialDetailTab] = useState('general');
@@ -542,6 +544,19 @@ export default function SettingsPage() {
             await fetchIntolerances();
         } catch (err) {
             alert('Fehler beim Löschen: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleActivateTrial = async () => {
+        try {
+            const res = await api.post('/subscription/activate-trial');
+            alert(res.data.message);
+            refreshUser();
+            setIsTrialModalOpen(false);
+        } catch (err) {
+            console.error('Failed to activate trial:', err);
+            alert('Fehler: ' + (err.response?.data?.error || err.message));
+            throw err;
         }
     };
 
@@ -1623,8 +1638,7 @@ export default function SettingsPage() {
     };
 
     const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
-        ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier) ||
-        user?.tier?.includes('Admin') || user?.role === 'admin';
+        ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier);
 
     // Tab Definitions
     const profileDetailTabs = [
@@ -3916,7 +3930,19 @@ export default function SettingsPage() {
                                         )}
                                     </div>
                                 )}
+
                                 <div className="flex gap-2">
+                                    {(!isMember && currentTier === 'Plastikgabel' && !user?.isTrialUsed) && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
+                                            onClick={() => setIsTrialModalOpen(true)}
+                                        >
+                                            <Sparkles size={14} />
+                                            7-Tage Test (Silber)
+                                        </Button>
+                                    )}
                                     {(!isMember && currentTier !== 'Rainbowspoon' && currentTier !== 'Goldgabel' && !user?.cancelAtPeriodEnd) && (
                                         <Button
                                             size="sm"
@@ -3929,6 +3955,7 @@ export default function SettingsPage() {
                                         </Button>
                                     )}
                                 </div>
+
                                 {(!isMember && (currentTier === 'Silbergabel' || currentTier === 'Goldgabel')) && (
                                     <div className="mt-4">
                                         <button
@@ -3977,66 +4004,69 @@ export default function SettingsPage() {
                                 </>
                             )}
                         </div>
-                    )}
-                </div>
+                    )
+                    }
+                </div >
 
-                {(currentTier === 'Silbergabel' || currentTier === 'Goldgabel') && (
-                    <div>
-                        <div className="flex items-center justify-between mb-4 px-1">
-                            <h3 className="font-bold flex items-center gap-2">
-                                <History size={18} className="text-muted-foreground" />
-                                Kontoauszug (AI Credits)
-                            </h3>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={handleRefreshCredits}
-                                disabled={loadingCredits}
-                                className="h-8 w-8 text-muted-foreground hover:text-primary transition-colors"
-                                title="Kontoauszug aktualisieren"
-                            >
-                                <RefreshCw size={16} className={loadingCredits ? "animate-spin" : ""} />
-                            </Button>
-                        </div>
-                        <div className="bg-muted/20 rounded-2xl border border-border overflow-hidden min-h-[200px]">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-muted/50 border-b border-border">
-                                    <tr>
-                                        <th className="px-4 py-3 font-bold">Datum</th>
-                                        <th className="px-4 py-3 font-bold">Beschreibung</th>
-                                        <th className="px-4 py-3 font-bold text-right">Betrag</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border/50">
-                                    {loadingCredits ? (
+                {
+                    (currentTier === 'Silbergabel' || currentTier === 'Goldgabel') && (
+                        <div>
+                            <div className="flex items-center justify-between mb-4 px-1">
+                                <h3 className="font-bold flex items-center gap-2">
+                                    <History size={18} className="text-muted-foreground" />
+                                    Kontoauszug (AI Credits)
+                                </h3>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={handleRefreshCredits}
+                                    disabled={loadingCredits}
+                                    className="h-8 w-8 text-muted-foreground hover:text-primary transition-colors"
+                                    title="Kontoauszug aktualisieren"
+                                >
+                                    <RefreshCw size={16} className={loadingCredits ? "animate-spin" : ""} />
+                                </Button>
+                            </div>
+                            <div className="bg-muted/20 rounded-2xl border border-border overflow-hidden min-h-[200px]">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-muted/50 border-b border-border">
                                         <tr>
-                                            <td colSpan="3" className="px-4 py-20 text-center">
-                                                <Loader2 className="animate-spin mx-auto text-primary/50 w-8 h-8" />
-                                            </td>
+                                            <th className="px-4 py-3 font-bold">Datum</th>
+                                            <th className="px-4 py-3 font-bold">Beschreibung</th>
+                                            <th className="px-4 py-3 font-bold text-right">Betrag</th>
                                         </tr>
-                                    ) : creditHistory?.length > 0 ? (
-                                        creditHistory.map(tx => (
-                                            <tr key={tx.id} className="hover:bg-muted/30 transition-colors">
-                                                <td className="px-4 py-3 text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString('de-DE')}</td>
-                                                <td className="px-4 py-3">{tx.description}</td>
-                                                <td className={cn(
-                                                    "px-4 py-3 font-bold text-right",
-                                                    parseFloat(tx.delta) > 0 ? "text-emerald-500" : "text-destructive"
-                                                )}>
-                                                    {parseFloat(tx.delta) > 0 ? '+' : ''}{parseFloat(tx.delta).toFixed(2)}
+                                    </thead>
+                                    <tbody className="divide-y divide-border/50">
+                                        {loadingCredits ? (
+                                            <tr>
+                                                <td colSpan="3" className="px-4 py-20 text-center">
+                                                    <Loader2 className="animate-spin mx-auto text-primary/50 w-8 h-8" />
                                                 </td>
                                             </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan="3" className="px-4 py-20 text-center text-muted-foreground italic">Noch keine Transaktionen vorhanden.</td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
+                                        ) : creditHistory?.length > 0 ? (
+                                            creditHistory.map(tx => (
+                                                <tr key={tx.id} className="hover:bg-muted/30 transition-colors">
+                                                    <td className="px-4 py-3 text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString('de-DE')}</td>
+                                                    <td className="px-4 py-3">{tx.description}</td>
+                                                    <td className={cn(
+                                                        "px-4 py-3 font-bold text-right",
+                                                        parseFloat(tx.delta) > 0 ? "text-emerald-500" : "text-destructive"
+                                                    )}>
+                                                        {parseFloat(tx.delta) > 0 ? '+' : ''}{parseFloat(tx.delta).toFixed(2)}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan="3" className="px-4 py-20 text-center text-muted-foreground italic">Noch keine Transaktionen vorhanden.</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
                 <SubscriptionCancelModal
                     isOpen={isCancelModalOpen}
@@ -4055,7 +4085,7 @@ export default function SettingsPage() {
                     type={householdModalType}
                     memberName={selectedMember?.username}
                 />
-            </div>
+            </div >
         );
     })();
 
@@ -5997,6 +6027,12 @@ export default function SettingsPage() {
                 isOpen={isIntoleranceCheckModalOpen}
                 onClose={() => setIsIntoleranceCheckModalOpen(false)}
                 onSave={fetchIntolerances}
+            />
+
+            <SubscriptionTrialModal
+                isOpen={isTrialModalOpen}
+                onClose={() => setIsTrialModalOpen(false)}
+                onActivate={handleActivateTrial}
             />
         </div>
     );

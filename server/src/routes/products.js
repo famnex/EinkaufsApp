@@ -3,6 +3,76 @@ const router = express.Router();
 const { Product, Store, ListItem, RecipeIngredient, sequelize, HiddenCleanup, ProductVariation, ProductVariant, Intolerance, ProductIntolerance } = require('../models');
 const { auth, admin } = require('../middleware/auth');
 
+// Get all user products (not global) - ADMIN ONLY
+router.get('/inbox', auth, admin, async (req, res) => {
+    try {
+        const products = await Product.findAll({
+            where: {
+                UserId: { [sequelize.Sequelize.Op.ne]: null }
+            },
+            include: [
+                { model: Intolerance, through: { attributes: ['probability'] } }
+            ],
+            order: [['createdAt', 'DESC']]
+        });
+        res.json(products);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Globalize a specific product - ADMIN ONLY
+router.post('/:id/globalize', auth, admin, async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+        const { variations, intoleranceIds, intolerances, ...productData } = req.body;
+        const product = await Product.findByPk(req.params.id, { transaction: t });
+
+        if (!product) {
+            await t.rollback();
+            return res.status(404).json({ error: 'Product not found' });
+        }
+
+        // Update with new data and set UserId to null
+        await product.update({
+            ...productData,
+            UserId: null
+        }, { transaction: t });
+
+        // Handle variations
+        if (variations && Array.isArray(variations)) {
+            await ProductVariation.destroy({ where: { ProductId: product.id }, transaction: t });
+            for (const v of variations) {
+                await ProductVariation.create({
+                    ...v,
+                    ProductId: product.id,
+                    UserId: null
+                }, { transaction: t });
+            }
+        }
+
+        // Handle intolerances
+        if (intolerances && Array.isArray(intolerances)) {
+            await ProductIntolerance.destroy({ where: { ProductId: product.id }, transaction: t });
+            for (const i of intolerances) {
+                await ProductIntolerance.create({
+                    ProductId: product.id,
+                    IntoleranceId: i.id,
+                    probability: i.probability !== undefined ? i.probability : 100
+                }, { transaction: t });
+            }
+        } else if (intoleranceIds !== undefined) {
+            await product.setIntolerances(intoleranceIds || [], { transaction: t });
+        }
+
+        await t.commit();
+        res.json({ message: 'Produkt erfolgreich globalisiert', product });
+    } catch (err) {
+        await t.rollback();
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.get('/', auth, async (req, res) => {
     try {
         const { search, limit } = req.query;

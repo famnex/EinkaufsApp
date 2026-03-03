@@ -8,7 +8,7 @@ const { checkFairUse } = require('../utils/fairUse');
 // GET /intolerances - Get all global intolerances with "selected" status for the current user
 router.get('/', auth, async (req, res) => {
     try {
-        const userId = req.user.effectiveId;
+        const userId = req.user.id;
         const allIntolerances = await Intolerance.findAll({
             order: [['name', 'ASC']]
         });
@@ -35,7 +35,7 @@ router.get('/', auth, async (req, res) => {
 // POST /intolerances/:id/toggle - Toggle selection for current user
 router.post('/:id/toggle', auth, async (req, res) => {
     try {
-        const userId = req.user.effectiveId;
+        const userId = req.user.id;
         const intoleranceId = req.params.id;
 
         const user = await User.findByPk(userId);
@@ -105,7 +105,7 @@ router.delete('/:id', auth, async (req, res) => {
 // GET /intolerances/personal-products - Get products current user is intolerant to
 router.get('/personal-products', auth, async (req, res) => {
     try {
-        const userId = req.user.effectiveId;
+        const userId = req.user.id;
         const { Product } = require('../models');
         const user = await User.findByPk(userId, {
             include: [{
@@ -124,7 +124,7 @@ router.get('/personal-products', auth, async (req, res) => {
 // POST /intolerances/personal-products - Add a product to intolerance list
 router.post('/personal-products', auth, async (req, res) => {
     try {
-        const userId = req.user.effectiveId;
+        const userId = req.user.id;
         const { productId } = req.body;
         const { Product } = require('../models');
 
@@ -145,7 +145,7 @@ router.post('/personal-products', auth, async (req, res) => {
 // DELETE /intolerances/personal-products/:productId - Remove a product from personal intolerances
 router.delete('/personal-products/:productId', auth, async (req, res) => {
     try {
-        const userId = req.user.effectiveId;
+        const userId = req.user.id;
         const { productId } = req.params;
         const { Product } = require('../models');
 
@@ -169,7 +169,7 @@ router.post('/check', auth, async (req, res) => {
             return res.status(400).json({ error: 'productIds array required' });
         }
 
-        const userId = req.user.effectiveId;
+        const userId = req.user.id;
         const currentUser = await User.findByPk(userId);
 
         // Fair-Use Rate Limit for Plastikgabel

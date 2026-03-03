@@ -5,6 +5,7 @@ import { Button } from './Button';
 import { cn } from '../lib/utils';
 import api from '../lib/axios';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function RecipeIntoleranceResolverModal({
     isOpen,
@@ -13,6 +14,7 @@ export default function RecipeIntoleranceResolverModal({
     conflicts,
     onResolved
 }) {
+    const { user } = useAuth();
     const [resolutions, setResolutions] = useState({}); // { productId: suggestionObject }
     const [loading, setLoading] = useState({}); // { productId: boolean }
     const [suggestions, setSuggestions] = useState({}); // { productId: [suggestions] }
@@ -227,8 +229,11 @@ export default function RecipeIntoleranceResolverModal({
                                                 <AlertCircle size={14} />
                                                 {product?.name}
                                             </div>
-                                            <div className="text-[10px] text-destructive/70 mt-1 font-medium">
-                                                {conflict?.warnings?.map(w => w.message).join(', ')}
+                                            <div className="text-[10px] text-destructive/70 mt-1 font-medium italic">
+                                                {conflict?.warnings?.map(w => {
+                                                    const householdName = (conflict.username && conflict.username !== user?.username) ? ` (${conflict.username})` : '';
+                                                    return w.message + householdName;
+                                                }).join(', ')}
                                             </div>
                                         </div>
                                         <div className="flex justify-center shrink-0">

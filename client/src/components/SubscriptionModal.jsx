@@ -6,6 +6,8 @@ import { Card } from './Card';
 import SubscriptionCancelModal from './SubscriptionCancelModal';
 import api from '../lib/axios';
 import { cn } from '../lib/utils';
+import HouseholdConfirmModal from './HouseholdConfirmModal';
+import SubscriptionTrialModal from './SubscriptionTrialModal';
 import { useAuth } from '../contexts/AuthContext';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 
@@ -14,6 +16,7 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState(null);
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+    const [isTrialModalOpen, setIsTrialModalOpen] = useState(false);
 
     useLockBodyScroll(isOpen);
 
@@ -65,6 +68,20 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
             alert('Aktion fehlgeschlagen: ' + (err.response?.data?.error || err.message));
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleActivateTrial = async () => {
+        try {
+            const res = await api.post('/subscription/activate-trial');
+            alert(res.data.message);
+            refreshUser();
+            setIsTrialModalOpen(false);
+            onClose(); // Close the main modal as well
+        } catch (err) {
+            console.error('Failed to activate trial:', err);
+            alert('Fehler: ' + (err.response?.data?.error || err.message));
+            throw err;
         }
     };
 
@@ -137,31 +154,29 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
                         initial={{ opacity: 0, scale: 0.9, y: 30 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.9, y: 30 }}
-                        className="relative w-full max-w-5xl bg-background rounded-[2.5rem] shadow-2xl overflow-hidden border border-border flex flex-col max-h-[90vh]"
+                        className="relative w-full max-w-5xl bg-background rounded-2xl sm:rounded-[2.5rem] shadow-2xl overflow-hidden border border-border flex flex-col max-h-[80vh] sm:max-h-[90vh]"
                     >
                         {/* Header */}
-                        <div className="p-8 pb-4 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/20">
-                                    <Sparkles size={28} />
+                        <div className="p-4 sm:p-8 pb-2 sm:pb-4 flex items-center justify-between shrink-0 bg-background z-10">
+                            <div className="flex items-center gap-3 sm:gap-4">
+                                <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/20">
+                                    <Sparkles size={20} className="sm:w-6 sm:h-6" />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-black tracking-tight">GabelGuru Premium</h2>
-                                    <p className="text-sm text-muted-foreground">
-                                        Wähle das perfekte Abo für dein Kocherlebnis
-                                    </p>
+                                    <h2 className="text-base sm:text-2xl font-black tracking-tight leading-tight">GabelGuru Premium</h2>
+                                    <p className="hidden sm:block text-sm text-muted-foreground">Wähle das perfekte Abo</p>
                                 </div>
                             </div>
                             <button
                                 onClick={handleClose}
-                                className="p-3 hover:bg-muted rounded-2xl transition-all hover:rotate-90"
+                                className="p-2 sm:p-3 hover:bg-muted rounded-xl sm:rounded-2xl transition-all hover:rotate-90"
                             >
-                                <X size={24} />
+                                <X className="w-5 h-5 sm:w-6 sm:h-6" />
                             </button>
                         </div>
 
                         {/* Content */}
-                        <div className="flex-1 overflow-y-auto p-8 pt-4">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-8 pt-2 sm:pt-4">
                             {/* Always render tiers view, payment view removed */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 {tiers.map((tier) => {
@@ -188,7 +203,7 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
                                         <Card
                                             key={tier.name}
                                             className={cn(
-                                                "relative p-8 flex flex-col items-center text-center transition-all duration-500 border-2",
+                                                "relative p-4 sm:p-8 flex flex-col items-center text-center transition-all duration-500 border-2",
                                                 tier.popular ? "border-primary/50 shadow-2xl shadow-primary/10" : "border-border",
                                                 isCurrent && "border-emerald-500/50 bg-emerald-500/5"
                                             )}
@@ -199,48 +214,60 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
                                                 </div>
                                             )}
 
-                                            <div className={cn("w-20 h-20 rounded-3xl flex items-center justify-center mb-6 shadow-inner", tier.bg)}>
-                                                <Icon className={cn("w-10 h-10", tier.color)} />
+                                            <div className={cn("w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-3xl flex items-center justify-center mb-3 sm:mb-6 shadow-inner", tier.bg)}>
+                                                <Icon className={cn("w-6 h-6 sm:w-10 sm:h-10", tier.color)} />
                                             </div>
 
-                                            <h3 className="text-xl font-black mb-2">{tier.name}</h3>
-                                            <div className="flex items-baseline gap-1 mb-8">
-                                                <span className="text-4xl font-black">{tier.price}</span>
-                                                {tier.period && <span className="text-muted-foreground text-sm font-medium">{tier.period}</span>}
+                                            <h3 className="text-lg sm:text-xl font-black mb-1 sm:mb-2">{tier.name}</h3>
+                                            <div className="flex items-baseline gap-1 mb-4 sm:mb-8">
+                                                <span className="text-3xl sm:text-4xl font-black">{tier.price}</span>
+                                                {tier.period && <span className="text-muted-foreground text-[10px] sm:text-sm font-medium">{tier.period}</span>}
                                             </div>
 
-                                            <div className="w-full space-y-4 mb-10 text-left">
+                                            <div className="w-full space-y-2 sm:space-y-4 mb-4 sm:mb-10 text-left">
                                                 {tier.features.map((feat, i) => {
                                                     const isInfo = feat.startsWith('(i)');
                                                     const displayFeat = isInfo ? feat.replace('(i) ', '') : feat;
 
                                                     return (
-                                                        <div key={i} className="flex items-start gap-3 group">
+                                                        <div key={i} className="flex items-start gap-2 sm:gap-3 group">
                                                             <div className={cn(
-                                                                "mt-1 w-5 h-5 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform",
+                                                                "mt-0.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform",
                                                                 isInfo ? "bg-blue-500/10 text-blue-500" : "bg-primary/10 text-primary"
                                                             )}>
-                                                                {isInfo ? <Info size={12} strokeWidth={3} /> : <Check size={12} strokeWidth={4} />}
+                                                                {isInfo ? <Info size={10} strokeWidth={3} /> : <Check size={10} strokeWidth={4} />}
                                                             </div>
-                                                            <span className="text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors">{displayFeat}</span>
+                                                            <span className="text-[10px] sm:text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors leading-tight">{displayFeat}</span>
                                                         </div>
                                                     );
                                                 })}
                                             </div>
 
-                                            <div className="mt-auto w-full">
+                                            <div className="mt-auto w-full space-y-2">
                                                 {shouldShowButton && (
                                                     <Button
                                                         variant={tier.popular ? "primary" : "outline"}
                                                         className={cn(
-                                                            "w-full h-14 rounded-2xl gap-2 text-sm",
+                                                            "w-full h-11 sm:h-14 rounded-xl sm:rounded-2xl gap-2 text-xs sm:text-sm",
                                                             isCurrent && "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20"
                                                         )}
                                                         onClick={() => handleCheckout(tier.name)}
                                                         disabled={loading || isCurrent}
                                                     >
-                                                        {loading ? <Loader2 className="animate-spin" size={20} /> : (isCurrent ? 'Dein Plan' : tier.buttonText)}
-                                                        {!isCurrent && <ArrowRight size={18} />}
+                                                        {loading ? <Loader2 className="animate-spin" size={18} /> : (isCurrent ? 'Dein Plan' : tier.buttonText)}
+                                                        {!isCurrent && <ArrowRight className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />}
+                                                    </Button>
+                                                )}
+
+                                                {(tier.name === 'Silbergabel' && currentTier === 'Plastikgabel' && !user?.isTrialUsed) && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="w-full h-10 rounded-xl gap-2 text-xs font-bold text-primary hover:bg-primary/5"
+                                                        onClick={() => setIsTrialModalOpen(true)}
+                                                    >
+                                                        <Sparkles size={14} />
+                                                        7 Tage kostenlos testen
                                                     </Button>
                                                 )}
                                             </div>
@@ -250,16 +277,14 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
                             </div>
 
                             {/* Info Section */}
-                            <div className="mt-10 p-6 bg-muted/30 rounded-3xl border border-border flex flex-col md:flex-row items-center gap-6">
-                                <div className="p-4 bg-primary/10 rounded-2xl text-primary">
-                                    <Info size={32} />
+                            <div className="mt-4 sm:mt-10 p-3 sm:p-6 bg-muted/20 rounded-xl sm:rounded-3xl border border-border flex flex-col md:flex-row items-center gap-3 sm:gap-6 mb-8">
+                                <div className="p-2 sm:p-4 bg-primary/10 rounded-lg sm:rounded-2xl text-primary shrink-0">
+                                    <Info className="w-5 h-5 sm:w-8 sm:h-8" />
                                 </div>
-                                <div className="flex-1">
-                                    <h4 className="font-bold mb-1">* Über das flexible Coin-System</h4>
-                                    <p className="text-sm text-muted-foreground leading-relaxed">
-                                        Coins werden nur für die rechenintensiven AI-Funktionen benötigt.
-                                        In den Premium-Plänen erhältst du ein monatliches Kontingent, das für die meisten Nutzer völlig ausreicht.
-                                        Eine Textanfrage kostet 5 Coins, der AI-Kochassistent 10 Coins je Nutzung und die Bildgenerierung 40 bis 60 coins.
+                                <div className="flex-1 text-center md:text-left min-w-0">
+                                    <h4 className="text-xs sm:text-base font-bold mb-0.5">Coins & AI</h4>
+                                    <p className="text-[9px] sm:text-sm text-muted-foreground leading-tight">
+                                        Coins werden nur für rechenintensive AI-Funktionen benötigt.
                                     </p>
                                 </div>
                                 <Button variant="ghost" size="sm" className="gap-2 pointer-events-none">
@@ -278,6 +303,11 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
                 onClose={() => setIsCancelModalOpen(false)}
                 currentTier={currentTier}
                 onRefreshed={fetchStatus}
+            />
+            <SubscriptionTrialModal
+                isOpen={isTrialModalOpen}
+                onClose={() => setIsTrialModalOpen(false)}
+                onActivate={handleActivateTrial}
             />
         </AnimatePresence>
     );

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import api from '../lib/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices, ShieldAlert, Edit, Heart, RefreshCw, Menu, ArrowUpDown, ChevronDown, Lock, Instagram, Copy, X, Check, Eye, EyeOff } from 'lucide-react';
+import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices, ShieldAlert, Edit, Heart, RefreshCw, Menu, ArrowUpDown, ChevronDown, Lock, Instagram, Copy, X, Check, Eye, EyeOff, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
@@ -330,7 +330,8 @@ export default function Recipes() {
     const effectiveUserId = user?.householdId || user?.id;
 
     const [selectedCategory, setSelectedCategory] = useState('All');
-    const [sortBy, setSortBy] = useState('A-Z'); // 'A-Z', 'Meiste in Favoriten', 'Meiste Klicks', 'Am Meisten gekocht', 'Wenigste Zutaten', 'Schnellste Kochzeit'
+    const [sortBy, setSortBy] = useState('Veröffentlichung');
+    const [sortOrder, setSortOrder] = useState('desc');
 
     // Dynamically build favorite categories based on who in the household favorited what
     const favoriteCategories = useMemo(() => {
@@ -369,37 +370,52 @@ export default function Recipes() {
             // Special category: 'Ohne Bilder' shows only recipes without images, special favorites logic
             let matchesCategory = false;
             if (selectedCategory === 'All') {
-                matchesCategory = String(r.UserId) === String(effectiveUserId); // In "All", only show own recipes
+                matchesCategory = String(r.UserId) === String(effectiveUserId) || r.isFavorite;
             } else if (selectedCategory === 'Ohne Bilder') {
-                matchesCategory = String(r.UserId) === String(effectiveUserId) && !r.image_url;
+                matchesCategory = (String(r.UserId) === String(effectiveUserId) || r.isFavorite) && !r.image_url;
             } else if (selectedCategory === 'Meine Favoriten') {
                 matchesCategory = r.isFavorite === true; // Show all favorites for ME
             } else if (selectedCategory.startsWith('Favoriten von ')) {
                 const nameMatches = selectedCategory.replace('Favoriten von ', '');
                 matchesCategory = r.favoritedBy && r.favoritedBy.includes(nameMatches);
             } else {
-                matchesCategory = String(r.UserId) === String(effectiveUserId) && r.category === selectedCategory;
+                matchesCategory = (String(r.UserId) === String(effectiveUserId) || r.isFavorite) && r.category === selectedCategory;
             }
 
             return matchesSearch && matchesCategory;
         }).sort((a, b) => {
-            if (sortBy === 'A-Z') return a.title.localeCompare(b.title);
-            if (sortBy === 'Am Meisten gekocht') return (b.cookCount || 0) - (a.cookCount || 0);
-            if (sortBy === 'Meiste in Favoriten') return (b.favoritedBy?.length || 0) - (a.favoritedBy?.length || 0);
-            if (sortBy === 'Meiste Klicks') return (b.clicks || 0) - (a.clicks || 0);
-            if (sortBy === 'Wenigste Zutaten') return (a.RecipeIngredients?.length || 0) - (b.RecipeIngredients?.length || 0);
-            if (sortBy === 'Schnellste Kochzeit') {
-                const timeA = (a.prep_time || 0) + (a.duration || 0);
-                const timeB = (b.prep_time || 0) + (b.duration || 0);
-                // If both are 0, might leave as is or put at end, but basic sort is fine
-                if (timeA === 0 && timeB === 0) return 0;
-                if (timeA === 0) return 1;
-                if (timeB === 0) return -1;
-                return timeA - timeB;
+            let comparison = 0;
+            switch (sortBy) {
+                case 'Alphabet':
+                    comparison = a.title.localeCompare(b.title);
+                    break;
+                case 'Zubereitungshäufigkeit':
+                    comparison = (a.cookCount || 0) - (b.cookCount || 0);
+                    break;
+                case 'Likes':
+                    comparison = (a.favoritedBy?.length || 0) - (b.favoritedBy?.length || 0);
+                    break;
+                case 'Klicks':
+                    comparison = (a.clicks || 0) - (b.clicks || 0);
+                    break;
+                case 'Zutaten':
+                    comparison = (a.RecipeIngredients?.length || 0) - (b.RecipeIngredients?.length || 0);
+                    break;
+                case 'Kochzeit':
+                    const timeA = (a.prep_time || 0) + (a.duration || 0);
+                    const timeB = (b.prep_time || 0) + (b.duration || 0);
+                    comparison = timeA - timeB;
+                    break;
+                case 'Veröffentlichung':
+                    comparison = new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+                    break;
+                default:
+                    comparison = 0;
             }
-            return 0;
+            if (comparison === 0) comparison = a.title.localeCompare(b.title);
+            return sortOrder === 'asc' ? comparison : -comparison;
         });
-    }, [recipes, searchTerm, selectedCategory, sortBy]);
+    }, [recipes, searchTerm, selectedCategory, sortBy, sortOrder]);
 
     const { visibleItems: renderedRecipes, observerTarget } = useInfiniteScroll(filteredRecipes, 12);
 
@@ -449,8 +465,8 @@ export default function Recipes() {
             }
 
             // Replace placeholder in URL with actual sharing key if necessary
-            // Depending on how shareModalConfig.url is created, it might be stale. Let's fix it.
-            const actualUrl = shareModalConfig.url.replace('/shared//', `/shared/${data.sharingKey}/`).replace('/shared/undefined/', `/shared/${data.sharingKey}/`);
+            const actualSharingKey = data.householdSharingKey || data.sharingKey;
+            const actualUrl = shareModalConfig.url.replace('/shared//', `/shared/${actualSharingKey}/`).replace('/shared/undefined/', `/shared/${actualSharingKey}/`);
 
             // Proceed with share
             executeShare(shareModalConfig.title, shareModalConfig.text, actualUrl);
@@ -576,7 +592,7 @@ export default function Recipes() {
                         className={cn(
                             "relative transition-all duration-300 ease-in-out bg-muted/50 rounded-xl cursor-pointer md:bg-transparent md:cursor-default",
                             mobileActiveFilter === 'sort' ? "flex-1" : "w-12",
-                            "md:w-64"
+                            "md:flex-1 md:max-w-[280px]"
                         )}
                         onClick={() => { if (window.innerWidth < 768) setMobileActiveFilter('sort'); }}
                     >
@@ -588,34 +604,51 @@ export default function Recipes() {
                             <ArrowUpDown size={20} className="text-muted-foreground" />
                         </div>
 
-                        {/* Desktop Icon (Left Side) - Hidden if too narrow but usually fine */}
-                        <div className="absolute left-4 top-1/2 -translate-y-1/2 hidden md:block pointer-events-none text-muted-foreground">
+                        {/* Desktop Icon (Left Side) */}
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 hidden md:block pointer-events-none text-muted-foreground z-10">
                             <ArrowUpDown size={18} />
                         </div>
 
-                        <select
-                            value={sortBy}
-                            onFocus={() => { if (window.innerWidth < 768) setMobileActiveFilter('sort'); }}
-                            onChange={(e) => {
-                                setSortBy(e.target.value);
-                                e.target.blur();
-                            }}
-                            className={cn(
-                                "h-12 w-full bg-card border border-border rounded-xl shadow-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none px-4 transition-all duration-300 md:pl-12 pr-10",
-                                mobileActiveFilter !== 'sort' ? "opacity-0 pointer-events-none" : "opacity-100",
-                                "md:opacity-100 md:pointer-events-auto"
-                            )}
-                        >
-                            {['A-Z', 'Am Meisten gekocht', 'Meiste in Favoriten', 'Meiste Klicks', 'Wenigste Zutaten', 'Schnellste Kochzeit'].map(s => (
-                                <option key={s} value={s}>{s}</option>
-                            ))}
-                        </select>
-                        <div className={cn(
-                            "absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none transition-opacity duration-300",
-                            mobileActiveFilter === 'sort' ? "opacity-100" : "opacity-0",
-                            "md:opacity-100"
-                        )}>
-                            <ChevronDown size={16} className="text-muted-foreground" />
+                        <div className="flex items-center gap-2 h-12">
+                            <select
+                                value={sortBy}
+                                onFocus={() => { if (window.innerWidth < 768) setMobileActiveFilter('sort'); }}
+                                onChange={(e) => {
+                                    setSortBy(e.target.value);
+                                    e.target.blur();
+                                }}
+                                className={cn(
+                                    "h-full w-full bg-card border border-border rounded-xl shadow-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none px-4 transition-all duration-300 md:pl-10 pr-10",
+                                    mobileActiveFilter !== 'sort' ? "opacity-0 pointer-events-none" : "opacity-100",
+                                    "md:opacity-100 md:pointer-events-auto"
+                                )}
+                            >
+                                {['Alphabet', 'Veröffentlichung', 'Likes', 'Klicks', 'Zubereitungshäufigkeit', 'Kochzeit', 'Zutaten'].map(s => (
+                                    <option key={s} value={s}>{s}</option>
+                                ))}
+                            </select>
+
+                            {/* Chevron for select */}
+                            <div className={cn(
+                                "absolute right-14 top-1/2 -translate-y-1/2 pointer-events-none transition-opacity duration-300 hidden md:block",
+                                "md:opacity-100"
+                            )}>
+                                <ChevronDown size={16} className="text-muted-foreground" />
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+                                }}
+                                className={cn(
+                                    "h-12 w-12 flex items-center justify-center shrink-0 rounded-xl bg-card border border-border hover:bg-muted transition-all focus:ring-2 focus:ring-primary/20",
+                                    mobileActiveFilter !== 'sort' && window.innerWidth < 768 ? "hidden" : "flex"
+                                )}
+                            >
+                                {sortOrder === 'asc' ? <ArrowUp size={18} /> : <ArrowDown size={18} />}
+                            </button>
                         </div>
                     </div>
 
@@ -712,7 +745,7 @@ export default function Recipes() {
                                             handleShareRequest(
                                                 'Mein Kochbuch',
                                                 'Schau dir mein Kochbuch an!',
-                                                `${window.location.origin}${import.meta.env.BASE_URL}shared/${user?.sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1")
+                                                `${window.location.origin}${import.meta.env.BASE_URL}shared/${user?.householdSharingKey || user?.sharingKey}/cookbook`.replace(/([^:]\/)\/+/g, "$1")
                                             );
                                             setIsMobileMenuOpen(false);
                                         }}
@@ -750,26 +783,45 @@ export default function Recipes() {
                     <AnimatePresence mode="popLayout">
                         {renderedRecipes.map((recipe, index) => {
                             const status = getRecipeStatus(recipe.id);
+                            const isForeign = String(recipe.UserId) !== String(effectiveUserId);
                             return (
                                 <motion.div
-                                    key={recipe.id}
+                                    layout
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.9 }}
                                     transition={{ duration: 0.3, delay: index * 0.05, ease: "easeOut" }}
                                     onClick={() => {
-                                        if (editMode === 'delete') {
+                                        if (editMode === 'delete' && !isForeign) {
                                             handleDelete(recipe.id, recipe.title);
-                                        } else if (editMode === 'edit') {
+                                        } else if (editMode === 'edit' && !isForeign) {
                                             setSelectedRecipe(recipe);
                                             setIsModalOpen(true);
                                         } else {
                                             handleOpenCookingMode(recipe);
                                         }
                                     }}
-                                    className={`cursor-pointer group relative ${editMode === 'delete' ? 'ring-2 ring-destructive ring-offset-2 rounded-3xl' : ''} ${openMenuId === recipe.id ? 'z-[40]' : 'z-10'}`}
+                                    className={cn(
+                                        "cursor-pointer group relative transition-all duration-300",
+                                        editMode === 'delete' && !isForeign ? 'ring-2 ring-destructive ring-offset-2 rounded-3xl' : '',
+                                        openMenuId === recipe.id ? 'z-[40]' : 'z-10'
+                                    )}
                                 >
-                                    <Card className="h-full hover:shadow-xl transition-all duration-300 border-border bg-card flex flex-col relative">
+                                    <Card className={cn(
+                                        "h-full transition-all duration-300 bg-card flex flex-col relative overflow-hidden", // HIER GEÄNDERT
+                                        isForeign
+                                            ? "border-amber-500/30 shadow-amber-500/5 hover:border-amber-500/50 hover:shadow-xl hover:shadow-amber-500/10"
+                                            : "border-border hover:shadow-xl"
+                                    )}>
+                                        {isForeign && (
+                                            /* Äußerer Container mit deinen Wunschwerten */
+                                            <div className="absolute top-[17px] left-[-15px] w-[100px] h-16 pointer-events-none z-30 overflow-visible">
+                                                <div className="absolute top-0 left-0 bg-amber-500 text-white text-[10px] font-black py-1 px-10 -rotate-45 -translate-x-6 translate-y-2 shadow-lg flex items-center justify-center gap-1">
+                                                    <Users size={8} className="fill-white" />
+                                                    COMMUNITY
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="aspect-video relative bg-muted shrink-0 overflow-hidden rounded-t-2xl">
                                             {recipe.image_url ? (
                                                 <div className="w-full h-full relative">
@@ -782,11 +834,12 @@ export default function Recipes() {
                                                             const spinner = e.target.nextSibling;
                                                             if (spinner && spinner.classList) spinner.classList.add('hidden');
                                                         }}
-                                                        className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105 max-h-[230px] opacity-0"
+                                                        // HIER DIE ENTSCHEIDENDEN KLASSEN:
+                                                        className="absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:scale-105 opacity-0"
                                                     />
                                                     {/* Local Spinner while img is opacity-0 */}
-                                                    <div className="absolute inset-0 flex items-center justify-center bg-muted animate-pulse z-0">
-                                                        <RefreshCw className="text-muted-foreground/20 animate-spin" size={32} />
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-muted z-0">
+                                                        <ChefHat className="text-muted-foreground/30" size={48} />
                                                     </div>
                                                 </div>
                                             ) : recipe.imageSource === 'none' ? (
@@ -795,7 +848,7 @@ export default function Recipes() {
                                                 </div>
                                             ) : (
                                                 <div className="absolute inset-0 flex items-center justify-center bg-muted">
-                                                    <RefreshCw className="text-muted-foreground/20 animate-spin" size={32} />
+                                                    <ChefHat className="text-muted-foreground/30" size={48} />
                                                 </div>
                                             )}
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60" />
@@ -920,18 +973,20 @@ export default function Recipes() {
                                                             transition={{ duration: 0.1 }}
                                                             className="absolute right-0 top-full mt-2 w-48 py-1 rounded-xl bg-popover/95 backdrop-blur-xl border border-white/10 shadow-xl z-50 overflow-hidden"
                                                         >
-                                                            <button
-                                                                className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setSelectedRecipe(recipe);
-                                                                    setIsModalOpen(true);
-                                                                    setOpenMenuId(null);
-                                                                }}
-                                                            >
-                                                                <Edit size={16} />
-                                                                Bearbeiten
-                                                            </button>
+                                                            {!isForeign && (
+                                                                <button
+                                                                    className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedRecipe(recipe);
+                                                                        setIsModalOpen(true);
+                                                                        setOpenMenuId(null);
+                                                                    }}
+                                                                >
+                                                                    <Edit size={16} />
+                                                                    Bearbeiten
+                                                                </button>
+                                                            )}
 
                                                             {recipe.hasSubstitutions && (
                                                                 <button
@@ -987,28 +1042,32 @@ export default function Recipes() {
                                                                 Drucken
                                                             </button>
 
-                                                            <button
-                                                                className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
-                                                                onClick={(e) => {
-                                                                    handleToggleVisibility(e, recipe);
-                                                                    setOpenMenuId(null);
-                                                                }}
-                                                            >
-                                                                {recipe.isPublic !== false ? <EyeOff size={16} /> : <Eye size={16} />}
-                                                                {recipe.isPublic !== false ? 'Verstecken' : 'Veröffentlichen'}
-                                                            </button>
+                                                            {!isForeign && (
+                                                                <button
+                                                                    className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
+                                                                    onClick={(e) => {
+                                                                        handleToggleVisibility(e, recipe);
+                                                                        setOpenMenuId(null);
+                                                                    }}
+                                                                >
+                                                                    {recipe.isPublic !== false ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                                    {recipe.isPublic !== false ? 'Verstecken' : 'Veröffentlichen'}
+                                                                </button>
+                                                            )}
 
-                                                            <button
-                                                                className="w-full text-left px-4 py-3 text-sm text-destructive hover:bg-destructive/10 flex items-center gap-3 transition-colors font-bold"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleDelete(recipe.id, recipe.title);
-                                                                    setOpenMenuId(null);
-                                                                }}
-                                                            >
-                                                                <X size={16} />
-                                                                Löschen
-                                                            </button>
+                                                            {!isForeign && (
+                                                                <button
+                                                                    className="w-full text-left px-4 py-3 text-sm text-destructive hover:bg-destructive/10 flex items-center gap-3 transition-colors font-bold"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleDelete(recipe.id, recipe.title);
+                                                                        setOpenMenuId(null);
+                                                                    }}
+                                                                >
+                                                                    <X size={16} />
+                                                                    Löschen
+                                                                </button>
+                                                            )}
 
                                                             <div className="h-px bg-white/10 mx-2 my-1" />
 
@@ -1017,7 +1076,8 @@ export default function Recipes() {
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     const baseUrl = import.meta.env.BASE_URL;
-                                                                    const link = `${window.location.origin}${baseUrl}shared/${user?.sharingKey}/recipe/${recipe.id}`.replace(/([^:]\/)\/+/g, "$1");
+                                                                    const sharingKey = recipe.ownerSharingKey || user?.householdSharingKey || user?.sharingKey;
+                                                                    const link = `${window.location.origin}${baseUrl}shared/${sharingKey}/recipe/${recipe.id}`.replace(/([^:]\/)\/+/g, "$1");
 
                                                                     handleShareRequest(
                                                                         recipe.title,
@@ -1055,8 +1115,24 @@ export default function Recipes() {
 
                 {
                     !loading && filteredRecipes.length === 0 && (
-                        <div className="text-center py-20 text-muted-foreground italic">
-                            Keine Rezepte gefunden.
+                        <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+                            <div className="w-20 h-20 rounded-3xl bg-muted/50 flex items-center justify-center mb-6 text-muted-foreground/30">
+                                <ChefHat size={40} />
+                            </div>
+                            <h3 className="text-xl font-bold mb-2">Keine Rezepte gefunden</h3>
+                            <p className="text-muted-foreground mb-8 max-w-md italic">
+                                {searchTerm
+                                    ? "Deine Suche ergab leider keine Treffer."
+                                    : "Du hast noch keine eigenen Rezepte. Schau doch mal in den Community Cookbooks vorbei und füge Rezepte anderer Nutzer hinzu!"}
+                            </p>
+                            <Button
+                                onClick={() => navigate('/community-cookbooks')}
+                                className="rounded-2xl gap-2 font-bold px-8 shadow-lg shadow-primary/10"
+                                variant="outline"
+                            >
+                                <Users size={18} />
+                                Community Rezepte entdecken
+                            </Button>
                         </div>
                     )
                 }
