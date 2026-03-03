@@ -48,6 +48,15 @@
 - createdAt (DateTime)
 - updatedAt (DateTime)
 
+### SentPushNotifications
+- id (Integer, Primary Key)
+- message (Text)
+- recipientCount (Integer, default 0)
+- successCount (Integer, default 0)
+- failureCount (Integer, default 0)
+- createdAt (DateTime)
+- updatedAt (DateTime)
+
 ### Recipes
 - id (Integer, Primary Key)
 - title (String)
@@ -267,3 +276,4 @@
 - **v0.32.6**: Added `originalQuantity`, `originalUnit`, `substituteQuantity`, and `substituteUnit` to `RecipeSubstitutions` for precise adjustments.
 - **v0.32.7**: Added `UserFollows` many-to-many relationship for users to follow public/shared cookbooks. Added `followNotificationsEnabled` to `User` table.
 - **v0.32.8**: Added `pushEnabled` to `User` table. Added `PushSubscriptions` table for Web Push notification management.
+- **v0.36.4**: Added `SentPushNotifications` table to track broadcast history.
