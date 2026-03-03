@@ -10,7 +10,7 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.js',
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       manifestFilename: 'manifest.json', // WICHTIG: Zwingt das Plugin zum richtigen Namen!
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {

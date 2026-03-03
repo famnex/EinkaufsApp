@@ -1,18 +1,17 @@
 import { precacheAndRoute } from 'workbox-precaching';
 
-// 1. Lass Workbox (das Vite-Plugin) das gesamte Caching, Updaten 
-// und Offline-Routing übernehmen. Diese eine Zeile ersetzt alles,
-// was du vorher an 'install', 'activate' und 'fetch' Events hattest!
 precacheAndRoute(self.__WB_MANIFEST || []);
 
-// --- DIESEN BLOCK HINZUFÜGEN ---
-// Lauscht auf den "Neu laden" Button aus deinem Frontend
-self.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'SKIP_WAITING') {
-        self.skipWaiting();
-    }
+// Erzwingt, dass der neue SW sofort aktiv wird
+self.addEventListener('install', () => {
+    self.skipWaiting();
 });
-// ---------------------------------
+
+// Übernimmt sofort die Kontrolle über alle Tabs
+self.addEventListener('activate', (event) => {
+    event.waitUntil(clients.claim());
+});
+
 
 // 2. Push event - show notification
 self.addEventListener('push', (event) => {
