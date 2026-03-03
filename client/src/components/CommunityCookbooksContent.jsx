@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChefHat, Search, ArrowRight, BookOpen, User, Star, TrendingUp, Users, ShieldCheck, ArrowLeft, Heart, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { ChefHat, Search, ArrowRight, BookOpen, User, Star, TrendingUp, Users, ShieldCheck, ArrowLeft, Heart, ChevronDown, ChevronUp, X, Sparkles, CheckCircle2 } from 'lucide-react';
 import { Card } from './Card';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -283,7 +283,11 @@ export default function CommunityCookbooksContent() {
                                 updates.length === 0 && "opacity-50 cursor-default"
                             )}
                         >
-                            <TrendingUp className={cn("mb-1", unseenCount > 0 ? "text-primary animate-pulse" : "text-green-500")} size={18} />
+                            {unseenCount > 0 ? (
+                                <Sparkles className="mb-1 text-primary animate-pulse" size={18} />
+                            ) : (
+                                <CheckCircle2 className={cn("mb-1", updates.length === 0 ? "text-muted-foreground" : "text-green-500")} size={18} />
+                            )}
                             <span className="text-sm font-bold leading-none">{updates.length}</span>
                             <span className="text-[8px] text-muted-foreground text-center mt-1 uppercase font-black">Updates</span>
                             {unseenCount > 0 && (
@@ -329,7 +333,11 @@ export default function CommunityCookbooksContent() {
                         )}>
                             <div className="flex items-center justify-between mb-1.5">
                                 <div className="flex items-center gap-2">
-                                    <TrendingUp size={16} className="text-green-500" />
+                                    {unseenCount > 0 ? (
+                                        <Sparkles size={16} className="text-primary animate-pulse" />
+                                    ) : (
+                                        <CheckCircle2 size={16} className={cn(updates.length === 0 ? "text-muted-foreground" : "text-green-500")} />
+                                    )}
                                     <h3 className="font-bold text-xs text-foreground uppercase tracking-wider">Updates</h3>
                                 </div>
 
@@ -454,7 +462,11 @@ export default function CommunityCookbooksContent() {
                         <Card className="p-3 bg-card border-primary/20 shadow-xl rounded-2xl">
                             <div className="flex items-center justify-between mb-3">
                                 <h3 className="font-bold text-sm text-foreground uppercase tracking-wider flex items-center gap-2">
-                                    <TrendingUp size={16} className="text-green-500" />
+                                    {unseenCount > 0 ? (
+                                        <Sparkles size={16} className="text-primary animate-pulse" />
+                                    ) : (
+                                        <CheckCircle2 size={16} className="text-green-500" />
+                                    )}
                                     Neueste Updates
                                 </h3>
                                 <button

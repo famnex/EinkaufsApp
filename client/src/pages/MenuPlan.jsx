@@ -423,9 +423,15 @@ export default function MenuPlan() {
     };
 
     return (
-        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            autoScroll={{ threshold: { x: 0, y: 0.1 }, acceleration: 5 }}
+        >
             <div
-                className={cn("space-y-4", isDragging && "select-none")}
+                className="space-y-4 select-none"
+                style={isDragging ? { touchAction: 'none', overflow: 'hidden' } : {}}
             >
                 <div
                     className="sticky z-30 bg-background/95 backdrop-blur-sm pt-4 pb-2 border-b border-border transition-all"

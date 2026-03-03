@@ -569,7 +569,7 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
             prep_time: prep_time !== undefined ? (parseInt(prep_time) || 0) : undefined,
             duration: duration !== undefined ? (parseInt(duration) || 0) : undefined,
             servings: servings !== undefined ? (parseInt(servings) || 1) : undefined,
-            instructions: instructions ? JSON.parse(instructions) : undefined,
+            instructions: (instructions && typeof instructions === 'string') ? JSON.parse(instructions) : (Array.isArray(instructions) ? instructions : undefined),
             isPublic: isPublic !== undefined ? (isPublic === 'false' || isPublic === false ? false : true) : undefined,
             imageSource: req.body.imageSource
         };
@@ -617,6 +617,48 @@ router.put('/:id', auth, upload.single('image'), async (req, res) => {
                     tagInstances.push(tag);
                 }
                 await recipe.setTags(tagInstances);
+            }
+        }
+
+        // Handle Ingredients (Bulk Sync for AI/Exit Modal)
+        if (req.body.ingredients !== undefined) {
+            const parsedIngs = typeof req.body.ingredients === 'string' ? JSON.parse(req.body.ingredients) : req.body.ingredients;
+            if (Array.isArray(parsedIngs)) {
+                console.log('Syncing Ingredients (Bulk):', parsedIngs.length);
+                const { Op } = require('sequelize');
+                const newIngredientsData = [];
+                for (const ing of parsedIngs) {
+                    let productId = ing.ProductId;
+                    if (!productId && ing.name) {
+                        const product = await Product.findOne({
+                            where: {
+                                name: ing.name,
+                                [Op.or]: [{ UserId: req.user.effectiveId }, { UserId: null }]
+                            }
+                        });
+                        if (product) {
+                            productId = product.id;
+                        } else {
+                            const [newProd] = await Product.findOrCreate({
+                                where: { name: ing.name, UserId: req.user.effectiveId },
+                                defaults: { UserId: req.user.effectiveId, unit: ing.unit || 'Stück' }
+                            });
+                            productId = newProd.id;
+                        }
+                    }
+                    if (productId) {
+                        newIngredientsData.push({
+                            RecipeId: recipe.id,
+                            ProductId: productId,
+                            quantity: parseFloat(ing.quantity) || 0,
+                            unit: ing.unit,
+                            originalName: ing.name,
+                            isOptional: !!ing.isOptional
+                        });
+                    }
+                }
+                await RecipeIngredient.destroy({ where: { RecipeId: recipe.id } });
+                await RecipeIngredient.bulkCreate(newIngredientsData);
             }
         }
 

@@ -56,8 +56,9 @@ export default function SubscriptionTrialModal({ isOpen, onClose, onActivate }) 
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                <div key="trial-modal-overlay" className="fixed inset-0 z-[200] flex items-center justify-center p-4">
                     <motion.div
+                        key="trial-modal-backdrop"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
@@ -66,6 +67,7 @@ export default function SubscriptionTrialModal({ isOpen, onClose, onActivate }) 
                     />
 
                     <motion.div
+                        key="trial-modal-content"
                         initial={{ opacity: 0, scale: 0.9, y: 30 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.9, y: 30 }}

@@ -186,17 +186,17 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.9, opacity: 0, y: 20 }}
                             // Removed overflow-hidden to allow dropdowns to pop out
-                            className="relative w-full max-w-lg bg-card border border-border rounded-[2.5rem] shadow-2xl flex flex-col my-8"
+                            className="relative w-full max-w-lg bg-card border border-border rounded-[2rem] md:rounded-[2.5rem] shadow-2xl flex flex-col my-2 md:my-8 max-h-[95vh] overflow-hidden"
                         >
                             {/* Header */}
-                            <div className="p-6 border-b border-border flex items-center justify-between bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white rounded-t-[2.5rem]">
+                            <div className="p-4 md:p-6 border-b border-border flex items-center justify-between bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white rounded-t-[2rem] md:rounded-t-[2.5rem]">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-white/20 backdrop-blur-md rounded-xl text-white shadow-xl">
-                                        <Dices size={24} />
+                                    <div className="p-1.5 md:p-2 bg-white/20 backdrop-blur-md rounded-xl text-white shadow-xl">
+                                        <Dices size={20} className="md:w-6 md:h-6" />
                                     </div>
                                     <div>
-                                        <h3 className="text-xl font-bold tracking-tight">Roulette Royale</h3>
-                                        <p className="text-xs opacity-80 font-medium">Dein Glück entscheidet heute!</p>
+                                        <h3 className="text-lg md:text-xl font-bold tracking-tight">Roulette Royale</h3>
+                                        <p className="text-[10px] md:text-xs opacity-80 font-medium">Dein Glück entscheidet heute!</p>
                                     </div>
                                 </div>
                                 <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-full transition-colors text-white relative z-50">
@@ -204,10 +204,10 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
                                 </button>
                             </div>
 
-                            {/* Main Content - Removed max-h and overflow-y-auto to allow growth */}
-                            <div className="p-6 space-y-8 bg-gradient-to-b from-amber-500/5 to-background">
+                            {/* Main Content */}
+                            <div className="p-4 md:p-6 space-y-4 md:space-y-6 bg-gradient-to-b from-amber-500/5 to-background overflow-y-auto custom-scrollbar">
                                 {/* The "Machine" View */}
-                                <div className="relative aspect-video rounded-3xl bg-black overflow-hidden border-8 border-muted/50 shadow-[0_0_30px_rgba(245,158,11,0.3)] flex items-center justify-center group shrink-0">
+                                <div className="relative aspect-video rounded-2xl md:rounded-3xl bg-black overflow-hidden border-4 md:border-8 border-muted/50 shadow-[0_0_30px_rgba(245,158,11,0.3)] flex items-center justify-center group shrink-0">
                                     {/* Neon Border Accent */}
                                     <div className="absolute inset-0 border-2 border-amber-500/50 rounded-2xl pointer-events-none z-30 opacity-50 shadow-[inset_0_0_20px_rgba(245,158,11,0.2)]" />
 
@@ -271,11 +271,11 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
                                                         transition={{ delay: 0.3, type: 'spring' }}
                                                         className="flex flex-col"
                                                     >
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <span className="px-2 py-0.5 bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest rounded-md shadow-lg shadow-amber-500/40">Jackpot!</span>
-                                                            {result.category && <span className="px-2 py-0.5 bg-white/20 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-widest rounded-md">{result.category}</span>}
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="px-1.5 py-0.5 bg-amber-500 text-white text-[8px] md:text-[10px] font-black uppercase tracking-widest rounded-md shadow-lg shadow-amber-500/40">Jackpot!</span>
+                                                            {result.category && <span className="px-1.5 py-0.5 bg-white/20 backdrop-blur-md text-white text-[8px] md:text-[10px] font-black uppercase tracking-widest rounded-md">{result.category}</span>}
                                                         </div>
-                                                        <h4 className="text-3xl font-black text-white leading-[1.1] drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">{result.title}</h4>
+                                                        <h4 className="text-xl md:text-3xl font-black text-white leading-[1.1] drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">{result.title}</h4>
                                                     </motion.div>
                                                 </div>
                                                 <motion.div
@@ -317,7 +317,7 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
                                 </div>
 
                                 {/* Configuration */}
-                                <div className="space-y-5">
+                                <div className="space-y-4">
                                     <div className="space-y-1.5">
                                         <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Kategorie</label>
                                         <select
@@ -415,24 +415,24 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
                             </div>
 
                             {/* Actions */}
-                            <div className="flex gap-3 pt-4">
+                            <div className="p-4 md:p-6 pt-0 flex gap-3">
                                 {!result ? (
                                     <Button
                                         onClick={spin}
                                         disabled={isSpinning || filteredPool.length === 0}
-                                        className="flex-1 h-16 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-lg shadow-xl shadow-amber-500/20 active:scale-95 transition-all"
+                                        className="flex-1 h-12 md:h-16 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-lg shadow-xl shadow-amber-500/20 active:scale-95 transition-all"
                                     >
                                         {isSpinning ? <Loader2 className="animate-spin mr-2" /> : <Play size={20} className="mr-2 fill-current" />}
                                         AUF GUT GLÜCK!
                                     </Button>
                                 ) : (
                                     <>
-                                        <Button variant="outline" onClick={spin} className="h-16 px-6 rounded-2xl border-2">
+                                        <Button variant="outline" onClick={spin} className="h-12 md:h-16 px-4 md:px-6 rounded-2xl border-2">
                                             <Play size={20} />
                                         </Button>
                                         <Button
                                             onClick={() => onSelect(result)}
-                                            className="flex-1 h-16 rounded-2xl bg-primary text-primary-foreground font-bold text-lg shadow-xl shadow-primary/20 active:scale-95 transition-all"
+                                            className="flex-1 h-12 md:h-16 rounded-2xl bg-primary text-primary-foreground font-bold text-base md:text-lg shadow-xl shadow-primary/20 active:scale-95 transition-all"
                                         >
                                             <ActionIcon size={20} className="mr-2" />
                                             {confirmLabel}

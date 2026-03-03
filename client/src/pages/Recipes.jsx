@@ -786,6 +786,7 @@ export default function Recipes() {
                             const isForeign = String(recipe.UserId) !== String(effectiveUserId);
                             return (
                                 <motion.div
+                                    key={recipe.id}
                                     layout
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -967,11 +968,12 @@ export default function Recipes() {
                                                 <AnimatePresence>
                                                     {openMenuId === recipe.id && (
                                                         <motion.div
+                                                            key={recipe.id + '-action-menu'}
                                                             initial={{ opacity: 0, scale: 0.95, y: -10 }}
                                                             animate={{ opacity: 1, scale: 1, y: 0 }}
                                                             exit={{ opacity: 0, scale: 0.95, y: -10 }}
                                                             transition={{ duration: 0.1 }}
-                                                            className="absolute right-0 top-full mt-2 w-48 py-1 rounded-xl bg-popover/95 backdrop-blur-xl border border-white/10 shadow-xl z-50 overflow-hidden"
+                                                            className="absolute right-0 top-full mt-2 w-48 py-1 rounded-xl bg-popover/95 backdrop-blur-xl border border-white/10 shadow-xl z-999999 overflow-hidden"
                                                         >
                                                             {!isForeign && (
                                                                 <button

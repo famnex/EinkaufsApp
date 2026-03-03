@@ -20,7 +20,7 @@ export default function PublicHeader() {
             className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-border/50 transition-all"
             style={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div className="max-w-7xl mx-auto pr-4 h-16 flex items-center justify-between">
                 <div className="flex items-center gap-2 h-full overflow-hidden">
                     {/* Logo - Top Left */}
                     <div

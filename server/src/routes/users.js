@@ -100,7 +100,8 @@ router.get('/:id/detail', async (req, res) => {
             householdMembers,
             creditHistory,
             strikes,
-            alexaKey: alexaSetting ? alexaSetting.value : null
+            alexaKey: alexaSetting ? alexaSetting.value : null,
+            isTrialUsed: user.isTrialUsed // Explicitly for clarity, though it's already in user
         });
     } catch (err) {
         res.status(500).json({ error: err.message });

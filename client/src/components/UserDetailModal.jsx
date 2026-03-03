@@ -565,6 +565,31 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
                                                             </div>
                                                         </div>
                                                     </div>
+
+                                                    <div className="p-4 bg-muted/20 rounded-2xl border border-border space-y-3">
+                                                        <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Zusatz-Infos</h4>
+                                                        <div className="space-y-2">
+                                                            <div className="flex justify-between text-sm">
+                                                                <span className="text-muted-foreground">Trial noch möglich:</span>
+                                                                <span className={cn(
+                                                                    "font-bold uppercase text-[10px] px-2 py-0.5 rounded-full",
+                                                                    !data.user.isTrialUsed ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                                                                )}>{!data.user.isTrialUsed ? 'JA' : 'NEIN'}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-sm">
+                                                                <span className="text-muted-foreground">Restzeit:</span>
+                                                                <span className="font-medium">
+                                                                    {data.user.subscriptionExpiresAt ? (
+                                                                        (() => {
+                                                                            const diff = new Date(data.user.subscriptionExpiresAt) - new Date();
+                                                                            const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                                                                            return days > 0 ? `${days} Tag${days > 1 ? 'e' : ''}` : 'Abgelaufen';
+                                                                        })()
+                                                                    ) : '-'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
 
                                                 {/* Booking Module */}

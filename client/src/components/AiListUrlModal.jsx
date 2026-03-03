@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Sparkles, Check, Loader2, Link as LinkIcon, ShoppingCart, Plus, AlertCircle, Calendar, ArrowRight, Upload } from 'lucide-react';
+import { X, Sparkles, Check, Loader2, Link as LinkIcon, ShoppingCart, Plus, AlertCircle, Calendar, ArrowRight, Upload, Info } from 'lucide-react';
 import { Button } from './Button';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/axios';
@@ -10,6 +10,7 @@ import { de } from 'date-fns/locale';
 import { useAuth } from '../contexts/AuthContext';
 import AiActionConfirmModal from './AiActionConfirmModal';
 import SubscriptionModal from './SubscriptionModal';
+import useLockBodyScroll from '../hooks/useLockBodyScroll';
 
 export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, initialText = '' }) {
     const [input, setInput] = useState(initialText);
@@ -27,6 +28,8 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
 
     // Context
     const { user, refreshUser } = useAuth();
+
+    useLockBodyScroll(isOpen);
 
     // For list selection
     const navigate = useNavigate();
@@ -195,7 +198,7 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="bg-card w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[90vh]"
+                    className="bg-card w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-border flex flex-col max-h-[80vh]"
                 >
                     {/* Header */}
                     <div className="p-6 border-b border-border flex justify-between items-center bg-muted/30">
@@ -216,9 +219,15 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
                     </div>
 
                     {/* Content */}
-                    <div className="p-6 overflow-y-auto custom-scrollbar">
+                    <div className="p-6 overflow-y-auto custom-scrollbar overscroll-contain">
                         {view === 'input' && (
                             <div className="space-y-4">
+                                <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 flex items-start gap-3">
+                                    <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                    <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
+                                        Füge einen <strong>Rezept-Link</strong> ein, kopiere <strong>Zutaten-Text</strong> oder lade ein <strong>Foto</strong> deiner handgeschriebenen Liste hoch. Die KI erkennt Produkte automatisch.
+                                    </p>
+                                </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="relative">
                                         <textarea

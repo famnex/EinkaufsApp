@@ -101,7 +101,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                 description: isVision
                     ? 'KI-Vision-Analyse des Fotos zur Extraktion von Rezeptdaten.'
                     : 'KI-Analyse des Textes zur Extraktion von Zutaten und Schritten.',
-                cost: isVision ? 15 : 5,
+                cost: isVision ? 15 : 10,
                 onConfirm: () => executeAnalyze()
             });
             setAiConfirmModalOpen(true);
@@ -322,7 +322,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="w-full max-w-4xl bg-card border border-border rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+                    className="w-full max-w-4xl bg-card border border-border rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
                 >
                     {/* Header */}
                     <div className="p-6 border-b border-border flex items-center justify-between bg-card/80 backdrop-blur-md z-10">
@@ -424,7 +424,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                         Import Starten
                                         {user?.tier === 'Silbergabel' && (
                                             <span className="ml-1 opacity-70 text-xs bg-white/20 px-2 py-0.5 rounded-full">
-                                                ({inputImage ? '15' : '5'} Coins)
+                                                ({inputImage ? '15' : '10'} Coins)
                                             </span>
                                         )}
                                     </Button>

@@ -912,7 +912,9 @@ export default function ListDetail() {
                                                             )}>
                                                                 <div className={cn(
                                                                     "font-bold leading-none tracking-wide text-white line-clamp-2 break-words text-shadow-sm hyphens-auto",
-                                                                    zoomLevel === 0 ? "text-sm md:text-lg" : "text-xl md:text-2xl"
+                                                                    zoomLevel === 0 ? "text-sm md:text-lg" :
+                                                                        zoomLevel === 1 ? "text-xl md:text-2xl" :
+                                                                            "text-3xl md:text-4xl"
                                                                 )} lang="de">
                                                                     {item.Product?.name}
                                                                     {item.ProductVariation?.ProductVariant?.title && (
@@ -921,7 +923,10 @@ export default function ListDetail() {
                                                                         </span>
                                                                     )}
                                                                 </div>
-                                                                <div className="text-xs text-white/80 mt-1 font-medium tracking-wider uppercase truncate">
+                                                                <div className={cn(
+                                                                    "text-white/80 mt-1 font-medium tracking-wider uppercase truncate",
+                                                                    zoomLevel === 2 ? "text-base" : "text-xs"
+                                                                )}>
                                                                     {item.ProductVariation?.category || item.Product?.category || 'Sonstiges'}
                                                                 </div>
                                                             </div>
@@ -933,7 +938,8 @@ export default function ListDetail() {
                                                                     setQuantityItem(item);
                                                                 }}
                                                                 className={cn(
-                                                                    "mx-auto bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider transition-colors z-10 backdrop-blur-sm",
+                                                                    "mx-auto bg-white/20 hover:bg-white/30 text-white rounded-full font-bold tracking-wider transition-colors z-10 backdrop-blur-sm",
+                                                                    zoomLevel === 2 ? "text-base px-5 py-2" : "text-xs px-3 py-1",
                                                                     zoomLevel === 0
                                                                         ? "absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap" // Fixed bottom in small tiles
                                                                         : "relative mt-2" // Standard flow for larger tiles
@@ -941,7 +947,12 @@ export default function ListDetail() {
                                                             >
                                                                 <div className="flex items-center justify-center gap-1.5">
                                                                     <span>{item.quantity}</span>
-                                                                    <span className="text-[10px] opacity-80">{(item.unit || item.Product?.unit) === 'Stück' ? 'Stk' : (item.unit || item.Product?.unit)}</span>
+                                                                    <span className={cn(
+                                                                        "opacity-80",
+                                                                        zoomLevel === 2 ? "text-xs" : "text-[10px]"
+                                                                    )}>
+                                                                        {(item.unit || item.Product?.unit) === 'Stück' ? 'Stk' : (item.unit || item.Product?.unit)}
+                                                                    </span>
                                                                     {ingredientSources[item.ProductId] && (() => {
                                                                         const sources = ingredientSources[item.ProductId];
                                                                         const totalRecipeQty = sources.reduce((sum, src) => sum + Number(src.quantity), 0);
@@ -1034,8 +1045,18 @@ export default function ListDetail() {
                                     {committedItems.map(item => (
                                         <div key={item.id} className="relative w-full aspect-square bg-slate-50 rounded-3xl p-4 flex flex-col justify-between border border-transparent">
                                             <div className="flex justify-center pt-2"><CheckCircle2 className="w-6 h-6 text-slate-300" /></div>
-                                            <div className="text-center font-bold text-xl text-slate-400 line-clamp-2 px-1">{item.Product?.name}</div>
-                                            <div className="mx-auto text-xs text-slate-300 pb-2">{item.quantity} {item.unit}</div>
+                                            <div className={cn(
+                                                "text-center font-bold text-slate-400 line-clamp-2 px-1",
+                                                zoomLevel === 0 ? "text-sm" : zoomLevel === 1 ? "text-xl" : "text-3xl"
+                                            )}>
+                                                {item.Product?.name}
+                                            </div>
+                                            <div className={cn(
+                                                "mx-auto text-slate-300 pb-2",
+                                                zoomLevel === 2 ? "text-base" : "text-xs"
+                                            )}>
+                                                {item.quantity} {item.unit}
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -1149,47 +1170,49 @@ export default function ListDetail() {
             />
 
             {/* Ingredient Source Portal */}
-            {activeSourceId && anchorRect && createPortal(
-                <div
-                    className="fixed z-[900] pointer-events-none"
-                    style={{
-                        top: bubbleDirection === 'up' ? anchorRect.top : anchorRect.bottom,
-                        left: anchorRect.left + anchorRect.width / 2,
-                        transform: 'translateX(-50%)',
-                    }}
-                >
-                    <AnimatePresence mode="wait">
-                        <motion.div
-                            key={activeSourceId}
-                            initial={{ opacity: 0, y: bubbleDirection === 'up' ? 10 : -10, scale: 0.95 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: bubbleDirection === 'up' ? 10 : -10, scale: 0.95 }}
-                            className={cn(
-                                "relative w-48 bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-2xl shadow-2xl border border-white/10 pointer-events-auto",
-                                bubbleDirection === 'up' ? "-translate-y-full mb-3" : "mt-3"
-                            )}
-                        >
-                            <div className={cn(
-                                "absolute left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 rotate-45 border-white/10",
-                                bubbleDirection === 'up' ? "-bottom-1.5 border-r border-b" : "-top-1.5 border-l border-t"
-                            )} />
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-primary mb-2 border-b border-white/10 pb-1">Verwendung</div>
-                            <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-                                {ingredientSources[list.ListItems.find(i => i.id === activeSourceId)?.ProductId]?.map((src, idx) => (
-                                    <div key={idx} className="text-[11px] leading-tight flex flex-col gap-0.5 whitespace-normal">
-                                        <div className="font-bold text-white/90 line-clamp-2 text-left">{src.recipeTitle}</div>
-                                        <div className="flex justify-between items-center text-white/50 text-[10px]">
-                                            <span>{new Date(src.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</span>
-                                            <span className="font-mono bg-white/5 px-1 rounded whitespace-nowrap">{src.quantity} {src.unit}</span>
+            {
+                activeSourceId && anchorRect && createPortal(
+                    <div
+                        className="fixed z-[900] pointer-events-none"
+                        style={{
+                            top: bubbleDirection === 'up' ? anchorRect.top : anchorRect.bottom,
+                            left: anchorRect.left + anchorRect.width / 2,
+                            transform: 'translateX(-50%)',
+                        }}
+                    >
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={activeSourceId}
+                                initial={{ opacity: 0, y: bubbleDirection === 'up' ? 10 : -10, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: bubbleDirection === 'up' ? 10 : -10, scale: 0.95 }}
+                                className={cn(
+                                    "relative w-48 bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-2xl shadow-2xl border border-white/10 pointer-events-auto",
+                                    bubbleDirection === 'up' ? "-translate-y-full mb-3" : "mt-3"
+                                )}
+                            >
+                                <div className={cn(
+                                    "absolute left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 rotate-45 border-white/10",
+                                    bubbleDirection === 'up' ? "-bottom-1.5 border-r border-b" : "-top-1.5 border-l border-t"
+                                )} />
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-primary mb-2 border-b border-white/10 pb-1">Verwendung</div>
+                                <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                                    {ingredientSources[list.ListItems.find(i => i.id === activeSourceId)?.ProductId]?.map((src, idx) => (
+                                        <div key={idx} className="text-[11px] leading-tight flex flex-col gap-0.5 whitespace-normal">
+                                            <div className="font-bold text-white/90 line-clamp-2 text-left">{src.recipeTitle}</div>
+                                            <div className="flex justify-between items-center text-white/50 text-[10px]">
+                                                <span>{new Date(src.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</span>
+                                                <span className="font-mono bg-white/5 px-1 rounded whitespace-nowrap">{src.quantity} {src.unit}</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </motion.div>
-                    </AnimatePresence>
-                </div>,
-                document.body
-            )}
+                                    ))}
+                                </div>
+                            </motion.div>
+                        </AnimatePresence>
+                    </div>,
+                    document.body
+                )
+            }
         </div >
     );
 }

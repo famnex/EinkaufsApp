@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { Product, Store, ListItem, RecipeIngredient, sequelize, HiddenCleanup, ProductVariation, ProductVariant, Intolerance, ProductIntolerance } = require('../models');
+const {
+    Product, Store, ListItem, RecipeIngredient, sequelize, HiddenCleanup,
+    ProductVariation, ProductVariant, Intolerance, ProductIntolerance,
+    ProductSubstitution, RecipeSubstitution, ProductRelation, UserProductIntolerance
+} = require('../models');
 const { auth, admin } = require('../middleware/auth');
 
 // Get all user products (not global) - ADMIN ONLY
@@ -276,72 +280,112 @@ router.post('/merge', auth, async (req, res) => {
     try {
         const { sourceId, targetId, newName } = req.body;
 
-        const source = await Product.findOne({ where: { id: sourceId, UserId: req.user.effectiveId }, transaction: t });
-        const target = await Product.findOne({ where: { id: targetId, UserId: req.user.effectiveId }, transaction: t });
+        // Find products allowing global ones (UserId: null)
+        const findOptions = (id) => ({
+            where: {
+                id,
+                [sequelize.Sequelize.Op.or]: [
+                    { UserId: req.user.effectiveId },
+                    { UserId: null }
+                ]
+            },
+            transaction: t
+        });
+
+        const source = await Product.findOne(findOptions(sourceId));
+        const target = await Product.findOne(findOptions(targetId));
 
         if (!source || !target) {
             await t.rollback();
-            return res.status(404).json({ error: 'Product not found or unauthorized' });
+            return res.status(404).json({ error: 'Produkt nicht gefunden oder keine Berechtigung' });
         }
 
-        // 1. Update target name if provided
-        if (newName && newName !== target.name) {
-            await target.update({ name: newName }, { transaction: t });
+        const isAdmin = req.user.role === 'admin';
+        const isSourceGlobal = source.UserId === null;
+        const isTargetGlobal = target.UserId === null;
+
+        // Restriction: Only admins can merge global products away (source)
+        if (isSourceGlobal && !isAdmin) {
+            await t.rollback();
+            return res.status(403).json({ error: 'Nur Administratoren können globale Produkte als Quelle beim Zusammenführen verwenden' });
         }
 
-        // 1b. Merge Synonyms (Source Name + Source Synonyms -> Target Synonyms)
-        // Parse synonyms safely (handle string/array mismatch if any)
-        const parseSynonyms = (val) => {
-            if (Array.isArray(val)) return val;
-            if (typeof val === 'string') {
-                try { return JSON.parse(val || '[]'); } catch { return []; }
+        // Restriction: Only admins can merge into global products (target)
+        if (isTargetGlobal && !isAdmin) {
+            await t.rollback();
+            return res.status(403).json({ error: 'Nur Administratoren können Produkte in globale Produkte umwandeln' });
+        }
+
+        // 1. Update target name and synonyms if permitted
+        if (newName || (source.synonyms && source.synonyms.length > 0)) {
+            // Restriction: Only admins can change global target names/synonyms
+            if (isTargetGlobal && !isAdmin) {
+                // Non-admins can still merge THEIR data into it, but not change the global product itself
+            } else {
+                if (newName && newName !== target.name) {
+                    await target.update({ name: newName }, { transaction: t });
+                }
+
+                const parseSynonyms = (val) => {
+                    if (Array.isArray(val)) return val;
+                    if (typeof val === 'string') {
+                        try { return JSON.parse(val || '[]'); } catch { return []; }
+                    }
+                    return [];
+                };
+
+                const targetSyns = new Set(parseSynonyms(target.synonyms));
+                const sourceSyns = parseSynonyms(source.synonyms);
+
+                if (source.name && source.name !== target.name) {
+                    targetSyns.add(source.name);
+                }
+                sourceSyns.forEach(s => targetSyns.add(s));
+
+                await target.update({ synonyms: [...targetSyns] }, { transaction: t });
             }
-            return [];
-        };
-
-        const targetSyns = new Set(parseSynonyms(target.synonyms));
-        const sourceSyns = parseSynonyms(source.synonyms);
-
-        // Add source name
-        if (source.name && source.name !== target.name) {
-            targetSyns.add(source.name);
         }
-        // Add source synonyms
-        sourceSyns.forEach(s => targetSyns.add(s));
 
-        // Save updated synonyms
-        await target.update({ synonyms: [...targetSyns] }, { transaction: t });
+        // 2. Decide scope of migration
+        // If source is global, we update for EVERYONE (admin only).
+        // If source is private, we update ONLY for the current user/household.
+        const refWhere = isSourceGlobal ? {} : { UserId: req.user.effectiveId };
+        const mergeWhere = (field, id) => ({ ...refWhere, [field]: id });
 
-        // 2. Migrate Recipe Ingredients
-        await RecipeIngredient.update(
-            { ProductId: target.id },
-            { where: { ProductId: source.id, UserId: req.user.effectiveId }, transaction: t }
-        );
+        // 3. Migrate References
+        // Recipe Ingredients
+        await RecipeIngredient.update({ ProductId: target.id }, { where: mergeWhere('ProductId', source.id), transaction: t });
 
-        // 3. Migrate Shopping List Items
-        await ListItem.update(
-            { ProductId: target.id },
-            { where: { ProductId: source.id, UserId: req.user.effectiveId }, transaction: t }
-        );
+        // Shopping List Items
+        await ListItem.update({ ProductId: target.id }, { where: mergeWhere('ProductId', source.id), transaction: t });
 
-        // 4. Migrate Product Substitutions (both original and substitute references)
-        const { ProductSubstitution } = require('../models');
-        await ProductSubstitution.update(
-            { originalProductId: target.id },
-            { where: { originalProductId: source.id, UserId: req.user.effectiveId }, transaction: t }
-        );
-        await ProductSubstitution.update(
-            { substituteProductId: target.id },
-            { where: { substituteProductId: source.id, UserId: req.user.effectiveId }, transaction: t }
-        );
+        // Product Substitutions (List based)
+        await ProductSubstitution.update({ originalProductId: target.id }, { where: mergeWhere('originalProductId', source.id), transaction: t });
+        await ProductSubstitution.update({ substituteProductId: target.id }, { where: mergeWhere('substituteProductId', source.id), transaction: t });
+
+        // Recipe Substitutions (Persistent)
+        await RecipeSubstitution.update({ originalProductId: target.id }, { where: mergeWhere('originalProductId', source.id), transaction: t });
+        await RecipeSubstitution.update({ substituteProductId: target.id }, { where: mergeWhere('substituteProductId', source.id), transaction: t });
+
+        // Variations (if user-owned, move them too)
+        await ProductVariation.update({ ProductId: target.id }, { where: mergeWhere('ProductId', source.id), transaction: t });
+
+        // Product Relations (Store order)
+        await ProductRelation.update({ PredecessorId: target.id }, { where: mergeWhere('PredecessorId', source.id), transaction: t });
+        await ProductRelation.update({ SuccessorId: target.id }, { where: mergeWhere('SuccessorId', source.id), transaction: t });
+
+        // Personal Exclusions (UserProductIntolerance) - Ignore errors if target already excluded
+        try {
+            await UserProductIntolerance.update({ ProductId: target.id }, { where: mergeWhere('ProductId', source.id), transaction: t });
+        } catch (e) { /* Likely unique constraint - skip */ }
 
         // 5. Delete Source
         await source.destroy({ transaction: t });
 
         await t.commit();
-        res.json({ message: 'Merge successful', target });
+        res.json({ message: 'Zusammenführung erfolgreich', target });
     } catch (err) {
-        await t.rollback();
+        if (t) await t.rollback();
         console.error('Merge Error:', err);
         res.status(500).json({ error: err.message });
     }

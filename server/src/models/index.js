@@ -388,5 +388,6 @@ module.exports = {
     RecipeSubstitution,
     RecipeInstructionOverride,
     PushSubscription,
-    SentPushNotification
+    SentPushNotification,
+    UserProductIntolerance
 };

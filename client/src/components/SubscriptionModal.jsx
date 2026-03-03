@@ -139,164 +139,167 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
     ];
 
     return (
-        <AnimatePresence>
-            {isOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={handleClose}
-                        className="absolute inset-0 bg-black/60 backdrop-blur-md"
-                    />
+        <>
+            <AnimatePresence>
+                {isOpen && (
+                    <div key="subscription-modal-overlay" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <motion.div
+                            key="subscription-modal-backdrop"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={handleClose}
+                            className="absolute inset-0 bg-black/60 backdrop-blur-md"
+                        />
 
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.9, y: 30 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, y: 30 }}
-                        className="relative w-full max-w-5xl bg-background rounded-2xl sm:rounded-[2.5rem] shadow-2xl overflow-hidden border border-border flex flex-col max-h-[80vh] sm:max-h-[90vh]"
-                    >
-                        {/* Header */}
-                        <div className="p-4 sm:p-8 pb-2 sm:pb-4 flex items-center justify-between shrink-0 bg-background z-10">
-                            <div className="flex items-center gap-3 sm:gap-4">
-                                <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/20">
-                                    <Sparkles size={20} className="sm:w-6 sm:h-6" />
+                        <motion.div
+                            key="subscription-modal-content"
+                            initial={{ opacity: 0, scale: 0.9, y: 30 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 30 }}
+                            className="relative w-full max-w-5xl bg-background rounded-2xl sm:rounded-[2.5rem] shadow-2xl overflow-hidden border border-border flex flex-col max-h-[80vh] sm:max-h-[90vh]"
+                        >
+                            {/* Header */}
+                            <div className="p-4 sm:p-8 pb-2 sm:pb-4 flex items-center justify-between shrink-0 bg-background z-10">
+                                <div className="flex items-center gap-3 sm:gap-4">
+                                    <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/20">
+                                        <Sparkles size={20} className="sm:w-6 sm:h-6" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-base sm:text-2xl font-black tracking-tight leading-tight">GabelGuru Premium</h2>
+                                        <p className="hidden sm:block text-sm text-muted-foreground">Wähle das perfekte Abo</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h2 className="text-base sm:text-2xl font-black tracking-tight leading-tight">GabelGuru Premium</h2>
-                                    <p className="hidden sm:block text-sm text-muted-foreground">Wähle das perfekte Abo</p>
-                                </div>
+                                <button
+                                    onClick={handleClose}
+                                    className="p-2 sm:p-3 hover:bg-muted rounded-xl sm:rounded-2xl transition-all hover:rotate-90"
+                                >
+                                    <X className="w-5 h-5 sm:w-6 sm:h-6" />
+                                </button>
                             </div>
-                            <button
-                                onClick={handleClose}
-                                className="p-2 sm:p-3 hover:bg-muted rounded-xl sm:rounded-2xl transition-all hover:rotate-90"
-                            >
-                                <X className="w-5 h-5 sm:w-6 sm:h-6" />
-                            </button>
-                        </div>
 
-                        {/* Content */}
-                        <div className="flex-1 overflow-y-auto p-4 sm:p-8 pt-2 sm:pt-4">
-                            {/* Always render tiers view, payment view removed */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                {tiers.map((tier) => {
-                                    const isCurrent = currentTier === tier.name;
-                                    const isGold = currentTier === 'Goldgabel';
-                                    const isSilber = currentTier === 'Silbergabel';
-                                    const isRainbow = currentTier === 'Rainbowspoon';
+                            {/* Content */}
+                            <div className="flex-1 overflow-y-auto p-4 sm:p-8 pt-2 sm:pt-4">
+                                {/* Always render tiers view, payment view removed */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {tiers.map((tier) => {
+                                        const isCurrent = currentTier === tier.name;
+                                        const isGold = currentTier === 'Goldgabel';
+                                        const isRainbow = currentTier === 'Rainbowspoon';
 
-                                    // Button visibility logic
-                                    let shouldShowButton = false;
-                                    if (isRainbow) {
-                                        shouldShowButton = false;
-                                    } else if (tier.name === 'Plastikgabel') {
-                                        shouldShowButton = isCurrent;
-                                    } else if (tier.name === 'Silbergabel') {
-                                        shouldShowButton = isCurrent || !isGold;
-                                    } else if (tier.name === 'Goldgabel') {
-                                        shouldShowButton = isCurrent || !isGold;
-                                    }
+                                        // Button visibility logic
+                                        let shouldShowButton = false;
+                                        if (isRainbow) {
+                                            shouldShowButton = false;
+                                        } else if (tier.name === 'Plastikgabel') {
+                                            shouldShowButton = isCurrent;
+                                        } else if (tier.name === 'Silbergabel') {
+                                            shouldShowButton = isCurrent || !isGold;
+                                        } else if (tier.name === 'Goldgabel') {
+                                            shouldShowButton = isCurrent || !isGold;
+                                        }
 
-                                    const Icon = tier.icon;
+                                        const Icon = tier.icon;
 
-                                    return (
-                                        <Card
-                                            key={tier.name}
-                                            className={cn(
-                                                "relative p-4 sm:p-8 flex flex-col items-center text-center transition-all duration-500 border-2",
-                                                tier.popular ? "border-primary/50 shadow-2xl shadow-primary/10" : "border-border",
-                                                isCurrent && "border-emerald-500/50 bg-emerald-500/5"
-                                            )}
-                                        >
-                                            {tier.popular && (
-                                                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg">
-                                                    Beliebteste Wahl
+                                        return (
+                                            <Card
+                                                key={tier.name}
+                                                className={cn(
+                                                    "relative p-4 sm:p-8 flex flex-col items-center text-center transition-all duration-500 border-2",
+                                                    tier.popular ? "border-primary/50 shadow-2xl shadow-primary/10" : "border-border",
+                                                    isCurrent && "border-emerald-500/50 bg-emerald-500/5"
+                                                )}
+                                            >
+                                                {tier.popular && (
+                                                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg">
+                                                        Beliebteste Wahl
+                                                    </div>
+                                                )}
+
+                                                <div className={cn("w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-3xl flex items-center justify-center mb-3 sm:mb-6 shadow-inner", tier.bg)}>
+                                                    <Icon className={cn("w-6 h-6 sm:w-10 sm:h-10", tier.color)} />
                                                 </div>
-                                            )}
 
-                                            <div className={cn("w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-3xl flex items-center justify-center mb-3 sm:mb-6 shadow-inner", tier.bg)}>
-                                                <Icon className={cn("w-6 h-6 sm:w-10 sm:h-10", tier.color)} />
-                                            </div>
+                                                <h3 className="text-lg sm:text-xl font-black mb-1 sm:mb-2">{tier.name}</h3>
+                                                <div className="flex items-baseline gap-1 mb-4 sm:mb-8">
+                                                    <span className="text-3xl sm:text-4xl font-black">{tier.price}</span>
+                                                    {tier.period && <span className="text-muted-foreground text-[10px] sm:text-sm font-medium">{tier.period}</span>}
+                                                </div>
 
-                                            <h3 className="text-lg sm:text-xl font-black mb-1 sm:mb-2">{tier.name}</h3>
-                                            <div className="flex items-baseline gap-1 mb-4 sm:mb-8">
-                                                <span className="text-3xl sm:text-4xl font-black">{tier.price}</span>
-                                                {tier.period && <span className="text-muted-foreground text-[10px] sm:text-sm font-medium">{tier.period}</span>}
-                                            </div>
+                                                <div className="w-full space-y-2 sm:space-y-4 mb-4 sm:mb-10 text-left">
+                                                    {tier.features.map((feat, i) => {
+                                                        const isInfo = feat.startsWith('(i)');
+                                                        const displayFeat = isInfo ? feat.replace('(i) ', '') : feat;
 
-                                            <div className="w-full space-y-2 sm:space-y-4 mb-4 sm:mb-10 text-left">
-                                                {tier.features.map((feat, i) => {
-                                                    const isInfo = feat.startsWith('(i)');
-                                                    const displayFeat = isInfo ? feat.replace('(i) ', '') : feat;
-
-                                                    return (
-                                                        <div key={i} className="flex items-start gap-2 sm:gap-3 group">
-                                                            <div className={cn(
-                                                                "mt-0.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform",
-                                                                isInfo ? "bg-blue-500/10 text-blue-500" : "bg-primary/10 text-primary"
-                                                            )}>
-                                                                {isInfo ? <Info size={10} strokeWidth={3} /> : <Check size={10} strokeWidth={4} />}
+                                                        return (
+                                                            <div key={i} className="flex items-start gap-2 sm:gap-3 group">
+                                                                <div className={cn(
+                                                                    "mt-0.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform",
+                                                                    isInfo ? "bg-blue-500/10 text-blue-500" : "bg-primary/10 text-primary"
+                                                                )}>
+                                                                    {isInfo ? <Info size={10} strokeWidth={3} /> : <Check size={10} strokeWidth={4} />}
+                                                                </div>
+                                                                <span className="text-[10px] sm:text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors leading-tight">{displayFeat}</span>
                                                             </div>
-                                                            <span className="text-[10px] sm:text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors leading-tight">{displayFeat}</span>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
 
-                                            <div className="mt-auto w-full space-y-2">
-                                                {shouldShowButton && (
-                                                    <Button
-                                                        variant={tier.popular ? "primary" : "outline"}
-                                                        className={cn(
-                                                            "w-full h-11 sm:h-14 rounded-xl sm:rounded-2xl gap-2 text-xs sm:text-sm",
-                                                            isCurrent && "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20"
-                                                        )}
-                                                        onClick={() => handleCheckout(tier.name)}
-                                                        disabled={loading || isCurrent}
-                                                    >
-                                                        {loading ? <Loader2 className="animate-spin" size={18} /> : (isCurrent ? 'Dein Plan' : tier.buttonText)}
-                                                        {!isCurrent && <ArrowRight className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />}
-                                                    </Button>
-                                                )}
+                                                <div className="mt-auto w-full space-y-2">
+                                                    {shouldShowButton && (
+                                                        <Button
+                                                            variant={tier.popular ? "primary" : "outline"}
+                                                            className={cn(
+                                                                "w-full h-11 sm:h-14 rounded-xl sm:rounded-2xl gap-2 text-xs sm:text-sm",
+                                                                isCurrent && "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20"
+                                                            )}
+                                                            onClick={() => handleCheckout(tier.name)}
+                                                            disabled={loading || isCurrent}
+                                                        >
+                                                            {loading ? <Loader2 className="animate-spin" size={18} /> : (isCurrent ? 'Dein Plan' : tier.buttonText)}
+                                                            {!isCurrent && <ArrowRight className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />}
+                                                        </Button>
+                                                    )}
 
-                                                {(tier.name === 'Silbergabel' && currentTier === 'Plastikgabel' && !user?.isTrialUsed) && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="w-full h-10 rounded-xl gap-2 text-xs font-bold text-primary hover:bg-primary/5"
-                                                        onClick={() => setIsTrialModalOpen(true)}
-                                                    >
-                                                        <Sparkles size={14} />
-                                                        7 Tage kostenlos testen
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </Card>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Info Section */}
-                            <div className="mt-4 sm:mt-10 p-3 sm:p-6 bg-muted/20 rounded-xl sm:rounded-3xl border border-border flex flex-col md:flex-row items-center gap-3 sm:gap-6 mb-8">
-                                <div className="p-2 sm:p-4 bg-primary/10 rounded-lg sm:rounded-2xl text-primary shrink-0">
-                                    <Info className="w-5 h-5 sm:w-8 sm:h-8" />
+                                                    {(tier.name === 'Silbergabel' && currentTier === 'Plastikgabel' && !user?.isTrialUsed) && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="w-full h-10 rounded-xl gap-2 text-xs font-bold text-primary hover:bg-primary/5"
+                                                            onClick={() => setIsTrialModalOpen(true)}
+                                                        >
+                                                            <Sparkles size={14} />
+                                                            7 Tage kostenlos testen
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </Card>
+                                        );
+                                    })}
                                 </div>
-                                <div className="flex-1 text-center md:text-left min-w-0">
-                                    <h4 className="text-xs sm:text-base font-bold mb-0.5">Coins & AI</h4>
-                                    <p className="text-[9px] sm:text-sm text-muted-foreground leading-tight">
-                                        Coins werden nur für rechenintensive AI-Funktionen benötigt.
-                                    </p>
-                                </div>
-                                <Button variant="ghost" size="sm" className="gap-2 pointer-events-none">
-                                    <CreditCard size={18} />
-                                    Zahlarten: Stripe (Kreditkarte/SEPA/Apple & Google Pay)
-                                </Button>
-                            </div>
 
-                        </div>
-                    </motion.div>
-                </div>
-            )}
+                                {/* Info Section */}
+                                <div className="mt-4 sm:mt-10 p-3 sm:p-6 bg-muted/20 rounded-xl sm:rounded-3xl border border-border flex flex-col md:flex-row items-center gap-3 sm:gap-6 mb-8">
+                                    <div className="p-2 sm:p-4 bg-primary/10 rounded-lg sm:rounded-2xl text-primary shrink-0">
+                                        <Info className="w-5 h-5 sm:w-8 sm:h-8" />
+                                    </div>
+                                    <div className="flex-1 text-center md:text-left min-w-0">
+                                        <h4 className="text-xs sm:text-base font-bold mb-0.5">Coins & AI</h4>
+                                        <p className="text-[9px] sm:text-sm text-muted-foreground leading-tight">
+                                            Coins werden nur für rechenintensive AI-Funktionen benötigt.
+                                        </p>
+                                    </div>
+                                    <Button variant="ghost" size="sm" className="gap-2 pointer-events-none">
+                                        <CreditCard size={18} />
+                                        Zahlarten: Stripe (Kreditkarte/SEPA/Apple & Google Pay)
+                                    </Button>
+                                </div>
+
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             <SubscriptionCancelModal
                 isOpen={isCancelModalOpen}
@@ -309,6 +312,6 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
                 onClose={() => setIsTrialModalOpen(false)}
                 onActivate={handleActivateTrial}
             />
-        </AnimatePresence>
+        </>
     );
 }

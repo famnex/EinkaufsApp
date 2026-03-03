@@ -60,6 +60,8 @@ export default function SettingsPage() {
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
     const [generatingInvite, setGeneratingInvite] = useState(false);
     const [householdMembers, setHouseholdMembers] = useState([]);
+    const [householdOwnerData, setHouseholdOwnerData] = useState(null);
+    const [loadingHouseholdData, setLoadingHouseholdData] = useState(false);
     const [pushPermissionStatus, setPushPermissionStatus] = useState(Notification.permission);
 
     useEffect(() => {
@@ -76,6 +78,11 @@ export default function SettingsPage() {
     const [householdModalType, setHouseholdModalType] = useState('leave'); // 'leave' | 'remove'
     const [selectedMember, setSelectedMember] = useState(null);
     const [initialDetailTab, setInitialDetailTab] = useState('general');
+
+    const isHouseholdMember = user?.householdId && String(user.householdId) !== String(user.id);
+    const effectiveUser = isHouseholdMember ? (householdOwnerData || user) : user;
+    const canEditSettings = !isHouseholdMember || user?.role === 'admin';
+    const isOwner = !isHouseholdMember;
 
     // System Design State
     const [accentColor, setAccentColor] = useState('#14b8a6');
@@ -283,14 +290,33 @@ export default function SettingsPage() {
     const [totalToProcess, setTotalToProcess] = useState(0);
     const [cleaningType, setCleaningType] = useState(null); // 'orphaned' or 'resize'
 
+
+
     useEffect(() => {
         fetchStores();
         fetchIntolerances();
         fetchPersonalIntolerances();
         if (user) {
+            fetchNotificationCounts();
+            if (user.householdId) {
+                fetchHouseholdOwnerData();
+            }
             fetchHouseholdMembers();
         }
     }, [user?.id, user?.householdId]);
+
+    const fetchHouseholdOwnerData = async () => {
+        if (!user?.householdId) return;
+        setLoadingHouseholdData(true);
+        try {
+            const res = await api.get(`/auth/household-owner-data`);
+            setHouseholdOwnerData(res.data);
+        } catch (err) {
+            console.error('Failed to fetch household owner data:', err);
+        } finally {
+            setLoadingHouseholdData(false);
+        }
+    };
 
     // System and Admin Settings Fetch
     useEffect(() => {
@@ -1637,15 +1663,16 @@ export default function SettingsPage() {
         fetchEmails(folder);
     };
 
-    const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.tier) ||
-        ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(user?.householdOwnerTier);
+
+    const hasSpecialTier = ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(effectiveUser?.tier) ||
+        ['Silbergabel', 'Goldgabel', 'Rainbowspoon', 'Regenbogengabel'].includes(effectiveUser?.householdOwnerTier);
 
     // Tab Definitions
     const profileDetailTabs = [
         { id: 'general', label: 'Benutzerprofil', icon: User },
         { id: 'newsletter', label: 'Newsletter & Benachrichtigungen', icon: Mail },
-        { id: 'email', label: 'E-Mail-Adresse ändern', icon: Mail },
-        { id: 'password', label: 'Passwort ändern', icon: Lock },
+        { id: 'email', label: 'E-Mail-Adresse ändern', icon: Mail, locked: isHouseholdMember },
+        { id: 'password', label: 'Passwort ändern', icon: Lock, locked: isHouseholdMember },
         { id: 'strikes', label: 'Sicherheitsstatus & Verstöße', icon: ShieldCheck }
     ];
 
@@ -1654,7 +1681,7 @@ export default function SettingsPage() {
         { id: 'subscription', label: 'Abo & Credits', icon: CreditCard },
         { id: 'household', label: 'Haushalt', icon: Users },
         { id: 'gdpr', label: 'DSGVO-Auskunft', icon: ShieldCheck },
-        { id: 'delete_account', label: 'Konto löschen', icon: Trash2 }
+        { id: 'delete_account', label: 'Konto löschen', icon: Trash2, locked: isHouseholdMember }
     ];
 
     const preferencesTabs = [
@@ -1663,7 +1690,7 @@ export default function SettingsPage() {
     ];
 
     const contentTabs = [
-        { id: 'cookbook', label: 'Öffentliches Kochbuch', icon: ChefHat }
+        { id: 'cookbook', label: 'Öffentliches Kochbuch', icon: ChefHat, locked: isHouseholdMember }
     ];
 
     const marketplaceTabs = [
@@ -1826,6 +1853,7 @@ export default function SettingsPage() {
                                     value={emailChangeData.newEmail}
                                     onChange={(e) => setEmailChangeData({ ...emailChangeData, newEmail: e.target.value })}
                                     className="bg-muted border-transparent focus:bg-background"
+                                    disabled={isHouseholdMember}
                                 />
                             </div>
                             <div>
@@ -1837,11 +1865,13 @@ export default function SettingsPage() {
                                         value={emailChangeData.currentPassword}
                                         onChange={(e) => setEmailChangeData({ ...emailChangeData, currentPassword: e.target.value })}
                                         className="bg-muted border-transparent focus:bg-background"
+                                        disabled={isHouseholdMember}
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        disabled={isHouseholdMember}
                                     >
                                         {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>
@@ -1849,7 +1879,7 @@ export default function SettingsPage() {
                             </div>
                             <Button
                                 onClick={handleChangeEmail}
-                                disabled={changingEmail || emailChangeData.newEmail === user?.email}
+                                disabled={changingEmail || emailChangeData.newEmail === user?.email || isHouseholdMember}
                                 className="w-full"
                             >
                                 {changingEmail ? <Loader2 size={18} className="animate-spin" /> : "Email speichern"}
@@ -1857,6 +1887,11 @@ export default function SettingsPage() {
                             {emailChangeData.newEmail && emailChangeData.newEmail === user?.email && (
                                 <p className="text-[10px] text-amber-500 font-medium text-center">
                                     Das ist schon deine aktuelle Adresse.
+                                </p>
+                            )}
+                            {isHouseholdMember && (
+                                <p className="text-[10px] text-amber-500 font-medium text-center">
+                                    Als Haushaltsmitglied kannst du deine E-Mail-Adresse nicht ändern.
                                 </p>
                             )}
                         </div>
@@ -1878,11 +1913,13 @@ export default function SettingsPage() {
                                         value={passwordChangeData.currentPassword}
                                         onChange={(e) => setPasswordChangeData({ ...passwordChangeData, currentPassword: e.target.value })}
                                         className="bg-muted border-transparent focus:bg-background"
+                                        disabled={isHouseholdMember}
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        disabled={isHouseholdMember}
                                     >
                                         {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>
@@ -1896,11 +1933,13 @@ export default function SettingsPage() {
                                         value={passwordChangeData.newPassword}
                                         onChange={(e) => setPasswordChangeData({ ...passwordChangeData, newPassword: e.target.value })}
                                         className="bg-muted border-transparent focus:bg-background"
+                                        disabled={isHouseholdMember}
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowNewPassword(!showNewPassword)}
                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        disabled={isHouseholdMember}
                                     >
                                         {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>
@@ -1914,11 +1953,13 @@ export default function SettingsPage() {
                                         value={passwordChangeData.confirmPassword}
                                         onChange={(e) => setPasswordChangeData({ ...passwordChangeData, confirmPassword: e.target.value })}
                                         className="bg-muted border-transparent focus:bg-background"
+                                        disabled={isHouseholdMember}
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        disabled={isHouseholdMember}
                                     >
                                         {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>
@@ -1926,11 +1967,16 @@ export default function SettingsPage() {
                             </div>
                             <Button
                                 onClick={handleChangePassword}
-                                disabled={changingPassword}
+                                disabled={changingPassword || isHouseholdMember}
                                 className="w-full"
                             >
                                 {changingPassword ? <Loader2 size={18} className="animate-spin" /> : "Passwort aktualisieren"}
                             </Button>
+                            {isHouseholdMember && (
+                                <p className="text-[10px] text-amber-500 font-medium text-center">
+                                    Als Haushaltsmitglied kannst du dein Passwort nicht ändern.
+                                </p>
+                            )}
                         </div>
                     </Card>
                 );
@@ -2008,6 +2054,60 @@ export default function SettingsPage() {
             default: return null;
         }
     };
+
+    const AccountHeader = (
+        <div className="p-8 border-b border-border space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-inner">
+                        <User size={32} />
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-black text-foreground tracking-tight underline decoration-primary/30 decoration-4 underline-offset-4">{effectiveUser?.username}</h2>
+                        <p className="text-muted-foreground text-sm font-medium flex items-center gap-1.5 mt-1">
+                            <Mail size={14} className="opacity-50" /> {effectiveUser?.email}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="bg-card border border-border rounded-2xl p-4 shadow-sm flex items-center gap-4 min-w-[200px]">
+                        <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shadow-sm">
+                            <Sparkles size={20} />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Abonnement</p>
+                            <div className="flex items-center gap-2">
+                                <span className="font-bold text-sm tracking-tight">{effectiveUser?.tier || 'Plastikgabel'}</span>
+                                {isHouseholdMember && (
+                                    <span className="text-[8px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-bold uppercase tracking-tighter">Haushalt</span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-card border border-border rounded-2xl p-4 shadow-sm flex items-center gap-4 min-w-[160px]">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
+                            <CreditCard size={20} />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Credits</p>
+                            <p className="font-bold text-sm tracking-tight">{effectiveUser?.aiCredits?.toFixed(1) || '0.0'} 🪙</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {isHouseholdMember && (
+                <div className="mt-4 p-4 bg-primary/5 rounded-2xl border border-primary/10 flex items-center gap-3">
+                    <Info size={18} className="text-primary shrink-0" />
+                    <p className="text-sm text-primary/80 font-medium leading-tight">
+                        Du bist Teil eines Haushalts. Dein Abonnement und deine Credits werden vom Haushalts-Besitzer verwaltet. Einstellungsänderungen können nur vom Besitzer vorgenommen werden.
+                    </p>
+                </div>
+            )}
+        </div>
+    );
 
     const ProfileDetailSection = (
         <div className="space-y-3">
@@ -5515,6 +5615,7 @@ export default function SettingsPage() {
 
     const AccountSection = (
         <div className="space-y-6">
+            {AccountHeader}
             <div className="sm:hidden space-y-2">
                 {accountTabs.map((sub) => {
                     const isActive = activeAccountTab === sub.id;

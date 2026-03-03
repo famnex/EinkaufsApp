@@ -58,8 +58,9 @@ export default function SubscriptionCancelModal({ isOpen, onClose, currentTier, 
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+                <div key="cancel-modal-overlay" className="fixed inset-0 z-[110] flex items-center justify-center p-4">
                     <motion.div
+                        key="cancel-modal-backdrop"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
@@ -68,6 +69,7 @@ export default function SubscriptionCancelModal({ isOpen, onClose, currentTier, 
                     />
 
                     <motion.div
+                        key="cancel-modal-content"
                         initial={{ opacity: 0, scale: 0.9, y: 30 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.9, y: 30 }}
