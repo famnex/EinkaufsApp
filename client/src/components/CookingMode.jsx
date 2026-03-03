@@ -42,8 +42,11 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
     const [isExitModalOpen, setIsExitModalOpen] = useState(false);
     const [isAiLockedOpen, setIsAiLockedOpen] = useState(false);
     const [showServingsControls, setShowServingsControls] = useState(false);
+    const [elapsedMinutes, setElapsedMinutes] = useState(0);
+    const [showSilentHint, setShowSilentHint] = useState(false);
 
-    // Swipe Logic for Steps
+    // Track opening time for conditional exit warning
+    const openingTimeRef = useRef(Date.now());
     const [touchStart, setTouchStart] = useState(null);
     const [touchEnd, setTouchEnd] = useState(null);
     const minSwipeDistance = 50;
@@ -385,7 +388,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
         const handleKeyDown = (e) => {
             if (e.key === 'ArrowRight') nextStep();
             if (e.key === 'ArrowLeft') prevStep();
-            if (e.key === 'Escape') setIsExitModalOpen(true);
+            if (e.key === 'Escape') handleAttemptClose();
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
@@ -467,6 +470,10 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
     };
 
     const handleTimeClick = (text, seconds, label) => {
+        if (timers.length === 0) {
+            setShowSilentHint(true);
+            setTimeout(() => setShowSilentHint(false), 5000); // Auto-hide after 5s
+        }
         const newTimer = {
             id: Date.now(),
             label: label || text,
@@ -535,6 +542,19 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
         if (newServings === currentServings) return;
 
         setScaleFactor(newServings / recipe.servings);
+    };
+
+    const handleAttemptClose = () => {
+        const elapsed = Date.now() - openingTimeRef.current;
+        const minutes = Math.floor(elapsed / 60000);
+        setElapsedMinutes(minutes);
+
+        // Show warning if AI was paid for OR if more than 30 seconds have passed
+        if (hasPaidForAi || elapsed >= 30000) {
+            setIsExitModalOpen(true);
+        } else {
+            onClose();
+        }
     };
 
     // Share Logic Consolidation
@@ -616,7 +636,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                             <Button size="sm" onClick={handleShareRequest} className="bg-secondary text-secondary-foreground hover:bg-secondary/90 px-4">
                                 <Share2 size={20} />
                             </Button>
-                            <Button size="sm" onClick={() => setIsExitModalOpen(true)} className="bg-primary text-primary-foreground hover:bg-primary/90 px-4">
+                            <Button size="sm" onClick={handleAttemptClose} className="bg-primary text-primary-foreground hover:bg-primary/90 px-4">
                                 <X size={20} />
                             </Button>
                         </div>
@@ -651,7 +671,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                         <Button onClick={handleShareRequest} className="rounded-full w-12 h-12 p-0 shadow-lg bg-secondary text-secondary-foreground hover:bg-secondary/90 border-none">
                             <Share2 size={24} />
                         </Button>
-                        <Button onClick={() => setIsExitModalOpen(true)} className="rounded-full w-12 h-12 p-0 shadow-lg bg-primary text-primary-foreground hover:bg-primary/90 border-none">
+                        <Button onClick={handleAttemptClose} className="rounded-full w-12 h-12 p-0 shadow-lg bg-primary text-primary-foreground hover:bg-primary/90 border-none">
                             <X size={24} />
                         </Button>
                     </div>
@@ -1015,7 +1035,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                             </div>
 
                             <Button
-                                onClick={step === steps.length - 1 ? () => setIsExitModalOpen(true) : nextStep}
+                                onClick={step === steps.length - 1 ? handleAttemptClose : nextStep}
                                 className={cn(
                                     "h-14 px-8 rounded-2xl text-lg flex-1 md:flex-none shadow-xl",
                                     step === steps.length - 1 ? "bg-green-600 hover:bg-green-700 text-white" : "bg-primary text-primary-foreground"
@@ -1137,6 +1157,28 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                     onDelete={deleteTimer}
                     audioContext={audioContextRef.current}
                 />
+
+                <AnimatePresence>
+                    {showSilentHint && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 50 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] bg-indigo-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-indigo-400/50 backdrop-blur-md"
+                        >
+                            <div className="bg-white/20 p-2 rounded-xl">
+                                <Mic size={18} />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-xs font-black uppercase tracking-widest opacity-70">Wichtig für Audio</span>
+                                <span className="text-sm font-bold">Stummmodus am Handy deaktivieren!</span>
+                            </div>
+                            <button onClick={() => setShowSilentHint(false)} className="ml-2 p-1 hover:bg-white/10 rounded-lg transition-colors">
+                                <X size={16} />
+                            </button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {/* --- FIXED TOOLTIP LAYER --- */}
                 <AnimatePresence>
@@ -1298,9 +1340,39 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                 <CookingExitModal
                     isOpen={isExitModalOpen}
                     onClose={() => setIsExitModalOpen(false)}
-                    onConfirm={onClose}
+                    onConfirm={async ({ newDuration, newRecipe }) => {
+                        const updates = {};
+                        if (newDuration !== undefined && newDuration !== recipe.duration) {
+                            updates.duration = newDuration;
+                        }
+                        if (newRecipe) {
+                            updates.title = newRecipe.title;
+                            updates.category = newRecipe.category;
+                            updates.prep_time = newRecipe.prep_time;
+                            updates.duration = newRecipe.duration;
+                            updates.servings = newRecipe.servings;
+                            updates.instructions = JSON.stringify(newRecipe.steps);
+                            updates.tags = JSON.stringify(newRecipe.tags);
+                            updates.ingredients = JSON.stringify(newRecipe.ingredients);
+                        }
+
+                        if (Object.keys(updates).length > 0) {
+                            try {
+                                await api.put(`/recipes/${recipe.id}`, updates);
+                            } catch (err) {
+                                console.error('Failed to update recipe', err);
+                            }
+                        }
+                        onClose();
+                    }}
                     hasPaidAi={hasPaidForAi}
                     isSilbergabel={user?.tier === 'Silbergabel'}
+                    recipeDuration={recipe.duration}
+                    elapsedMinutes={elapsedMinutes}
+                    isForeign={recipe.UserId !== user.id && (!user.householdId || recipe.UserId !== user.householdId)}
+                    recipe={recipe}
+                    userTier={user?.tier}
+                    substitutions={substitutions}
                 />
             </motion.div>
         </AnimatePresence>

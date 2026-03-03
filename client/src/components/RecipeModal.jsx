@@ -592,7 +592,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                                     <Input type="number" value={basics.prep_time} onChange={e => setBasics({ ...basics, prep_time: e.target.value })} />
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1 flex items-center gap-1"><Clock size={12} /> Zubereitung (Min)</label>
+                                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1 flex items-center gap-1"><Clock size={12} /> Gesamtzeit (Min)</label>
                                                     <Input type="number" value={basics.duration} onChange={e => setBasics({ ...basics, duration: e.target.value })} />
                                                 </div>
                                             </div>
