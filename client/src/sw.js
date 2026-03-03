@@ -5,7 +5,14 @@ import { precacheAndRoute } from 'workbox-precaching';
 // was du vorher an 'install', 'activate' und 'fetch' Events hattest!
 precacheAndRoute(self.__WB_MANIFEST || []);
 
-// --- AB HIER KOMMT NUR NOCH DEIN PUSH CODE ---
+// --- DIESEN BLOCK HINZUFÜGEN ---
+// Lauscht auf den "Neu laden" Button aus deinem Frontend
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+});
+// ---------------------------------
 
 // 2. Push event - show notification
 self.addEventListener('push', (event) => {
