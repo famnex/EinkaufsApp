@@ -357,7 +357,7 @@ router.post('/cleanup', auth, async (req, res) => {
                 { role: "system", content: "You are a helpful assistant that outputs strictly JSON." },
                 { role: "user", content: prompt }
             ],
-            model: "gpt-4o",
+            model: "gpt-4o-mini",
             response_format: { type: "json_object" },
         });
 
@@ -1383,7 +1383,7 @@ Beispiel - Ergebnis:
     `;
 
         const completion = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo", // gpt-4o might be better but gpt-3.5 is faster and cheaper for this
+            model: "gpt-4o-mini", // Günstiger, intelligenter und strikter bei JSON
             messages: [{ role: "user", content: prompt }],
             temperature: 0.3,
         });
