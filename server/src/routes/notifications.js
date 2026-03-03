@@ -6,11 +6,15 @@ const webpush = require('web-push');
 const logger = require('../utils/logger');
 
 // Setup web-push with VAPID keys
-webpush.setVapidDetails(
-    'mailto:admin@gabelguru.de',
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-);
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(
+        'mailto:admin@gabelguru.de',
+        process.env.VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY
+    );
+} else {
+    logger.logSystem('WARNING', 'Web-Push VAPID keys are missing. Push notifications will not work.');
+}
 
 // GET /vapid-public-key - Get the public VAPID key
 router.get('/vapid-public-key', (req, res) => {
