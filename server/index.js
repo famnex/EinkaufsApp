@@ -335,11 +335,13 @@ sequelize.sync({ alter: false }).then(() => {
     const { initEmailCron } = require('./src/services/messagingService');
     const { initBanCron } = require('./src/services/banService');
     const { initSubscriptionCron } = require('./src/services/subscriptionService');
+    const { initNotificationCron } = require('./src/services/notificationService');
 
     // Start background jobs
     initEmailCron();
     initBanCron();
     initSubscriptionCron();
+    initNotificationCron();
 
     // Start Newsletter Worker
     const newsletterService = require('./src/services/newsletterService');

@@ -1557,4 +1557,61 @@ WICHTIG:
     }
 });
 
+// AI Intolerance Check for Existing Products
+router.post('/check-intolerance', auth, async (req, res) => {
+    try {
+        const { intoleranceWarning, products } = req.body; // products = [{ id, name }, ...]
+        if (!intoleranceWarning || !products || !products.length) {
+            return res.status(400).json({ error: 'Intolerance warning and products are required' });
+        }
+
+        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
+        if (!setting || !setting.value) {
+            return res.status(400).json({ error: 'OpenAI API Key not configured' });
+        }
+
+        const openai = new OpenAI({ apiKey: setting.value });
+
+        const prompt = `
+        Analysiere die folgende Liste von Lebensmittel-Produkten.
+        Prüfe für jedes Produkt, ob es die folgende Unverträglichkeit / das folgende Allergen enthalten könnte oder damit unvereinbar ist: "${intoleranceWarning}"
+        
+        WICHTIG:
+        - Antworte NUR mit gültigem JSON.
+        - Das JSON muss ein Array "results" enthalten.
+        - Jedes Objekt im Array muss die "id" des Produkts und einen boolean "isIntolerant" enthalten.
+        - "isIntolerant" ist true, wenn das Produkt das Allergen wahrscheinlich enthält, daraus besteht oder ein hohes Risiko besteht (z.B. Gluten in Nudeln, Laktose in Käse).
+        - Sei eher vorsichtig (im Zweifel true).
+        
+        Produkte:
+        ${JSON.stringify(products)}
+        
+        Format:
+        {
+            "results": [
+                { "id": 1, "isIntolerant": true },
+                { "id": 2, "isIntolerant": false }
+            ]
+        }
+        `;
+
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" }
+        });
+
+        const result = JSON.parse(completion.choices[0].message.content);
+
+        // Deduct credits
+        await creditService.deductCredits(req.user.effectiveId, 'TEXT', `KI Unverträglichkeits-Check: ${intoleranceWarning}`);
+
+        res.json(result.results);
+
+    } catch (err) {
+        console.error('AI Intolerance Check Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

@@ -55,7 +55,8 @@ const User = sequelize.define('User', {
     cookbookClicks: { type: DataTypes.INTEGER, defaultValue: 0 },
     intoleranceDisclaimerAccepted: { type: DataTypes.BOOLEAN, defaultValue: false },
     followNotificationsEnabled: { type: DataTypes.BOOLEAN, defaultValue: true },
-    lastFollowedUpdatesCheck: { type: DataTypes.DATE, allowNull: true }
+    lastFollowedUpdatesCheck: { type: DataTypes.DATE, allowNull: true },
+    lastFollowedUpdatesNudgeSent: { type: DataTypes.DATE, allowNull: true }
 });
 
 const Store = sequelize.define('Store', {

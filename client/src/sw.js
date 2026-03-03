@@ -1,5 +1,10 @@
-// Service Worker for PWA offline support
-const CACHE_NAME = 'einkaufsapp-0.22.13'; // Bumped version to force cache refresh
+import { precacheAndRoute } from 'workbox-precaching';
+
+// Service Worker for GabelGuru
+const CACHE_NAME = 'gabelguru-v1';
+precacheAndRoute(self.__WB_MANIFEST || []);
+
+
 const STATIC_ASSETS = [
     './',
     'index.html',

@@ -260,4 +260,52 @@ router.post('/check', auth, async (req, res) => {
     }
 });
 
+// POST /intolerances/bulk-assign - Save intolerance and assign to products (Admin only)
+router.post('/bulk-assign', auth, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const { name, warningText, productIds } = req.body;
+
+        if (!name || !productIds || !Array.isArray(productIds)) {
+            return res.status(400).json({ error: 'name and productIds array required' });
+        }
+
+        const { ProductIntolerance } = require('../models');
+
+        const result = await sequelize.transaction(async (t) => {
+            // 1. Create or Update Intolerance
+            let intol = await Intolerance.findOne({ where: { name }, transaction: t });
+            if (intol) {
+                await intol.update({ warningText }, { transaction: t });
+            } else {
+                intol = await Intolerance.create({ name, warningText }, { transaction: t });
+            }
+
+            // 2. Clear old assignments for this intolerance
+            await ProductIntolerance.destroy({
+                where: { IntoleranceId: intol.id },
+                transaction: t
+            });
+
+            // 3. Create new assignments
+            const assignments = productIds.map(pid => ({
+                IntoleranceId: intol.id,
+                ProductId: pid,
+                probability: 100
+            }));
+
+            if (assignments.length > 0) {
+                await ProductIntolerance.bulkCreate(assignments, { transaction: t });
+            }
+
+            return intol;
+        });
+
+        res.json({ message: 'Unverträglichkeit gespeichert und Produkte zugewiesen', intolerance: result });
+    } catch (err) {
+        console.error('Bulk assign error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

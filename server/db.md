@@ -272,6 +272,8 @@
 - **v0.32.2**: Added `ProductVariation` and `ProductVariant` for better variant management in AI Cleanup.
 - **v0.32.3**: Added `UserProductIntolerance` and global `Intolerance` system to support personal product exclusions and allergen warnings.
 - **v0.32.4**: Added `probability` column to `ProductIntolerances` to store AI-calculated quantification of restrictions.
+### 0.36.7
+- Users: Add `lastFollowedUpdatesNudgeSent` column for email reminders.
 - **v0.32.5**: Added `RecipeSubstitutions` table to support persistent ingredient replacements for specific recipes.
 - **v0.32.6**: Added `originalQuantity`, `originalUnit`, `substituteQuantity`, and `substituteUnit` to `RecipeSubstitutions` for precise adjustments.
 - **v0.32.7**: Added `UserFollows` many-to-many relationship for users to follow public/shared cookbooks. Added `followNotificationsEnabled` to `User` table.

@@ -20,6 +20,7 @@ import { Search, Package, Bell } from 'lucide-react';
 import RichTextEditor from '../components/RichTextEditor';
 import Products from './Products';
 import AiLockedModal from '../components/AiLockedModal';
+import IntoleranceCheckModal from '../components/IntoleranceCheckModal';
 import { subscribeUserToPush, unsubscribeUserFromPush } from '../lib/pushNotifications';
 
 export default function SettingsPage() {
@@ -124,8 +125,7 @@ export default function SettingsPage() {
     const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
 
     // Intolerances Add/Edit State
-    const [newIntoleranceName, setNewIntoleranceName] = useState('');
-    const [newIntoleranceWarning, setNewIntoleranceWarning] = useState('');
+    const [isIntoleranceCheckModalOpen, setIsIntoleranceCheckModalOpen] = useState(false);
     const [editIntoleranceName, setEditIntoleranceName] = useState('');
     const [editIntoleranceWarning, setEditIntoleranceWarning] = useState('');
 
@@ -2787,35 +2787,16 @@ export default function SettingsPage() {
             <div className="space-y-3">
                 {/* Admin Add New Input */}
                 {user?.role === 'admin' && (
-                    <Card className="p-4 border-dashed border-border bg-card/30 flex flex-col gap-3">
-                        <div className="flex gap-2">
-                            <Input
-                                placeholder="Name (z.B. Eier)"
-                                className="bg-transparent border-transparent focus:bg-background flex-1"
-                                value={newIntoleranceName}
-                                onChange={(e) => setNewIntoleranceName(e.target.value)}
-                            />
-                            <Input
-                                placeholder="Warnung (z.B. enthält Eier)"
-                                className="bg-transparent border-transparent focus:bg-background flex-1"
-                                value={newIntoleranceWarning}
-                                onChange={(e) => setNewIntoleranceWarning(e.target.value)}
-                            />
+                    <Button
+                        onClick={() => setIsIntoleranceCheckModalOpen(true)}
+                        className="w-full py-6 rounded-2xl bg-primary/10 hover:bg-primary/20 text-primary border-primary/20 border-dashed border-2 flex items-center justify-center gap-2 group transition-all"
+                    >
+                        <Sparkles size={20} className="group-hover:rotate-12 transition-transform" />
+                        <div className="flex flex-col items-start leading-tight">
+                            <span className="font-bold">Neu prüfen & hinzufügen</span>
+                            <span className="text-[10px] opacity-70">KI-gestützte Analyse aller Produkte</span>
                         </div>
-                        <Button
-                            size="sm"
-                            className="w-full"
-                            onClick={() => {
-                                if (newIntoleranceName.trim()) {
-                                    handleAdminSaveIntolerance(newIntoleranceName.trim(), newIntoleranceWarning.trim());
-                                    setNewIntoleranceName('');
-                                    setNewIntoleranceWarning('');
-                                }
-                            }}
-                        >
-                            <Plus size={16} className="mr-2" /> Global hinzufügen
-                        </Button>
-                    </Card>
+                    </Button>
                 )}
 
                 <AnimatePresence mode="popLayout">
@@ -6010,6 +5991,12 @@ export default function SettingsPage() {
                 isOpen={isAiLockedOpen}
                 onClose={() => setIsAiLockedOpen(false)}
                 featureName={aiLockedFeatureName}
+            />
+
+            <IntoleranceCheckModal
+                isOpen={isIntoleranceCheckModalOpen}
+                onClose={() => setIsIntoleranceCheckModalOpen(false)}
+                onSave={fetchIntolerances}
             />
         </div>
     );

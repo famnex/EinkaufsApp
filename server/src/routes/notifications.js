@@ -123,8 +123,8 @@ router.post('/admin/send-broadcast', auth, async (req, res) => {
         const payload = JSON.stringify({
             title: 'GabelGuru',
             body: message,
-            icon: '/icons/icon-192x192.png',
-            badge: '/icons/badge-96x96.png',
+            icon: '/icon-192x192.png',
+            badge: '/icon-192x192.png',
             data: {
                 url: '/'
             }
@@ -187,8 +187,8 @@ router.post('/timer-expired', auth, async (req, res) => {
         const payload = JSON.stringify({
             title: 'GabelGuru',
             body: `⏰ Timer "${displayLabel}" ist abgelaufen!`,
-            icon: '/icons/icon-192x192.png',
-            badge: '/icons/badge-96x96.png',
+            icon: '/icon-192x192.png',
+            badge: '/icon-192x192.png',
             data: {
                 url: '/recipes' // Redirect to recipes/cooking mode if possible
             },
