@@ -30,6 +30,7 @@ import CompliancePage from './pages/CompliancePage';
 import ShareTargetHandler from './pages/ShareTargetHandler';
 import VerifyEmail from './pages/VerifyEmail';
 import UnsubscribeNewsletter from './pages/UnsubscribeNewsletter';
+import { subscribeUserToPush } from './lib/pushNotifications';
 
 import { PullToRefresh } from './components/PullToRefresh';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -153,6 +154,7 @@ function AppContent() {
 
     fetchSettings();
   }, [user]); // Re-run when user auth state changes
+
 
   // Remove initial splash screen once app is mounted
   useEffect(() => {

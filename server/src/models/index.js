@@ -54,7 +54,7 @@ const User = sequelize.define('User', {
     tokenVersion: { type: DataTypes.INTEGER, defaultValue: 0 },
     cookbookClicks: { type: DataTypes.INTEGER, defaultValue: 0 },
     intoleranceDisclaimerAccepted: { type: DataTypes.BOOLEAN, defaultValue: false },
-    followNotificationsEnabled: { type: DataTypes.BOOLEAN, defaultValue: false },
+    followNotificationsEnabled: { type: DataTypes.BOOLEAN, defaultValue: true },
     lastFollowedUpdatesCheck: { type: DataTypes.DATE, allowNull: true }
 });
 
@@ -187,11 +187,16 @@ const Newsletter = require('./Newsletter')(sequelize);
 const NewsletterRecipient = require('./NewsletterRecipient')(sequelize);
 const PublicVisit = require('./PublicVisit')(sequelize);
 const RecipeInstructionOverride = require('./RecipeInstructionOverride')(sequelize);
+const PushSubscription = require('./PushSubscription')(sequelize);
+const SentPushNotification = require('./SentPushNotification')(sequelize);
+
 
 LoginLog.belongsTo(User);
 SubscriptionLog.belongsTo(User);
 User.hasMany(LoginLog);
 User.hasMany(SubscriptionLog);
+User.hasMany(PushSubscription);
+PushSubscription.belongsTo(User);
 
 ComplianceReport.belongsTo(User, { as: 'accusedUser', foreignKey: 'accusedUserId' });
 User.hasMany(ComplianceReport, { as: 'strikes', foreignKey: 'accusedUserId' });
@@ -379,5 +384,7 @@ module.exports = {
     ProductIntolerance,
     UserIntolerance,
     RecipeSubstitution,
-    RecipeInstructionOverride
+    RecipeInstructionOverride,
+    PushSubscription,
+    SentPushNotification
 };

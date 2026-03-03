@@ -3,10 +3,10 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
+dotenv.config({ path: path.join(__dirname, '.env') });
+
 const { sequelize, User, Recipe } = require('./src/models');
 const { logSystem, logError, shouldLogDebug, isDebugEnabledSync, updateDebugModeCache } = require('./src/utils/logger');
-
-dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -89,6 +89,7 @@ const authRoutes = require('./src/routes/auth');
 const listRoutes = require('./src/routes/lists');
 const productRoutes = require('./src/routes/products');
 const storeRoutes = require('./src/routes/stores');
+const notificationRoutes = require('./src/routes/notifications');
 
 const apiRouter = express.Router();
 
@@ -98,6 +99,7 @@ apiRouter.use('/products', productRoutes);
 apiRouter.use('/stores', storeRoutes);
 apiRouter.use('/recipes', require('./src/routes/recipes'));
 apiRouter.use('/menus', require('./src/routes/menus'));
+apiRouter.use('/notifications', notificationRoutes);
 apiRouter.use('/settings', require('./src/routes/settings'));
 apiRouter.use('/ai', require('./src/routes/ai'));
 apiRouter.use('/users', require('./src/routes/users'));

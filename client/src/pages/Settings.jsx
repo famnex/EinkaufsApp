@@ -16,10 +16,11 @@ import SubscriptionModal from '../components/SubscriptionModal';
 import SubscriptionCancelModal from '../components/SubscriptionCancelModal';
 import HouseholdConfirmModal from '../components/HouseholdConfirmModal';
 import api from '../lib/axios';
-import { Search, Package } from 'lucide-react';
+import { Search, Package, Bell } from 'lucide-react';
 import RichTextEditor from '../components/RichTextEditor';
 import Products from './Products';
 import AiLockedModal from '../components/AiLockedModal';
+import { subscribeUserToPush, unsubscribeUserFromPush } from '../lib/pushNotifications';
 
 export default function SettingsPage() {
     const navigate = useNavigate();
@@ -57,6 +58,13 @@ export default function SettingsPage() {
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
     const [generatingInvite, setGeneratingInvite] = useState(false);
     const [householdMembers, setHouseholdMembers] = useState([]);
+    const [pushPermissionStatus, setPushPermissionStatus] = useState(Notification.permission);
+
+    useEffect(() => {
+        if ('Notification' in window) {
+            setPushPermissionStatus(Notification.permission);
+        }
+    }, [user?.followNotificationsEnabled]);
     const [fetchingMembers, setFetchingMembers] = useState(false);
     const [isUserDetailModalOpen, setIsUserDetailModalOpen] = useState(false);
     const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
@@ -1737,10 +1745,10 @@ export default function SettingsPage() {
 
                             <div className="flex items-center justify-between p-4 bg-muted/50 rounded-2xl border border-border/50">
                                 <div className="space-y-1">
-                                    <p className="font-bold text-foreground">Kochbuch-Benachrichtigungen</p>
+                                    <p className="font-bold text-foreground">Benachrichtigungen</p>
                                     <p className="text-xs text-muted-foreground">
                                         {user?.followNotificationsEnabled
-                                            ? 'Aktiviert'
+                                            ? (pushPermissionStatus === 'denied' ? 'Aktiviert (E-Mail), aber Browser-Push blockiert ⚠️' : 'Aktiviert (E-Mail & Push)')
                                             : 'Deaktiviert'}
                                     </p>
                                 </div>
@@ -1749,24 +1757,41 @@ export default function SettingsPage() {
                                         type="checkbox"
                                         className="sr-only peer"
                                         checked={user?.followNotificationsEnabled || false}
-                                        onChange={(e) => {
+                                        onChange={async (e) => {
                                             const newVal = e.target.checked;
                                             // Optimistic update
                                             setUser({ ...user, followNotificationsEnabled: newVal });
-                                            // API call
-                                            api.put('/auth/profile', { followNotificationsEnabled: newVal }).catch(() => {
+                                            try {
+                                                // Update profile (email setting)
+                                                await api.put('/auth/profile', { followNotificationsEnabled: newVal });
+                                                // Handle push subscription
+                                                if (newVal) {
+                                                    await subscribeUserToPush();
+                                                } else {
+                                                    await unsubscribeUserFromPush();
+                                                }
+                                            } catch (err) {
                                                 // Revert on error
                                                 setUser({ ...user, followNotificationsEnabled: !newVal });
                                                 alert('Fehler beim Speichern der Benachrichtigungs-Einstellung');
-                                            });
+                                            }
                                         }}
                                     />
                                     <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                                 </label>
                             </div>
 
+                            {user?.followNotificationsEnabled && pushPermissionStatus === 'denied' && (
+                                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-xl">
+                                    <p className="text-xs text-destructive flex items-center gap-2">
+                                        <ShieldCheck size={14} />
+                                        <span>Deine Browser-Einstellungen blockieren Benachrichtigungen. Bitte erlaube sie in den Website-Einstellungen, um Push-Mitteilungen zu erhalten.</span>
+                                    </p>
+                                </div>
+                            )}
+
                             <p className="text-xs text-muted-foreground italic px-1">
-                                Erhalte regelmäßig Updates zu neuen Funktionen, Rezepten und Community-Highlights sowie Benachrichtigungen über Kochbücher denen du folgst. Du kannst dich jederzeit hier oder über den Link in den E-Mails abmelden.
+                                Erhalte regelmäßig Updates zu neuen Funktionen, Rezepten und Community-Highlights sowie Benachrichtigungen über Kochbücher, denen du folgst (per E-Mail und Push-Mitteilung).
                             </p>
                         </div>
                     </Card>
@@ -4058,489 +4083,620 @@ export default function SettingsPage() {
         { id: 'daemon', label: 'MAILER-DAEMON', icon: ShieldAlert },
         { id: 'sent', label: 'Gesendet', icon: Send },
         { id: 'sent_system', label: 'Gesendet (System)', icon: Server },
+        { id: 'push', label: 'Push', icon: Bell },
         { id: 'newsletter', label: 'Newsletter', icon: Mail },
         { id: 'trash', label: 'Papierkorb', icon: Trash2 }
     ];
 
-    const MessagingSection = (
-        <div className="space-y-4">
-            {/* Folder Navigation */}
-            <div className="flex overflow-x-auto no-scrollbar gap-2 pb-1">
-                {messagingFolders.map(f => {
-                    const FIcon = f.icon;
-                    return (
-                        <button
-                            key={f.id}
-                            onClick={() => switchFolder(f.id)}
-                            className={cn(
-                                "flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
-                                messagingFolder === f.id
-                                    ? "bg-primary/10 text-primary border border-primary/20"
-                                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
-                            )}
+    const MessagingSection = (() => {
+        const [pushMessage, setPushMessage] = useState('');
+        const [pushHistory, setPushHistory] = useState([]);
+        const [loadingPushHistory, setLoadingPushHistory] = useState(false);
+        const [sendingPush, setSendingPush] = useState(false);
+
+        const fetchPushHistory = async () => {
+            setLoadingPushHistory(true);
+            try {
+                const response = await api.get('/notifications/admin/history');
+                setPushHistory(response.data);
+            } catch (err) {
+                console.error('Failed to fetch push history:', err);
+            } finally {
+                setLoadingPushHistory(false);
+            }
+        };
+
+        useEffect(() => {
+            if (activeTab === 'admin' && activeAdminTab === 'messaging' && messagingFolder === 'push') {
+                fetchPushHistory();
+            }
+        }, [activeTab, activeAdminTab, messagingFolder]);
+
+        const handleSendPush = async () => {
+            if (pushMessage.length < 10) return;
+            if (!confirm('Sind Sie sicher, dass Sie diese Push-Nachricht an ALLE Abonnenten senden möchten?')) return;
+
+            setSendingPush(true);
+            try {
+                await api.post('/notifications/admin/send-broadcast', { message: pushMessage });
+                setPushMessage('');
+                fetchPushHistory();
+                alert('Push-Nachricht wurde versendet!');
+            } catch (err) {
+                console.error('Failed to send push:', err);
+                alert('Fehler beim Senden der Push-Nachricht: ' + (err.response?.data?.error || err.message));
+            } finally {
+                setSendingPush(false);
+            }
+        };
+
+        const PushManagementSection = (
+            <div className="space-y-6">
+                <Card className="p-6 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                        <Bell size={20} className="text-primary" />
+                        Push-Nachricht senden
+                    </h3>
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Nachricht</label>
+                            <textarea
+                                value={pushMessage}
+                                onChange={(e) => setPushMessage(e.target.value)}
+                                placeholder="Geben Sie hier die Push-Nachricht ein (mind. 10 Zeichen)..."
+                                className="flex min-h-[100px] w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 resize-y"
+                            />
+                            <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider">
+                                <span className={pushMessage.length < 10 ? "text-destructive" : "text-emerald-500"}>
+                                    {pushMessage.length} / 10 Zeichen
+                                </span>
+                            </div>
+                        </div>
+                        <Button
+                            onClick={handleSendPush}
+                            disabled={sendingPush || pushMessage.length < 10}
+                            className="w-full h-11 gap-2"
                         >
-                            <FIcon size={14} />
-                            {f.label}
-                            {f.id === 'inbox' && unreadInbox > 0 && (
-                                <span className="ml-1 bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center font-bold">{unreadInbox}</span>
-                            )}
-                        </button>
-                    );
-                })}
-            </div>
-
-            {/* Toolbar: Search and Global Actions */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                    <Input
-                        value={messagingSearch}
-                        onChange={(e) => {
-                            setMessagingSearch(e.target.value);
-                            // Debounce fetch would be better, but let's just use the current button or Enter
-                        }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') fetchEmails(messagingFolder, messagingSearch);
-                        }}
-                        placeholder="Absender, Empfänger, Betreff..."
-                        className="pl-10 h-10 bg-muted/50 border-transparent focus:bg-background h-9 text-sm"
-                    />
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button
-                        onClick={() => fetchEmails(messagingFolder, messagingSearch)}
-                        variant="outline"
-                        size="sm"
-                        className="h-9 px-3"
-                    >
-                        Suchen
-                    </Button>
-                    <Button
-                        onClick={handleImapFetch}
-                        disabled={fetchingEmails}
-                        variant="outline"
-                        size="sm"
-                        className="h-9 px-3 gap-1.5"
-                    >
-                        {fetchingEmails ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-                        Abrufen
-                    </Button>
-                    <Button
-                        onClick={() => {
-                            setReplyTo(null);
-                            setComposeData({ to: '', cc: '', bcc: '', subject: '', body: 'Hallo {benutzername},<br><br>' });
-                            setShowCcBcc(false);
-                            setComposeOpen(true);
-                        }}
-                        size="sm"
-                        className="h-9 px-3 gap-1.5"
-                    >
-                        <Pen size={16} />
-                        Neu
-                    </Button>
-                </div>
-            </div>
-
-            {/* Bulk Actions Toolbar (Sticky if items selected) */}
-            {selectedEmailIds.length > 0 && (
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 px-6 py-3 bg-card border border-primary/20 shadow-2xl rounded-full backdrop-blur-md"
-                >
-                    <span className="text-sm font-bold text-primary">{selectedEmailIds.length} ausgewählt</span>
-                    <div className="h-4 w-px bg-border/50" />
-                    <div className="flex items-center gap-2">
-                        {(messagingFolder === 'inbox' || messagingFolder === 'daemon') && (
-                            <>
-                                <Button variant="ghost" size="sm" onClick={handleBulkRead} className="text-primary hover:bg-primary/10 h-8 px-3 text-xs font-bold gap-1.5" title="Als gelesen markieren">
-                                    <MailOpen size={14} /> Gelesen
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={handleBulkUnread} className="text-primary hover:bg-primary/10 h-8 px-3 text-xs font-bold gap-1.5" title="Als ungelesen markieren">
-                                    <Mail size={14} /> Ungelesen
-                                </Button>
-                            </>
-                        )}
-                        {messagingFolder !== 'trash' ? (
-                            <Button variant="ghost" size="sm" onClick={handleBulkTrash} className="text-red-500 hover:text-red-600 hover:bg-red-500/10 h-8 px-3 text-xs font-bold gap-1.5">
-                                <Trash2 size={14} /> Papierkorb
-                            </Button>
-                        ) : (
-                            <>
-                                <Button variant="ghost" size="sm" onClick={handleBulkRestore} className="text-primary hover:bg-primary/10 h-8 px-3 text-xs font-bold gap-1.5">
-                                    <ArrowLeft size={14} /> Wiederherstellen
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={handleBulkDelete} className="text-red-500 hover:text-red-600 hover:bg-red-500/10 h-8 px-3 text-xs font-bold gap-1.5">
-                                    <Trash2 size={14} /> Endgültig löschen
-                                </Button>
-                            </>
-                        )}
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedEmailIds([])} className="text-muted-foreground h-8 px-3 text-xs font-bold">
-                            Aufheben
+                            {sendingPush ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                            Broadcast Senden
                         </Button>
                     </div>
-                </motion.div>
-            )}
+                </Card>
 
-            {/* Email Detail View */}
-            {selectedEmail ? (
-                <Card className="p-6 border-border bg-card/50 shadow-lg backdrop-blur-sm">
-                    <div className="flex items-center justify-between mb-4">
-                        <button
-                            onClick={() => setSelectedEmail(null)}
-                            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                            <ArrowLeft size={16} />
-                            Zurück
-                        </button>
-                        <div className="flex items-center gap-2">
-                            {selectedEmail.folder === 'newsletter' && (
-                                <div className="flex flex-col gap-1 pr-4">
-                                    <div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-primary transition-all duration-500"
-                                            style={{ width: `${Math.min(100, Math.round(((selectedEmail.sentCount + selectedEmail.failedCount) / (selectedEmail.recipientsCount || 1)) * 100))}%` }}
-                                        />
-                                    </div>
-                                    <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">
-                                        {selectedEmail.sentCount} / {selectedEmail.recipientsCount} versendet
-                                    </span>
-                                </div>
-                            )}
-                            {selectedEmail.folder === 'inbox' && (
-                                <Button variant="outline" size="sm" onClick={() => openReply(selectedEmail)} className="gap-1">
-                                    <Reply size={14} />
-                                    <span className="hidden sm:inline">Antworten</span>
-                                </Button>
-                            )}
-                            {selectedEmail.folder === 'inbox' || selectedEmail.folder === 'daemon' ? (
-                                <Button variant="outline" size="sm" onClick={() => handleToggleRead(selectedEmail.id, selectedEmail.isRead)} title={selectedEmail.isRead ? 'Als ungelesen markieren' : 'Als gelesen markieren'}>
-                                    {selectedEmail.isRead ? <Mail size={14} /> : <MailOpen size={14} />}
-                                </Button>
-                            ) : null}
-                            {selectedEmail.folder !== 'trash' ? (
-                                <Button variant="outline" size="sm" onClick={() => handleTrashEmail(selectedEmail.id)} className="gap-1 text-red-500 hover:text-red-600">
-                                    <Trash2 size={14} />
-                                    <span className="hidden sm:inline">Löschen</span>
-                                </Button>
-                            ) : (
-                                <>
-                                    <Button variant="outline" size="sm" onClick={() => handleRestoreEmail(selectedEmail.id)} className="gap-1">
-                                        <ArrowLeft size={14} />
-                                        <span className="hidden sm:inline">Wiederherstellen</span>
-                                    </Button>
-                                    <Button variant="outline" size="sm" onClick={() => handleDeleteEmail(selectedEmail.id)} className="gap-1 text-red-500 hover:text-red-600">
-                                        <Trash2 size={14} />
-                                        <span className="hidden sm:inline">Endgültig löschen</span>
-                                    </Button>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                    <h2 className="text-xl font-bold text-foreground mb-3">{selectedEmail.subject || '(Kein Betreff)'}</h2>
-                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-4">
-                        <span><strong>Von:</strong> {selectedEmail.fromAddress}</span>
-                        <span><strong>An:</strong> {selectedEmail.toAddress}</span>
-                        {selectedEmail.cc && <span><strong>CC:</strong> {selectedEmail.cc}</span>}
-                        {selectedEmail.bcc && <span><strong>BCC:</strong> {selectedEmail.bcc}</span>}
-                        <span><strong>Datum:</strong> {new Date(selectedEmail.date).toLocaleString('de-DE')}</span>
-                        {(selectedEmail.folder === 'inbox' || selectedEmail.folder === 'daemon') && (
-                            <button
-                                onClick={(e) => handleToggleFlag(e, selectedEmail.id, selectedEmail.flag)}
-                                className={cn(
-                                    "p-1 rounded-md transition-all hover:bg-muted inline-flex items-center",
-                                    selectedEmail.flag === 'flagged' && "text-amber-500 bg-amber-500/10",
-                                    selectedEmail.flag === 'completed' && "text-green-500 bg-green-500/10",
-                                    selectedEmail.flag === 'none' && "text-muted-foreground/30 hover:text-muted-foreground"
+                <Card className="p-6 border-border bg-card/50 shadow-lg backdrop-blur-sm overflow-hidden">
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                        <History size={20} className="text-primary" />
+                        Verlauf
+                    </h3>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-muted/50 border-b border-border text-xs uppercase text-muted-foreground font-bold">
+                                <tr>
+                                    <th className="px-4 py-3">Datum</th>
+                                    <th className="px-4 py-3">Nachricht</th>
+                                    <th className="px-4 py-3 text-right">Empfänger</th>
+                                    <th className="px-4 py-3 text-right">Erfolg</th>
+                                    <th className="px-4 py-3 text-right">Fehler</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                                {loadingPushHistory ? (
+                                    <tr>
+                                        <td colSpan="5" className="px-4 py-8 text-center">
+                                            <Loader2 size={24} className="animate-spin text-primary mx-auto" />
+                                        </td>
+                                    </tr>
+                                ) : pushHistory.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="5" className="px-4 py-8 text-center text-muted-foreground italic">
+                                            Noch keine Push-Nachrichten versendet.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    pushHistory.map(item => (
+                                        <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                                            <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                                                {new Date(item.createdAt).toLocaleString('de-DE')}
+                                            </td>
+                                            <td className="px-4 py-3 font-medium min-w-[200px]">{item.message}</td>
+                                            <td className="px-4 py-3 text-right font-bold">{item.recipientCount}</td>
+                                            <td className="px-4 py-3 text-right text-emerald-500 font-bold">{item.successCount}</td>
+                                            <td className="px-4 py-3 text-right text-destructive font-bold">{item.failureCount}</td>
+                                        </tr>
+                                    ))
                                 )}
-                                title="Status ändern"
-                            >
-                                {selectedEmail.flag === 'completed' ? <CheckCircle2 size={16} /> : (selectedEmail.flag === 'flagged' ? <Star size={16} fill="currentColor" /> : <Star size={16} />)}
-                            </button>
-                        )}
-                    </div>
-                    <div className="border-t border-border pt-4 min-w-0">
-                        <div className="w-full overflow-x-auto custom-scrollbar pb-2">
-                            {selectedEmail.body ? (
-                                <div
-                                    className="prose prose-sm max-w-none text-foreground [&_a]:text-primary min-w-0"
-                                    dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
-                                />
-                            ) : (
-                                <pre className="whitespace-pre-wrap text-sm text-foreground font-sans">{selectedEmail.bodyText || 'Kein Inhalt'}</pre>
-                            )}
-                        </div>
+                            </tbody>
+                        </table>
                     </div>
                 </Card>
-            ) : (
-                /* Email List */
-                <Card className="border-border bg-card/50 shadow-lg backdrop-blur-sm overflow-hidden">
-                    {loadingEmails ? (
-                        <div className="flex items-center justify-center p-12">
-                            <Loader2 size={24} className="animate-spin text-primary" />
-                        </div>
-                    ) : emails.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center p-12 text-muted-foreground">
-                            <MailOpen size={40} className="mb-3 opacity-50" />
-                            <p className="font-medium">Keine E-Mails in {messagingFolders.find(f => f.id === messagingFolder)?.label}</p>
-                            {messagingFolder === 'inbox' && (
-                                <p className="text-sm mt-1">Klicke "Abrufen" um neue E-Mails zu laden</p>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-border">
-                            {/* Select All Checkbox */}
-                            <div className="px-4 py-2 bg-muted/20 flex items-center gap-3">
-                                <input
-                                    type="checkbox"
-                                    checked={emails.length > 0 && selectedEmailIds.length === emails.length}
-                                    onChange={toggleAllEmails}
-                                    className="rounded border-border bg-background text-primary focus:ring-primary h-4 w-4 transition-all"
-                                />
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Alle auswählen</span>
-                            </div>
+            </div>
+        );
 
-                            {emails.map(email => (
-                                <div key={email.id} className="flex items-center gap-0 group">
-                                    <div className="pl-4 py-3 bg-transparent shrink-0">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedEmailIds.includes(email.id)}
-                                            onChange={() => toggleEmailSelection(email.id)}
-                                            className="rounded border-border bg-background text-primary focus:ring-primary h-4 w-4 transition-all"
-                                        />
-                                    </div>
-                                    <div
-                                        role="button"
-                                        tabIndex={0}
-                                        onClick={() => openEmail(email.id)}
-                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openEmail(email.id); }}
-                                        className={cn(
-                                            "flex-1 text-left px-4 py-3 hover:bg-muted/50 transition-colors flex items-start gap-3 cursor-pointer outline-none focus-visible:bg-muted/50",
-                                            !email.isRead && "bg-primary/5"
-                                        )}
+        return (
+            <div className="space-y-4">
+                {/* Folder Navigation */}
+                <div className="flex overflow-x-auto no-scrollbar gap-2 pb-1">
+                    {messagingFolders.map(f => {
+                        const FIcon = f.icon;
+                        return (
+                            <button
+                                key={f.id}
+                                onClick={() => switchFolder(f.id)}
+                                className={cn(
+                                    "flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
+                                    messagingFolder === f.id
+                                        ? "bg-primary/10 text-primary border border-primary/20"
+                                        : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
+                                )}
+                            >
+                                <FIcon size={14} />
+                                {f.label}
+                                {f.id === 'inbox' && unreadInbox > 0 && (
+                                    <span className="ml-1 bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center font-bold">{unreadInbox}</span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {messagingFolder === 'push' ? PushManagementSection : (
+                    <>
+                        {/* Toolbar: Search and Global Actions */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                            <div className="relative flex-1 max-w-md">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                                <Input
+                                    value={messagingSearch}
+                                    onChange={(e) => {
+                                        setMessagingSearch(e.target.value);
+                                        // Debounce fetch would be better, but let's just use the current button or Enter
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') fetchEmails(messagingFolder, messagingSearch);
+                                    }}
+                                    placeholder="Absender, Empfänger, Betreff..."
+                                    className="pl-10 h-10 bg-muted/50 border-transparent focus:bg-background h-9 text-sm"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    onClick={() => fetchEmails(messagingFolder, messagingSearch)}
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-9 px-3"
+                                >
+                                    Suchen
+                                </Button>
+                                <Button
+                                    onClick={handleImapFetch}
+                                    disabled={fetchingEmails}
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-9 px-3 gap-1.5"
+                                >
+                                    {fetchingEmails ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                                    Abrufen
+                                </Button>
+                                <Button
+                                    onClick={() => {
+                                        setReplyTo(null);
+                                        setComposeData({ to: '', cc: '', bcc: '', subject: '', body: 'Hallo {benutzername},<br><br>' });
+                                        setShowCcBcc(false);
+                                        setComposeOpen(true);
+                                    }}
+                                    size="sm"
+                                    className="h-9 px-3 gap-1.5"
+                                >
+                                    <Pen size={16} />
+                                    Neu
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Bulk Actions Toolbar (Sticky if items selected) */}
+                        {selectedEmailIds.length > 0 && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 px-6 py-3 bg-card border border-primary/20 shadow-2xl rounded-full backdrop-blur-md"
+                            >
+                                <span className="text-sm font-bold text-primary">{selectedEmailIds.length} ausgewählt</span>
+                                <div className="h-4 w-px bg-border/50" />
+                                <div className="flex items-center gap-2">
+                                    {(messagingFolder === 'inbox' || messagingFolder === 'daemon') && (
+                                        <>
+                                            <Button variant="ghost" size="sm" onClick={handleBulkRead} className="text-primary hover:bg-primary/10 h-8 px-3 text-xs font-bold gap-1.5" title="Als gelesen markieren">
+                                                <MailOpen size={14} /> Gelesen
+                                            </Button>
+                                            <Button variant="ghost" size="sm" onClick={handleBulkUnread} className="text-primary hover:bg-primary/10 h-8 px-3 text-xs font-bold gap-1.5" title="Als ungelesen markieren">
+                                                <Mail size={14} /> Ungelesen
+                                            </Button>
+                                        </>
+                                    )}
+                                    {messagingFolder !== 'trash' ? (
+                                        <Button variant="ghost" size="sm" onClick={handleBulkTrash} className="text-red-500 hover:text-red-600 hover:bg-red-500/10 h-8 px-3 text-xs font-bold gap-1.5">
+                                            <Trash2 size={14} /> Papierkorb
+                                        </Button>
+                                    ) : (
+                                        <>
+                                            <Button variant="ghost" size="sm" onClick={handleBulkRestore} className="text-primary hover:bg-primary/10 h-8 px-3 text-xs font-bold gap-1.5">
+                                                <ArrowLeft size={14} /> Wiederherstellen
+                                            </Button>
+                                            <Button variant="ghost" size="sm" onClick={handleBulkDelete} className="text-red-500 hover:text-red-600 hover:bg-red-500/10 h-8 px-3 text-xs font-bold gap-1.5">
+                                                <Trash2 size={14} /> Endgültig löschen
+                                            </Button>
+                                        </>
+                                    )}
+                                    <Button variant="ghost" size="sm" onClick={() => setSelectedEmailIds([])} className="text-muted-foreground h-8 px-3 text-xs font-bold">
+                                        Aufheben
+                                    </Button>
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {/* Email Detail View */}
+                        {selectedEmail ? (
+                            <Card className="p-6 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                                <div className="flex items-center justify-between mb-4">
+                                    <button
+                                        onClick={() => setSelectedEmail(null)}
+                                        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
                                     >
-                                        <div className="mt-1 shrink-0">
-                                            {messagingFolder === 'trash' ? (
-                                                <div className="text-muted-foreground/60">
-                                                    {email.previousFolder === 'inbox' && <Inbox size={18} />}
-                                                    {email.previousFolder === 'sent' && <Send size={18} />}
-                                                    {email.previousFolder === 'daemon' && <ShieldAlert size={18} />}
-                                                    {email.previousFolder === 'sent_system' && <Server size={18} />}
-                                                    {!email.previousFolder && <MailOpen size={18} />}
+                                        <ArrowLeft size={16} />
+                                        Zurück
+                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        {selectedEmail.folder === 'newsletter' && (
+                                            <div className="flex flex-col gap-1 pr-4">
+                                                <div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-primary transition-all duration-500"
+                                                        style={{ width: `${Math.min(100, Math.round(((selectedEmail.sentCount + selectedEmail.failedCount) / (selectedEmail.recipientsCount || 1)) * 100))}%` }}
+                                                    />
                                                 </div>
-                                            ) : (
-                                                email.isRead ? (
-                                                    <MailOpen size={16} className="text-muted-foreground" />
-                                                ) : (
-                                                    <Mail size={16} className="text-primary" />
-                                                )
+                                                <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">
+                                                    {selectedEmail.sentCount} / {selectedEmail.recipientsCount} versendet
+                                                </span>
+                                            </div>
+                                        )}
+                                        {selectedEmail.folder === 'inbox' && (
+                                            <Button variant="outline" size="sm" onClick={() => openReply(selectedEmail)} className="gap-1">
+                                                <Reply size={14} />
+                                                <span className="hidden sm:inline">Antworten</span>
+                                            </Button>
+                                        )}
+                                        {selectedEmail.folder === 'inbox' || selectedEmail.folder === 'daemon' ? (
+                                            <Button variant="outline" size="sm" onClick={() => handleToggleRead(selectedEmail.id, selectedEmail.isRead)} title={selectedEmail.isRead ? 'Als ungelesen markieren' : 'Als gelesen markieren'}>
+                                                {selectedEmail.isRead ? <Mail size={14} /> : <MailOpen size={14} />}
+                                            </Button>
+                                        ) : null}
+                                        {selectedEmail.folder !== 'trash' ? (
+                                            <Button variant="outline" size="sm" onClick={() => handleTrashEmail(selectedEmail.id)} className="gap-1 text-red-500 hover:text-red-600">
+                                                <Trash2 size={14} />
+                                                <span className="hidden sm:inline">Löschen</span>
+                                            </Button>
+                                        ) : (
+                                            <>
+                                                <Button variant="outline" size="sm" onClick={() => handleRestoreEmail(selectedEmail.id)} className="gap-1">
+                                                    <ArrowLeft size={14} />
+                                                    <span className="hidden sm:inline">Wiederherstellen</span>
+                                                </Button>
+                                                <Button variant="outline" size="sm" onClick={() => handleDeleteEmail(selectedEmail.id)} className="gap-1 text-red-500 hover:text-red-600">
+                                                    <Trash2 size={14} />
+                                                    <span className="hidden sm:inline">Endgültig löschen</span>
+                                                </Button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                                <h2 className="text-xl font-bold text-foreground mb-3">{selectedEmail.subject || '(Kein Betreff)'}</h2>
+                                <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-4">
+                                    <span><strong>Von:</strong> {selectedEmail.fromAddress}</span>
+                                    <span><strong>An:</strong> {selectedEmail.toAddress}</span>
+                                    {selectedEmail.cc && <span><strong>CC:</strong> {selectedEmail.cc}</span>}
+                                    {selectedEmail.bcc && <span><strong>BCC:</strong> {selectedEmail.bcc}</span>}
+                                    <span><strong>Datum:</strong> {new Date(selectedEmail.date).toLocaleString('de-DE')}</span>
+                                    {(selectedEmail.folder === 'inbox' || selectedEmail.folder === 'daemon') && (
+                                        <button
+                                            onClick={(e) => handleToggleFlag(e, selectedEmail.id, selectedEmail.flag)}
+                                            className={cn(
+                                                "p-1 rounded-md transition-all hover:bg-muted inline-flex items-center",
+                                                selectedEmail.flag === 'flagged' && "text-amber-500 bg-amber-500/10",
+                                                selectedEmail.flag === 'completed' && "text-green-500 bg-green-500/10",
+                                                selectedEmail.flag === 'none' && "text-muted-foreground/30 hover:text-muted-foreground"
                                             )}
+                                            title="Status ändern"
+                                        >
+                                            {selectedEmail.flag === 'completed' ? <CheckCircle2 size={16} /> : (selectedEmail.flag === 'flagged' ? <Star size={16} fill="currentColor" /> : <Star size={16} />)}
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="border-t border-border pt-4 min-w-0">
+                                    <div className="w-full overflow-x-auto custom-scrollbar pb-2">
+                                        {selectedEmail.body ? (
+                                            <div
+                                                className="prose prose-sm max-w-none text-foreground [&_a]:text-primary min-w-0"
+                                                dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
+                                            />
+                                        ) : (
+                                            <pre className="whitespace-pre-wrap text-sm text-foreground font-sans">{selectedEmail.bodyText || 'Kein Inhalt'}</pre>
+                                        )}
+                                    </div>
+                                </div>
+                            </Card>
+                        ) : (
+                            /* Email List */
+                            <Card className="border-border bg-card/50 shadow-lg backdrop-blur-sm overflow-hidden">
+                                {loadingEmails ? (
+                                    <div className="flex items-center justify-center p-12">
+                                        <Loader2 size={24} className="animate-spin text-primary" />
+                                    </div>
+                                ) : emails.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center p-12 text-muted-foreground">
+                                        <MailOpen size={40} className="mb-3 opacity-50" />
+                                        <p className="font-medium">Keine E-Mails in {messagingFolders.find(f => f.id === messagingFolder)?.label}</p>
+                                        {messagingFolder === 'inbox' && (
+                                            <p className="text-sm mt-1">Klicke "Abrufen" um neue E-Mails zu laden</p>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="divide-y divide-border">
+                                        {/* Select All Checkbox */}
+                                        <div className="px-4 py-2 bg-muted/20 flex items-center gap-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={emails.length > 0 && selectedEmailIds.length === emails.length}
+                                                onChange={toggleAllEmails}
+                                                className="rounded border-border bg-background text-primary focus:ring-primary h-4 w-4 transition-all"
+                                            />
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Alle auswählen</span>
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <p className={cn(
-                                                    "text-sm truncate",
-                                                    email.isRead ? "text-muted-foreground" : "text-foreground font-bold"
-                                                )}>
-                                                    {(messagingFolder === 'sent' || messagingFolder === 'sent_system') ? email.toAddress : email.fromAddress}
-                                                </p>
-                                                <div className="flex items-center gap-3">
-                                                    {email.folder === 'newsletter' ? (
-                                                        <div className="flex flex-col items-end gap-1 min-w-[100px]">
-                                                            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                                                                <div
-                                                                    className="h-full bg-primary transition-all duration-300"
-                                                                    style={{ width: `${Math.min(100, Math.round(((email.sentCount + email.failedCount) / (email.recipientsCount || 1)) * 100))}%` }}
-                                                                />
+
+                                        {emails.map(email => (
+                                            <div key={email.id} className="flex items-center gap-0 group">
+                                                <div className="pl-4 py-3 bg-transparent shrink-0">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedEmailIds.includes(email.id)}
+                                                        onChange={() => toggleEmailSelection(email.id)}
+                                                        className="rounded border-border bg-background text-primary focus:ring-primary h-4 w-4 transition-all"
+                                                    />
+                                                </div>
+                                                <div
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={() => openEmail(email.id)}
+                                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openEmail(email.id); }}
+                                                    className={cn(
+                                                        "flex-1 text-left px-4 py-3 hover:bg-muted/50 transition-colors flex items-start gap-3 cursor-pointer outline-none focus-visible:bg-muted/50",
+                                                        !email.isRead && "bg-primary/5"
+                                                    )}
+                                                >
+                                                    <div className="mt-1 shrink-0">
+                                                        {messagingFolder === 'trash' ? (
+                                                            <div className="text-muted-foreground/60">
+                                                                {email.previousFolder === 'inbox' && <Inbox size={18} />}
+                                                                {email.previousFolder === 'sent' && <Send size={18} />}
+                                                                {email.previousFolder === 'daemon' && <ShieldAlert size={18} />}
+                                                                {email.previousFolder === 'sent_system' && <Server size={18} />}
+                                                                {!email.previousFolder && <MailOpen size={18} />}
                                                             </div>
-                                                            <span className="text-[10px] text-muted-foreground font-bold">
-                                                                {email.sentCount}/{email.recipientsCount}
+                                                        ) : (
+                                                            email.isRead ? (
+                                                                <MailOpen size={16} className="text-muted-foreground" />
+                                                            ) : (
+                                                                <Mail size={16} className="text-primary" />
+                                                            )
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <p className={cn(
+                                                                "text-sm truncate",
+                                                                email.isRead ? "text-muted-foreground" : "text-foreground font-bold"
+                                                            )}>
+                                                                {(messagingFolder === 'sent' || messagingFolder === 'sent_system') ? email.toAddress : email.fromAddress}
+                                                            </p>
+                                                            <div className="flex items-center gap-3">
+                                                                {email.folder === 'newsletter' ? (
+                                                                    <div className="flex flex-col items-end gap-1 min-w-[100px]">
+                                                                        <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                                                                            <div
+                                                                                className="h-full bg-primary transition-all duration-300"
+                                                                                style={{ width: `${Math.min(100, Math.round(((email.sentCount + email.failedCount) / (email.recipientsCount || 1)) * 100))}%` }}
+                                                                            />
+                                                                        </div>
+                                                                        <span className="text-[10px] text-muted-foreground font-bold">
+                                                                            {email.sentCount}/{email.recipientsCount}
+                                                                        </span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                                                        {email.date ? new Date(email.date).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                                                                    </span>
+                                                                )}
+                                                                {(messagingFolder === 'inbox' || messagingFolder === 'daemon') && (
+                                                                    <button
+                                                                        onClick={(e) => handleToggleFlag(e, email.id, email.flag)}
+                                                                        className={cn(
+                                                                            "p-1 rounded-full transition-all hover:bg-muted",
+                                                                            email.flag === 'flagged' && "text-amber-500",
+                                                                            email.flag === 'completed' && "text-green-500",
+                                                                            email.flag === 'none' && "text-muted-foreground/30"
+                                                                        )}
+                                                                    >
+                                                                        {email.flag === 'completed' ? <CheckCircle2 size={18} /> : (email.flag === 'flagged' ? <Star size={18} fill="currentColor" /> : <Star size={18} />)}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <p className={cn(
+                                                            "text-sm truncate",
+                                                            email.isRead ? "text-muted-foreground" : "text-foreground font-medium"
+                                                        )}>
+                                                            {email.subject || '(Kein Betreff)'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </Card >
+                        )}
+
+                        {/* Compose Modal */}
+                        <AnimatePresence>
+                            {composeOpen && (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+                                    onClick={() => setComposeOpen(false)}
+                                >
+                                    <motion.div
+                                        initial={{ scale: 0.95, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        exit={{ scale: 0.95, opacity: 0 }}
+                                        className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+                                        onClick={e => e.stopPropagation()}
+                                    >
+                                        <div className="p-6">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <h3 className="text-lg font-bold text-foreground">
+                                                    {replyTo ? 'Antworten' : 'Neue E-Mail'}
+                                                </h3>
+                                                <button onClick={() => setComposeOpen(false)} className="text-muted-foreground hover:text-foreground">
+                                                    <X size={20} />
+                                                </button>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <div className="relative">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">An</label>
+                                                        <div className="flex items-center gap-3">
+                                                            <button
+                                                                onClick={() => {
+                                                                    const next = !isNewsletter;
+                                                                    setIsNewsletter(next);
+                                                                    if (next) {
+                                                                        fetchNewsletterRecipientCount();
+                                                                        if (!composeData.body || composeData.body.includes('Lieber {benutzername}')) {
+                                                                            setComposeData(prev => ({
+                                                                                ...prev,
+                                                                                body: `Hallo {benutzername},<br><br>`
+                                                                            }));
+                                                                        }
+                                                                    }
+                                                                }}
+                                                                className={cn(
+                                                                    "text-[10px] font-bold px-2 py-0.5 rounded-full transition-all",
+                                                                    isNewsletter ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                                                )}
+                                                            >
+                                                                {isNewsletter ? 'Newsletter aktiv' : 'Als Newsletter senden?'}
+                                                            </button>
+                                                            {!isNewsletter && (
+                                                                <button
+                                                                    onClick={() => setShowCcBcc(!showCcBcc)}
+                                                                    className="text-[10px] text-primary hover:underline font-bold"
+                                                                >
+                                                                    {showCcBcc ? '- CC/BCC ausblenden' : '+ CC/BCC hinzufügen'}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    {isNewsletter ? (
+                                                        <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg flex items-center justify-between">
+                                                            <div className="flex items-center gap-2 text-primary">
+                                                                <Users size={16} />
+                                                                <span className="text-sm font-bold">Newsletter-Abonnenten</span>
+                                                            </div>
+                                                            <span className="text-xs font-bold bg-primary/10 px-2 py-1 rounded-md text-primary">
+                                                                {newsletterRecipientCount} Empfänger
                                                             </span>
                                                         </div>
                                                     ) : (
-                                                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                                            {email.date ? new Date(email.date).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
-                                                        </span>
+                                                        <Input
+                                                            value={composeData.to}
+                                                            onChange={e => setComposeData({ ...composeData, to: e.target.value })}
+                                                            placeholder="empfaenger@example.com"
+                                                            className="bg-muted border-transparent"
+                                                        />
                                                     )}
-                                                    {(messagingFolder === 'inbox' || messagingFolder === 'daemon') && (
-                                                        <button
-                                                            onClick={(e) => handleToggleFlag(e, email.id, email.flag)}
-                                                            className={cn(
-                                                                "p-1 rounded-full transition-all hover:bg-muted",
-                                                                email.flag === 'flagged' && "text-amber-500",
-                                                                email.flag === 'completed' && "text-green-500",
-                                                                email.flag === 'none' && "text-muted-foreground/30"
-                                                            )}
+                                                </div>
+
+                                                <AnimatePresence>
+                                                    {showCcBcc && (
+                                                        <motion.div
+                                                            initial={{ height: 0, opacity: 0 }}
+                                                            animate={{ height: 'auto', opacity: 1 }}
+                                                            exit={{ height: 0, opacity: 0 }}
+                                                            className="space-y-3 overflow-hidden"
                                                         >
-                                                            {email.flag === 'completed' ? <CheckCircle2 size={18} /> : (email.flag === 'flagged' ? <Star size={18} fill="currentColor" /> : <Star size={18} />)}
-                                                        </button>
+                                                            <div>
+                                                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block">CC</label>
+                                                                <Input
+                                                                    value={composeData.cc}
+                                                                    onChange={e => setComposeData({ ...composeData, cc: e.target.value })}
+                                                                    placeholder="cc@example.com"
+                                                                    className="bg-muted border-transparent"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block">BCC</label>
+                                                                <Input
+                                                                    value={composeData.bcc}
+                                                                    onChange={e => setComposeData({ ...composeData, bcc: e.target.value })}
+                                                                    placeholder="bcc@example.com"
+                                                                    className="bg-muted border-transparent"
+                                                                />
+                                                            </div>
+                                                        </motion.div>
                                                     )}
-                                                </div>
-                                            </div>
-                                            <p className={cn(
-                                                "text-sm truncate",
-                                                email.isRead ? "text-muted-foreground" : "text-foreground font-medium"
-                                            )}>
-                                                {email.subject || '(Kein Betreff)'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </Card >
-            )}
+                                                </AnimatePresence>
 
-            {/* Compose Modal */}
-            <AnimatePresence>
-                {composeOpen && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-                        onClick={() => setComposeOpen(false)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <div className="p-6">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-lg font-bold text-foreground">
-                                        {replyTo ? 'Antworten' : 'Neue E-Mail'}
-                                    </h3>
-                                    <button onClick={() => setComposeOpen(false)} className="text-muted-foreground hover:text-foreground">
-                                        <X size={20} />
-                                    </button>
-                                </div>
-                                <div className="space-y-3">
-                                    <div className="relative">
-                                        <div className="flex items-center justify-between mb-1">
-                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">An</label>
-                                            <div className="flex items-center gap-3">
-                                                <button
-                                                    onClick={() => {
-                                                        const next = !isNewsletter;
-                                                        setIsNewsletter(next);
-                                                        if (next) {
-                                                            fetchNewsletterRecipientCount();
-                                                            if (!composeData.body || composeData.body.includes('Lieber {benutzername}')) {
-                                                                setComposeData(prev => ({
-                                                                    ...prev,
-                                                                    body: `Hallo {benutzername},<br><br>`
-                                                                }));
-                                                            }
-                                                        }
-                                                    }}
-                                                    className={cn(
-                                                        "text-[10px] font-bold px-2 py-0.5 rounded-full transition-all",
-                                                        isNewsletter ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                                                    )}
-                                                >
-                                                    {isNewsletter ? 'Newsletter aktiv' : 'Als Newsletter senden?'}
-                                                </button>
-                                                {!isNewsletter && (
-                                                    <button
-                                                        onClick={() => setShowCcBcc(!showCcBcc)}
-                                                        className="text-[10px] text-primary hover:underline font-bold"
-                                                    >
-                                                        {showCcBcc ? '- CC/BCC ausblenden' : '+ CC/BCC hinzufügen'}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                        {isNewsletter ? (
-                                            <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg flex items-center justify-between">
-                                                <div className="flex items-center gap-2 text-primary">
-                                                    <Users size={16} />
-                                                    <span className="text-sm font-bold">Newsletter-Abonnenten</span>
-                                                </div>
-                                                <span className="text-xs font-bold bg-primary/10 px-2 py-1 rounded-md text-primary">
-                                                    {newsletterRecipientCount} Empfänger
-                                                </span>
-                                            </div>
-                                        ) : (
-                                            <Input
-                                                value={composeData.to}
-                                                onChange={e => setComposeData({ ...composeData, to: e.target.value })}
-                                                placeholder="empfaenger@example.com"
-                                                className="bg-muted border-transparent"
-                                            />
-                                        )}
-                                    </div>
-
-                                    <AnimatePresence>
-                                        {showCcBcc && (
-                                            <motion.div
-                                                initial={{ height: 0, opacity: 0 }}
-                                                animate={{ height: 'auto', opacity: 1 }}
-                                                exit={{ height: 0, opacity: 0 }}
-                                                className="space-y-3 overflow-hidden"
-                                            >
                                                 <div>
-                                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block">CC</label>
+                                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Betreff</label>
                                                     <Input
-                                                        value={composeData.cc}
-                                                        onChange={e => setComposeData({ ...composeData, cc: e.target.value })}
-                                                        placeholder="cc@example.com"
+                                                        value={composeData.subject}
+                                                        onChange={e => setComposeData({ ...composeData, subject: e.target.value })}
+                                                        placeholder="Betreff"
                                                         className="bg-muted border-transparent"
                                                     />
                                                 </div>
-                                                <div>
-                                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block">BCC</label>
-                                                    <Input
-                                                        value={composeData.bcc}
-                                                        onChange={e => setComposeData({ ...composeData, bcc: e.target.value })}
-                                                        placeholder="bcc@example.com"
-                                                        className="bg-muted border-transparent"
+                                                <div className="min-h-[300px] flex flex-col">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground block">Nachricht</label>
+                                                    </div>
+                                                    <RichTextEditor
+                                                        value={composeData.body}
+                                                        onChange={val => setComposeData({ ...composeData, body: val })}
+                                                        placeholder="Nachricht eingeben..."
+                                                        minHeight="250px"
+                                                        className="flex-1"
                                                     />
                                                 </div>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-
-                                    <div>
-                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Betreff</label>
-                                        <Input
-                                            value={composeData.subject}
-                                            onChange={e => setComposeData({ ...composeData, subject: e.target.value })}
-                                            placeholder="Betreff"
-                                            className="bg-muted border-transparent"
-                                        />
-                                    </div>
-                                    <div className="min-h-[300px] flex flex-col">
-                                        <div className="flex items-center justify-between mb-1">
-                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground block">Nachricht</label>
+                                                <div className="flex justify-end gap-2 pt-2">
+                                                    <Button variant="outline" onClick={() => setComposeOpen(false)}>Abbrechen</Button>
+                                                    <Button onClick={handleSendEmail} disabled={sendingEmail} className="gap-1.5">
+                                                        {sendingEmail ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                                                        Senden
+                                                    </Button>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <RichTextEditor
-                                            value={composeData.body}
-                                            onChange={val => setComposeData({ ...composeData, body: val })}
-                                            placeholder="Nachricht eingeben..."
-                                            minHeight="250px"
-                                            className="flex-1"
-                                        />
-                                    </div>
-                                    <div className="flex justify-end gap-2 pt-2">
-                                        <Button variant="outline" onClick={() => setComposeOpen(false)}>Abbrechen</Button>
-                                        <Button onClick={handleSendEmail} disabled={sendingEmail} className="gap-1.5">
-                                            {sendingEmail ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                                            Senden
-                                        </Button>
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div >
-    );
+                                    </motion.div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </>
+                )
+                }
+            </div >
+        );
+    })();
 
     // Compliance UI State
     const [showUserLinkSearch, setShowUserLinkSearch] = useState(false);

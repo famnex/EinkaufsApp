@@ -404,7 +404,7 @@ export default function SignupPage() {
                                                 </div>
                                             </div>
                                             <span className="text-xs text-muted-foreground leading-snug">
-                                                Ich stimme zu, dass das System mir <span className="font-bold text-foreground">Benachrichtigungen über Kochbücher</span> sendet, denen ich folge.
+                                                Ich stimme zu, dass das System mir <span className="font-bold text-foreground">Benachrichtigungen (per E-Mail oder Push-Dienst) über Kochbücher</span> sendet, denen ich folge. Diese Einstellungen kann ich jederzeit im Profil ändern.
                                             </span>
                                         </label>
                                     </div>

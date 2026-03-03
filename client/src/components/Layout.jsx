@@ -9,6 +9,7 @@ import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import BottomNav from './BottomNav';
 import EditModeSelector from './EditModeSelector';
+import NotificationPrompt from './NotificationPrompt';
 
 export default function Layout({ children }) {
     const { user } = useAuth();
@@ -157,6 +158,8 @@ export default function Layout({ children }) {
                             location.pathname !== '/recipes' &&
                             location.pathname !== '/community-cookbooks' &&
                             <EditModeSelector editMode={editMode} setEditMode={setEditMode} />}
+
+                        <NotificationPrompt className="p-2" />
 
                         <button
                             onClick={toggleTheme}

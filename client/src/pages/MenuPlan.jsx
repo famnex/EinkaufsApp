@@ -12,6 +12,7 @@ import CookingMode from '../components/CookingMode';
 import { useNavigate } from 'react-router-dom';
 import LoadingOverlay from '../components/LoadingOverlay';
 import RecipeIntoleranceResolverModal from '../components/RecipeIntoleranceResolverModal';
+import NotificationPrompt from '../components/NotificationPrompt';
 
 import {
     DndContext,
@@ -440,9 +441,12 @@ export default function MenuPlan() {
                                 {weekDays[0].dayNum}.{weekDays[0].date.toLocaleDateString('de-DE', { month: 'short' })} – {weekDays[6].dayNum}.{weekDays[6].date.toLocaleDateString('de-DE', { month: 'short' })}
                             </p>
                         </div>
-                        <button onClick={() => changeWeek(1)} className="p-2 hover:bg-muted rounded-full transition-colors">
-                            <ChevronRight />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <NotificationPrompt className="bg-muted hover:bg-muted-foreground/10" />
+                            <button onClick={() => changeWeek(1)} className="p-2 hover:bg-muted rounded-full transition-colors">
+                                <ChevronRight />
+                            </button>
+                        </div>
                     </div>
                 </div>
 

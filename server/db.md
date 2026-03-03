@@ -37,6 +37,16 @@
 - isPublicCookbook (Boolean)
 - isCommunityVisible (Boolean)
 - cookbookClicks (Integer)
+- followNotificationsEnabled (Boolean, default true, controls email & push)
+
+### PushSubscriptions
+- id (Integer, Primary Key)
+- endpoint (Text, Unique)
+- p256dh (String)
+- auth (String)
+- UserId (Integer, Foreign Key -> Users)
+- createdAt (DateTime)
+- updatedAt (DateTime)
 
 ### Recipes
 - id (Integer, Primary Key)
@@ -256,3 +266,4 @@
 - **v0.32.5**: Added `RecipeSubstitutions` table to support persistent ingredient replacements for specific recipes.
 - **v0.32.6**: Added `originalQuantity`, `originalUnit`, `substituteQuantity`, and `substituteUnit` to `RecipeSubstitutions` for precise adjustments.
 - **v0.32.7**: Added `UserFollows` many-to-many relationship for users to follow public/shared cookbooks. Added `followNotificationsEnabled` to `User` table.
+- **v0.32.8**: Added `pushEnabled` to `User` table. Added `PushSubscriptions` table for Web Push notification management.
