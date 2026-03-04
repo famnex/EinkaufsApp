@@ -489,7 +489,6 @@ export default function MenuPlan() {
                             </p>
                         </div>
                         <div className="flex items-center gap-2">
-                            <NotificationPrompt className="bg-muted hover:bg-muted-foreground/10" />
                             <button onClick={() => changeWeek(1)} className="p-2 hover:bg-muted rounded-full transition-colors">
                                 <ChevronRight />
                             </button>
@@ -526,7 +525,11 @@ export default function MenuPlan() {
                                             )}
                                         >
                                             <div
-                                                onClick={() => setExpandedDay(isExpanded ? null : day.dateStr)}
+                                                id={day.dateStr === weekDays[0].dateStr ? "tutorial-day-accordion" : undefined}
+                                                onClick={() => {
+                                                    setExpandedDay(isExpanded ? null : day.dateStr);
+                                                    if (!isExpanded) notifyAction('day-expand');
+                                                }}
                                                 className="p-3 flex items-center gap-3 cursor-pointer"
                                             >
                                                 <div className={cn(
@@ -674,6 +677,7 @@ export default function MenuPlan() {
                                                                         <ChevronRight size={16} />
                                                                     </div>
                                                                     <div
+                                                                        id="open-planner-btn"
                                                                         onClick={() => {
                                                                             setBulkModal({ open: true, listId: shoppingList.id });
                                                                             notifyAction('planner-open');

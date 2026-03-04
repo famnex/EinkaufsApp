@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, UserMinus, LogOut, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen, AlertTriangle, Folder, Calendar, CalendarX, Info, ShieldAlert, Server, Star, CheckCircle2, Zap, Play } from 'lucide-react';
+import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, UserMinus, LogOut, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen, AlertTriangle, Folder, Calendar, CalendarX, Info, HelpCircle, ShieldAlert, Server, Star, CheckCircle2, Zap, Play } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -24,6 +24,7 @@ import AiLockedModal from '../components/AiLockedModal';
 import IntoleranceCheckModal from '../components/IntoleranceCheckModal';
 import { subscribeUserToPush, unsubscribeUserFromPush } from '../lib/pushNotifications';
 import { useTutorial } from '../contexts/TutorialContext';
+import HelpTab from '../components/HelpTab';
 
 export default function SettingsPage() {
     const navigate = useNavigate();
@@ -1707,6 +1708,7 @@ export default function SettingsPage() {
         { id: 'preferences', label: 'Präferenzen', icon: SettingsIcon },
         { id: 'content', label: 'Inhalte', icon: Sparkles },
         { id: 'marketplace', label: 'Marktplatz', icon: StoreIcon },
+        { id: 'help', label: 'Hilfe', icon: HelpCircle },
         ...(user?.role === 'admin' ? [
             { id: 'admin', label: 'Verwaltung', icon: Shield }
         ] : [])
@@ -1832,48 +1834,6 @@ export default function SettingsPage() {
                                     </p>
                                 </div>
                             )}
-
-                            <div className="p-4 bg-muted/50 rounded-2xl border border-border/50 space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <div className="space-y-1">
-                                        <p className="font-bold text-foreground">App-Tutorial</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            Hilfreiche Erklärungen beim ersten Start anzeigen
-                                        </p>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            id="tutorial-toggle"
-                                            className="sr-only peer"
-                                            checked={user?.showAppTutorial !== false}
-                                            onChange={(e) => {
-                                                const newVal = e.target.checked;
-                                                setUser({ ...user, showAppTutorial: newVal });
-                                                api.put('/auth/profile', { showAppTutorial: newVal }).catch(() => {
-                                                    setUser({ ...user, showAppTutorial: !newVal });
-                                                    alert('Fehler beim Speichern der Tutorial-Einstellung');
-                                                });
-                                            }}
-                                        />
-                                        <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                                    </label>
-                                </div>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    id="start-tutorial-btn"
-                                    className="w-full bg-background/50 hover:bg-background transition-colors flex items-center justify-center gap-2 py-5 rounded-xl border-dashed"
-                                    onClick={() => {
-                                        sessionStorage.removeItem('tutorialShown');
-                                        notifyAction('manual_start_tutorial');
-                                        navigate('/dashboard');
-                                    }}
-                                >
-                                    <Play size={14} className="text-primary fill-primary" />
-                                    Tutorial jetzt starten
-                                </Button>
-                            </div>
 
                             <p className="text-xs text-muted-foreground italic px-1">
                                 Erhalte regelmäßig Updates zu neuen Funktionen, Rezepten und Community-Highlights sowie Benachrichtigungen über Kochbücher, denen du folgst (per E-Mail und Push-Mitteilung).
@@ -5631,6 +5591,7 @@ export default function SettingsPage() {
                     return (
                         <div key={sub.id} className="border border-border/50 rounded-lg overflow-hidden bg-card/30">
                             <button
+                                id={`mobile-subtab-${sub.id}`}
                                 onClick={() => setActiveAdminTab(isActive ? '' : sub.id)}
                                 className={cn(
                                     "w-full flex items-center justify-between p-3 text-sm font-bold text-left transition-colors",
@@ -5677,6 +5638,7 @@ export default function SettingsPage() {
                     {adminTabs.map(sub => (
                         <button
                             key={sub.id}
+                            id={`desktop-subtab-${sub.id}`}
                             onClick={() => setActiveAdminTab(sub.id)}
                             className={cn(
                                 "flex items-center gap-2 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all text-xs font-bold",
@@ -5719,6 +5681,7 @@ export default function SettingsPage() {
                     return (
                         <div key={sub.id} className="border border-border/50 rounded-lg overflow-hidden bg-card/30">
                             <button
+                                id={`mobile-subtab-${sub.id}`}
                                 onClick={() => setActiveAccountTab(isActive ? '' : sub.id)}
                                 className={cn(
                                     "w-full flex items-center justify-between p-3 text-sm font-bold text-left transition-colors",
@@ -5757,6 +5720,7 @@ export default function SettingsPage() {
                     {accountTabs.map(sub => (
                         <button
                             key={sub.id}
+                            id={`desktop-subtab-${sub.id}`}
                             onClick={() => setActiveAccountTab(sub.id)}
                             className={cn(
                                 "flex items-center gap-2 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all text-xs font-bold",
@@ -5786,6 +5750,7 @@ export default function SettingsPage() {
                     return (
                         <div key={sub.id} className="border border-border/50 rounded-lg overflow-hidden bg-card/30">
                             <button
+                                id={`mobile-subtab-${sub.id}`}
                                 onClick={() => {
                                     if (isLocked) {
                                         setAiLockedFeatureName(sub.label);
@@ -5838,6 +5803,7 @@ export default function SettingsPage() {
                         return (
                             <button
                                 key={sub.id}
+                                id={`desktop-subtab-${sub.id}`}
                                 onClick={() => {
                                     if (isLocked) {
                                         setAiLockedFeatureName(sub.label);
@@ -5877,6 +5843,7 @@ export default function SettingsPage() {
                     return (
                         <div key={sub.id} className="border border-border/50 rounded-lg overflow-hidden bg-card/30">
                             <button
+                                id={`mobile-subtab-${sub.id}`}
                                 onClick={() => setActiveContentTab(isActive ? '' : sub.id)}
                                 className={cn(
                                     "w-full flex items-center justify-between p-3 text-sm font-bold text-left transition-colors",
@@ -5915,6 +5882,7 @@ export default function SettingsPage() {
                     {contentTabs.map(sub => (
                         <button
                             key={sub.id}
+                            id={`desktop-subtab-${sub.id}`}
                             onClick={() => setActiveContentTab(sub.id)}
                             className={cn(
                                 "flex items-center gap-2 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all text-xs font-bold",
@@ -5935,6 +5903,8 @@ export default function SettingsPage() {
         </div>
     );
 
+    const HelpSection = <HelpTab user={user} setUser={setUser} api={api} notifyAction={notifyAction} navigate={navigate} />;
+
     const MarketplaceSection = (
         <div className="space-y-6">
             <div className="sm:hidden space-y-2">
@@ -5943,6 +5913,7 @@ export default function SettingsPage() {
                     return (
                         <div key={sub.id} className="border border-border/50 rounded-lg overflow-hidden bg-card/30">
                             <button
+                                id={`mobile-subtab-${sub.id}`}
                                 onClick={() => setActiveMarketplaceTab(isActive ? '' : sub.id)}
                                 className={cn(
                                     "w-full flex items-center justify-between p-3 text-sm font-bold text-left transition-colors",
@@ -5981,6 +5952,7 @@ export default function SettingsPage() {
                     {marketplaceTabs.map(sub => (
                         <button
                             key={sub.id}
+                            id={`desktop-subtab-${sub.id}`}
                             onClick={() => setActiveMarketplaceTab(sub.id)}
                             className={cn(
                                 "flex items-center gap-2 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all text-xs font-bold",
@@ -6014,7 +5986,11 @@ export default function SettingsPage() {
                     return (
                         <div key={tab.id} className="border border-border rounded-xl bg-card/50 overflow-hidden shadow-sm transition-all duration-200">
                             <button
-                                onClick={() => setActiveTab(isActive ? '' : tab.id)}
+                                id={`mobile-tab-btn-${tab.id}`}
+                                onClick={() => {
+                                    setActiveTab(isActive ? '' : tab.id);
+                                    if (!isActive) notifyAction(`${tab.id}-tab-click`);
+                                }}
                                 className={cn(
                                     "w-full flex items-center justify-between p-4 font-bold text-left transition-colors",
                                     isActive ? "bg-primary/5 text-primary" : "hover:bg-muted/50 text-foreground"
@@ -6045,6 +6021,7 @@ export default function SettingsPage() {
                                             {tab.id === 'preferences' && PreferencesSection}
                                             {tab.id === 'content' && ContentSection}
                                             {tab.id === 'marketplace' && MarketplaceSection}
+                                            {tab.id === 'help' && HelpSection}
                                             {tab.id === 'admin' && AdminSection}
                                         </div>
                                     </motion.div>
@@ -6064,10 +6041,10 @@ export default function SettingsPage() {
                         return (
                             <button
                                 key={tab.id}
-                                id={tab.id === 'preferences' ? 'settings-preferences-tab' : undefined}
+                                id={tab.id === 'preferences' ? 'settings-preferences-tab' : `desktop-tab-btn-${tab.id}`}
                                 onClick={() => {
                                     setActiveTab(tab.id);
-                                    if (tab.id === 'preferences') notifyAction('preferences-tab-click');
+                                    notifyAction(`${tab.id}-tab-click`);
                                 }}
                                 className={cn(
                                     "flex items-center gap-2 px-4 py-2.5 rounded-2xl whitespace-nowrap transition-all active:scale-95 text-sm font-bold",
@@ -6098,6 +6075,7 @@ export default function SettingsPage() {
                     {activeTab === 'preferences' && PreferencesSection}
                     {activeTab === 'content' && ContentSection}
                     {activeTab === 'marketplace' && MarketplaceSection}
+                    {activeTab === 'help' && HelpSection}
                     {activeTab === 'admin' && AdminSection}
                 </motion.div>
             </div>

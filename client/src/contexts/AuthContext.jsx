@@ -53,6 +53,7 @@ export const AuthProvider = ({ children }) => {
         const { data } = await api.post('/auth/login', { email, password });
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
+        localStorage.setItem('triggerTutorialLogin', 'true');
         api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
         setUser(data.user);
         return data.user;

@@ -117,13 +117,33 @@ router.get('/', auth, async (req, res) => {
             attributes: ['id', 'username', 'sharingKey']
         });
 
-        const recipes = await Recipe.findAll({
-            where: {
+        const tutorial = req.query.tutorial === 'true';
+
+        const userCondition = {
+            [Op.or]: [
+                { UserId: req.user.effectiveId },
+                { '$FavoritedBy.id$': { [Op.in]: householdUserIds } }
+            ]
+        };
+
+        let baseWhere = userCondition;
+
+        if (tutorial) {
+            baseWhere = {
                 [Op.or]: [
-                    { UserId: req.user.effectiveId },
-                    { '$FavoritedBy.id$': { [Op.in]: householdUserIds } }
+                    userCondition,
+                    { id: 0 }
                 ]
-            },
+            };
+        } else {
+            baseWhere = {
+                ...userCondition,
+                id: { [Op.ne]: 0 }
+            };
+        }
+
+        const recipes = await Recipe.findAll({
+            where: baseWhere,
             attributes,
             include,
             order: [['title', 'ASC']]
@@ -135,8 +155,16 @@ router.get('/', auth, async (req, res) => {
 
         const mappedRecipes = recipes.map(r => {
             const plain = r.get({ plain: true });
-            plain.isFavorite = plain.FavoritedBy && plain.FavoritedBy.some(u => u.id === req.user.id);
-            plain.favoritedBy = plain.FavoritedBy ? plain.FavoritedBy.map(u => u.username) : [];
+
+            // Force mock recipe to be favorite
+            if (plain.id === 0) {
+                plain.isFavorite = true;
+                plain.favoritedBy = [req.user.username];
+            } else {
+                plain.isFavorite = plain.FavoritedBy && plain.FavoritedBy.some(u => u.id === req.user.id);
+                plain.favoritedBy = plain.FavoritedBy ? plain.FavoritedBy.map(u => u.username) : [];
+            }
+
             plain.cookCount = plain.Menus ? plain.Menus.length : 0;
             plain.hasSubstitutions = plain.RecipeSubstitutions && plain.RecipeSubstitutions.length > 0;
             // Map owner sharing key
@@ -152,6 +180,26 @@ router.get('/', auth, async (req, res) => {
         });
 
         res.json(mappedRecipes);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get a random public recipe (e.g. for tutorials)
+router.get('/random-public', auth, async (req, res) => {
+    try {
+        const recipe = await Recipe.findOne({
+            where: {
+                isPublic: true,
+                bannedAt: null // Exclude banned recipes
+            },
+            order: sequelize.random(),
+            attributes: ['id', 'title']
+        });
+
+        if (!recipe) return res.status(404).json({ error: 'No public recipe found' });
+
+        res.json(recipe);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -348,14 +396,23 @@ router.get('/:id', auth, async (req, res) => {
         });
         const householdUserIds = householdUsers.map(u => u.id);
 
-        const recipe = await Recipe.findOne({
-            where: {
-                id: req.params.id,
+        const reqId = parseInt(req.params.id, 10);
+
+        let whereCondition = {};
+        if (reqId === 0) {
+            whereCondition.id = 0;
+        } else {
+            whereCondition = {
+                id: reqId,
                 [Op.or]: [
                     { UserId: req.user.effectiveId },
                     { '$FavoritedBy.id$': { [Op.in]: householdUserIds } }
                 ]
-            },
+            };
+        }
+
+        const recipe = await Recipe.findOne({
+            where: whereCondition,
             include: [
                 {
                     model: RecipeIngredient,
@@ -413,7 +470,13 @@ router.get('/:id', auth, async (req, res) => {
 
         // Format response so frontend doesn't break
         const plain = recipe.get({ plain: true });
-        plain.isFavorite = !!(plain.FavoritedBy && plain.FavoritedBy.some(u => u.id === req.user.id));
+
+        if (plain.id === 0) {
+            plain.isFavorite = true;
+        } else {
+            plain.isFavorite = !!(plain.FavoritedBy && plain.FavoritedBy.some(u => u.id === req.user.id));
+        }
+
         plain.substitutions = plain.RecipeSubstitutions || [];
 
         // Use overridden instructions if present

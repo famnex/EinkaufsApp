@@ -18,10 +18,11 @@ export default function BottomNav() {
         { id: 'menu', icon: CalendarRange, path: '/menu', label: 'Menüplan', tutorialId: 'nav-planner' },
         { id: 'recipes', icon: UtensilsCrossed, path: '/recipes', label: 'Rezepte', tutorialId: 'nav-recipes' },
         { id: 'community', icon: BookOpen, path: '/community-cookbooks', label: 'Community', tutorialId: 'nav-community' },
+        { id: 'tutorial', icon: GraduationCap, isAction: true, label: 'Tutorial' },
         { id: 'settings', icon: Settings, path: '/settings', label: 'Optionen', tutorialId: 'bottom-settings-tab' },
     ];
 
-    const isActive = (path) => location.pathname === path;
+    const isActive = (path) => path && location.pathname === path;
     const activeIndex = tabs.findIndex(tab => isActive(tab.path));
 
     return (
@@ -54,7 +55,7 @@ export default function BottomNav() {
                         <button
                             key={tab.id}
                             id={tab.tutorialId}
-                            onClick={() => navigate(tab.path)}
+                            onClick={() => tab.isAction ? setIsWelcomeOpen(true) : navigate(tab.path)}
                             className="relative flex flex-col items-center justify-center gap-1 group outline-none z-10"
                         >
                             <div className="relative">
@@ -62,7 +63,8 @@ export default function BottomNav() {
                                     size={22}
                                     className={cn(
                                         "relative z-10 transition-all duration-300",
-                                        active ? "text-primary-foreground scale-110" : "text-muted-foreground group-hover:text-foreground"
+                                        active ? "text-primary-foreground scale-110" : "text-muted-foreground group-hover:text-foreground",
+                                        tab.isAction ? "group-hover:text-primary" : ""
                                     )}
                                 />
                                 {tab.id === 'settings' && notificationCounts?.total > 0 && (
@@ -73,29 +75,14 @@ export default function BottomNav() {
                             </div>
                             <span className={cn(
                                 "text-[10px] font-bold uppercase tracking-widest relative z-10 transition-colors duration-300 hidden sm:block",
-                                active ? "text-primary-foreground" : "text-muted-foreground"
+                                active ? "text-primary-foreground" : "text-muted-foreground",
+                                tab.isAction ? "group-hover:text-primary" : ""
                             )}>
                                 {tab.label}
                             </span>
                         </button>
                     );
                 })}
-
-                {/* Dev Tutorial Button */}
-                <button
-                    onClick={() => setIsWelcomeOpen(true)}
-                    className="relative flex flex-col items-center justify-center gap-1 group outline-none z-10"
-                >
-                    <div className="relative">
-                        <GraduationCap
-                            size={22}
-                            className="text-muted-foreground group-hover:text-primary transition-all duration-300"
-                        />
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-colors duration-300 hidden sm:block">
-                        Tutorial
-                    </span>
-                </button>
             </div>
         </div>
     );

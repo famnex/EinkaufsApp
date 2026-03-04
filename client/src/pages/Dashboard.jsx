@@ -249,7 +249,8 @@ export default function Dashboard() {
 
     // Check for tutorial auto-open
     useEffect(() => {
-        if (user?.showAppTutorial && !sessionStorage.getItem('tutorialShown')) {
+        if (user?.showAppTutorial && !sessionStorage.getItem('dashboardWelcomeShown')) {
+            sessionStorage.setItem('dashboardWelcomeShown', 'true');
             setIsWelcomeOpen(true);
         }
     }, [user, setIsWelcomeOpen]);

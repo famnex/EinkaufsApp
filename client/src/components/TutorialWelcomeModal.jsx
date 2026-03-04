@@ -45,12 +45,12 @@ export default function TutorialWelcomeModal({ isOpen, onClose, onStartChapter, 
                                 <button
                                     key={ch.id}
                                     onClick={() => onStartChapter(ch.id)}
-                                    className="flex flex-col sm:flex-row items-center sm:items-center gap-2 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-muted/30 hover:bg-primary/10 border border-border group transition-all text-center sm:text-left"
+                                    className="flex flex-row items-center gap-2 sm:gap-4 p-2 sm:p-4 rounded-xl sm:rounded-2xl bg-muted/30 hover:bg-primary/10 border border-border group transition-all text-left"
                                 >
-                                    <div className={`p-2 sm:p-3 rounded-xl bg-white dark:bg-black/20 shadow-sm ${ch.color} shrink-0`}>
-                                        <ch.icon size={18} className="sm:w-5 sm:h-5" />
+                                    <div className={`p-1.5 sm:p-3 rounded-lg sm:rounded-xl bg-white dark:bg-black/20 shadow-sm ${ch.color} shrink-0`}>
+                                        <ch.icon size={16} className="sm:w-5 sm:h-5" />
                                     </div>
-                                    <span className="font-bold text-xs sm:text-base group-hover:text-primary transition-colors line-clamp-1 sm:line-clamp-none">{ch.title}</span>
+                                    <span className="font-bold text-[11px] sm:text-base group-hover:text-primary transition-colors line-clamp-1 sm:line-clamp-none leading-tight">{ch.title}</span>
                                 </button>
                             ))}
                         </div>

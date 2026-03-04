@@ -95,9 +95,11 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
             color: 'text-muted-foreground',
             bg: 'bg-muted/10',
             features: [
-                'Basis-Einkaufsliste mit Import- und Produktwechselfunktion (KI)',
-                'Rezeptverwaltung, Menüverwaltung, Kochmodus',
-                '(i) Kaum KI-Funktionen'
+                'Smarte Einkaufslisten mit Autogruppierung',
+                'Rezept- und Menüplaner für die Woche',
+                'Interaktiver Kochmodus (manuell)',
+                'Import von Produkten per Foto oder Text',
+                '(i) Stark eingeschränkte KI-Funktionen'
             ],
             buttonText: 'Plan wählen',
             popular: false
@@ -110,12 +112,13 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
             color: 'text-blue-500',
             bg: 'bg-blue-500/10',
             features: [
-                'Alle AI-Features freigeschaltet*',
-                '600 Coins monatlich inklusive',
-                'Rezeptgenerierung und KI-Rezeptimport',
-                'KI Kochassistent, KI Bilderassistent',
-                'Alexa-Integration',
-                'Gemeinsamen Haushalt bilden'
+                'Hands-free KI-Sprachassistent beim Kochen',
+                'KI-Allergieradar & intelligenter Zutatentausch',
+                'Gemeinsam im Haushalt planen & einkaufen',
+                'Zuhören & Mitdenken via Alexa-Skill',
+                '600 AI-Coins monatlich inklusive',
+                'KI-Bilder für eigene Rezepte generieren',
+                'KI-Rezeptimport'
             ],
             buttonText: 'Buchen',
             popular: true
@@ -128,10 +131,11 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
             color: 'text-amber-500',
             bg: 'bg-amber-500/10',
             features: [
-                'Unlimitierte Text-AI (0 Coins)',
-                'Günstigere Bildgenerierung',
-                '1500 Coins monatlich inklusive',
-                'Frühzeitiger Zugriff auf neue Features'
+                'Unlimitierte Text-KI (Kostet 0 Coins!)',
+                'Alle Premium-Features der Silbergabel inbegriffen',
+                '1500 AI-Coins monatlich (für Bilder)',
+                'Günstigere KI-Bildgenerierung',
+                'Vorabzugriff auf neue Updates'
             ],
             buttonText: 'Buchen',
             popular: false
@@ -290,12 +294,12 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
                                     <div className="flex-1 text-center md:text-left min-w-0">
                                         <h4 className="text-xs sm:text-base font-bold mb-0.5">Coins & AI</h4>
                                         <p className="text-[9px] sm:text-sm text-muted-foreground leading-tight">
-                                            Coins werden nur für rechenintensive AI-Funktionen benötigt.
+                                            Coins werden für AI-Funktionen benötigt.
                                         </p>
                                     </div>
                                     <Button variant="ghost" size="sm" className="gap-2 pointer-events-none">
                                         <CreditCard size={18} />
-                                        Zahlarten: Stripe (Kreditkarte/SEPA/Apple & Google Pay)
+                                        Zahlarten: Stripe (Kreditkarte / EC / PayPal / Apple & Google Pay)
                                     </Button>
                                 </div>
 

@@ -174,8 +174,8 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
     return (
         <AnimatePresence mode="wait">
             {isOpen && (
-                <div className="fixed inset-0 z-[1000] overflow-y-auto custom-scrollbar bg-black/60 backdrop-blur-md">
-                    <div className="flex min-h-full items-center justify-center p-4">
+                <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-md">
+                    <div className="flex min-h-full items-center justify-center p-4 pb-[100px] md:pb-4">
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -190,10 +190,10 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.9, opacity: 0, y: 20 }}
                             // Removed overflow-hidden to allow dropdowns to pop out
-                            className="relative w-full max-w-lg bg-card border border-border rounded-[2rem] md:rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden"
+                            className="relative w-full max-w-lg h-auto max-h-[calc(100dvh-130px)] md:max-h-[85vh] bg-card border border-border rounded-[2rem] md:rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden"
                         >
                             {/* Header */}
-                            <div className="p-4 md:p-6 border-b border-border flex items-center justify-between bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white rounded-t-[2rem] md:rounded-t-[2.5rem]">
+                            <div className="shrink-0 p-4 md:p-6 border-b border-border flex items-center justify-between bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white rounded-t-[2rem] md:rounded-t-[2.5rem]">
                                 <div className="flex items-center gap-3">
                                     <div className="p-1.5 md:p-2 bg-white/20 backdrop-blur-md rounded-xl text-white shadow-xl">
                                         <Dices size={20} className="md:w-6 md:h-6" />
@@ -209,7 +209,7 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
                             </div>
 
                             {/* Main Content */}
-                            <div className="p-4 md:p-6 space-y-4 md:space-y-6 bg-gradient-to-b from-amber-500/5 to-background overflow-y-auto custom-scrollbar">
+                            <div className="shrink min-h-0 p-4 md:p-6 space-y-4 md:space-y-6 bg-gradient-to-b from-amber-500/5 to-background overflow-y-auto custom-scrollbar">
                                 {/* The "Machine" View */}
                                 <div className="relative aspect-video rounded-2xl md:rounded-3xl bg-black overflow-hidden border-4 md:border-8 border-muted/50 shadow-[0_0_30px_rgba(245,158,11,0.3)] flex items-center justify-center group shrink-0">
                                     {/* Neon Border Accent */}
@@ -419,7 +419,7 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
                             </div>
 
                             {/* Actions */}
-                            <div className="p-4 md:p-6 pt-0 flex gap-3">
+                            <div className="shrink-0 p-4 md:p-6 pt-0 flex gap-3 bg-card">
                                 {!result ? (
                                     <Button
                                         onClick={() => {

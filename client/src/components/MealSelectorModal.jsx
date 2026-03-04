@@ -14,7 +14,8 @@ export default function MealSelectorModal({ isOpen, onClose, onSelect, initialDa
 
     useEffect(() => {
         if (isOpen) {
-            api.get('/recipes').then(res => setRecipes(res.data));
+            const isTutorial = sessionStorage.getItem('activeTutorialChapter') === 'menueplan';
+            api.get(isTutorial ? '/recipes?tutorial=true' : '/recipes').then(res => setRecipes(res.data));
             setSearchTerm('');
             setManualEntry('');
             setSelectedCategory('All');

@@ -20,6 +20,43 @@ export const TutorialProvider = ({ children }) => {
     const [currentStepIndex, setCurrentStepIndex] = useState(() => parseInt(sessionStorage.getItem('tutorialStepIndex') || '0'));
     const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
 
+    // Auto-trigger Tutorial Welcome Modal on login or after 24 hours of inactivity
+    useEffect(() => {
+        if (!user) return; // Wait until user is loaded
+
+        // If the user explicitly turned off the "show on start" option, honor it
+        if (user.showAppTutorial === false) {
+            localStorage.setItem('lastAppVisit', Date.now().toString());
+            return;
+        }
+
+        const now = Date.now();
+        const lastVisitStr = localStorage.getItem('lastAppVisit');
+        const triggerLogin = localStorage.getItem('triggerTutorialLogin');
+        const sessionShown = sessionStorage.getItem('welcomeShownThisSession');
+
+        const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+        let shouldShow = false;
+
+        if (triggerLogin === 'true') {
+            // Always show on fresh login, regardless of sessionShown
+            shouldShow = true;
+            localStorage.removeItem('triggerTutorialLogin');
+            // Also reset the session guard so it can show again
+            sessionStorage.removeItem('welcomeShownThisSession');
+        } else if (!sessionShown && (!lastVisitStr || (now - parseInt(lastVisitStr)) > TWENTY_FOUR_HOURS)) {
+            shouldShow = true;
+        }
+
+        if (shouldShow && !activeChapter) {
+            setIsWelcomeOpen(true);
+            sessionStorage.setItem('welcomeShownThisSession', 'true');
+        }
+
+        // Always update the last visit timestamp
+        localStorage.setItem('lastAppVisit', now.toString());
+    }, [user?.id, location.pathname, activeChapter]);
+
     // Global CSS for hiding driver elements during delay
     useEffect(() => {
         const style = document.createElement('style');
@@ -356,6 +393,29 @@ export const TutorialProvider = ({ children }) => {
             } catch (err) {
                 console.error('Failed to fetch lists for tutorial', err);
                 return;
+            }
+        }
+
+        if (chapterId === 'menueplan') {
+            try {
+                // Ensure a list exists for last Monday (or today if today is Monday)
+                const targetDate = new Date();
+                const day = targetDate.getDay();
+                const diffToMonday = day === 0 ? 6 : day - 1;
+                targetDate.setDate(targetDate.getDate() - diffToMonday);
+
+                const targetDateString = targetDate.toISOString().split('T')[0];
+                const { data: lists } = await api.get('/lists');
+
+                const listForTarget = lists.find(l => l.date === targetDateString && l.status !== 'archived');
+                if (!listForTarget) {
+                    await api.post('/lists', {
+                        name: 'Einkauf ' + targetDate.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }),
+                        date: targetDateString
+                    });
+                }
+            } catch (err) {
+                console.error('Failed to initialize menueplan tutorial', err);
             }
         }
 

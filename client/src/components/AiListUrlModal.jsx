@@ -231,9 +231,9 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
                     </div>
 
                     {/* Content */}
-                    <div className="p-6 overflow-y-auto custom-scrollbar overscroll-contain">
+                    <div id={view === 'input' ? 'smart-import-input-view' : view === 'review' ? 'smart-import-review-view' : undefined} className="p-6 overflow-y-auto custom-scrollbar overscroll-contain">
                         {view === 'input' && (
-                            <div id="smart-import-input-view" className="space-y-4">
+                            <div className="space-y-4">
                                 <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 flex items-start gap-3">
                                     <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                     <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
@@ -303,7 +303,7 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
                         )}
 
                         {view === 'review' && (
-                            <div id="smart-import-review-view" className="space-y-4">
+                            <div className="space-y-4">
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="font-bold text-foreground text-lg">Gefundene Produkte ({analyzedItems.filter(i => i.selected).length})</h3>
                                 </div>

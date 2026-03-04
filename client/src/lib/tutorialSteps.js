@@ -294,6 +294,15 @@ export const tutorialChapters = {
                 }
             },
             {
+                element: '#tutorial-day-accordion',
+                popover: {
+                    title: 'Tag ausklappen',
+                    description: 'Klicke auf den Tag, um alle Details für diesen Tag anzuzeigen.',
+                    showButtons: [],
+                    actionRequirement: 'day-expand'
+                }
+            },
+            {
                 element: '#open-planner-btn',
                 popover: {
                     title: 'Zutatenplaner',
@@ -309,6 +318,16 @@ export const tutorialChapters = {
                     description: 'Wähle die Menge für ein Produkt aus, das du auf die Liste setzen möchtest.',
                     showButtons: [],
                     actionRequirement: 'planner-item-select'
+                }
+            },
+            {
+                element: '#planner-variant-picker-active',
+                isOptional: true,
+                popover: {
+                    title: 'Variante wählen',
+                    description: 'Manchmal bieten Produkte verschiedene Standardgrößen. Wähle eine aus!',
+                    showButtons: [],
+                    actionRequirement: 'planner-variant-select'
                 }
             },
             {
@@ -455,16 +474,6 @@ export const tutorialChapters = {
                 }
             },
             {
-                element: '.cook-timer-delete',
-                delay: 600,
-                popover: {
-                    title: 'Timer löschen',
-                    description: 'Fertig? Lösche den Timer wieder.',
-                    showButtons: [],
-                    actionRequirement: 'timer-delete'
-                }
-            },
-            {
                 element: '#ai-assistant-tab',
                 disableInteraction: true,
                 popover: {
@@ -559,7 +568,7 @@ export const tutorialChapters = {
         page: '/settings',
         steps: [
             {
-                element: '#settings-preferences-tab',
+                element: '#settings-preferences-tab, #mobile-tab-btn-preferences',
                 delay: 600,
                 popover: {
                     title: 'Präferenzen',
@@ -569,7 +578,7 @@ export const tutorialChapters = {
                 }
             },
             {
-                element: '#settings-preferences-content',
+                element: '#settings-preferences-content, #desktop-subtab-intolerances, #mobile-subtab-intolerances',
                 disableInteraction: true,
                 popover: {
                     title: 'Deine Einstellungen',
@@ -616,27 +625,43 @@ export const tutorialChapters = {
         page: '/settings',
         steps: [
             {
-                element: '#settings-subscription',
+                element: '#desktop-tab-btn-account, #mobile-tab-btn-account',
+                popover: { title: 'Account', description: 'Öffne zuerst den Bereich Account.', actionRequirement: 'account-tab-click', showButtons: [] }
+            },
+            {
+                element: '#desktop-subtab-subscription, #mobile-subtab-subscription',
                 popover: { title: 'Abos & Credits', description: 'Verwalte deine Mitgliedschaft und sieh dein Credit-Guthaben ein.' }
             },
             {
-                element: '#settings-household',
+                element: '#desktop-subtab-household, #mobile-subtab-household',
                 popover: { title: 'Haushalt', description: 'Lege einen Haushalt an, um gemeinsam mit anderen zu planen und einzukaufen.' }
             },
             {
-                element: '#settings-alexa',
+                element: '#settings-preferences-tab, #mobile-tab-btn-preferences',
+                popover: { title: 'Präferenzen', description: 'Öffne nun den Bereich Präferenzen.', actionRequirement: 'preferences-tab-click', showButtons: [] }
+            },
+            {
+                element: '#desktop-subtab-alexa, #mobile-subtab-alexa',
                 popover: { title: 'Alexa', description: 'Verbinde GabelGuru mit Alexa, um Produkte per Sprachbefehl auf die Liste zu setzen.' }
             },
             {
-                element: '#settings-public-cookbook',
+                element: '#desktop-tab-btn-content, #mobile-tab-btn-content',
+                popover: { title: 'Inhalte', description: 'Öffne nun den Bereich Inhalte.', actionRequirement: 'content-tab-click', showButtons: [] }
+            },
+            {
+                element: '#desktop-subtab-cookbook, #mobile-subtab-cookbook',
                 popover: { title: 'Öffentliches Kochbuch', description: 'Teile dein eigenes Kochbuch mit der Community!' }
             },
             {
-                element: '#settings-products',
+                element: '#desktop-tab-btn-marketplace, #mobile-tab-btn-marketplace',
+                popover: { title: 'Marktplatz', description: 'Öffne nun den Bereich Marktplatz.', actionRequirement: 'marketplace-tab-click', showButtons: [] }
+            },
+            {
+                element: '#desktop-subtab-products, #mobile-subtab-products',
                 popover: { title: 'Produkte', description: 'Verwalte deine eigenen Produkte und unterscheide sie von globalen Artikeln.' }
             },
             {
-                element: '#settings-stores',
+                element: '#desktop-subtab-stores, #mobile-subtab-stores',
                 popover: { title: 'Geschäfte', description: 'Lege deine bevorzugten Supermärkte an, um deine Laufwege zu optimieren.' }
             }
         ]

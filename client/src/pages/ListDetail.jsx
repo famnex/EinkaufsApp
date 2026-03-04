@@ -165,11 +165,16 @@ export default function ListDetail() {
     const fetchStores = useCallback(async () => {
         try {
             const { data } = await api.get('/stores');
+            if (data.length === 0 && activeChapter === 'listen') {
+                const res = await api.post('/stores', { name: 'Testgeschäft' });
+                setStores([res.data]);
+                return;
+            }
             setStores(data);
         } catch (err) {
             console.error('Failed to fetch stores', err);
         }
-    }, []);
+    }, [activeChapter]);
 
     const fetchIngredientSources = useCallback(async () => {
         if (!id) return;

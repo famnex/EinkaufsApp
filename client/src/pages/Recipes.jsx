@@ -34,7 +34,7 @@ export default function Recipes() {
     useEffect(() => {
         fetchRecipes();
         fetchMenus();
-    }, []);
+    }, [activeChapter]);
 
     const fetchMenus = async () => {
         try {
@@ -160,13 +160,16 @@ export default function Recipes() {
     const fetchRecipes = async () => {
         setLoading(true);
         try {
+            const isTutorial = sessionStorage.getItem('activeTutorialChapter') === 'rezepte';
+            const tutorialQuery = isTutorial ? '&tutorial=true' : '';
+
             // Phase 1: Basic Info
-            const { data: basicData } = await api.get('/recipes?phase=basic');
+            const { data: basicData } = await api.get(`/recipes?phase=basic${tutorialQuery}`);
             setRecipes(basicData);
             setLoading(false); // Tiles can be shown now
 
             // Phase 2: Images (Async)
-            api.get('/recipes?phase=images').then(({ data: imageData }) => {
+            api.get(`/recipes?phase=images${tutorialQuery}`).then(({ data: imageData }) => {
                 setRecipes(prev => prev.map(r => {
                     const match = imageData.find(img => img.id === r.id);
                     return match ? { ...r, ...match } : r;
@@ -174,7 +177,7 @@ export default function Recipes() {
             }).catch(err => console.error('Failed to fetch recipe images', err));
 
             // Phase 3: Search Metadata (Async)
-            api.get('/recipes?phase=search').then(({ data: searchData }) => {
+            api.get(`/recipes?phase=search${tutorialQuery}`).then(({ data: searchData }) => {
                 setRecipes(prev => prev.map(r => {
                     const match = searchData.find(s => s.id === r.id);
                     return match ? { ...r, ...match } : r;
@@ -771,9 +774,7 @@ export default function Recipes() {
                                         className="w-full text-left px-4 py-3 text-sm hover:bg-muted flex items-center gap-3 transition-colors text-foreground font-medium"
                                         onClick={() => {
                                             setIsSlotMachineOpen(true);
-                                            if (sessionStorage.getItem('activeTutorialChapter') !== 'rezepte') {
-                                                setIsMobileMenuOpen(false);
-                                            }
+                                            setIsMobileMenuOpen(false);
                                             notifyAction('dice-click');
                                         }}
                                     >

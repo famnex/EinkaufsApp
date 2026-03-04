@@ -368,6 +368,11 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
         else {
             notifyAction('ingredient-check');
             next.add(id);
+            // In tutorial (rezepte), automatically show instructions on mobile layout 
+            // after checking an ingredient, so the timer step becomes visible.
+            if (sessionStorage.getItem('activeTutorialChapter') === 'rezepte' && window.innerWidth < 768) {
+                setShowIngredientsMobile(false);
+            }
         }
         setCheckedIngredients(next);
     };

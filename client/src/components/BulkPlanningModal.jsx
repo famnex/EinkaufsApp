@@ -286,6 +286,7 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
                 [prodId]: { ...current, [field]: value }
             };
         });
+        notifyAction('planner-item-select');
     };
 
     const clearAdjustment = (prodId) => {
@@ -444,6 +445,7 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
                                                     onSetSearchTerm={setSearchTerm}
                                                     onDeleteItem={handleDeleteItem}
                                                     conflicts={conflicts}
+                                                    notifyAction={notifyAction}
                                                 />
                                             ))}
                                     </div>
@@ -499,7 +501,7 @@ function PlanningRow({
     item, adjustments, substitutions, searchingFor, searchTerm, allProducts,
     onHide, onQuickAdd, onManualChange, getAdj, availableUnits, noteSuggestions,
     onClearAdjustment, onSubstitute, onClearSubstitution, onSetSearchingFor, onSetSearchTerm, onDeleteItem,
-    conflicts
+    conflicts, notifyAction
 }) {
     const adj = getAdj(item.product.id, adjustments);
     const isSelected = !!adjustments[item.product.id];
@@ -544,6 +546,7 @@ function PlanningRow({
     const hasVariations = variations.length > 0;
 
     const handleQuickAddClick = (amount, unit) => {
+        if (notifyAction) notifyAction('planner-item-select');
         if (hasVariations) {
             setShowingVariantPicker({ amount, unit });
         } else {
@@ -555,6 +558,7 @@ function PlanningRow({
         const { amount, unit } = showingVariantPicker;
         onQuickAdd(item.product.id, amount, unit, variantId);
         setShowingVariantPicker(false);
+        if (notifyAction) notifyAction('planner-variant-select');
     };
 
     return (
@@ -763,7 +767,7 @@ function PlanningRow({
 
                         {/* Variant Picker */}
                         {showingVariantPicker && (
-                            <div className="flex flex-col gap-2 w-full bg-primary/5 p-2 rounded-2xl border border-primary/20 animate-in fade-in zoom-in-95">
+                            <div id="planner-variant-picker-active" className="flex flex-col gap-2 w-full bg-primary/5 p-2 rounded-2xl border border-primary/20 animate-in fade-in zoom-in-95">
                                 <div className="flex items-center justify-between px-1">
                                     <span className="text-[10px] font-black uppercase text-primary tracking-wider">Variante wählen</span>
                                     <button onClick={() => setShowingVariantPicker(false)} className="text-muted-foreground hover:text-foreground">
@@ -775,7 +779,7 @@ function PlanningRow({
                                         <button
                                             key={v.id}
                                             onClick={() => handleSelectVariant(v.id)}
-                                            className="w-full text-left px-3 py-2 bg-card hover:bg-primary/10 border border-border rounded-xl text-[11px] font-bold transition-all flex items-center justify-between group"
+                                            className="w-full text-left px-3 py-2 bg-card hover:bg-primary/10 border border-border rounded-xl text-[11px] font-bold transition-all flex items-center justify-between group planner-variant-select"
                                         >
                                             <span className="truncate">{v.ProductVariant?.title || 'Standard'}</span>
                                             <Plus size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
