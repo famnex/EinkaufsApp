@@ -21,6 +21,7 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
     const [uploading, setUploading] = useState(false);
     const [banData, setBanData] = useState({ reason: '', days: '7', permanent: false });
     const [banLoading, setBanLoading] = useState(false);
+    const [extendTrialDays, setExtendTrialDays] = useState('7');
 
     useEffect(() => {
         if (isOpen) {
@@ -148,6 +149,58 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
             alert('Entbannen fehlgeschlagen: ' + (err.response?.data?.error || err.message));
         } finally {
             setBanLoading(false);
+        }
+    };
+
+    const handleResetStripeIds = async () => {
+        if (!confirm(`Stripe Customer ID und Subscription ID für ${data.user.username} wirklich auf null setzen? Das Abo wird dadurch nicht bei Stripe storniert!`)) return;
+        try {
+            await api.post(`/users/${userId}/reset-stripe-ids`);
+            await fetchDetail();
+            if (onUpdate) onUpdate();
+            alert('Stripe-IDs wurden zurückgesetzt.');
+        } catch (err) {
+            alert('Fehler: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleToggleTrial = async () => {
+        const newVal = !data.user.isTrialUsed;
+        if (!confirm(`Trial-Möglichkeit auf "${newVal ? 'VERWENDET' : 'VERFÜGBAR'}" setzen?`)) return;
+        try {
+            await api.post(`/users/${userId}/set-trial-used`, { isTrialUsed: newVal });
+            await fetchDetail();
+            if (onUpdate) onUpdate();
+        } catch (err) {
+            alert('Fehler: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleExtendTrial = async (sign = 1) => {
+        const days = parseInt(extendTrialDays);
+        if (isNaN(days) || days === 0) return alert('Bitte eine gültige Anzahl Tage eingeben.');
+        const finalDays = days * sign;
+        const action = sign > 0 ? 'verlängern' : 'verkürzen';
+        if (!confirm(`Ablaufdatum des Abos / Trials um ${Math.abs(finalDays)} Tage ${action}?`)) return;
+        try {
+            await api.post(`/users/${userId}/extend-subscription`, { days: finalDays });
+            await fetchDetail();
+            if (onUpdate) onUpdate();
+            alert(`Ablaufdatum um ${Math.abs(finalDays)} Tage ge${sign > 0 ? 'verlängert' : 'verkürzt'}.`);
+        } catch (err) {
+            alert('Fehler: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleResetCheckoutStatus = async () => {
+        if (!confirm(`Checkout-Status von ${data.user.username} komplett zurücksetzen? subscriptionStatus, subscriptionExpiresAt und cancelAtPeriodEnd werden auf null gesetzt.`)) return;
+        try {
+            await api.post(`/users/${userId}/reset-checkout-status`);
+            await fetchDetail();
+            if (onUpdate) onUpdate();
+            alert('Checkout-Status wurde zurückgesetzt.');
+        } catch (err) {
+            alert('Fehler: ' + (err.response?.data?.error || err.message));
         }
     };
 
@@ -550,6 +603,14 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
                                                                 <span className="font-medium">{data.user.cancelAtPeriodEnd ? 'AUS' : 'AN'}</span>
                                                             </div>
                                                         </div>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="w-full mt-2 border-destructive/40 text-destructive hover:bg-destructive/10 text-xs gap-1.5"
+                                                            onClick={handleResetCheckoutStatus}
+                                                        >
+                                                            <X size={12} /> Checkout-Status zurücksetzen
+                                                        </Button>
                                                     </div>
 
                                                     <div className="p-4 bg-muted/20 rounded-2xl border border-border space-y-3">
@@ -564,17 +625,34 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
                                                                 <span className="font-mono text-[11px] truncate">{data.user.stripeSubscriptionId || '-'}</span>
                                                             </div>
                                                         </div>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="w-full mt-2 border-destructive/40 text-destructive hover:bg-destructive/10 text-xs gap-1.5"
+                                                            onClick={handleResetStripeIds}
+                                                            disabled={!data.user.stripeCustomerId && !data.user.stripeSubscriptionId}
+                                                        >
+                                                            <X size={12} /> Stripe-IDs zurücksetzen
+                                                        </Button>
                                                     </div>
 
                                                     <div className="p-4 bg-muted/20 rounded-2xl border border-border space-y-3">
                                                         <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Zusatz-Infos</h4>
                                                         <div className="space-y-2">
-                                                            <div className="flex justify-between text-sm">
+                                                            <div className="flex justify-between text-sm items-center">
                                                                 <span className="text-muted-foreground">Trial noch möglich:</span>
-                                                                <span className={cn(
-                                                                    "font-bold uppercase text-[10px] px-2 py-0.5 rounded-full",
-                                                                    !data.user.isTrialUsed ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
-                                                                )}>{!data.user.isTrialUsed ? 'JA' : 'NEIN'}</span>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className={cn(
+                                                                        "font-bold uppercase text-[10px] px-2 py-0.5 rounded-full",
+                                                                        !data.user.isTrialUsed ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                                                                    )}>{!data.user.isTrialUsed ? 'JA' : 'NEIN'}</span>
+                                                                    <button
+                                                                        onClick={handleToggleTrial}
+                                                                        className="text-[10px] px-2 py-0.5 rounded border border-border hover:bg-muted text-muted-foreground transition-colors"
+                                                                    >
+                                                                        Toggle
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                             <div className="flex justify-between text-sm">
                                                                 <span className="text-muted-foreground">Restzeit:</span>
@@ -588,6 +666,31 @@ export default function UserDetailModal({ isOpen, onClose, userId, onUpdate, ini
                                                                     ) : '-'}
                                                                 </span>
                                                             </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 pt-1">
+                                                            <Input
+                                                                type="number"
+                                                                value={extendTrialDays}
+                                                                onChange={(e) => setExtendTrialDays(e.target.value)}
+                                                                className="h-8 text-xs w-20"
+                                                                placeholder="Tage"
+                                                            />
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="flex-1 text-xs gap-1.5 h-8"
+                                                                onClick={() => handleExtendTrial(1)}
+                                                            >
+                                                                + verlängern
+                                                            </Button>
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="flex-1 text-xs gap-1.5 h-8 border-destructive/40 text-destructive hover:bg-destructive/10"
+                                                                onClick={() => handleExtendTrial(-1)}
+                                                            >
+                                                                - verkürzen
+                                                            </Button>
                                                         </div>
                                                     </div>
                                                 </div>

@@ -362,4 +362,79 @@ router.post('/:id/unban', async (req, res) => {
     }
 });
 
+// POST /:id/reset-stripe-ids - Reset Stripe Customer ID and Subscription ID to null (Admin only)
+router.post('/:id/reset-stripe-ids', async (req, res) => {
+    try {
+        const user = await User.findByPk(req.params.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        await user.update({
+            stripeCustomerId: null,
+            stripeSubscriptionId: null
+        });
+
+        res.json({ message: 'Stripe IDs wurden zurückgesetzt.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /:id/set-trial-used - Toggle isTrialUsed flag (Admin only)
+router.post('/:id/set-trial-used', async (req, res) => {
+    try {
+        const user = await User.findByPk(req.params.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const { isTrialUsed } = req.body;
+        await user.update({ isTrialUsed: !!isTrialUsed });
+
+        res.json({ message: `isTrialUsed wurde auf ${!!isTrialUsed} gesetzt.` });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /:id/extend-subscription - Extend subscriptionExpiresAt by N days (Admin only)
+router.post('/:id/extend-subscription', async (req, res) => {
+    try {
+        const user = await User.findByPk(req.params.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const days = parseInt(req.body.days);
+        if (isNaN(days) || days === 0) return res.status(400).json({ error: 'Ungültige Anzahl Tage' });
+
+        const base = user.subscriptionExpiresAt && new Date(user.subscriptionExpiresAt) > new Date()
+            ? new Date(user.subscriptionExpiresAt)
+            : new Date();
+
+        base.setDate(base.getDate() + days);
+
+        // Don't allow expiry to go below now
+        const newDate = base < new Date() ? new Date() : base;
+        await user.update({ subscriptionExpiresAt: newDate });
+
+        res.json({ message: `Ablaufdatum um ${days} Tage verlängert.`, newExpiry: base });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /:id/reset-checkout-status - Reset subscriptionStatus, subscriptionExpiresAt, cancelAtPeriodEnd (Admin only)
+router.post('/:id/reset-checkout-status', async (req, res) => {
+    try {
+        const user = await User.findByPk(req.params.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        await user.update({
+            subscriptionStatus: null,
+            subscriptionExpiresAt: null,
+            cancelAtPeriodEnd: false
+        });
+
+        res.json({ message: 'Checkout-Status wurde zurückgesetzt.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
