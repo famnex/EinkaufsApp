@@ -4,18 +4,21 @@ import { cn } from '../lib/utils';
 import { motion } from 'framer-motion';
 
 import { useAuth } from '../contexts/AuthContext';
+import { useTutorial } from '../contexts/TutorialContext';
+import { GraduationCap } from 'lucide-react';
 
 export default function BottomNav() {
     const navigate = useNavigate();
     const location = useLocation();
     const { notificationCounts } = useAuth();
+    const { setIsWelcomeOpen } = useTutorial();
 
     const tabs = [
-        { id: 'dashboard', icon: List, path: '/', label: 'Listen' },
-        { id: 'menu', icon: CalendarRange, path: '/menu', label: 'Menüplan' },
-        { id: 'recipes', icon: UtensilsCrossed, path: '/recipes', label: 'Rezepte' },
-        { id: 'community', icon: BookOpen, path: '/community-cookbooks', label: 'Community' },
-        { id: 'settings', icon: Settings, path: '/settings', label: 'Optionen' },
+        { id: 'dashboard', icon: List, path: '/', label: 'Listen', tutorialId: 'nav-lists' },
+        { id: 'menu', icon: CalendarRange, path: '/menu', label: 'Menüplan', tutorialId: 'nav-planner' },
+        { id: 'recipes', icon: UtensilsCrossed, path: '/recipes', label: 'Rezepte', tutorialId: 'nav-recipes' },
+        { id: 'community', icon: BookOpen, path: '/community-cookbooks', label: 'Community', tutorialId: 'nav-community' },
+        { id: 'settings', icon: Settings, path: '/settings', label: 'Optionen', tutorialId: 'bottom-settings-tab' },
     ];
 
     const isActive = (path) => location.pathname === path;
@@ -25,8 +28,9 @@ export default function BottomNav() {
         <div
             className="fixed bottom-0 left-0 right-0 z-[1000] bg-card/80 backdrop-blur-xl border-t border-border h-20 shadow-xl"
             style={{ WebkitBackdropFilter: 'blur(20px)' }}
+            id="bottom-nav"
         >
-            <div className="max-w-7xl mx-auto h-full grid grid-cols-5 relative px-2">
+            <div className="max-w-7xl mx-auto h-full grid grid-cols-6 relative px-2">
                 {/* Active Highlight Marker */}
                 {activeIndex !== -1 && (
                     <div className="absolute inset-y-0 left-2 right-2 pointer-events-none">
@@ -35,8 +39,8 @@ export default function BottomNav() {
                                 className="absolute top-2 bottom-2 bg-primary rounded-2xl shadow-lg shadow-primary/20"
                                 initial={false}
                                 animate={{
-                                    left: `${(activeIndex * 100) / 5}%`,
-                                    width: `${100 / 5}%`
+                                    left: `${(activeIndex * 100) / 6}%`,
+                                    width: `${100 / 6}%`
                                 }}
                                 transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
                             />
@@ -49,6 +53,7 @@ export default function BottomNav() {
                     return (
                         <button
                             key={tab.id}
+                            id={tab.tutorialId}
                             onClick={() => navigate(tab.path)}
                             className="relative flex flex-col items-center justify-center gap-1 group outline-none z-10"
                         >
@@ -75,6 +80,22 @@ export default function BottomNav() {
                         </button>
                     );
                 })}
+
+                {/* Dev Tutorial Button */}
+                <button
+                    onClick={() => setIsWelcomeOpen(true)}
+                    className="relative flex flex-col items-center justify-center gap-1 group outline-none z-10"
+                >
+                    <div className="relative">
+                        <GraduationCap
+                            size={22}
+                            className="text-muted-foreground group-hover:text-primary transition-all duration-300"
+                        />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-colors duration-300 hidden sm:block">
+                        Tutorial
+                    </span>
+                </button>
             </div>
         </div>
     );

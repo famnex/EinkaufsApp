@@ -14,8 +14,10 @@ import SubscriptionModal from './SubscriptionModal';
 import CookingExitModal from './CookingExitModal';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import AiLockedModal from './AiLockedModal';
+import { useTutorial } from '../contexts/TutorialContext';
 
 export default function CookingMode({ recipe, conflicts = [], onClose }) {
+    const { notifyAction } = useTutorial();
     const [step, setStep] = useState(0);
     const [checkedIngredients, setCheckedIngredients] = useState(new Set());
     const [textSize, setTextSize] = useState(1); // 0: Small, 1: Normal, 2: Large
@@ -363,7 +365,10 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
         resumeAudio(); // iOS: keep AudioContext alive
         const next = new Set(checkedIngredients);
         if (next.has(id)) next.delete(id);
-        else next.add(id);
+        else {
+            notifyAction('ingredient-check');
+            next.add(id);
+        }
         setCheckedIngredients(next);
     };
 
@@ -470,6 +475,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
     };
 
     const handleTimeClick = (text, seconds, label) => {
+        notifyAction('timer-start');
         if (timers.length === 0) {
             setShowSilentHint(true);
             setTimeout(() => setShowSilentHint(false), 5000); // Auto-hide after 5s
@@ -553,6 +559,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
         if (hasPaidForAi || elapsed >= 30000) {
             setIsExitModalOpen(true);
         } else {
+            notifyAction('cook-mode-close');
             onClose();
         }
     };
@@ -641,7 +648,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                             <Button size="sm" onClick={handleShareRequest} className="bg-secondary text-secondary-foreground hover:bg-secondary/90 px-4">
                                 <Share2 size={20} />
                             </Button>
-                            <Button size="sm" onClick={handleAttemptClose} className="bg-primary text-primary-foreground hover:bg-primary/90 px-4">
+                            <Button size="sm" onClick={handleAttemptClose} id="close-cooking-btn-mobile" className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 tutorial-close-cooking-btn">
                                 <X size={20} />
                             </Button>
                         </div>
@@ -691,7 +698,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                         <Button onClick={handleShareRequest} className="rounded-full w-12 h-12 p-0 shadow-lg bg-secondary text-secondary-foreground hover:bg-secondary/90 border-none">
                             <Share2 size={24} />
                         </Button>
-                        <Button onClick={handleAttemptClose} className="rounded-full w-12 h-12 p-0 shadow-lg bg-primary text-primary-foreground hover:bg-primary/90 border-none">
+                        <Button onClick={handleAttemptClose} id="close-cooking-btn-desktop" className="rounded-full w-12 h-12 p-0 shadow-lg bg-primary text-primary-foreground hover:bg-primary/90 border-none tutorial-close-cooking-btn">
                             <X size={24} />
                         </Button>
                     </div>
@@ -790,7 +797,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                                             key={ing.id}
                                             onClick={() => toggleIngredient(ing.id)}
                                             className={cn(
-                                                "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 border relative group",
+                                                "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 border relative group cook-ingredient-item",
                                                 checkedIngredients.has(ing.id)
                                                     ? "bg-muted text-muted-foreground border-transparent line-through opacity-60"
                                                     : "bg-card border-border hover:border-primary/50 shadow-sm"
@@ -1023,7 +1030,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                                                 <span
                                                     key={idx}
                                                     onClick={() => handleTimeClick(frag.text, frag.totalSeconds, frag.label)}
-                                                    className="px-1.5 py-0.5 rounded-md cursor-pointer transition-colors ml-[5px] mx-0.5 border-b-2 border-secondary/40 hover:border-secondary shadow-sm bg-secondary text-secondary-foreground font-black shadow-md dark:bg-secondary dark:text-secondary-foreground"
+                                                    className="px-1.5 py-0.5 rounded-md cursor-pointer transition-colors ml-[5px] mx-0.5 border-b-2 border-secondary/40 hover:border-secondary shadow-sm bg-secondary text-secondary-foreground font-black shadow-md dark:bg-secondary dark:text-secondary-foreground cook-timer-btn"
                                                 >
                                                     {frag.text}
                                                 </span>
@@ -1128,8 +1135,9 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                             // 3. Free for Goldgabel
                             setShowAssistant(true);
                         }}
+                        id="ai-assistant-tab"
                         className={cn(
-                            "fixed top-[calc(120px+env(safe-area-inset-top))] right-4 md:top-auto md:right-auto md:bottom-6 md:left-6 z-[100] w-12 h-12 rounded-full flex items-center justify-center text-white border-2 border-white/20 transition-colors",
+                            "fixed top-[calc(120px+env(safe-area-inset-top))] right-4 md:top-auto md:right-auto md:bottom-6 md:left-6 z-[100] w-12 h-12 rounded-full flex items-center justify-center text-white border-2 border-white/20 transition-colors tutorial-ai-assistant-tab",
                             (assistantStatus.isListening || assistantStatus.isStandby)
                                 ? "bg-gradient-to-br from-red-500 via-purple-600 to-indigo-600"
                                 : "bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 shadow-lg"
@@ -1144,13 +1152,14 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                     </motion.button>
                 ) : (
                     <motion.button
+                        id="ai-assistant-tab-locked"
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.95 }}
                         title="KI Koch-Assistent (ab Silbergabel)"
                         onClick={() => setIsAiLockedOpen(true)}
-                        className="fixed top-[calc(120px+env(safe-area-inset-top))] right-4 md:bottom-6 md:left-6 md:top-auto md:right-auto z-[100] w-12 h-12 rounded-full flex items-center justify-center bg-muted/80 text-muted-foreground border-2 border-border shadow-lg hover:bg-muted transition-colors"
+                        className="fixed top-[calc(120px+env(safe-area-inset-top))] right-4 md:bottom-6 md:left-6 md:top-auto md:right-auto z-[100] w-12 h-12 rounded-full flex items-center justify-center bg-muted/80 text-muted-foreground border-2 border-border shadow-lg hover:bg-muted transition-colors tutorial-ai-assistant-tab"
                     >
                         <Sparkles size={20} />
                         <div className="absolute -top-1 -right-1 w-5 h-5 bg-background border border-border rounded-full flex items-center justify-center shadow-sm">

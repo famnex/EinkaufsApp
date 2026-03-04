@@ -8,9 +8,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useEditMode } from '../contexts/EditModeContext';
 import { cn } from '../lib/utils';
 import LoadingOverlay from '../components/LoadingOverlay';
+import { useAuth } from '../contexts/AuthContext';
+import { useTutorial } from '../contexts/TutorialContext';
+import { tutorialChapters } from '../lib/tutorialSteps';
 
 export default function Dashboard() {
     const { editMode } = useEditMode();
+    const { user, setUser } = useAuth();
     const [lists, setLists] = useState([]);
     const [menus, setMenus] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -18,6 +22,7 @@ export default function Dashboard() {
     const [activeStartDate, setActiveStartDate] = useState(new Date());
     const [direction, setDirection] = useState(0);
     const navigate = useNavigate();
+    const { activeChapter, startChapter, initializeDriver, driverObj, notifyAction, setIsWelcomeOpen } = useTutorial();
 
     // DnD / Longpress State
     const [draggingList, setDraggingList] = useState(null);
@@ -119,6 +124,9 @@ export default function Dashboard() {
             const dateStr = tile.querySelector('[data-date]')?.getAttribute('data-date');
             const list = lists.find(l => l.date === dateStr);
             if (list) {
+                // Tutorial notification
+                notifyAction('calendar-click');
+
                 longPressTimer.current = setTimeout(() => {
                     setDraggingList(list);
                     setIsDragging(true);
@@ -239,6 +247,20 @@ export default function Dashboard() {
         fetchMenus();
     }, [fetchLists, fetchMenus]);
 
+    // Check for tutorial auto-open
+    useEffect(() => {
+        if (user?.showAppTutorial && !sessionStorage.getItem('tutorialShown')) {
+            setIsWelcomeOpen(true);
+        }
+    }, [user, setIsWelcomeOpen]);
+
+    const handleToggleShowTutorial = async (value) => {
+        // This is now handled in TutorialContext via handleToggleShowTutorial
+    };
+
+    // Removed handleStartChapter as it's now global in TutorialContext
+
+
     // Helper for local date string
     const getLocalDateStr = (date) => {
         const year = date.getFullYear();
@@ -249,6 +271,7 @@ export default function Dashboard() {
 
     const handleDateClick = async (date) => {
         const formattedDate = getLocalDateStr(date);
+        notifyAction('calendar-click');
 
         const existingList = lists.find(l => l.date === formattedDate);
 
@@ -354,7 +377,7 @@ export default function Dashboard() {
         <LoadingOverlay isLoading={loading}>
             <div className="space-y-4">
                 {/* Info Box */}
-                <div className="mt-4">
+                <div className="mt-4" id="quick-access-container">
                     <div className="bg-primary rounded-2xl p-2 grid grid-cols-2 gap-2">
                         {/* Nächster Einkauf */}
                         <button
@@ -411,7 +434,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Calendar */}
-                <div className="w-full relative">
+                <div className="w-full relative" id="calendar-container">
                     <motion.div
                         key="calendar-view"
                         initial={{ opacity: 0, scale: 0.98 }}

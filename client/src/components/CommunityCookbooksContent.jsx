@@ -9,10 +9,12 @@ import api from '../lib/axios';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingOverlay from './LoadingOverlay';
+import { useTutorial } from '../contexts/TutorialContext';
 
 export default function CommunityCookbooksContent() {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { notifyAction } = useTutorial();
     const [cookbooks, setCookbooks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -49,6 +51,7 @@ export default function CommunityCookbooksContent() {
         } catch (error) {
             console.error('Failed to toggle follow', error);
         }
+        notifyAction('community-follow');
     };
 
     const filteredCookbooks = cookbooks
@@ -176,9 +179,13 @@ export default function CommunityCookbooksContent() {
                             <div className="relative flex-1 w-full">
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
                                 <Input
+                                    id="community-search"
                                     placeholder="Suche..."
                                     value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onChange={(e) => {
+                                        setSearchTerm(e.target.value);
+                                        if (e.target.value.length > 2) notifyAction('community-search');
+                                    }}
                                     className="pl-12 h-14 rounded-2xl bg-background/80 backdrop-blur-sm border-2 border-primary/10 focus:border-primary/30 text-lg shadow-xl shadow-primary/5"
                                 />
                             </div>
@@ -214,9 +221,13 @@ export default function CommunityCookbooksContent() {
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                             <Input
+                                id="community-search-mobile"
                                 placeholder="Suchen..."
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e) => {
+                                    setSearchTerm(e.target.value);
+                                    if (e.target.value.length > 2) notifyAction('community-search');
+                                }}
                                 className="pl-9 h-11 rounded-xl bg-background border-border text-sm shadow-sm"
                             />
                         </div>
@@ -522,8 +533,13 @@ export default function CommunityCookbooksContent() {
                         filteredCookbooks.map((cb, idx) => (
                             <motion.div variants={item} key={cb.sharingKey || idx}>
                                 <Card
-                                    onClick={() => navigate(`/shared/${cb.sharingKey}/cookbook`)}
-                                    className="p-0 overflow-hidden hover:shadow-2xl transition-all duration-500 border-border/50 bg-card hover:bg-card group flex flex-col h-full rounded-3xl hover:-translate-y-1 cursor-pointer"
+                                    id={(cb.cookbookTitle || '').toUpperCase() === "THECOOKINGGUYS" ? "open-global-cookbook" : undefined}
+                                    onClick={() => {
+                                        navigate(`/shared/${cb.sharingKey}/cookbook`);
+                                        if ((cb.cookbookTitle || '').toUpperCase() === "THECOOKINGGUYS") notifyAction('global-cookbook-open');
+                                        notifyAction('community-open');
+                                    }}
+                                    className="p-0 overflow-hidden hover:shadow-2xl transition-all duration-500 border-border/50 bg-card hover:bg-card group flex flex-col h-full rounded-3xl hover:-translate-y-1 cursor-pointer community-cookbook-card"
                                 >
                                     <div className="h-48 bg-muted relative overflow-hidden">
                                         {cb.tileImage ? (
@@ -552,8 +568,9 @@ export default function CommunityCookbooksContent() {
                                         {/* Follow Button */}
                                         {user && cb.sharingKey && cb.id !== user.id && (!user.householdId || cb.householdId !== user.householdId) && (
                                             <button
+                                                id="follow-cookbook-btn"
                                                 onClick={(e) => toggleFollow(e, cb)}
-                                                className="absolute top-4 left-4 p-2 rounded-full backdrop-blur-sm bg-black/20 hover:bg-black/40 text-white transition-all duration-200 focus:outline-none z-10"
+                                                className="absolute top-4 left-4 p-2 rounded-full backdrop-blur-sm bg-black/20 hover:bg-black/40 text-white transition-all duration-200 focus:outline-none z-10 follow-cookbook-btn"
                                                 title="Kochbuch folgen/entfolgen"
                                             >
                                                 <Heart

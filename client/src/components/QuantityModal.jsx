@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, AlertCircle, HelpCircle, X, Check, Save } from 'lucide-react';
+import { AlertTriangle, AlertCircle, HelpCircle, X, Check, Save, Minus, Plus } from 'lucide-react';
+import { useTutorial } from '../contexts/TutorialContext';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
@@ -9,6 +10,7 @@ import api from '../lib/axios';
 import { cn } from '../lib/utils';
 
 export default function QuantityModal({ isOpen, onClose, productName, defaultUnit = 'Stück', productNote = '', variations = [], onConfirm, intoleranceData = { messages: [], maxProbability: 0 } }) {
+    const { notifyAction } = useTutorial();
     const [quantity, setQuantity] = useState('1');
     const [unit, setUnit] = useState(defaultUnit);
     const [note, setNote] = useState('');
@@ -49,6 +51,7 @@ export default function QuantityModal({ isOpen, onClose, productName, defaultUni
             alert('Bitte wähle eine Variante aus.');
             return;
         }
+        notifyAction('quantity-add');
         onConfirm(quantity, unit, note, selectedVariationId);
         onClose();
     };
@@ -120,26 +123,54 @@ export default function QuantityModal({ isOpen, onClose, productName, defaultUni
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Menge</label>
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Menge</label>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        id="quantity-decrease-btn"
+                                        onClick={() => {
+                                            const newQty = Math.max(0, Number(quantity) - 1);
+                                            setQuantity(newQty.toString());
+                                            notifyAction('quantity-changed');
+                                        }}
+                                        className="h-12 w-12 rounded-xl shrink-0"
+                                    >
+                                        <Minus size={18} />
+                                    </Button>
                                     <Input
                                         type="number"
                                         step="0.1"
                                         min="0"
                                         value={quantity}
-                                        onChange={(e) => setQuantity(e.target.value)}
-                                        className="text-center font-bold text-lg"
+                                        onChange={(e) => {
+                                            setQuantity(e.target.value);
+                                            notifyAction('quantity-changed');
+                                        }}
+                                        className="text-center font-bold text-lg h-12 min-w-0 flex-1"
                                         autoFocus
                                     />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Einheit</label>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        id="quantity-increase-btn"
+                                        onClick={() => {
+                                            const newQty = Number(quantity) + 1;
+                                            setQuantity(newQty.toString());
+                                            notifyAction('quantity-increase');
+                                        }}
+                                        className="h-12 w-12 rounded-xl shrink-0"
+                                    >
+                                        <Plus size={18} />
+                                    </Button>
                                     <Input
                                         value={unit}
                                         onChange={(e) => setUnit(e.target.value)}
                                         placeholder="Einheit"
-                                        className="text-center"
+                                        className="text-center w-24 shrink-0 h-12"
                                     />
                                 </div>
                             </div>
@@ -158,7 +189,7 @@ export default function QuantityModal({ isOpen, onClose, productName, defaultUni
                                 </datalist>
                             </div>
 
-                            <Button type="submit" className="w-full h-12 gap-2 mt-4">
+                            <Button type="submit" id="quantity-add-btn" className="w-full h-12 gap-2 mt-4">
                                 <Check size={20} />
                                 Hinzufügen
                             </Button>

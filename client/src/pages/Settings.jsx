@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, UserMinus, LogOut, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen, AlertTriangle, Folder, Calendar, CalendarX, Info, ShieldAlert, Server, Star, CheckCircle2 } from 'lucide-react';
+import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, UserMinus, LogOut, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen, AlertTriangle, Folder, Calendar, CalendarX, Info, ShieldAlert, Server, Star, CheckCircle2, Zap, Play } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -23,6 +23,7 @@ import Products from './Products';
 import AiLockedModal from '../components/AiLockedModal';
 import IntoleranceCheckModal from '../components/IntoleranceCheckModal';
 import { subscribeUserToPush, unsubscribeUserFromPush } from '../lib/pushNotifications';
+import { useTutorial } from '../contexts/TutorialContext';
 
 export default function SettingsPage() {
     const navigate = useNavigate();
@@ -32,6 +33,7 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
     const { user, setUser, refreshUser, notificationCounts, fetchNotificationCounts } = useAuth();
     const { editMode, setEditMode } = useEditMode();
+    const { notifyAction } = useTutorial();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isAiLockedOpen, setIsAiLockedOpen] = useState(false);
     const [aiLockedFeatureName, setAiLockedFeatureName] = useState('');
@@ -1831,6 +1833,48 @@ export default function SettingsPage() {
                                 </div>
                             )}
 
+                            <div className="p-4 bg-muted/50 rounded-2xl border border-border/50 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-1">
+                                        <p className="font-bold text-foreground">App-Tutorial</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Hilfreiche Erklärungen beim ersten Start anzeigen
+                                        </p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            id="tutorial-toggle"
+                                            className="sr-only peer"
+                                            checked={user?.showAppTutorial !== false}
+                                            onChange={(e) => {
+                                                const newVal = e.target.checked;
+                                                setUser({ ...user, showAppTutorial: newVal });
+                                                api.put('/auth/profile', { showAppTutorial: newVal }).catch(() => {
+                                                    setUser({ ...user, showAppTutorial: !newVal });
+                                                    alert('Fehler beim Speichern der Tutorial-Einstellung');
+                                                });
+                                            }}
+                                        />
+                                        <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                    </label>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    id="start-tutorial-btn"
+                                    className="w-full bg-background/50 hover:bg-background transition-colors flex items-center justify-center gap-2 py-5 rounded-xl border-dashed"
+                                    onClick={() => {
+                                        sessionStorage.removeItem('tutorialShown');
+                                        notifyAction('manual_start_tutorial');
+                                        navigate('/dashboard');
+                                    }}
+                                >
+                                    <Play size={14} className="text-primary fill-primary" />
+                                    Tutorial jetzt starten
+                                </Button>
+                            </div>
+
                             <p className="text-xs text-muted-foreground italic px-1">
                                 Erhalte regelmäßig Updates zu neuen Funktionen, Rezepten und Community-Highlights sowie Benachrichtigungen über Kochbücher, denen du folgst (per E-Mail und Push-Mitteilung).
                             </p>
@@ -2056,7 +2100,7 @@ export default function SettingsPage() {
     };
 
     const AccountHeader = (
-        <div className="p-8 border-b border-border space-y-4">
+        <div id="account-header" className="p-8 border-b border-border space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
                     <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-inner">
@@ -2071,7 +2115,10 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                    <div className="bg-card border border-border rounded-2xl p-4 shadow-sm flex items-center gap-4 min-w-[200px]">
+                    <div
+                        className="bg-card border border-border rounded-2xl p-4 shadow-sm flex items-center gap-4 min-w-[200px] cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => setActiveAccountTab('subscription')}
+                    >
                         <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shadow-sm">
                             <Sparkles size={20} />
                         </div>
@@ -2086,7 +2133,10 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
-                    <div className="bg-card border border-border rounded-2xl p-4 shadow-sm flex items-center gap-4 min-w-[160px]">
+                    <div
+                        className="bg-card border border-border rounded-2xl p-4 shadow-sm flex items-center gap-4 min-w-[160px] cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => setActiveAccountTab('subscription')}
+                    >
                         <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
                             <CreditCard size={20} />
                         </div>
@@ -2156,37 +2206,54 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
                     <ChefHat size={20} className="text-primary" />
-                    Dein öffentliches Kochbuch
+                    {isHouseholdMember ? "Öffentliches Kochbuch (Haushalt)" : "Dein öffentliches Kochbuch"}
                 </h2>
-                <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium">Öffentlichen Link aktivieren</span>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                            type="checkbox"
-                            className="sr-only peer"
-                            checked={user?.isPublicCookbook || false}
-                            onChange={(e) => {
-                                const newVal = e.target.checked;
-                                // Optimistic update
-                                setUser({ ...user, isPublicCookbook: newVal });
-                                // API call
-                                api.put('/auth/profile', { isPublicCookbook: newVal }).then(res => {
-                                    // Update sharingKey if newly created
-                                    setUser(res.data);
-                                    setSharingKey(res.data.sharingKey || '');
-                                    setIsPublicCookbook(res.data.isPublicCookbook);
-                                }).catch(() => {
-                                    setUser({ ...user, isPublicCookbook: !newVal }); // Revert on error
-                                    alert('Fehler beim Speichern');
-                                });
-                            }}
-                        />
-                        <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                    </label>
-                </div>
+                {!isHouseholdMember ? (
+                    <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium">Öffentlichen Link aktivieren</span>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={user?.isPublicCookbook || false}
+                                onChange={(e) => {
+                                    const newVal = e.target.checked;
+                                    // Optimistic update
+                                    setUser({ ...user, isPublicCookbook: newVal });
+                                    // API call
+                                    api.put('/auth/profile', { isPublicCookbook: newVal }).then(res => {
+                                        // Update sharingKey if newly created
+                                        setUser(res.data);
+                                        setSharingKey(res.data.sharingKey || '');
+                                        setIsPublicCookbook(res.data.isPublicCookbook);
+                                    }).catch(() => {
+                                        setUser({ ...user, isPublicCookbook: !newVal }); // Revert on error
+                                        alert('Fehler beim Speichern');
+                                    });
+                                }}
+                            />
+                            <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                        </label>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium border border-border px-3 py-1 rounded-full bg-muted/30">
+                            Status: {effectiveUser?.isPublicCookbook ? <span className="text-emerald-500 font-bold ml-1">Aktiv</span> : <span className="text-muted-foreground font-bold ml-1">Inaktiv</span>}
+                        </span>
+                    </div>
+                )}
             </div>
 
-            {user?.isPublicCookbook && (
+            {isHouseholdMember && (
+                <div className="mb-6 p-4 bg-primary/5 rounded-2xl border border-primary/10 flex items-center gap-3">
+                    <Info size={18} className="text-primary shrink-0" />
+                    <p className="text-sm text-primary/80 font-medium leading-tight">
+                        Dies ist das öffentliche Kochbuch deines Haushalts. Du kannst es einsehen und teilen, aber Änderungen können nur vom Haushalts-Besitzer vorgenommen werden.
+                    </p>
+                </div>
+            )}
+
+            {effectiveUser?.isPublicCookbook && (
                 <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -2201,10 +2268,13 @@ export default function SettingsPage() {
                                 onChange={(e) => setCookbookTitle(e.target.value)}
                                 placeholder="Z.B. MEIN REZEPTSCHREIN"
                                 className="bg-muted border-transparent focus:bg-background"
+                                readOnly={isHouseholdMember}
                             />
-                            <Button onClick={handleSaveCookbook} disabled={savingCookbook}>
-                                {savingCookbook ? <Loader2 size={16} className="animate-spin" /> : 'OK'}
-                            </Button>
+                            {!isHouseholdMember && (
+                                <Button onClick={handleSaveCookbook} disabled={savingCookbook}>
+                                    {savingCookbook ? <Loader2 size={16} className="animate-spin" /> : 'OK'}
+                                </Button>
+                            )}
                         </div>
                     </div>
 
@@ -2218,25 +2288,27 @@ export default function SettingsPage() {
                                     <ChefHat size={32} className="text-muted-foreground/30" />
                                 )}
                             </div>
-                            <div className="space-y-2 flex-1">
-                                <input
-                                    type="file"
-                                    id="cookbook-image"
-                                    className="hidden"
-                                    accept="image/*"
-                                    onChange={handleCookbookImageUpload}
-                                />
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full"
-                                    onClick={() => document.getElementById('cookbook-image').click()}
-                                    disabled={savingCookbook}
-                                >
-                                    Bild ändern
-                                </Button>
-                                <p className="text-[10px] text-muted-foreground">Empfohlen: 300x300px</p>
-                            </div>
+                            {!isHouseholdMember && (
+                                <div className="space-y-2 flex-1">
+                                    <input
+                                        type="file"
+                                        id="cookbook-image"
+                                        className="hidden"
+                                        accept="image/*"
+                                        onChange={handleCookbookImageUpload}
+                                    />
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full"
+                                        onClick={() => document.getElementById('cookbook-image').click()}
+                                        disabled={savingCookbook}
+                                    >
+                                        Bild ändern
+                                    </Button>
+                                    <p className="text-[10px] text-muted-foreground">Empfohlen: 300x300px</p>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -2247,26 +2319,32 @@ export default function SettingsPage() {
                                 <h3 className="font-bold">In der Community veröffentlichen</h3>
                                 <p className="text-xs text-muted-foreground">Dein Kochbuch erscheint in der Community-Liste für alle anderen Nutzer.</p>
                             </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    className="sr-only peer"
-                                    checked={user?.isCommunityVisible || false}
-                                    onChange={(e) => {
-                                        const newVal = e.target.checked;
-                                        setUser({ ...user, isCommunityVisible: newVal });
-                                        api.put('/auth/profile', { isCommunityVisible: newVal }).catch(() => {
-                                            setUser({ ...user, isCommunityVisible: !newVal });
-                                        });
-                                    }}
-                                />
-                                <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                            </label>
+                            {!isHouseholdMember ? (
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only peer"
+                                        checked={user?.isCommunityVisible || false}
+                                        onChange={(e) => {
+                                            const newVal = e.target.checked;
+                                            setUser({ ...user, isCommunityVisible: newVal });
+                                            api.put('/auth/profile', { isCommunityVisible: newVal }).catch(() => {
+                                                setUser({ ...user, isCommunityVisible: !newVal });
+                                            });
+                                        }}
+                                    />
+                                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                </label>
+                            ) : (
+                                <span className="text-xs font-bold bg-muted px-3 py-1.5 rounded-full border border-border">
+                                    {effectiveUser?.isCommunityVisible ? 'Ja' : 'Nein'}
+                                </span>
+                            )}
                         </div>
                     </div>
 
                     <div className="p-4 bg-muted/50 rounded-xl border border-border/50 space-y-3">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Dein öffentlicher Link</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Öffentlicher Link {isHouseholdMember && "des Haushalts"}</label>
                         <div className="flex gap-2">
                             <Input
                                 type="text"
@@ -2288,14 +2366,16 @@ export default function SettingsPage() {
                                 <Copy size={14} />
                             </Button>
                         </div>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="w-full text-[10px] text-muted-foreground hover:text-destructive gap-1 h-auto py-1"
-                            onClick={handleRegenerateKey}
-                        >
-                            <X size={12} /> Neuen Key generieren (alte Links werden ungültig)
-                        </Button>
+                        {!isHouseholdMember && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full text-[10px] text-muted-foreground hover:text-destructive gap-1 h-auto py-1"
+                                onClick={handleRegenerateKey}
+                            >
+                                <X size={12} /> Neuen Key generieren (alte Links werden ungültig)
+                            </Button>
+                        )}
                     </div>
                 </motion.div>
             )}
@@ -2917,7 +2997,7 @@ export default function SettingsPage() {
                     {loadingIntolerances ? (
                         <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary/50" /></div>
                     ) : intolerances.length > 0 ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div id="intolerances-list" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {intolerances.map((item, index) => (
                                 <motion.div
                                     key={item.id}
@@ -2927,7 +3007,12 @@ export default function SettingsPage() {
                                     transition={{ delay: index * 0.03 }}
                                 >
                                     <Card
-                                        onClick={() => (editMode !== 'edit' && editMode !== 'delete') ? handleToggleIntolerance(item.id) : null}
+                                        onClick={() => {
+                                            if (editMode !== 'edit' && editMode !== 'delete') {
+                                                handleToggleIntolerance(item.id);
+                                                notifyAction('toggle_intolerance');
+                                            }
+                                        }}
                                         className={cn(
                                             "p-4 flex items-center justify-between group border shadow-sm transition-all duration-200 cursor-pointer active:scale-[0.98]",
                                             item.selected
@@ -3039,7 +3124,7 @@ export default function SettingsPage() {
                 </AnimatePresence>
 
                 {/* Personal Product Exclusions Section */}
-                <div className="pt-8 border-t border-border/50 mt-8">
+                <div id="personal-intolerances-section" className="pt-8 border-t border-border/50 mt-8">
                     <h3 className="text-lg font-bold text-foreground mb-1 px-2 flex items-center gap-2">
                         <Package size={18} className="text-primary" />
                         Persönliche Produkt-Ausschlüsse
@@ -3053,6 +3138,7 @@ export default function SettingsPage() {
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                             <Input
+                                id="product-exclusion-search"
                                 placeholder="Produkt suchen (z.B. Milka Schokolade)..."
                                 className="pl-10 bg-card/30 border-border"
                                 value={productSearchQuery}
@@ -3092,8 +3178,11 @@ export default function SettingsPage() {
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
-                                                        className="h-8 w-8 p-0 rounded-full"
-                                                        onClick={() => handleAddPersonalIntolerance(product.id)}
+                                                        className="h-8 w-8 p-0 rounded-full add-personal-intolerance-btn"
+                                                        onClick={() => {
+                                                            handleAddPersonalIntolerance(product.id);
+                                                            notifyAction('add_personal_intolerance');
+                                                        }}
                                                     >
                                                         <Plus size={16} />
                                                     </Button>
@@ -3983,6 +4072,7 @@ export default function SettingsPage() {
         const currentTier = user?.tier || 'Plastikgabel';
         const badgeImage = getTierBadge(currentTier);
         const isMember = !!user?.householdId;
+        const isTrialActive = user?.isTrialUsed && !user?.stripeSubscriptionId && user?.cancelAtPeriodEnd && (user?.tier === 'Silbergabel' || user?.tier === 'Goldgabel');
 
         return (
             <div className="space-y-8 relative">
@@ -4013,15 +4103,22 @@ export default function SettingsPage() {
                                 {user?.subscriptionExpiresAt && (user?.tier !== 'Plastikgabel' && user?.tier !== 'Rainbowspoon') && (
                                     <div className={cn(
                                         "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-4 w-fit",
-                                        user.cancelAtPeriodEnd
+                                        (user.cancelAtPeriodEnd && !isTrialActive)
                                             ? "bg-destructive/10 text-destructive border border-destructive/20"
                                             : "bg-primary/10 text-primary border border-primary/20"
                                     )}>
                                         {user.cancelAtPeriodEnd ? (
-                                            <>
-                                                <CalendarX size={12} />
-                                                Abo gekündigt zum {new Date(user.subscriptionExpiresAt).toLocaleDateString('de-DE')}
-                                            </>
+                                            isTrialActive ? (
+                                                <>
+                                                    <Zap size={12} className="text-primary" />
+                                                    Testphase aktiv bis {new Date(user.subscriptionExpiresAt).toLocaleDateString('de-DE')}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <CalendarX size={12} />
+                                                    Abo gekündigt zum {new Date(user.subscriptionExpiresAt).toLocaleDateString('de-DE')}
+                                                </>
+                                            )
                                         ) : (
                                             <>
                                                 <RefreshCw size={12} className="animate-spin-slow" />
@@ -4043,7 +4140,7 @@ export default function SettingsPage() {
                                             7-Tage Test (Silber)
                                         </Button>
                                     )}
-                                    {(!isMember && currentTier !== 'Rainbowspoon' && currentTier !== 'Goldgabel' && !user?.cancelAtPeriodEnd) && (
+                                    {(!isMember && currentTier !== 'Rainbowspoon' && currentTier !== 'Goldgabel' && (!user?.cancelAtPeriodEnd || isTrialActive)) && (
                                         <Button
                                             size="sm"
                                             className="gap-2"
@@ -4056,7 +4153,7 @@ export default function SettingsPage() {
                                     )}
                                 </div>
 
-                                {(!isMember && (currentTier === 'Silbergabel' || currentTier === 'Goldgabel')) && (
+                                {(!isMember && (currentTier === 'Silbergabel' || currentTier === 'Goldgabel') && !isTrialActive) && (
                                     <div className="mt-4">
                                         <button
                                             onClick={() => {
@@ -5967,7 +6064,11 @@ export default function SettingsPage() {
                         return (
                             <button
                                 key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
+                                id={tab.id === 'preferences' ? 'settings-preferences-tab' : undefined}
+                                onClick={() => {
+                                    setActiveTab(tab.id);
+                                    if (tab.id === 'preferences') notifyAction('preferences-tab-click');
+                                }}
                                 className={cn(
                                     "flex items-center gap-2 px-4 py-2.5 rounded-2xl whitespace-nowrap transition-all active:scale-95 text-sm font-bold",
                                     isActive
@@ -5991,6 +6092,7 @@ export default function SettingsPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2 }}
                     className="max-w-4xl mx-auto"
+                    id={activeTab === 'preferences' ? 'settings-preferences-content' : undefined}
                 >
                     {activeTab === 'account' && AccountSection}
                     {activeTab === 'preferences' && PreferencesSection}

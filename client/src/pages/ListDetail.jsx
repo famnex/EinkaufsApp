@@ -17,6 +17,7 @@ import { Store as StoreIcon, Check, Wand2, Import } from 'lucide-react';
 import { useEditMode } from '../contexts/EditModeContext';
 import { useSync } from '../contexts/SyncContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useTutorial } from '../contexts/TutorialContext';
 import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
 import { arrayMove, SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
 import { SortableItem } from '../components/SortableItem';
@@ -30,6 +31,7 @@ export default function ListDetail() {
     const { user, refreshUser } = useAuth();
     const { editMode } = useEditMode();
     const { addChange } = useSync();
+    const { notifyAction, activeChapter, driverObj } = useTutorial();
     const [list, setList] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -151,6 +153,7 @@ export default function ListDetail() {
             }
 
             setList(data);
+            notifyAction('open-list');
             return data;
         } catch (err) {
             console.error('Failed to fetch list details', err);
@@ -282,6 +285,7 @@ export default function ListDetail() {
         setPendingProduct(product);
         setSearchTerm('');
         setSuggestions([]);
+        notifyAction('product-search-focus');
 
         if (product && typeof product === 'object' && product.id) {
             const conflictData = await fetchIntoleranceConflicts(product.id);
@@ -316,6 +320,9 @@ export default function ListDetail() {
                 ProductVariationId: variationId || null
             });
 
+            notifyAction('add-product');
+            if (quantity > 1) notifyAction('quantity-changed');
+
             fetchListDetails();
             setPendingProduct(null);
         } catch (err) {
@@ -329,6 +336,7 @@ export default function ListDetail() {
                 CurrentStoreId: storeId || null
             });
             setActiveStoreId(storeId);
+            notifyAction('store-change');
             fetchListDetails(); // Reload to get new Sort Order!
         } catch (err) {
             console.error('Failed to update current store', err);
@@ -338,6 +346,7 @@ export default function ListDetail() {
     // === Product Substitution Handlers ===
     const handleOpenSubstituteModal = async (item) => {
         // Double-Tap Substitution ist immer kostenlos und für alle Tiers verfügbar
+        notifyAction('product-swap');
         startSubstituteSearch(item);
     };
 
@@ -461,10 +470,11 @@ export default function ListDetail() {
             )
         }));
 
-        // Queue Change
         addChange('PUT', `/lists/items/${item.id}`, {
             is_bought: newBoughtState
         });
+
+        if (newBoughtState) notifyAction('product-check');
     };
 
     const deleteItem = async (itemId) => {
@@ -541,6 +551,7 @@ export default function ListDetail() {
             await api.post(`/lists/${id}/commit`, {
                 storeId: activeStoreId
             });
+            notifyAction('shopping-complete');
             const updatedList = await fetchListDetails(); // Refresh to see locked items
 
             // Check if archiving is appropriate
@@ -596,7 +607,11 @@ export default function ListDetail() {
                     {/* Store Selector & AI Import */}
                     <div className="flex items-center gap-2 md:gap-3 shrink-0">
                         <button
-                            onClick={() => setAiImportModalOpen(true)}
+                            onClick={() => {
+                                setAiImportModalOpen(true);
+                                notifyAction('smart-import-opened');
+                            }}
+                            id="smart-import-btn"
                             className="w-10 h-10 md:w-12 md:h-12 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 rounded-xl flex items-center justify-center transition-colors border border-indigo-500/20 shrink-0"
                             title="Smart Import"
                         >
@@ -619,6 +634,7 @@ export default function ListDetail() {
                         <div className="relative group max-w-[110px] sm:max-w-[140px] md:max-w-none">
                             <select
                                 value={activeStoreId}
+                                id="store-select-trigger"
                                 onChange={(e) => updateCurrentStore(e.target.value)}
                                 className="w-full appearance-none bg-muted/50 border border-border rounded-xl px-3 md:px-4 pr-8 md:pr-10 h-10 md:h-12 text-[11px] md:text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer truncate"
                             >
@@ -633,9 +649,10 @@ export default function ListDetail() {
                 </div>
             </div>
 
-            <div className="relative" ref={searchRef}>
+            <div className="relative" id="product-search-area" ref={searchRef}>
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground/50" size={20} />
                 <Input
+                    id="add-product-input"
                     placeholder="Produkt suchen oder hinzufügen..."
                     value={searchTerm}
                     onChange={(e) => handleSearch(e.target.value)}
@@ -655,7 +672,7 @@ export default function ListDetail() {
                             initial={{ opacity: 0, y: -10 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
-                            className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden z-50 backdrop-blur-xl"
+                            className={`absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl ${activeChapter ? 'z-[100002]' : 'z-50'}`}
                         >
                             {suggestions.map((p) => (
                                 <button
@@ -743,7 +760,7 @@ export default function ListDetail() {
                                                         scale: { duration: 0.3 }
                                                     }}
                                                     className={cn(
-                                                        "relative group w-full aspect-square",
+                                                        "relative group w-full aspect-square product-item-row",
                                                         (activeNoteId === item.id || activeSourceId === item.id) && "z-[150]"
                                                     )}
                                                 >
@@ -788,7 +805,13 @@ export default function ListDetail() {
 
                                                                     // Execute after 300ms (if no 2nd tap arrives)
                                                                     singleTapTimeoutRef.current = setTimeout(() => {
-                                                                        toggleBought(item);
+                                                                        const activeStep = driverObj?.getActiveStep();
+                                                                        if (activeStep && activeStep.popover?.actionRequirement === 'product-swap') {
+                                                                            // Prevent checking off product during 'product-swap' tutorial step
+                                                                            console.log('Single tap blocked by tutorial: product-swap step active.');
+                                                                        } else {
+                                                                            toggleBought(item);
+                                                                        }
                                                                         singleTapTimeoutRef.current = null;
                                                                     }, 300);
                                                                     return;
@@ -804,7 +827,7 @@ export default function ListDetail() {
                                                                 }
                                                             }}
                                                             className={cn(
-                                                                "w-full h-full rounded-3xl p-4 flex flex-col justify-between transition-all cursor-pointer shadow-sm border relative isolate group/tile select-none",
+                                                                "w-full h-full rounded-3xl p-4 flex flex-col justify-between transition-all cursor-pointer shadow-sm border relative isolate group/tile select-none product-checkbox",
                                                                 item.is_bought
                                                                     ? "product-tile-teal" // Teal for bought
                                                                     : "product-tile-red", // Red for unbought
@@ -1009,6 +1032,7 @@ export default function ListDetail() {
                             <div className="pt-8 pb-4 flex justify-center">
                                 <Button
                                     size="lg"
+                                    id="complete-shopping-btn"
                                     onClick={completeSession}
                                     disabled={!activeStoreId || !uncommittedItems.some(item => item.is_bought)}
                                     className="bg-primary hover:bg-primary/90 text-primary-foreground font-bebas tracking-wide text-xl px-8 py-6 rounded-2xl shadow-xl hover:scale-105 transition-all w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"

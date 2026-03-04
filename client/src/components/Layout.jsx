@@ -10,10 +10,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import BottomNav from './BottomNav';
 import EditModeSelector from './EditModeSelector';
 import NotificationPrompt from './NotificationPrompt';
+import TutorialWelcomeModal from './TutorialWelcomeModal';
+import { useTutorial } from '../contexts/TutorialContext';
 
 export default function Layout({ children }) {
     const { user } = useAuth();
     const { editMode, setEditMode } = useEditMode();
+    const { isWelcomeOpen, setIsWelcomeOpen, handleStartChapter, handleToggleShowTutorial } = useTutorial();
     const { theme, toggleTheme } = useTheme();
     const { pendingChanges, isSyncing, isOffline } = useSync();
     const location = useLocation();
@@ -157,7 +160,14 @@ export default function Layout({ children }) {
                         {location.pathname !== '/settings' &&
                             location.pathname !== '/recipes' &&
                             location.pathname !== '/community-cookbooks' &&
-                            <EditModeSelector editMode={editMode} setEditMode={setEditMode} />}
+                            <div id="edit-mode-selector">
+                                <EditModeSelector
+                                    editMode={editMode}
+                                    setEditMode={setEditMode}
+                                    hiddenModes={location.pathname === '/' ? ['edit'] : []}
+                                />
+                            </div>
+                        }
 
                         <NotificationPrompt className="p-2" />
 
@@ -185,6 +195,14 @@ export default function Layout({ children }) {
                 </AnimatePresence>
             </main>
             <BottomNav />
+
+            <TutorialWelcomeModal
+                isOpen={isWelcomeOpen}
+                onClose={() => setIsWelcomeOpen(false)}
+                onStartChapter={handleStartChapter}
+                showOnStart={user?.showAppTutorial}
+                onToggleShowOnStart={handleToggleShowTutorial}
+            />
         </div>
     );
 }

@@ -2,17 +2,20 @@ import { useState, useEffect, useRef } from 'react';
 import { Edit3, Eye, Plus, Trash2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
+import { useTutorial } from '../contexts/TutorialContext';
 
-export default function EditModeSelector({ editMode, setEditMode }) {
+export default function EditModeSelector({ editMode, setEditMode, hiddenModes = [] }) {
+    const { notifyAction } = useTutorial();
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef(null);
 
-    const modes = [
+    const allModes = [
         { id: 'view', icon: Eye, label: 'Vorschau' },
         { id: 'create', icon: Plus, label: 'Erstellen' },
         { id: 'edit', icon: Edit3, label: 'Bearbeiten' },
         { id: 'delete', icon: Trash2, label: 'Löschen' }
     ];
+    const modes = allModes.filter(m => !hiddenModes.includes(m.id));
 
     const currentMode = modes.find(m => m.id === editMode) || modes[0];
 
@@ -36,20 +39,36 @@ export default function EditModeSelector({ editMode, setEditMode }) {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    useEffect(() => {
+        if (isOpen) {
+            const timer = setTimeout(() => {
+                notifyAction('selector-open');
+            }, 450); // Matches CSS transition duration + generous buffer
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen, notifyAction]);
+
     const handleSelect = (modeId) => {
         setEditMode(modeId);
         setIsOpen(false);
+        if (modeId === 'create') {
+            notifyAction('erstellen_ausgeloest');
+        }
     };
 
     const activeIndex = modes.findIndex(m => m.id === editMode);
 
     return (
-        <div className="relative flex justify-center items-center" ref={containerRef}>
+        <div id="edit-mode-selector" className="relative flex justify-center items-center" ref={containerRef}>
             {/* Desktop View: Static Row */}
-            <div className="hidden md:grid grid-cols-4 gap-1 bg-muted p-1 rounded-2xl relative min-w-[320px]">
+            <div
+                className="hidden md:grid gap-1 bg-muted p-1 rounded-2xl relative"
+                style={{ gridTemplateColumns: `repeat(${modes.length}, minmax(0, 1fr))`, minWidth: `${modes.length * 80}px` }}
+            >
                 {/* Desktop Highlight */}
                 <motion.div
                     className="absolute bg-primary rounded-xl shadow-md h-9"
+
                     initial={false}
                     animate={{
                         left: `${(activeIndex * 100) / modes.length}%`,
@@ -61,9 +80,14 @@ export default function EditModeSelector({ editMode, setEditMode }) {
                 {modes.map((mode) => (
                     <button
                         key={mode.id}
-                        onClick={() => setEditMode(mode.id)}
+                        onClick={() => {
+                            setEditMode(mode.id);
+                            if (mode.id === 'create') notifyAction('erstellen_ausgeloest');
+                        }}
+                        id={`edit-mode-btn-${mode.id}-desktop`}
                         className={cn(
                             "relative z-10 p-2 rounded-xl transition-colors flex items-center justify-center gap-2",
+                            `edit-mode-btn-${mode.id}`,
                             editMode === mode.id ? "text-primary-foreground font-bold" : "text-muted-foreground hover:bg-muted/80"
                         )}
                     >
@@ -110,8 +134,10 @@ export default function EditModeSelector({ editMode, setEditMode }) {
                                             handleSelect(mode.id);
                                         }
                                     }}
+                                    id={`edit-mode-btn-${mode.id}-mobile`}
                                     className={cn(
                                         "relative p-2 rounded-xl flex items-center justify-center flex-shrink-0 min-w-[32px] h-8 transition-colors duration-200",
+                                        `edit-mode-btn-${mode.id}`,
                                         isSelected ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/30"
                                     )}
                                 >

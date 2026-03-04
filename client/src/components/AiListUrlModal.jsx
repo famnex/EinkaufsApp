@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import AiActionConfirmModal from './AiActionConfirmModal';
 import SubscriptionModal from './SubscriptionModal';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
+import { useTutorial } from '../contexts/TutorialContext';
 
 export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, initialText = '' }) {
     const [input, setInput] = useState(initialText);
@@ -28,6 +29,7 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
 
     // Context
     const { user, refreshUser } = useAuth();
+    const { notifyAction } = useTutorial();
 
     useLockBodyScroll(isOpen);
 
@@ -71,6 +73,15 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
             if (data.items && Array.isArray(data.items)) {
                 setAnalyzedItems(data.items.map(item => ({ ...item, selected: true })));
                 setView('review');
+
+                // Tutorial check
+                const hasBananen = data.items.some(item =>
+                    item.name.toLowerCase().includes('banane')
+                );
+                if (hasBananen) {
+                    notifyAction('smart-import-bananen');
+                }
+
                 // Refresh user credits
                 refreshUser();
             } else {
@@ -175,6 +186,7 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
         setLoading(true);
         try {
             await api.post(`/lists/${targetListId}/items/bulk`, { items: itemsToAdd });
+            notifyAction('smart-import-added');
             if (onItemsAdded) onItemsAdded();
             if (listId) onClose(); // Only close automatically if we were in "Normal Mode". Share mode navigates.
             // Reset
@@ -221,7 +233,7 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
                     {/* Content */}
                     <div className="p-6 overflow-y-auto custom-scrollbar overscroll-contain">
                         {view === 'input' && (
-                            <div className="space-y-4">
+                            <div id="smart-import-input-view" className="space-y-4">
                                 <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 flex items-start gap-3">
                                     <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                     <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
@@ -291,7 +303,7 @@ export default function AiListUrlModal({ isOpen, onClose, listId, onItemsAdded, 
                         )}
 
                         {view === 'review' && (
-                            <div className="space-y-4">
+                            <div id="smart-import-review-view" className="space-y-4">
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="font-bold text-foreground text-lg">Gefundene Produkte ({analyzedItems.filter(i => i.selected).length})</h3>
                                 </div>

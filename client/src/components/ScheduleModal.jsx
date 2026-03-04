@@ -5,6 +5,7 @@ import api from '../lib/axios';
 import { Button } from './Button';
 import { cn } from '../lib/utils'; // Ensure cn utility is available
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+import { useTutorial } from '../contexts/TutorialContext';
 
 const MEAL_TYPES = [
     { id: 'breakfast', label: 'Früh', icon: Sun },
@@ -15,6 +16,7 @@ const MEAL_TYPES = [
 
 export default function ScheduleModal({ isOpen, onClose, recipe }) {
     useLockBodyScroll(isOpen);
+    const { notifyAction } = useTutorial();
     const [dates, setDates] = useState([]);
     const [existingMenus, setExistingMenus] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -83,6 +85,7 @@ export default function ScheduleModal({ isOpen, onClose, recipe }) {
                 });
             }
             alert(`"${recipe.title}" erfolgreich eingeplant!`);
+            notifyAction('recipe-planned');
             onClose();
         } catch (err) {
             console.error(err);
@@ -100,6 +103,7 @@ export default function ScheduleModal({ isOpen, onClose, recipe }) {
         <AnimatePresence>
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
                 <motion.div
+                    id="tutorial-schedule-recipe-modal"
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}

@@ -2,8 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, Trash2, X, Timer as TimerIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useTutorial } from '../contexts/TutorialContext';
 
 export default function TimerOverlay({ timers, onUpdate, onDelete, audioContext }) {
+    const { notifyAction } = useTutorial();
     if (!timers || timers.length === 0) return null;
 
     return (
@@ -15,7 +17,10 @@ export default function TimerOverlay({ timers, onUpdate, onDelete, audioContext 
                             <TimerItem
                                 timer={timer}
                                 onUpdate={(updates) => onUpdate(timer.id, updates)}
-                                onDelete={() => onDelete(timer.id)}
+                                onDelete={() => {
+                                    notifyAction('timer-delete');
+                                    onDelete(timer.id);
+                                }}
                                 audioContext={audioContext}
                             />
                         </div>
@@ -29,8 +34,17 @@ export default function TimerOverlay({ timers, onUpdate, onDelete, audioContext 
 function TimerItem({ timer, onUpdate, onDelete, audioContext }) {
     const [timeLeft, setTimeLeft] = useState(timer.remaining);
     const [isExpanded, setIsExpanded] = useState(window.innerWidth > 768);
+    const { activeChapter, currentStepIndex } = useTutorial();
     const intervalRef = useRef(null);
     const alarmIntervalRef = useRef(null);
+
+    // Auto-expand during tutorial steps related to timers
+    useEffect(() => {
+        const isTimerStep = activeChapter === 'rezepte' && (currentStepIndex === 10 || currentStepIndex === 11);
+        if (isTimerStep) {
+            setIsExpanded(true);
+        }
+    }, [activeChapter, currentStepIndex]);
 
     // Format time (HH:MM:SS or MM:SS)
     const formatTime = (seconds) => {
@@ -251,7 +265,7 @@ function TimerItem({ timer, onUpdate, onDelete, audioContext }) {
                                         handleUserInteraction();
                                         onDelete();
                                     }}
-                                    className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-muted text-muted-foreground flex items-center justify-center hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/40 transition-all"
+                                    className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-muted text-muted-foreground flex items-center justify-center hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/40 transition-all cook-timer-delete"
                                 >
                                     <Trash2 size={20} />
                                 </button>

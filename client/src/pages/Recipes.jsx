@@ -19,6 +19,7 @@ import RecipeSubstitutionsModal from '../components/RecipeSubstitutionsModal';
 import AiLockedModal from '../components/AiLockedModal';
 import { cn, getImageUrl } from '../lib/utils';
 import LoadingOverlay from '../components/LoadingOverlay';
+import { useTutorial } from '../contexts/TutorialContext';
 
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -26,6 +27,7 @@ import { useAuth } from '../contexts/AuthContext';
 export default function Recipes() {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const { notifyAction, activeChapter, currentStepIndex } = useTutorial();
     const [recipes, setRecipes] = useState([]);
     const [menus, setMenus] = useState([]);
 
@@ -88,15 +90,43 @@ export default function Recipes() {
     // Track which menu is open (by recipe ID)
     const [openMenuId, setOpenMenuId] = useState(null);
 
+    // Sync ref for tutorial state to avoid stale closure in document listener
+    const tutorialStateRef = useRef({ activeChapter, currentStepIndex });
+    useEffect(() => {
+        tutorialStateRef.current = { activeChapter, currentStepIndex };
+    }, [activeChapter, currentStepIndex]);
+
     // Close menu on outside click
     useEffect(() => {
-        const closeMenu = () => {
+        const closeMenu = (e) => {
+            // Definitiv check via sessionStorage to avoid any React state race conditions
+            const activeChapterVal = sessionStorage.getItem('activeTutorialChapter');
+            const stepIndexVal = parseInt(sessionStorage.getItem('tutorialStepIndex') || '0');
+
+            // Ignore clicks on tutorial UI elements itself
+            const isDriverElement = e.target.closest('.driverjs-popover') ||
+                e.target.closest('.driverjs-overlay') ||
+                e.target.closest('.driver-popover') ||
+                e.target.closest('#driver-popover-item') ||
+                e.target.closest('#driver-page-overlay') ||
+                e.target.closest('.driverjs-canvas');
+
+            if (isDriverElement) return;
+
+            // During tutorial steps that highlight menu options (0-3), don't close the menu at all
+            if (activeChapterVal === 'rezepte' && stepIndexVal >= 0 && stepIndexVal <= 3) {
+                return;
+            }
+
             setOpenMenuId(null);
-            setIsMobileMenuOpen(false);
+
+            if (isMobileMenuOpen && e.target.closest('.recipe-menu-options') === null && e.target.closest('#recipe-burger-menu') === null) {
+                setIsMobileMenuOpen(false);
+            }
         };
         document.addEventListener('click', closeMenu);
         return () => document.removeEventListener('click', closeMenu);
-    }, []);
+    }, [isMobileMenuOpen]);
 
 
 
@@ -498,6 +528,7 @@ export default function Recipes() {
             });
             // Update the specific recipe in state
             setRecipes(prev => prev.map(r => r.id === data.id ? { ...r, isFavorite: data.isFavorite } : r));
+            notifyAction('recipe-like');
         } catch (err) {
             console.error('Failed to toggle favorite', err);
             alert('Fehler beim Speichern der Favoriten-Einstellung.');
@@ -660,9 +691,11 @@ export default function Recipes() {
                             onClick={(e) => {
                                 e.stopPropagation();
                                 setIsMobileMenuOpen(!isMobileMenuOpen);
+                                if (!isMobileMenuOpen) notifyAction('recipe-menu-open');
                             }}
                             variant="ghost"
                             size="icon"
+                            id="recipe-burger-menu"
                             className={cn(
                                 "h-12 w-12 bg-card border border-border transition-all duration-200",
                                 isMobileMenuOpen ? "text-primary border-primary/50" : "text-muted-foreground"
@@ -677,16 +710,19 @@ export default function Recipes() {
                                     initial={{ opacity: 0, scale: 0.95, y: -10 }}
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                                    className="absolute right-0 top-full mt-2 w-56 py-2 rounded-2xl bg-popover/95 backdrop-blur-xl border border-border shadow-2xl z-[100] overflow-hidden"
+                                    className="absolute right-0 top-full mt-2 w-56 py-2 rounded-2xl bg-popover/95 backdrop-blur-xl border border-border shadow-2xl z-[100] overflow-hidden recipe-menu-options"
                                     onClick={(e) => e.stopPropagation()}
                                 >
                                     {/* Order: Rezept erstellen, AI Import, Zufalls-Rezept, ---, Kochbuch teilen */}
                                     <button
+                                        id="tutorial-create-recipe-btn"
                                         className="w-full text-left px-4 py-3 text-sm hover:bg-muted flex items-center gap-3 transition-colors text-foreground font-medium"
                                         onClick={() => {
                                             setIsModalOpen(true);
                                             setSelectedRecipe(null);
-                                            setIsMobileMenuOpen(false);
+                                            if (sessionStorage.getItem('activeTutorialChapter') !== 'rezepte') {
+                                                setIsMobileMenuOpen(false);
+                                            }
                                         }}
                                     >
                                         <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
@@ -697,10 +733,13 @@ export default function Recipes() {
 
                                     {user?.tier !== 'Plastikgabel' ? (
                                         <button
+                                            id="tutorial-ai-import-btn"
                                             className="w-full text-left px-4 py-3 text-sm hover:bg-muted flex items-center gap-3 transition-colors text-foreground font-medium"
                                             onClick={() => {
                                                 setIsAiModalOpen(true);
-                                                setIsMobileMenuOpen(false);
+                                                if (sessionStorage.getItem('activeTutorialChapter') !== 'rezepte') {
+                                                    setIsMobileMenuOpen(false);
+                                                }
                                             }}
                                         >
                                             <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
@@ -710,10 +749,13 @@ export default function Recipes() {
                                         </button>
                                     ) : (
                                         <button
+                                            id="tutorial-ai-import-locked-btn"
                                             className="w-full text-left px-4 py-3 text-sm flex items-center gap-3 transition-colors text-muted-foreground font-medium opacity-60 relative"
                                             onClick={() => {
                                                 setIsAiLockedOpen(true);
-                                                setIsMobileMenuOpen(false);
+                                                if (sessionStorage.getItem('activeTutorialChapter') !== 'rezepte') {
+                                                    setIsMobileMenuOpen(false);
+                                                }
                                             }}
                                         >
                                             <div className="p-1.5 rounded-lg bg-muted text-muted-foreground">
@@ -725,10 +767,14 @@ export default function Recipes() {
                                     )}
 
                                     <button
+                                        id="shuffle-recipes-btn"
                                         className="w-full text-left px-4 py-3 text-sm hover:bg-muted flex items-center gap-3 transition-colors text-foreground font-medium"
                                         onClick={() => {
                                             setIsSlotMachineOpen(true);
-                                            setIsMobileMenuOpen(false);
+                                            if (sessionStorage.getItem('activeTutorialChapter') !== 'rezepte') {
+                                                setIsMobileMenuOpen(false);
+                                            }
+                                            notifyAction('dice-click');
                                         }}
                                     >
                                         <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500">
@@ -740,6 +786,7 @@ export default function Recipes() {
                                     <div className="h-px bg-border mx-2 my-1" />
 
                                     <button
+                                        id="tutorial-share-cookbook-btn"
                                         className="w-full text-left px-4 py-3 text-sm hover:bg-muted flex items-center gap-3 transition-colors text-foreground font-medium"
                                         onClick={() => {
                                             handleShareRequest(
@@ -800,16 +847,17 @@ export default function Recipes() {
                                             setIsModalOpen(true);
                                         } else {
                                             handleOpenCookingMode(recipe);
+                                            notifyAction('cook-mode-start');
                                         }
                                     }}
                                     className={cn(
-                                        "cursor-pointer group relative transition-all duration-300",
+                                        "cursor-pointer group relative transition-all duration-300 recipe-cook-btn",
                                         editMode === 'delete' && !isForeign ? 'ring-2 ring-destructive ring-offset-2 rounded-3xl' : '',
                                         openMenuId === recipe.id ? 'z-[40]' : 'z-10'
                                     )}
                                 >
                                     <Card className={cn(
-                                        "h-full transition-all duration-300 bg-card flex flex-col relative overflow-hidden", // HIER GEÄNDERT
+                                        "h-full transition-all duration-300 bg-card flex flex-col relative overflow-visible", // overflow-hidden removed to allow Action Menu to protrude
                                         isForeign
                                             ? "border-amber-500/30 shadow-amber-500/5 hover:border-amber-500/50 hover:shadow-xl hover:shadow-amber-500/10"
                                             : "border-border hover:shadow-xl"
@@ -955,7 +1003,7 @@ export default function Recipes() {
                                                 <div onClick={(e) => e.stopPropagation()}>
                                                     <button
                                                         onClick={(e) => toggleFavorite(e, recipe)}
-                                                        className="absolute top-12 right-0 p-2 rounded-full backdrop-blur-sm bg-black/20 hover:bg-black/40 text-white transition-all duration-200 focus:outline-none"
+                                                        className="absolute top-12 right-0 p-2 rounded-full backdrop-blur-sm bg-black/20 hover:bg-black/40 text-white transition-all duration-200 focus:outline-none recipe-like-btn"
                                                         title="Zu Favoriten hinzufügen/entfernen"
                                                     >
                                                         <Heart
@@ -1005,11 +1053,12 @@ export default function Recipes() {
                                                             )}
 
                                                             <button
-                                                                className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
+                                                                className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground recipe-schedule-btn"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     handlePlanClick(recipe);
                                                                     setOpenMenuId(null);
+                                                                    notifyAction('recipe-schedule');
                                                                 }}
                                                             >
                                                                 <Calendar size={16} />

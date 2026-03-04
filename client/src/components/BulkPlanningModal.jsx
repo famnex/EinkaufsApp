@@ -9,6 +9,7 @@ import { cn } from '../lib/utils';
 import { Input } from './Input';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 import { useAuth } from '../contexts/AuthContext';
+import { useTutorial } from '../contexts/TutorialContext';
 
 // Helper to safely get adjustment value
 const getAdj = (prodId, adjustments) => adjustments[prodId] || { quantity: '', unit: '', note: '' };
@@ -131,6 +132,7 @@ function Tooltip({ children, items = [], onToggle }) {
 export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }) {
     useLockBodyScroll(isOpen);
     const { user } = useAuth();
+    const { notifyAction } = useTutorial();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [data, setData] = useState(null); // { range: {start, end}, ingredients: [] }
@@ -247,6 +249,7 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
                 await api.post(`/lists/${listId}/bulk-items`, { items: itemsToSave });
             }
 
+            notifyAction('planner-save');
             onConfirm();
             onClose();
         } catch (err) {
@@ -272,6 +275,7 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
             ...prev,
             [prodId]: { quantity: amount, unit: unit, note: note, variantId: variantId }
         }));
+        notifyAction('planner-item-select');
     };
 
     const handleManualChange = (prodId, field, value) => {
@@ -376,7 +380,7 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
                     initial={{ opacity: 0, y: 50, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 50, scale: 0.95 }}
-                    className="w-full max-w-5xl bg-card border border-border rounded-t-[2.5rem] md:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+                    className="w-full max-w-5xl bg-card border border-border rounded-t-[2.5rem] md:rounded-3xl shadow-2xl overflow-hidden flex flex-col md:max-h-full"
                 >
                     {/* Header */}
                     <div className="px-5 py-4 md:p-6 border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-20 flex justify-between items-center">
@@ -467,6 +471,7 @@ export default function BulkPlanningModal({ isOpen, onClose, listId, onConfirm }
                         {/* Save Button - Icon only on mobile, wider on desktop */}
                         <Button
                             onClick={handleSave}
+                            id="save-planner-btn"
                             disabled={saving || Object.keys(adjustments).length === 0}
                             className="flex-1 md:flex-none md:min-w-[200px] h-12 md:h-10 rounded-2xl shadow-xl shadow-primary/20 backdrop-blur-xl transition-all"
                         >
@@ -596,9 +601,18 @@ function PlanningRow({
                 <div className="w-full md:col-span-4 min-w-0 flex flex-col gap-2">
                     <div className="flex items-start md:items-center gap-3">
                         <button
-                            onClick={() => substitutions[item.product.id] ? onClearSubstitution(item.product.id) : onSetSearchingFor(item.product.id)}
+                            onClick={() => {
+                                if (substitutions[item.product.id]) {
+                                    onClearSubstitution(item.product.id);
+                                } else {
+                                    onSetSearchingFor(item.product.id);
+                                }
+                                if (window.tutorialNotifyAction) {
+                                    window.tutorialNotifyAction('planner-item-substitute-click');
+                                }
+                            }}
                             className={cn(
-                                "shrink-0 w-10 h-10 md:w-8 md:h-8 rounded-2xl flex items-center justify-center transition-all duration-300",
+                                "tutorial-substitute-btn shrink-0 w-10 h-10 md:w-8 md:h-8 rounded-2xl flex items-center justify-center transition-all duration-300",
                                 substitutions[item.product.id] ? "bg-primary/20 text-primary" : "bg-muted/50 text-muted-foreground hover:bg-muted"
                             )}
                         >
@@ -731,7 +745,7 @@ function PlanningRow({
                                 {primaryNeed && (
                                     <button
                                         onClick={() => handleQuickAddClick(primaryNeed.amount, primaryNeed.unit)}
-                                        className="flex-1 h-10 px-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-2xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all"
+                                        className="flex-1 h-10 px-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-2xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all planner-item-schedule"
                                     >
                                         <Plus size={14} /> {primaryNeed.amount} {primaryNeed.unit}
                                     </button>
@@ -739,7 +753,7 @@ function PlanningRow({
                                 {!(primaryNeed && primaryNeed.amount === 1 && primaryNeed.unit === defaultUnit) && (
                                     <button
                                         onClick={() => handleQuickAddClick(1, defaultUnit)}
-                                        className="flex-1 h-10 px-3 bg-muted hover:bg-muted/80 text-foreground rounded-2xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all"
+                                        className="flex-1 h-10 px-3 bg-muted hover:bg-muted/80 text-foreground rounded-2xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all planner-item-schedule"
                                     >
                                         <Plus size={14} /> 1 {defaultUnit}
                                     </button>

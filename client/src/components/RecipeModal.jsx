@@ -514,7 +514,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="w-full max-w-4xl bg-card border border-border rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] relative z-10"
+                        className="w-full max-w-4xl bg-card border border-border rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col relative z-10"
                     >
                         {/* Header */}
                         <div className="p-6 border-b border-border flex items-center justify-between bg-muted/30">

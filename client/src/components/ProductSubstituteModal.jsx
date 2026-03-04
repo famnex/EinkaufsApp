@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, RefreshCw, Sparkles, AlertCircle, HelpCircle } from 'lucide-react';
 import { Button } from './Button';
 import { cn, getImageUrl } from '../lib/utils';
+import { useTutorial } from '../contexts/TutorialContext';
 
 export default function ProductSubstituteModal({
     isOpen,
@@ -13,12 +15,26 @@ export default function ProductSubstituteModal({
     conflicts = [],
     allProducts = []
 }) {
+    const { notifyAction } = useTutorial();
+
+    useEffect(() => {
+        if (isOpen) {
+            // Trigger a resize event so that driver.js recalculates the overlay 
+            // after the modal's height has adjusted to the new suggestions
+            const timeout = setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+            }, 50);
+            return () => clearTimeout(timeout);
+        }
+    }, [loading, suggestions, isOpen]);
+
     if (!isOpen) return null;
 
     return (
         <AnimatePresence>
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                 <motion.div
+                    id="product-substitute-modal"
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -66,9 +82,12 @@ export default function ProductSubstituteModal({
                                         initial={{ opacity: 0, x: -20 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: idx * 0.1 }}
-                                        onClick={() => onSelect(suggestion)}
+                                        onClick={() => {
+                                            onSelect(suggestion);
+                                            notifyAction('substitute-selected');
+                                        }}
                                         className={cn(
-                                            "w-full text-left p-4 rounded-2xl border-2 transition-all group",
+                                            "w-full text-left p-4 rounded-2xl border-2 transition-all group substitute-suggestion-item",
                                             "hover:border-primary hover:bg-primary/5",
                                             "border-border bg-card"
                                         )}

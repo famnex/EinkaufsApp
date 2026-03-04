@@ -13,6 +13,8 @@ import { useNavigate } from 'react-router-dom';
 import LoadingOverlay from '../components/LoadingOverlay';
 import RecipeIntoleranceResolverModal from '../components/RecipeIntoleranceResolverModal';
 import NotificationPrompt from '../components/NotificationPrompt';
+import ReplaceSwapModal from '../components/ReplaceSwapModal';
+import { useTutorial } from '../contexts/TutorialContext';
 
 import {
     DndContext,
@@ -23,7 +25,8 @@ import {
     useSensor,
     useSensors,
     DragOverlay,
-    defaultDropAnimationSideEffects
+    defaultDropAnimationSideEffects,
+    pointerWithin
 } from '@dnd-kit/core';
 
 function DroppableSlot({ id, children, className, disabled }) {
@@ -82,6 +85,7 @@ export default function MenuPlan() {
     const { token, user } = useAuth();
     const { editMode } = useEditMode();
     const navigate = useNavigate();
+    const { notifyAction } = useTutorial();
     const [currentWeekStart, setCurrentWeekStart] = useState(getMonday(new Date()));
     const [menus, setMenus] = useState([]);
     const [lists, setLists] = useState([]);
@@ -99,6 +103,7 @@ export default function MenuPlan() {
     const [resolvingConflicts, setResolvingConflicts] = useState([]);
     const [pendingSelection, setPendingSelection] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [replaceModal, setReplaceModal] = useState({ isOpen: false, sourceMeal: null, targetMeal: null, targetDate: null, targetType: null });
 
     const fetchData = async () => {
         setLoading(true);
@@ -223,6 +228,7 @@ export default function MenuPlan() {
         if (editMode === 'create' || editMode === 'edit') {
             setActiveSlot({ date: dateStr, type });
             setSelectorOpen(true);
+            notifyAction('slot-click');
         }
     };
 
@@ -289,6 +295,9 @@ export default function MenuPlan() {
             } else {
                 await api.post('/menus', payload);
             }
+            if (selection.is_eating_out) notifyAction('placeholder-select');
+            else notifyAction('add-recipe-plan');
+
             fetchData();
         } catch (err) {
             console.error(err);
@@ -372,14 +381,23 @@ export default function MenuPlan() {
 
     const handleDragStart = () => {
         setIsDragging(true);
+        // Disable body scroll/selection during drag globally
+        document.body.style.overflow = 'hidden';
+        document.body.style.userSelect = 'none';
+        document.body.style.touchAction = 'none';
     };
 
     const handleDragEnd = async (event) => {
         setIsDragging(false);
+        document.body.style.overflow = '';
+        document.body.style.userSelect = '';
+        document.body.style.touchAction = '';
+
         const { active, over } = event;
         if (!over) return;
 
         const sourceMeal = active.data.current.meal;
+        // Handle IDs like "2026-03-04|breakfast" or "2026-03-04|breakfast|expanded"
         const [targetDate, targetType] = over.id.split('|');
 
         if (!sourceMeal) return;
@@ -387,36 +405,60 @@ export default function MenuPlan() {
         // Don't do anything if dropped on same slot
         if (sourceMeal.date === targetDate && sourceMeal.meal_type === targetType) return;
 
-        try {
-            setLoading(true);
-            const targetMeal = menus.find(m => m.date === targetDate && m.meal_type === targetType);
+        const targetMeal = menus.find(m => m.date === targetDate && m.meal_type === targetType);
 
-            if (targetMeal) {
-                // SWAP
-                const sourcePayload = {
-                    date: targetDate,
-                    meal_type: targetType
-                };
-                const targetPayload = {
-                    date: sourceMeal.date,
-                    meal_type: sourceMeal.meal_type
-                };
-
-                await Promise.all([
-                    api.put(`/menus/${sourceMeal.id}`, sourcePayload),
-                    api.put(`/menus/${targetMeal.id}`, targetPayload)
-                ]);
-            } else {
-                // MOVE to empty slot
+        if (targetMeal) {
+            // TARGET IS OCCUPIED -> SHOW MODAL
+            setReplaceModal({
+                isOpen: true,
+                sourceMeal,
+                targetMeal,
+                targetDate,
+                targetType
+            });
+        } else {
+            // MOVE to empty slot
+            try {
+                setLoading(true);
                 const payload = {
                     date: targetDate,
                     meal_type: targetType
                 };
                 await api.put(`/menus/${sourceMeal.id}`, payload);
+                fetchData();
+            } catch (err) {
+                console.error('Drag and drop move failed', err);
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+
+    const handleDropAction = async (action) => {
+        const { sourceMeal, targetMeal, targetDate, targetType } = replaceModal;
+        setReplaceModal({ isOpen: false, sourceMeal: null, targetMeal: null, targetDate: null, targetType: null });
+
+        if (action === 'cancel') return;
+
+        try {
+            setLoading(true);
+            if (action === 'swap') {
+                const sourcePayload = { date: targetDate, meal_type: targetType };
+                const targetPayload = { date: sourceMeal.date, meal_type: sourceMeal.meal_type };
+
+                await Promise.all([
+                    api.put(`/menus/${sourceMeal.id}`, sourcePayload),
+                    api.put(`/menus/${targetMeal.id}`, targetPayload)
+                ]);
+            } else if (action === 'replace') {
+                // Delete the target meal, then move source meal to target slot
+                await api.delete(`/menus/${targetMeal.id}`);
+                const sourcePayload = { date: targetDate, meal_type: targetType };
+                await api.put(`/menus/${sourceMeal.id}`, sourcePayload);
             }
             fetchData();
         } catch (err) {
-            console.error('Drag and drop update failed', err);
+            console.error(`Drag and drop ${action} failed`, err);
         } finally {
             setLoading(false);
         }
@@ -425,14 +467,13 @@ export default function MenuPlan() {
     return (
         <DndContext
             sensors={sensors}
+            collisionDetection={pointerWithin}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             autoScroll={{ threshold: { x: 0, y: 0.1 }, acceleration: 5 }}
         >
-            <div
-                className="space-y-4 select-none"
-                style={isDragging ? { touchAction: 'none', overflow: 'hidden' } : {}}
-            >
+            {/* select-none added here to prevent text selection in entire menu view while interacting */}
+            <div className="space-y-4 select-none">
                 <div
                     className="sticky z-30 bg-background/95 backdrop-blur-sm pt-4 pb-2 border-b border-border transition-all"
                     style={{ top: 'calc(4rem + env(safe-area-inset-top))' }}
@@ -519,9 +560,11 @@ export default function MenuPlan() {
                                                                     <span>Einkauf</span>
                                                                 </button>
                                                                 <button
+                                                                    id="open-planner-btn"
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
                                                                         setBulkModal({ open: true, listId: shoppingList.id });
+                                                                        notifyAction('planner-open');
                                                                     }}
                                                                     className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-2 py-1 rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors shrink-0"
                                                                 >
@@ -555,7 +598,7 @@ export default function MenuPlan() {
                                                     )}
                                                 </div>
 
-                                                <div className="flex gap-1 md:gap-2 shrink-0 ml-auto pl-2" onClick={e => e.stopPropagation()}>
+                                                <div id={day.dateStr === weekDays[0].dateStr ? "tutorial-slot-actions" : undefined} className="flex gap-1 md:gap-2 shrink-0 ml-auto pl-2" onClick={e => e.stopPropagation()}>
                                                     {slots.map(s => {
                                                         const meal = meals.find(m => m.meal_type === s.type);
                                                         const isFilled = !!meal;
@@ -565,6 +608,7 @@ export default function MenuPlan() {
                                                         return (
                                                             <DroppableSlot key={s.type} id={slotId}>
                                                                 <button
+                                                                    id={day.dateStr === weekDays[0].dateStr ? `slot-btn-${s.type}` : undefined}
                                                                     onClick={(e) => {
                                                                         e.stopPropagation(); // prevent card expand
                                                                         handleClick(e);
@@ -578,7 +622,8 @@ export default function MenuPlan() {
                                                                         editMode === 'delete' && isFilled && "animate-pulse bg-destructive/10 text-destructive hover:bg-destructive hover:text-white cursor-pointer",
                                                                         editMode !== 'delete' && isFilled && (meal.is_eating_out ? "hover:bg-orange-500/20" : "hover:bg-primary/20 cursor-pointer"),
                                                                         editMode !== 'delete' && !isFilled && "hover:bg-muted-foreground/10",
-                                                                        editMode === 'view' && !isFilled && "opacity-50 cursor-default"
+                                                                        editMode === 'view' && !isFilled && "opacity-50 cursor-default",
+                                                                        !isFilled && "slot-add-btn"
                                                                     )}
                                                                     title={s.label}
                                                                 >
@@ -629,7 +674,10 @@ export default function MenuPlan() {
                                                                         <ChevronRight size={16} />
                                                                     </div>
                                                                     <div
-                                                                        onClick={() => setBulkModal({ open: true, listId: shoppingList.id })}
+                                                                        onClick={() => {
+                                                                            setBulkModal({ open: true, listId: shoppingList.id });
+                                                                            notifyAction('planner-open');
+                                                                        }}
                                                                         className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer transition-colors"
                                                                     >
                                                                         <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center shrink-0">
@@ -645,7 +693,7 @@ export default function MenuPlan() {
 
                                                             {slots.map(s => {
                                                                 const meal = meals.find(m => m.meal_type === s.type);
-                                                                const slotId = `${day.dateStr}|${s.type}`;
+                                                                const slotId = `${day.dateStr}|${s.type}|expanded`;
 
                                                                 return (
                                                                     <DroppableSlot key={s.type} id={slotId}>
@@ -810,6 +858,13 @@ export default function MenuPlan() {
                         setPendingSelection(null);
                     }}
                 />
+
+                {replaceModal.isOpen && (
+                    <ReplaceSwapModal
+                        isOpen={replaceModal.isOpen}
+                        onAction={handleDropAction}
+                    />
+                )}
             </div>
         </DndContext>
     );

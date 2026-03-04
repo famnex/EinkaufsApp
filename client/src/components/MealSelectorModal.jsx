@@ -70,7 +70,7 @@ export default function MealSelectorModal({ isOpen, onClose, onSelect, initialDa
 
                         <div className="p-4 space-y-4">
                             {/* Manual Entry Form */}
-                            <form onSubmit={handleManualSubmit} className="space-y-3">
+                            <form id="tutorial-manual-entry" onSubmit={handleManualSubmit} className="space-y-3">
                                 <div className="flex gap-2">
                                     <Input
                                         placeholder="Manuelle Eingabe (z.B. Pizza bestellen)"
@@ -86,6 +86,7 @@ export default function MealSelectorModal({ isOpen, onClose, onSelect, initialDa
                                 {/* Eating Out Option - Compact */}
                                 <button
                                     type="button"
+                                    id="placeholder-eating-out"
                                     onClick={() => {
                                         const note = manualEntry.trim() || 'Restaurant';
                                         onSelect({ description: note, is_eating_out: true });
@@ -126,7 +127,7 @@ export default function MealSelectorModal({ isOpen, onClose, onSelect, initialDa
                                 </select>
                             </div>
 
-                            <div className="max-h-60 overflow-y-auto space-y-2">
+                            <div id="tutorial-recipe-list" className="max-h-60 overflow-y-auto space-y-2">
                                 {filteredRecipes.map(recipe => (
                                     <button
                                         key={recipe.id}

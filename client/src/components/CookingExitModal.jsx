@@ -4,6 +4,7 @@ import { X, AlertTriangle, Play, LogOut, Timer, ChevronRight, Check, Sparkles, L
 import { Button } from './Button';
 import { cn } from '../lib/utils';
 import api from '../lib/axios';
+import { useTutorial } from '../contexts/TutorialContext';
 
 export default function CookingExitModal({
     isOpen,
@@ -24,6 +25,7 @@ export default function CookingExitModal({
     const [aiResult, setAiResult] = useState(null);
     const [shouldApplyAiChanges, setShouldApplyAiChanges] = useState(false);
     const [diffItems, setDiffItems] = useState([]);
+    const { notifyAction } = useTutorial();
 
     const getRoundedTime = (minutes) => {
         if (minutes <= 0) return 0;
@@ -203,6 +205,7 @@ export default function CookingExitModal({
             };
         }
 
+        notifyAction('cook-mode-finish');
         onConfirm({
             newDuration: shouldUpdateDuration ? roundedElapsed : undefined,
             newRecipe: shouldApplyAiChanges ? finalRecipe : undefined
@@ -222,6 +225,7 @@ export default function CookingExitModal({
                     />
 
                     <motion.div
+                        id="tutorial-cooking-exit-modal"
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}

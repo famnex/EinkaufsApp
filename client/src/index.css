@@ -176,6 +176,12 @@
   --ref-teal: #14b8a6;
   --ref-header: #ffffff;
   --ref-bg-dark: #f8fafc;
+
+  /* Navbar Heights & Safe Areas */
+  --header-height: 64px;
+  --bottom-nav-height: 80px;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --modal-margin: 10px;
 }
 
 .dark {
@@ -446,6 +452,109 @@ textarea,
 
 .nav-icon-circle:active {
   transform: scale(0.9);
+}
+
+/* Tutorial: Silent action step - hide popover but keep overlay highlight */
+.driver-popover.driver-popover-hidden {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Tutorial Popover Improvements */
+.driver-popover.tutorial-centered-step,
+.driverjs-popover.tutorial-centered-step {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  max-width: 800px !important;
+  width: calc(100vw - 20px) !important;
+  max-height: calc(100vh - var(--header-height) - var(--safe-area-top) - var(--bottom-nav-height) - 20px) !important;
+  margin: 0 !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.driver-popover .driver-popover-description,
+.driverjs-popover .driverjs-popover-description {
+  overflow-y: auto !important;
+  flex: 1 !important;
+  max-height: 100% !important;
+}
+
+.driver-popover.tutorial-image-step,
+.driverjs-popover.tutorial-image-step {
+  max-width: 900px !important;
+  width: calc(100vw - 20px) !important;
+}
+
+.driver-popover,
+.driverjs-popover {
+  max-width: 900px !important;
+  /* Global override for potential conflicts */
+}
+
+.tutorial-image-container img {
+  max-height: 75vh !important;
+  width: 100% !important;
+  object-fit: contain;
+  background-color: hsl(var(--muted));
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+
+.tutorial-description-text {
+  padding: 0 0.5rem;
+}
+
+/* Universal Modal Constraints */
+.fixed.inset-0.z-50.flex.items-center.justify-center,
+.fixed.inset-0.z-\[60\].flex.items-center.justify-center,
+.fixed.inset-0.z-\[100\].flex.items-center.justify-center,
+.fixed.inset-0.z-\[110\].flex.items-center.justify-center,
+.fixed.inset-0.z-\[120\].flex.items-center.justify-center,
+.fixed.inset-0.z-\[200\].flex.items-center.justify-center,
+.fixed.inset-0.z-\[400\].flex.items-center.justify-center,
+.fixed.inset-0.z-\[1000\].flex.items-center.justify-center {
+  padding-top: calc(var(--header-height) + var(--safe-area-top) + 10px) !important;
+  padding-bottom: calc(var(--bottom-nav-height) + 10px) !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  box-sizing: border-box !important;
+}
+
+/* Modal centering sub-div for SlotMachine-style modals */
+.fixed.inset-0.z-\[1000\]>.flex.min-h-full.items-center.justify-center {
+  min-height: 0 !important;
+  height: 100% !important;
+  padding: 0 !important;
+}
+
+/* Ensure modal content (direct div or motion.div) stays within constraints */
+.fixed.inset-0.z-50.flex.items-center.justify-center>div,
+.fixed.inset-0.z-\[60\].flex.items-center.justify-center>div,
+.fixed.inset-0.z-\[100\].flex.items-center.justify-center>div,
+.fixed.inset-0.z-\[110\].flex.items-center.justify-center>div,
+.fixed.inset-0.z-\[120\].flex.items-center.justify-center>div,
+.fixed.inset-0.z-\[200\].flex.items-center.justify-center>div,
+.fixed.inset-0.z-\[400\].flex.items-center.justify-center>div,
+.fixed.inset-0.z-\[1000\]>.flex>div {
+  max-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Common modal content body should scroll */
+.fixed.inset-0.flex.items-center.justify-center .overflow-y-auto {
+  flex: 1 !important;
+}
+
+/* Ensure overlay is dark enough for focus */
+.driverjs-overlay {
+  opacity: 0.8 !important;
 }
 
 /* GLOBAL PRINT OVERRIDES */

@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { EditModeProvider } from './contexts/EditModeContext';
 import { SyncProvider } from './contexts/SyncContext';
+import { TutorialProvider } from './contexts/TutorialContext';
 
 import { ProtectedRoute } from './components/ProtectedRoute';
 import Layout from './components/Layout';
@@ -236,57 +237,55 @@ function AppContent() {
 
       {!loading && (
         <PullToRefresh>
-          <Router basename={import.meta.env.BASE_URL}>
-            <ScrollToTop />
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Signup />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/verify-email" element={<VerifyEmail />} />
-              <Route path="/newsletter/unsubscribe" element={<UnsubscribeNewsletter />} />
+          <ScrollToTop />
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/newsletter/unsubscribe" element={<UnsubscribeNewsletter />} />
 
-              {/* Public Shared Routes */}
-              <Route path="/shared/:sharingKey/recipe/:id" element={<PublicLayout><SharedRecipe /></PublicLayout>} />
-              <Route path="/shared/:sharingKey/cookbook" element={<PublicLayout><SharedCookbook /></PublicLayout>} />
+            {/* Public Shared Routes */}
+            <Route path="/shared/:sharingKey/recipe/:id" element={<PublicLayout><SharedRecipe /></PublicLayout>} />
+            <Route path="/shared/:sharingKey/cookbook" element={<PublicLayout><SharedCookbook /></PublicLayout>} />
 
-              {/* Dynamic Root Route */}
-              <Route path="/" element={<IndexRoute />} />
+            {/* Dynamic Root Route */}
+            <Route path="/" element={<IndexRoute />} />
 
-              {/* Main App Layout */}
-              <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                <Route path="/menu" element={<MenuPlan />} />
-                <Route path="/recipes" element={<Recipes />} />
-                <Route path="/lists" element={<Lists />} />
-                <Route path="/lists/:id" element={<ListDetail />} />
-                <Route path="/products" element={<Navigate to="/settings?tab=products" replace />} />
-                <Route path="/settings" element={<SettingsPage />} />
-              </Route>
+            {/* Main App Layout */}
+            <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+              <Route path="/menu" element={<MenuPlan />} />
+              <Route path="/recipes" element={<Recipes />} />
+              <Route path="/lists" element={<Lists />} />
+              <Route path="/lists/:id" element={<ListDetail />} />
+              <Route path="/products" element={<Navigate to="/settings?tab=products" replace />} />
+              <Route path="/settings" element={<SettingsPage />} />
+            </Route>
 
-              {/* Public/Community Routes */}
-              <Route path="/community-cookbooks" element={
-                user ? (
-                  <Layout><CommunityCookbooksContent /></Layout>
-                ) : (
-                  <PublicLayout><PublicCookbooks /></PublicLayout>
-                )
-              } />
+            {/* Public/Community Routes */}
+            <Route path="/community-cookbooks" element={
+              user ? (
+                <Layout><CommunityCookbooksContent /></Layout>
+              ) : (
+                <PublicLayout><PublicCookbooks /></PublicLayout>
+              )
+            } />
 
-              <Route path="/privacy" element={<LegalPage type="privacy" />} />
-              <Route path="/imprint" element={<LegalPage type="imprint" />} />
-              <Route path="/terms" element={<LegalPage type="terms" />} />
-              <Route path="/compliance" element={<CompliancePage />} />
-              <Route path="/share-target" element={<ShareTargetHandler />} />
+            <Route path="/privacy" element={<LegalPage type="privacy" />} />
+            <Route path="/imprint" element={<LegalPage type="imprint" />} />
+            <Route path="/terms" element={<LegalPage type="terms" />} />
+            <Route path="/compliance" element={<CompliancePage />} />
+            <Route path="/share-target" element={<ShareTargetHandler />} />
 
-              <Route path="/join-household" element={
-                <ProtectedRoute>
-                  <JoinHousehold />
-                </ProtectedRoute>
-              } />
+            <Route path="/join-household" element={
+              <ProtectedRoute>
+                <JoinHousehold />
+              </ProtectedRoute>
+            } />
 
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Router>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </PullToRefresh>
       )}
     </>
@@ -295,15 +294,19 @@ function AppContent() {
 
 function App() {
   return (
-    <ThemeProvider>
-      <EditModeProvider>
-        <AuthProvider>
-          <SyncProvider>
-            <AppContent />
-          </SyncProvider>
-        </AuthProvider>
-      </EditModeProvider>
-    </ThemeProvider>
+    <Router basename={import.meta.env.BASE_URL}>
+      <ThemeProvider>
+        <EditModeProvider>
+          <AuthProvider>
+            <TutorialProvider>
+              <SyncProvider>
+                <AppContent />
+              </SyncProvider>
+            </TutorialProvider>
+          </AuthProvider>
+        </EditModeProvider>
+      </ThemeProvider>
+    </Router>
   );
 }
 

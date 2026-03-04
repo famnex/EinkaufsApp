@@ -5,9 +5,11 @@ import { Button } from './Button';
 import { cn, getImageUrl } from '../lib/utils';
 import api from '../lib/axios';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+import { useTutorial } from '../contexts/TutorialContext';
 
 export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, confirmLabel = "REZEPT EINPLANEN", ActionIcon = Calendar, disableIngredients = false, availableProducts = null }) {
     useLockBodyScroll(isOpen);
+    const { notifyAction } = useTutorial();
     // ... (rest of the file until the button)
     // I need to be careful not to replace the whole file. I will target the header and the button separately.
     const [isSpinning, setIsSpinning] = useState(false);
@@ -149,8 +151,9 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
             setResult(winner);
             setIsSpinning(false);
             playSound('jackpot');
+            notifyAction('generator-finished');
         }, 3500); // Sync with animation duration
-    }, [filteredPool, recipes, playSound]);
+    }, [filteredPool, recipes, playSound, notifyAction]);
 
     const incSuggestions = useMemo(() => {
         if (!incSearch) return [];
@@ -182,11 +185,12 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
                         />
 
                         <motion.div
+                            id="tutorial-slot-machine-modal"
                             initial={{ scale: 0.9, opacity: 0, y: 20 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.9, opacity: 0, y: 20 }}
                             // Removed overflow-hidden to allow dropdowns to pop out
-                            className="relative w-full max-w-lg bg-card border border-border rounded-[2rem] md:rounded-[2.5rem] shadow-2xl flex flex-col my-2 md:my-8 max-h-[95vh] overflow-hidden"
+                            className="relative w-full max-w-lg bg-card border border-border rounded-[2rem] md:rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden"
                         >
                             {/* Header */}
                             <div className="p-4 md:p-6 border-b border-border flex items-center justify-between bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white rounded-t-[2rem] md:rounded-t-[2.5rem]">
@@ -418,7 +422,11 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
                             <div className="p-4 md:p-6 pt-0 flex gap-3">
                                 {!result ? (
                                     <Button
-                                        onClick={spin}
+                                        onClick={() => {
+                                            spin();
+                                            notifyAction('generator-start');
+                                        }}
+                                        id="start-generator-btn"
                                         disabled={isSpinning || filteredPool.length === 0}
                                         className="flex-1 h-12 md:h-16 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-lg shadow-xl shadow-amber-500/20 active:scale-95 transition-all"
                                     >
@@ -427,12 +435,16 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
                                     </Button>
                                 ) : (
                                     <>
-                                        <Button variant="outline" onClick={spin} className="h-12 md:h-16 px-4 md:px-6 rounded-2xl border-2">
+                                        <Button id="slot-machine-respin-btn" variant="outline" onClick={() => { spin(); notifyAction('generator-start'); }} className="h-12 md:h-16 px-4 md:px-6 rounded-2xl border-2">
                                             <Play size={20} />
                                         </Button>
                                         <Button
-                                            onClick={() => onSelect(result)}
-                                            className="flex-1 h-12 md:h-16 rounded-2xl bg-primary text-primary-foreground font-bold text-base md:text-lg shadow-xl shadow-primary/20 active:scale-95 transition-all"
+                                            onClick={() => {
+                                                onSelect(result);
+                                                notifyAction('recipe-schedule');
+                                            }}
+                                            id="slot-machine-schedule-btn"
+                                            className="tutorial-slot-machine-schedule-btn flex-1 h-12 md:h-16 rounded-2xl bg-primary text-primary-foreground font-bold text-base md:text-lg shadow-xl shadow-primary/20 active:scale-95 transition-all"
                                         >
                                             <ActionIcon size={20} className="mr-2" />
                                             {confirmLabel}

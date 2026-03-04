@@ -187,16 +187,19 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
                                         const isGold = currentTier === 'Goldgabel';
                                         const isRainbow = currentTier === 'Rainbowspoon';
 
+                                        const isTrialActive = user?.isTrialUsed && !user?.stripeSubscriptionId && user?.cancelAtPeriodEnd && (user?.tier === 'Silbergabel' || user?.tier === 'Goldgabel');
+                                        const isActuallyCurrent = isCurrent && !isTrialActive;
+
                                         // Button visibility logic
                                         let shouldShowButton = false;
                                         if (isRainbow) {
                                             shouldShowButton = false;
                                         } else if (tier.name === 'Plastikgabel') {
-                                            shouldShowButton = isCurrent;
+                                            shouldShowButton = isActuallyCurrent;
                                         } else if (tier.name === 'Silbergabel') {
-                                            shouldShowButton = isCurrent || !isGold;
+                                            shouldShowButton = isActuallyCurrent || !isGold || isTrialActive;
                                         } else if (tier.name === 'Goldgabel') {
-                                            shouldShowButton = isCurrent || !isGold;
+                                            shouldShowButton = isActuallyCurrent || !isGold || isTrialActive;
                                         }
 
                                         const Icon = tier.icon;
@@ -207,7 +210,7 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
                                                 className={cn(
                                                     "relative p-4 sm:p-8 flex flex-col items-center text-center transition-all duration-500 border-2",
                                                     tier.popular ? "border-primary/50 shadow-2xl shadow-primary/10" : "border-border",
-                                                    isCurrent && "border-emerald-500/50 bg-emerald-500/5"
+                                                    isActuallyCurrent ? "border-emerald-500/50 bg-emerald-500/5" : (isCurrent && isTrialActive ? "border-primary/50 bg-primary/5" : "")
                                                 )}
                                             >
                                                 {tier.popular && (
@@ -251,13 +254,14 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
                                                             variant={tier.popular ? "primary" : "outline"}
                                                             className={cn(
                                                                 "w-full h-11 sm:h-14 rounded-xl sm:rounded-2xl gap-2 text-xs sm:text-sm",
-                                                                isCurrent && "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20"
+                                                                isActuallyCurrent && "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20",
+                                                                (!isActuallyCurrent && isCurrent && isTrialActive) && "bg-primary hover:bg-primary/90 text-primary-foreground" // Trial active but current tier
                                                             )}
                                                             onClick={() => handleCheckout(tier.name)}
-                                                            disabled={loading || isCurrent}
+                                                            disabled={loading || isActuallyCurrent}
                                                         >
-                                                            {loading ? <Loader2 className="animate-spin" size={18} /> : (isCurrent ? 'Dein Plan' : tier.buttonText)}
-                                                            {!isCurrent && <ArrowRight className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />}
+                                                            {loading ? <Loader2 className="animate-spin" size={18} /> : (isActuallyCurrent ? 'Dein Plan' : tier.buttonText)}
+                                                            {!isActuallyCurrent && <ArrowRight className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />}
                                                         </Button>
                                                     )}
 
@@ -297,9 +301,10 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier = 'Plas
 
                             </div>
                         </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+                    </div >
+                )
+                }
+            </AnimatePresence >
 
             <SubscriptionCancelModal
                 isOpen={isCancelModalOpen}

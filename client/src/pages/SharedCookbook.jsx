@@ -9,12 +9,14 @@ import { useTheme } from '../contexts/ThemeContext';
 import SlotMachineModal from '../components/SlotMachineModal';
 import { Button } from '../components/Button';
 import SharedNotFound from '../components/SharedNotFound';
+import { useTutorial } from '../contexts/TutorialContext';
 
 export default function SharedCookbook() {
     const navigate = useNavigate();
     const { sharingKey } = useParams();
     const { theme, toggleTheme } = useTheme();
     const isDark = theme === 'dark';
+    const { notifyAction } = useTutorial();
 
     const [recipes, setRecipes] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -148,6 +150,7 @@ export default function SharedCookbook() {
             });
             // Update the specific recipe in state
             setRecipes(prev => prev.map(r => r.id === data.id ? { ...r, isFavorite: data.isFavorite } : r));
+            notifyAction('community-like');
         } catch (err) {
             console.error('Failed to toggle favorite', err);
             alert('Fehler beim Speichern der Favoriten-Einstellung.');
@@ -512,7 +515,7 @@ export default function SharedCookbook() {
                                             {localStorage.getItem('token') && (
                                                 <button
                                                     onClick={(e) => toggleFavorite(e, recipe)}
-                                                    className="absolute top-4 right-4 p-2 rounded-full backdrop-blur-sm bg-black/20 hover:bg-black/40 text-white transition-all duration-200 focus:outline-none z-10"
+                                                    className="absolute top-4 right-4 p-2 rounded-full backdrop-blur-sm bg-black/20 hover:bg-black/40 text-white transition-all duration-200 focus:outline-none z-10 community-recipe-like"
                                                     title="Zu Favoriten hinzufügen/entfernen"
                                                 >
                                                     <Heart
