@@ -66,7 +66,7 @@ const paymentService = {
         const session = await stripeInstance.checkout.sessions.create({
             customer: user.stripeCustomerId || undefined, // Bestehenden Kunden nutzen falls vorhanden
             customer_email: user.stripeCustomerId ? undefined : user.email,
-            payment_method_types: ['card', 'sepa_debit', 'link'],
+            automatic_payment_methods: { enabled: true },
             line_items: [{
                 price: prices[tier],
                 quantity: 1,
