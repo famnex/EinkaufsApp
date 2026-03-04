@@ -137,7 +137,7 @@ router.get('/check-username', async (req, res) => {
 router.get('/me', auth, async (req, res) => {
     try {
         const user = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'followNotificationsEnabled', 'lastFollowedUpdatesCheck', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId', 'isTrialUsed']
+            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'followNotificationsEnabled', 'lastFollowedUpdatesCheck', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId', 'isTrialUsed', 'showAppTutorial']
         });
         if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -207,7 +207,7 @@ router.get('/credits', auth, async (req, res) => {
 // Update Profile (Title & Image)
 router.put('/profile', auth, upload.single('image'), async (req, res) => {
     try {
-        const { cookbookTitle, isPublicCookbook, isCommunityVisible, newsletterSignedUp, followNotificationsEnabled } = req.body;
+        const { cookbookTitle, isPublicCookbook, isCommunityVisible, newsletterSignedUp, followNotificationsEnabled, showAppTutorial } = req.body;
         const updates = {};
         if (cookbookTitle !== undefined) updates.cookbookTitle = cookbookTitle;
         if (isPublicCookbook !== undefined) {
@@ -219,6 +219,7 @@ router.put('/profile', auth, upload.single('image'), async (req, res) => {
         }
         if (isCommunityVisible !== undefined) updates.isCommunityVisible = isCommunityVisible;
         if (followNotificationsEnabled !== undefined) updates.followNotificationsEnabled = followNotificationsEnabled;
+        if (showAppTutorial !== undefined) updates.showAppTutorial = showAppTutorial;
         if (newsletterSignedUp !== undefined) {
             updates.newsletterSignedUp = newsletterSignedUp;
             updates.newsletterSignupDate = newsletterSignedUp ? new Date() : null;
@@ -231,7 +232,7 @@ router.put('/profile', auth, upload.single('image'), async (req, res) => {
 
         await User.update(updates, { where: { id: req.user.id } });
         const updatedUser = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'followNotificationsEnabled', 'lastFollowedUpdatesCheck', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId', 'isTrialUsed']
+            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'followNotificationsEnabled', 'lastFollowedUpdatesCheck', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId', 'isTrialUsed', 'showAppTutorial']
         });
         const userData = updatedUser.get({ plain: true });
         const targetUserId = updatedUser.householdId || updatedUser.id;
@@ -789,7 +790,7 @@ router.post('/login', async (req, res) => {
 
         const token = jwt.sign({ id: user.id, role: user.role, version: user.tokenVersion }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-        const userData = { id: user.id, username: user.username, email: user.email, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, followNotificationsEnabled: user.followNotificationsEnabled, lastFollowedUpdatesCheck: user.lastFollowedUpdatesCheck, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId, isTrialUsed: user.isTrialUsed };
+        const userData = { id: user.id, username: user.username, email: user.email, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, followNotificationsEnabled: user.followNotificationsEnabled, lastFollowedUpdatesCheck: user.lastFollowedUpdatesCheck, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId, isTrialUsed: user.isTrialUsed, showAppTutorial: user.showAppTutorial };
 
         // If user is a member, get owner's sharing key
         if (user.householdId) {
@@ -874,7 +875,7 @@ router.post('/signup', async (req, res) => {
 
         const token = jwt.sign({ id: user.id, role: user.role, version: user.tokenVersion }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-        res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, followNotificationsEnabled: user.followNotificationsEnabled, lastFollowedUpdatesCheck: user.lastFollowedUpdatesCheck, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId, followerCount: 0 } });
+        res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, followNotificationsEnabled: user.followNotificationsEnabled, lastFollowedUpdatesCheck: user.lastFollowedUpdatesCheck, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId, followerCount: 0, showAppTutorial: user.showAppTutorial } });
     } catch (err) {
         console.error('Signup Error:', err); // Debug Log
         if (!process.env.JWT_SECRET) console.error('CRITICAL: JWT_SECRET is missing!');

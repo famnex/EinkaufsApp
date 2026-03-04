@@ -57,7 +57,8 @@ const User = sequelize.define('User', {
     followNotificationsEnabled: { type: DataTypes.BOOLEAN, defaultValue: true },
     isTrialUsed: { type: DataTypes.BOOLEAN, defaultValue: false },
     lastFollowedUpdatesCheck: { type: DataTypes.DATE, allowNull: true },
-    lastFollowedUpdatesNudgeSent: { type: DataTypes.DATE, allowNull: true }
+    lastFollowedUpdatesNudgeSent: { type: DataTypes.DATE, allowNull: true },
+    showAppTutorial: { type: DataTypes.BOOLEAN, defaultValue: true }
 });
 
 const Store = sequelize.define('Store', {
