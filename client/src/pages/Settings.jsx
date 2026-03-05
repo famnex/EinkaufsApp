@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, UserMinus, LogOut, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen, AlertTriangle, Folder, Calendar, CalendarX, Info, HelpCircle, ShieldAlert, Server, Star, CheckCircle2, Zap, Play } from 'lucide-react';
+import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, UserMinus, LogOut, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen, AlertTriangle, Folder, Calendar, CalendarX, Info, HelpCircle, ShieldAlert, Server, Star, CheckCircle2, Zap, Play, XCircle } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -1406,6 +1406,22 @@ export default function SettingsPage() {
                 }));
                 setEmails(mappedMails);
                 setEmailsTotal(mappedMails.length || 0);
+            } else if (folder === 'feedback') {
+                const res = await api.get('/feedback');
+                // Map feedback to email-like structure for the list
+                const mappedFeedback = res.data.map(f => ({
+                    ...f,
+                    id: f.id,
+                    folder: 'feedback',
+                    date: f.createdAt,
+                    fromAddress: f.User?.username || 'Anonym',
+                    toAddress: f.Product?.name || 'Apfel', // Fallback for debugging if needed, but Product name is preferred
+                    subject: `Bericht: ${f.issueType}`,
+                    isRead: f.status !== 'open', // Use status to determine "read/unread" look
+                    bodyText: f.description
+                }));
+                setEmails(mappedFeedback);
+                setEmailsTotal(mappedFeedback.length || 0);
             } else {
                 const currentSearch = search !== undefined ? search : messagingSearch;
                 const res = await api.get(`/messaging?folder=${folder || messagingFolder}&search=${encodeURIComponent(currentSearch)}`);
@@ -1445,6 +1461,18 @@ export default function SettingsPage() {
                 return;
             }
 
+            if (messagingFolder === 'feedback') {
+                // Find in local list first for quick access
+                const feedback = emails.find(f => f.id === id);
+                setSelectedEmail({
+                    ...feedback,
+                    folder: 'feedback',
+                    isRead: true
+                });
+                // Optional: mark as "read"/investigating on server if needed
+                return;
+            }
+
             const res = await api.get(`/messaging/${id}`);
             setSelectedEmail(res.data);
             // Update read status in list
@@ -1459,6 +1487,30 @@ export default function SettingsPage() {
             console.error('Failed to open email:', err);
         } finally {
             setLoadingEmail(false);
+        }
+    };
+
+    const handleUpdateFeedbackStatus = async (id, status) => {
+        try {
+            const res = await api.patch(`/feedback/${id}`, { status });
+            setEmails(prev => prev.map(f => f.id === id ? { ...f, status: res.data.status, isRead: res.data.status !== 'open' } : f));
+            if (selectedEmail?.id === id) {
+                setSelectedEmail(prev => ({ ...prev, status: res.data.status, isRead: res.data.status !== 'open' }));
+            }
+            if (fetchNotificationCounts) fetchNotificationCounts();
+        } catch (err) {
+            alert('Fehler beim Aktualisieren: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleTrashFeedback = async (id) => {
+        if (!confirm('Diesen Bericht wirklich löschen?')) return;
+        try {
+            await api.delete(`/feedback/${id}`);
+            setSelectedEmail(null);
+            fetchEmails('feedback');
+        } catch (err) {
+            alert('Fehler beim Löschen: ' + (err.response?.data?.error || err.message));
         }
     };
 
@@ -1556,11 +1608,30 @@ export default function SettingsPage() {
                 fetchEmails(messagingFolder);
                 return;
             }
+            if (messagingFolder === 'feedback') {
+                if (!confirm(`${selectedEmailIds.length} Berichte wirklich löschen?`)) return;
+                await api.post('/feedback/bulk/delete', { ids: selectedEmailIds });
+                setSelectedEmailIds([]);
+                fetchEmails(messagingFolder);
+                return;
+            }
             await api.put('/messaging/bulk/trash', { ids: selectedEmailIds });
             setSelectedEmailIds([]);
             fetchEmails(messagingFolder);
         } catch (err) {
             alert('Fehler beim Verschieben/Löschen: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleBulkFeedbackStatus = async (status) => {
+        if (selectedEmailIds.length === 0) return;
+        try {
+            await api.post('/feedback/bulk/status', { ids: selectedEmailIds, status });
+            setSelectedEmailIds([]);
+            fetchEmails(messagingFolder);
+            if (fetchNotificationCounts) fetchNotificationCounts();
+        } catch (err) {
+            alert('Fehler beim Aktualisieren: ' + (err.response?.data?.error || err.message));
         }
     };
 
@@ -1681,9 +1752,12 @@ export default function SettingsPage() {
         { id: 'strikes', label: 'Sicherheitsstatus & Verstöße', icon: ShieldCheck }
     ];
 
+    const isRainbowTier = ['Rainbowspoon', 'Regenbogengabel'].includes(effectiveUser?.tier) ||
+        ['Rainbowspoon', 'Regenbogengabel'].includes(effectiveUser?.householdOwnerTier);
+
     const accountTabs = [
         { id: 'profile_detail', label: 'Profil & Sicherheit', icon: User },
-        { id: 'subscription', label: 'Abo & Credits', icon: CreditCard },
+        { id: 'subscription', label: (effectiveUser?.tier === 'Plastikgabel' || isRainbowTier) ? 'Abonnement' : 'Abo & Credits', icon: CreditCard },
         { id: 'household', label: 'Haushalt', icon: Users },
         { id: 'gdpr', label: 'DSGVO-Auskunft', icon: ShieldCheck },
         { id: 'delete_account', label: 'Konto löschen', icon: Trash2, locked: isHouseholdMember }
@@ -2095,18 +2169,20 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
-                    <div
-                        className="bg-card border border-border rounded-2xl p-4 shadow-sm flex items-center gap-4 min-w-[160px] cursor-pointer hover:border-primary/50 transition-colors"
-                        onClick={() => setActiveAccountTab('subscription')}
-                    >
-                        <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
-                            <CreditCard size={20} />
+                    {!(effectiveUser?.tier === 'Plastikgabel' || isRainbowTier) && (
+                        <div
+                            className="bg-card border border-border rounded-2xl p-4 shadow-sm flex items-center gap-4 min-w-[160px] cursor-pointer hover:border-primary/50 transition-colors"
+                            onClick={() => setActiveAccountTab('subscription')}
+                        >
+                            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
+                                <CreditCard size={20} />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Credits</p>
+                                <p className="font-bold text-sm tracking-tight">{effectiveUser?.aiCredits?.toFixed(1) || '0.0'} 🪙</p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Credits</p>
-                            <p className="font-bold text-sm tracking-tight">{effectiveUser?.aiCredits?.toFixed(1) || '0.0'} 🪙</p>
-                        </div>
-                    </div>
+                    )}
                 </div>
             </div>
 
@@ -4136,8 +4212,8 @@ export default function SettingsPage() {
                         )}
                     </div>
 
-                    {/* Verfügbare Credits - Only for Silver/Gold */}
-                    {(currentTier === 'Silbergabel' || currentTier === 'Goldgabel') && (
+                    {/* Verfügbare Credits - Only for Silver/Gold - NOT for Rainbow or Plastic */}
+                    {(currentTier === 'Silbergabel' || currentTier === 'Goldgabel') && !isRainbowTier && (
                         <div className="p-6 bg-muted/30 rounded-3xl border border-border flex flex-col justify-between relative min-h-[160px]">
                             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-3 block">Verfügbare Credits</label>
                             {loadingSubscription ? (
@@ -4168,7 +4244,7 @@ export default function SettingsPage() {
                 </div >
 
                 {
-                    (currentTier === 'Silbergabel' || currentTier === 'Goldgabel') && (
+                    (currentTier === 'Silbergabel' || currentTier === 'Goldgabel') && !isRainbowTier && (
                         <div>
                             <div className="flex items-center justify-between mb-4 px-1">
                                 <h3 className="font-bold flex items-center gap-2">
@@ -4254,6 +4330,7 @@ export default function SettingsPage() {
         { id: 'sent', label: 'Gesendet', icon: Send },
         { id: 'sent_system', label: 'Gesendet (System)', icon: Server },
         { id: 'push', label: 'Push', icon: Bell },
+        { id: 'feedback', label: 'Produkt-Berichte', icon: ShieldAlert, count: notificationCounts.feedback },
         { id: 'newsletter', label: 'Newsletter', icon: Mail },
         { id: 'trash', label: 'Papierkorb', icon: Trash2 }
     ];
@@ -4401,6 +4478,9 @@ export default function SettingsPage() {
                             >
                                 <FIcon size={14} />
                                 {f.label}
+                                {f.count > 0 && (
+                                    <span className="ml-1 bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center font-bold">{f.count}</span>
+                                )}
                                 {f.id === 'inbox' && unreadInbox > 0 && (
                                     <span className="ml-1 bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center font-bold">{unreadInbox}</span>
                                 )}
@@ -4437,29 +4517,33 @@ export default function SettingsPage() {
                                 >
                                     Suchen
                                 </Button>
-                                <Button
-                                    onClick={handleImapFetch}
-                                    disabled={fetchingEmails}
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-9 px-3 gap-1.5"
-                                >
-                                    {fetchingEmails ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-                                    Abrufen
-                                </Button>
-                                <Button
-                                    onClick={() => {
-                                        setReplyTo(null);
-                                        setComposeData({ to: '', cc: '', bcc: '', subject: '', body: 'Hallo {benutzername},<br><br>' });
-                                        setShowCcBcc(false);
-                                        setComposeOpen(true);
-                                    }}
-                                    size="sm"
-                                    className="h-9 px-3 gap-1.5"
-                                >
-                                    <Pen size={16} />
-                                    Neu
-                                </Button>
+                                {messagingFolder !== 'feedback' && (
+                                    <>
+                                        <Button
+                                            onClick={handleImapFetch}
+                                            disabled={fetchingEmails}
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-9 px-3 gap-1.5"
+                                        >
+                                            {fetchingEmails ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                                            Abrufen
+                                        </Button>
+                                        <Button
+                                            onClick={() => {
+                                                setReplyTo(null);
+                                                setComposeData({ to: '', cc: '', bcc: '', subject: '', body: 'Hallo {benutzername},<br><br>' });
+                                                setShowCcBcc(false);
+                                                setComposeOpen(true);
+                                            }}
+                                            size="sm"
+                                            className="h-9 px-3 gap-1.5"
+                                        >
+                                            <Pen size={16} />
+                                            Neu
+                                        </Button>
+                                    </>
+                                )}
                             </div>
                         </div>
 
@@ -4483,11 +4567,24 @@ export default function SettingsPage() {
                                             </Button>
                                         </>
                                     )}
-                                    {messagingFolder !== 'trash' ? (
+                                    {messagingFolder === 'feedback' && (
+                                        <>
+                                            <Button variant="ghost" size="sm" onClick={() => handleBulkFeedbackStatus('resolved')} className="text-green-500 hover:bg-green-500/10 h-8 px-3 text-xs font-bold gap-1.5" title="Als erledigt markieren">
+                                                <CheckCircle2 size={14} /> Erledigt
+                                            </Button>
+                                            <Button variant="ghost" size="sm" onClick={() => handleBulkFeedbackStatus('ignored')} className="text-muted-foreground hover:bg-muted/10 h-8 px-3 text-xs font-bold gap-1.5" title="Ignorieren">
+                                                <Star size={14} /> Ignorieren
+                                            </Button>
+                                            <Button variant="ghost" size="sm" onClick={handleBulkTrash} className="text-red-500 hover:text-red-600 hover:bg-red-500/10 h-8 px-3 text-xs font-bold gap-1.5">
+                                                <Trash2 size={14} /> Löschen
+                                            </Button>
+                                        </>
+                                    )}
+                                    {messagingFolder !== 'trash' && messagingFolder !== 'feedback' ? (
                                         <Button variant="ghost" size="sm" onClick={handleBulkTrash} className="text-red-500 hover:text-red-600 hover:bg-red-500/10 h-8 px-3 text-xs font-bold gap-1.5">
                                             <Trash2 size={14} /> Papierkorb
                                         </Button>
-                                    ) : (
+                                    ) : messagingFolder === 'trash' ? (
                                         <>
                                             <Button variant="ghost" size="sm" onClick={handleBulkRestore} className="text-primary hover:bg-primary/10 h-8 px-3 text-xs font-bold gap-1.5">
                                                 <ArrowLeft size={14} /> Wiederherstellen
@@ -4496,7 +4593,7 @@ export default function SettingsPage() {
                                                 <Trash2 size={14} /> Endgültig löschen
                                             </Button>
                                         </>
-                                    )}
+                                    ) : null}
                                     <Button variant="ghost" size="sm" onClick={() => setSelectedEmailIds([])} className="text-muted-foreground h-8 px-3 text-xs font-bold">
                                         Aufheben
                                     </Button>
@@ -4540,12 +4637,45 @@ export default function SettingsPage() {
                                                 {selectedEmail.isRead ? <Mail size={14} /> : <MailOpen size={14} />}
                                             </Button>
                                         ) : null}
-                                        {selectedEmail.folder !== 'trash' ? (
+                                        {selectedEmail.folder === 'feedback' && (
+                                            <div className="flex items-center gap-2 pr-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleUpdateFeedbackStatus(selectedEmail.id, 'resolved')}
+                                                    className={cn("gap-1.5", selectedEmail.status === 'resolved' && "bg-green-500/10 text-green-500 border-green-500/50")}
+                                                    title="Als erledigt markieren"
+                                                >
+                                                    <CheckCircle2 size={14} />
+                                                    <span className="hidden sm:inline">Erledigt</span>
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleUpdateFeedbackStatus(selectedEmail.id, 'ignored')}
+                                                    className={cn("gap-1.5", selectedEmail.status === 'ignored' && "bg-muted text-muted-foreground border-border")}
+                                                    title="Ignorieren"
+                                                >
+                                                    <XCircle size={14} />
+                                                    <span className="hidden sm:inline">Ignorieren</span>
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleTrashFeedback(selectedEmail.id)}
+                                                    className="gap-1.5 text-red-500 hover:text-red-600"
+                                                >
+                                                    <Trash2 size={14} />
+                                                    <span className="hidden sm:inline">Löschen</span>
+                                                </Button>
+                                            </div>
+                                        )}
+                                        {selectedEmail.folder !== 'trash' && selectedEmail.folder !== 'feedback' ? (
                                             <Button variant="outline" size="sm" onClick={() => handleTrashEmail(selectedEmail.id)} className="gap-1 text-red-500 hover:text-red-600">
                                                 <Trash2 size={14} />
                                                 <span className="hidden sm:inline">Löschen</span>
                                             </Button>
-                                        ) : (
+                                        ) : selectedEmail.folder === 'trash' ? (
                                             <>
                                                 <Button variant="outline" size="sm" onClick={() => handleRestoreEmail(selectedEmail.id)} className="gap-1">
                                                     <ArrowLeft size={14} />
@@ -4556,13 +4686,46 @@ export default function SettingsPage() {
                                                     <span className="hidden sm:inline">Endgültig löschen</span>
                                                 </Button>
                                             </>
-                                        )}
+                                        ) : null}
                                     </div>
                                 </div>
-                                <h2 className="text-xl font-bold text-foreground mb-3">{selectedEmail.subject || '(Kein Betreff)'}</h2>
+                                <div className="flex items-center gap-2 mb-3">
+                                    {selectedEmail.folder === 'feedback' && (
+                                        <span className={cn(
+                                            "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border",
+                                            selectedEmail.status === 'open' && "bg-red-100 text-red-700 border-red-200",
+                                            selectedEmail.status === 'resolved' && "bg-green-100 text-green-700 border-green-200",
+                                            selectedEmail.status === 'ignored' && "bg-muted text-muted-foreground border-border"
+                                        )}>
+                                            {selectedEmail.status === 'open' && 'Offen'}
+                                            {selectedEmail.status === 'resolved' && 'Erledigt'}
+                                            {selectedEmail.status === 'ignored' && 'Ignoriert'}
+                                        </span>
+                                    )}
+                                    <h2 className="text-xl font-bold text-foreground">{selectedEmail.subject || '(Kein Betreff)'}</h2>
+                                </div>
                                 <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-4">
-                                    <span><strong>Von:</strong> {selectedEmail.fromAddress}</span>
-                                    <span><strong>An:</strong> {selectedEmail.toAddress}</span>
+                                    {selectedEmail.folder === 'feedback' ? (
+                                        <>
+                                            <span><strong>Von:</strong> {selectedEmail.fromAddress}</span>
+                                            <span><strong>Produkt:</strong> {selectedEmail.toAddress}</span>
+                                            {selectedEmail.productId && (
+                                                <Button
+                                                    variant="link"
+                                                    size="sm"
+                                                    className="h-auto p-0 text-xs text-primary"
+                                                    onClick={() => navigate(`/product/${selectedEmail.productId}`)}
+                                                >
+                                                    Produkt anzeigen
+                                                </Button>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span><strong>Von:</strong> {selectedEmail.fromAddress}</span>
+                                            <span><strong>An:</strong> {selectedEmail.toAddress}</span>
+                                        </>
+                                    )}
                                     {selectedEmail.cc && <span><strong>CC:</strong> {selectedEmail.cc}</span>}
                                     {selectedEmail.bcc && <span><strong>BCC:</strong> {selectedEmail.bcc}</span>}
                                     <span><strong>Datum:</strong> {new Date(selectedEmail.date).toLocaleString('de-DE')}</span>
@@ -4604,7 +4767,7 @@ export default function SettingsPage() {
                                 ) : emails.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center p-12 text-muted-foreground">
                                         <MailOpen size={40} className="mb-3 opacity-50" />
-                                        <p className="font-medium">Keine E-Mails in {messagingFolders.find(f => f.id === messagingFolder)?.label}</p>
+                                        <p className="font-medium">Keine Nachrichten in {messagingFolders.find(f => f.id === messagingFolder)?.label}</p>
                                         {messagingFolder === 'inbox' && (
                                             <p className="text-sm mt-1">Klicke "Abrufen" um neue E-Mails zu laden</p>
                                         )}
@@ -4650,6 +4813,12 @@ export default function SettingsPage() {
                                                                 {email.previousFolder === 'daemon' && <ShieldAlert size={18} />}
                                                                 {email.previousFolder === 'sent_system' && <Server size={18} />}
                                                                 {!email.previousFolder && <MailOpen size={18} />}
+                                                            </div>
+                                                        ) : messagingFolder === 'feedback' ? (
+                                                            <div className="shrink-0 pt-0.5">
+                                                                {email.status === 'open' && <ShieldAlert size={16} className="text-red-500" />}
+                                                                {email.status === 'resolved' && <CheckCircle2 size={16} className="text-emerald-500" />}
+                                                                {email.status === 'ignored' && <XCircle size={16} className="text-muted-foreground" />}
                                                             </div>
                                                         ) : (
                                                             email.isRead ? (
@@ -5651,8 +5820,8 @@ export default function SettingsPage() {
                         >
                             <sub.icon size={14} />
                             {sub.label}
-                            {sub.id === 'messaging' && notificationCounts?.messaging > 0 && (
-                                <span className="bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{notificationCounts.messaging}</span>
+                            {sub.id === 'messaging' && (notificationCounts?.messaging > 0 || notificationCounts?.feedback > 0) && (
+                                <span className="bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{notificationCounts.messaging + notificationCounts.feedback}</span>
                             )}
                             {sub.id === 'compliance' && notificationCounts?.compliance > 0 && (
                                 <span className="bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{notificationCounts.compliance}</span>

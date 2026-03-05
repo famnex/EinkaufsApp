@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Clock, Users, ArrowRight, Wand2, Plus, Minus, Search, Trash2, Image as ImageIcon, Sparkles, Loader2, Tag, ShieldAlert, GripVertical, Play, RefreshCw, ArrowRightCircle } from 'lucide-react';
+import { X, Save, Clock, Users, ArrowRight, Wand2, Plus, Minus, Search, Trash2, Image as ImageIcon, Sparkles, Loader2, Tag, ShieldAlert, GripVertical, Play, RefreshCw, ArrowRightCircle, Check, Flag } from 'lucide-react';
+import ReportIssueModal from './ReportIssueModal';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
@@ -99,7 +100,9 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
     const { user, refreshUser } = useAuth();
     const [activeTab, setActiveTab] = useState(0); // 0: Basics, 1: Ingredients, 2: Steps, 3: AI
     const [loading, setLoading] = useState(false); // Initial load
-    const [isSaving, setIsSaving] = useState(false); // Bottom save button
+    const [isSaving, setIsSaving] = useState(false);
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    const [reportContext, setReportContext] = useState(null); // Bottom save button
     const [isGeneratingImage, setIsGeneratingImage] = useState(false); // AI image generation
     const [aiConfirmModalOpen, setAiConfirmModalOpen] = useState(false);
     const [isAiLockedOpen, setIsAiLockedOpen] = useState(false);
@@ -130,6 +133,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
     const [ingredientSearch, setIngredientSearch] = useState('');
     const [ingredientSuggestions, setIngredientSuggestions] = useState([]);
     const [deletedIngredients, setDeletedIngredients] = useState([]);
+    const [editingCell, setEditingCell] = useState(null); // Mobile inline edit: index of active ingredient
 
     // Tab 3: Steps
     const [steps, setSteps] = useState([{ id: Date.now().toString(), text: '' }]);
@@ -591,16 +595,16 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="space-y-2">
                                                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1 flex items-center gap-1"><Clock size={12} /> Vorbereitung (Min)</label>
-                                                    <Input type="number" value={basics.prep_time} onChange={e => setBasics({ ...basics, prep_time: e.target.value })} />
+                                                    <Input type="number" value={basics.prep_time} onChange={e => setBasics({ ...basics, prep_time: e.target.value })} onWheel={e => e.currentTarget.blur()} />
                                                 </div>
                                                 <div className="space-y-2">
                                                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1 flex items-center gap-1"><Clock size={12} /> Gesamtzeit (Min)</label>
-                                                    <Input type="number" value={basics.duration} onChange={e => setBasics({ ...basics, duration: e.target.value })} />
+                                                    <Input type="number" value={basics.duration} onChange={e => setBasics({ ...basics, duration: e.target.value })} onWheel={e => e.currentTarget.blur()} />
                                                 </div>
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1 flex items-center gap-1"><Users size={12} /> Portionen</label>
-                                                <Input type="number" value={basics.servings} onChange={e => setBasics({ ...basics, servings: e.target.value })} />
+                                                <Input type="number" value={basics.servings} onChange={e => setBasics({ ...basics, servings: e.target.value })} onWheel={e => e.currentTarget.blur()} />
                                             </div>
 
                                         </div>
@@ -695,7 +699,8 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                                             }
 
                                                             const isVariation = !!basics.imagePreview;
-                                                            const cost = user?.tier === 'Goldgabel' ? 40 : 60;
+                                                            const isFreeTier = user?.tier === 'Goldgabel' || user?.tier === 'Rainbowspoon' || user?.tier === 'Regenbogengabel';
+                                                            const cost = isFreeTier ? 0 : 60;
 
                                                             setAiActionData({
                                                                 title: isVariation ? 'KI Variation erstellen' : 'KI Bild generieren',
@@ -727,7 +732,7 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                                     >
                                                         {isGeneratingImage ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
                                                         {basics.imagePreview ? 'AI Variante' : 'AI Neu'}
-                                                        <span className="opacity-70">({user?.tier === 'Goldgabel' ? 40 : 60})</span>
+                                                        <span className="opacity-70">({(user?.tier === 'Goldgabel' || user?.tier === 'Rainbowspoon' || user?.tier === 'Regenbogengabel') ? 0 : 60})</span>
                                                     </Button>
                                                 )}
 
@@ -799,7 +804,8 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                     </div>
 
                                     <div className="space-y-2">
-                                        <div className="grid grid-cols-12 gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground px-2">
+                                        {/* Desktop header */}
+                                        <div className="hidden sm:grid grid-cols-12 gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground px-2">
                                             <div className="col-span-1 text-center">Opt.</div>
                                             <div className="col-span-5">Zutat</div>
                                             <div className="col-span-3">Menge</div>
@@ -810,54 +816,136 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                                             const sub = substitutions.find(s => s.originalProductId === ing.ProductId);
                                             return (
                                                 <div key={idx} className={cn(
-                                                    "grid grid-cols-12 gap-2 items-center p-2 rounded-xl transition-colors",
+                                                    "p-2 rounded-xl transition-colors",
                                                     sub ? "bg-amber-500/10 border border-amber-500/20" : "bg-muted/30"
                                                 )}>
-                                                    <div className="col-span-1 border-r border-border/50 h-full flex items-center justify-center">
+                                                    {/* Mobile layout */}
+                                                    <div className="flex sm:hidden items-center gap-2">
                                                         <input
                                                             type="checkbox"
                                                             checked={ing.isOptional}
                                                             onChange={e => updateIngredient(idx, 'isOptional', e.target.checked)}
-                                                            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                                            className="w-4 h-4 shrink-0 rounded border-gray-300 text-primary focus:ring-primary"
                                                             title="Optional?"
                                                         />
-                                                    </div>
-                                                    <div className="col-span-5 font-medium text-foreground flex flex-col">
-                                                        <span>{ing.name}</span>
-                                                        {sub && (
-                                                            <span className={cn(
-                                                                "text-[10px] font-bold flex items-center gap-1",
-                                                                sub.isOmitted ? "text-destructive" : "text-amber-600"
-                                                            )}>
-                                                                {sub.isOmitted ? (
-                                                                    <><X size={10} /> Diese Zutat wird weggelassen</>
-                                                                ) : (
-                                                                    <><RefreshCw size={10} /> Ersetzt durch: {sub.SubstituteProduct?.name}
-                                                                        ({sub.substituteQuantity} {sub.substituteUnit})</>
-                                                                )}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="col-span-3">
-                                                        <Input
-                                                            type="number"
-                                                            value={ing.quantity}
-                                                            onChange={e => updateIngredient(idx, 'quantity', e.target.value)}
-                                                            className="h-8 text-sm bg-background"
-                                                        />
-                                                    </div>
-                                                    <div className="col-span-2">
-                                                        <Input
-                                                            value={ing.unit || ''}
-                                                            placeholder="Einh."
-                                                            onChange={e => updateIngredient(idx, 'unit', e.target.value)}
-                                                            className="h-8 text-sm bg-background"
-                                                        />
-                                                    </div>
-                                                    <div className="col-span-1 flex justify-end">
-                                                        <button onClick={() => removeIngredient(idx)} className="text-destructive hover:bg-destructive/10 p-1.5 rounded-lg transition-colors">
-                                                            <Trash2 size={16} />
+                                                        <span className="flex-1 font-medium text-foreground text-sm truncate">{ing.name}</span>
+                                                        {/* Menge+Einheit tap-to-edit */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setEditingCell(editingCell === idx ? null : idx)}
+                                                            className="shrink-0 px-2 py-1 rounded-lg bg-background border border-border text-sm font-mono text-foreground hover:border-primary/50 transition-colors min-w-[64px] text-center"
+                                                        >
+                                                            {ing.quantity || '–'}{ing.unit ? ` ${ing.unit}` : ''}
                                                         </button>
+                                                        <button onClick={() => removeIngredient(idx)} className="shrink-0 text-destructive hover:bg-destructive/10 p-1.5 rounded-lg transition-colors">
+                                                            <Trash2 size={15} />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setReportContext({
+                                                                    productId: ing.ProductId,
+                                                                    productName: ing.name,
+                                                                    additionalContext: `RecipeModal: ${basics.title}`
+                                                                });
+                                                                setIsReportModalOpen(true);
+                                                            }}
+                                                            className="shrink-0 text-muted-foreground/40 hover:text-orange-500 p-1.5 rounded-lg transition-colors"
+                                                            title="Fehler melden"
+                                                        >
+                                                            <Flag size={14} />
+                                                        </button>
+                                                    </div>
+                                                    {/* Mobile edit-popup */}
+                                                    {editingCell === idx && (
+                                                        <div className="flex sm:hidden gap-2 mt-2 items-center">
+                                                            <Input
+                                                                type="number"
+                                                                value={ing.quantity}
+                                                                onChange={e => updateIngredient(idx, 'quantity', e.target.value)}
+                                                                className="h-8 text-sm bg-background flex-1"
+                                                                placeholder="Menge"
+                                                                autoFocus
+                                                            />
+                                                            <Input
+                                                                value={ing.unit || ''}
+                                                                placeholder="Einh."
+                                                                onChange={e => updateIngredient(idx, 'unit', e.target.value)}
+                                                                className="h-8 text-sm bg-background flex-1"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setEditingCell(null)}
+                                                                className="shrink-0 p-1.5 rounded-lg bg-primary text-primary-foreground"
+                                                            >
+                                                                <Check size={14} />
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                    {sub && (
+                                                        <div className="sm:hidden ml-6 mt-0.5">
+                                                            <span className={cn("text-[10px] font-bold flex items-center gap-1", sub.isOmitted ? "text-destructive" : "text-amber-600")}>
+                                                                {sub.isOmitted ? (<><X size={10} /> Wird weggelassen</>) : (<><RefreshCw size={10} /> → {sub.SubstituteProduct?.name} ({sub.substituteQuantity} {sub.substituteUnit})</>)}
+                                                            </span>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Desktop layout (unchanged grid) */}
+                                                    <div className="hidden sm:grid grid-cols-12 gap-2 items-center">
+                                                        <div className="col-span-1 border-r border-border/50 h-full flex items-center justify-center">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={ing.isOptional}
+                                                                onChange={e => updateIngredient(idx, 'isOptional', e.target.checked)}
+                                                                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                                                title="Optional?"
+                                                            />
+                                                        </div>
+                                                        <div className="col-span-5 font-medium text-foreground flex flex-col">
+                                                            <span>{ing.name}</span>
+                                                            {sub && (
+                                                                <span className={cn("text-[10px] font-bold flex items-center gap-1", sub.isOmitted ? "text-destructive" : "text-amber-600")}>
+                                                                    {sub.isOmitted ? (<><X size={10} /> Diese Zutat wird weggelassen</>) : (<><RefreshCw size={10} /> Ersetzt durch: {sub.SubstituteProduct?.name} ({sub.substituteQuantity} {sub.substituteUnit})</>)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="col-span-3">
+                                                            <Input
+                                                                type="number"
+                                                                value={ing.quantity}
+                                                                onChange={e => updateIngredient(idx, 'quantity', e.target.value)}
+                                                                className="h-8 text-sm bg-background"
+                                                            />
+                                                        </div>
+                                                        <div className="col-span-2">
+                                                            <Input
+                                                                value={ing.unit || ''}
+                                                                placeholder="Einh."
+                                                                onChange={e => updateIngredient(idx, 'unit', e.target.value)}
+                                                                className="h-8 text-sm bg-background"
+                                                            />
+                                                        </div>
+                                                        <div className="col-span-1 flex justify-end gap-1">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setReportContext({
+                                                                        productId: ing.ProductId,
+                                                                        productName: ing.name,
+                                                                        additionalContext: `RecipeModal: ${basics.title}`
+                                                                    });
+                                                                    setIsReportModalOpen(true);
+                                                                }}
+                                                                className="text-muted-foreground/40 hover:text-orange-500 p-1.5 rounded-lg transition-colors"
+                                                                title="Fehler melden"
+                                                            >
+                                                                <Flag size={14} />
+                                                            </button>
+                                                            <button onClick={() => removeIngredient(idx)} className="text-destructive hover:bg-destructive/10 p-1.5 rounded-lg transition-colors">
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             );
@@ -1026,6 +1114,12 @@ export default function RecipeModal({ isOpen, onClose, recipe, onSave }) {
                     </div>
                 )}
             </AnimatePresence>
+
+            <ReportIssueModal
+                isOpen={isReportModalOpen}
+                onClose={() => setIsReportModalOpen(false)}
+                productContext={reportContext}
+            />
         </AnimatePresence>
     );
 }

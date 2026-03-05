@@ -27,6 +27,7 @@ export default function SignupPage() {
     const [isUsernameChecking, setIsUsernameChecking] = useState(false);
     const [usernameExists, setUsernameExists] = useState(false);
     const [verificationSent, setVerificationSent] = useState(false);
+    const [showTermsHint, setShowTermsHint] = useState(false);
 
     // Email existence check with debounce
     useEffect(() => {
@@ -160,7 +161,7 @@ export default function SignupPage() {
 
     const handleFinalSubmit = async () => {
         if (!acceptedTerms) {
-            setError('Bitte akzeptiere die Nutzungsbedingungen und Datenschutzrichtlinie.');
+            setShowTermsHint(true);
             return;
         }
 
@@ -183,7 +184,7 @@ export default function SignupPage() {
     };
 
     return (
-        <PublicLayout mainClassName="pt-24 pb-12 flex flex-col items-center justify-center min-h-[80vh]">
+        <PublicLayout mainClassName="pt-16 sm:pt-24 pb-8 sm:pb-12 flex flex-col items-center justify-center min-h-[80vh]">
             <div className="w-full h-full flex items-center justify-center relative overflow-hidden transition-colors duration-300">
                 {/* Background Glows */}
                 <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[60%] bg-primary/5 dark:bg-primary/10 rounded-full blur-[150px]" />
@@ -195,25 +196,28 @@ export default function SignupPage() {
                     transition={{ duration: 0.5, ease: "easeOut" }}
                     className="w-full max-w-lg relative z-10 mx-auto"
                 >
-                    <Card className="p-8 sm:p-10 border-border shadow-2xl bg-card/50 backdrop-blur-xl overflow-hidden relative">
+                    <Card className="p-5 sm:p-8 lg:p-10 border-border shadow-2xl bg-card/50 backdrop-blur-xl overflow-hidden relative">
 
-                        <div className="mb-8 flex flex-col items-center">
+                        {/* Header: 2-col on mobile (icon | text), centered column on sm+ */}
+                        <div className="mb-3 sm:mb-8 flex items-center gap-3 sm:flex-col sm:items-center sm:gap-0">
                             <motion.div
                                 initial={{ y: -20, opacity: 0 }}
                                 animate={{ y: 0, opacity: 1 }}
-                                className={`mb-6 rounded-2xl p-4 text-white shadow-lg transform hover:scale-110 transition-transform duration-500 ${isSetup ? 'bg-emerald-500 shadow-emerald-500/20' : 'bg-secondary shadow-secondary/20'}`}
+                                className={`shrink-0 w-1/4 sm:w-auto flex justify-center sm:mb-5 rounded-2xl p-2.5 sm:p-4 text-white shadow-lg transform hover:scale-110 transition-transform duration-500 ${isSetup ? 'bg-emerald-500 shadow-emerald-500/20' : 'bg-secondary shadow-secondary/20'}`}
                             >
-                                {isSetup ? <ShieldCheck size={32} /> : <UserPlus size={32} />}
+                                {isSetup ? <ShieldCheck size={26} className="sm:w-8 sm:h-8" /> : <UserPlus size={26} className="sm:w-8 sm:h-8" />}
                             </motion.div>
-                            <h1 className="text-3xl font-bold text-foreground tracking-tight mb-2 text-center">
-                                {isSetup ? 'System-Installation' : 'Konto erstellen'}
-                            </h1>
-                            <p className="text-muted-foreground text-center">
-                                {step === 'register'
-                                    ? (isSetup ? 'Erstelle das erste Administrator-Konto.' : 'Schritt 1: Deine Zugangsdaten')
-                                    : 'Schritt 2: Rechtliches & Newsletter'
-                                }
-                            </p>
+                            <div className="flex-1 sm:text-center sm:mt-0">
+                                <h1 className="text-xl sm:text-3xl font-bold text-foreground tracking-tight mb-0.5 sm:mb-2 sm:text-center">
+                                    {isSetup ? 'System-Installation' : 'Konto erstellen'}
+                                </h1>
+                                <p className="text-muted-foreground text-xs sm:text-sm sm:text-center">
+                                    {step === 'register'
+                                        ? (isSetup ? 'Erstelle das erste Administrator-Konto.' : 'Schritt 1: Deine Zugangsdaten')
+                                        : 'Schritt 2: Rechtliches & Newsletter'
+                                    }
+                                </p>
+                            </div>
                         </div>
 
                         <AnimatePresence mode="wait">
@@ -246,7 +250,7 @@ export default function SignupPage() {
                                     animate={{ x: 0, opacity: 1 }}
                                     exit={{ x: -20, opacity: 0 }}
                                     onSubmit={handleInitialSubmit}
-                                    className="space-y-5"
+                                    className="space-y-3 sm:space-y-5"
                                 >
                                     <div className="space-y-2">
                                         <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Benutzername</label>
@@ -341,7 +345,7 @@ export default function SignupPage() {
                                     {/* Scrollable Terms Area */}
                                     <div className="space-y-2">
                                         <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Nutzungsbedingungen</label>
-                                        <div className="h-48 rounded-xl border border-border bg-background/50 overflow-y-auto p-4 text-sm text-foreground/80 shadow-inner custom-scrollbar">
+                                        <div className="h-36 sm:h-48 rounded-xl border border-border bg-background/50 overflow-y-auto p-3 sm:p-4 text-sm text-foreground/80 shadow-inner custom-scrollbar">
                                             {loadingLegal ? (
                                                 <div className="flex items-center justify-center h-full text-muted-foreground">Lade Texte...</div>
                                             ) : (
@@ -353,22 +357,39 @@ export default function SignupPage() {
                                     </div>
 
                                     {/* Legal Checkboxes */}
-                                    <div className="space-y-4">
+                                    <div className="space-y-2 sm:space-y-4">
+                                        {/* Terms-Hint-Banner */}
+                                        {showTermsHint && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 6 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0 }}
+                                                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-600 dark:text-amber-400 text-xs font-medium animate-pulse"
+                                            >
+                                                <span className="text-base leading-none">↓</span>
+                                                Bitte akzeptiere zuerst die Nutzungsbedingungen und Datenschutzerklärung.
+                                            </motion.div>
+                                        )}
                                         {/* Mandatory Terms */}
-                                        <label className="flex items-start gap-3 p-3 rounded-xl border border-border/50 bg-background/30 cursor-pointer hover:bg-background/50 transition-colors">
+                                        <label
+                                            className={`flex items-start gap-3 p-3 rounded-xl border transition-colors cursor-pointer ${showTermsHint
+                                                ? 'border-amber-500/70 bg-amber-500/10'
+                                                : 'border-border/50 bg-background/30 hover:bg-background/50'
+                                                }`}
+                                        >
                                             <div className="relative flex items-center mt-0.5">
                                                 <input
                                                     type="checkbox"
                                                     checked={acceptedTerms}
-                                                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                                                    onChange={(e) => { setAcceptedTerms(e.target.checked); if (e.target.checked) setShowTermsHint(false); }}
                                                     className="peer sr-only"
                                                 />
-                                                <div className="w-5 h-5 rounded border border-muted-foreground/30 peer-checked:bg-primary peer-checked:border-primary transition-all flex items-center justify-center text-primary-foreground">
+                                                <div className="w-5 h-5 rounded border-2 border-muted-foreground/70 dark:border-muted-foreground/90 peer-checked:bg-primary peer-checked:border-primary transition-all flex items-center justify-center text-primary-foreground">
                                                     <Check size={14} className="opacity-0 peer-checked:opacity-100" />
                                                 </div>
                                             </div>
                                             <span className="text-xs text-muted-foreground leading-snug">
-                                                Ich akzeptiere diese <span className="font-bold text-foreground">Nutzungsbedingungen</span> und habe die <Link to="/privacy" target="_blank" className="underline text-primary hover:text-primary/80">Datenschutzerklärung</Link> zur Kenntnis genommen. *
+                                                Ich akzeptiere diese <Link to="/terms" target="_blank" className="underline font-bold text-primary hover:text-primary/80">Nutzungsbedingungen</Link> und habe die <Link to="/privacy" target="_blank" className="underline text-primary hover:text-primary/80">Datenschutzerklärung</Link> zur Kenntnis genommen. *
                                             </span>
                                         </label>
 
@@ -381,7 +402,7 @@ export default function SignupPage() {
                                                     onChange={(e) => setSubscribeNewsletter(e.target.checked)}
                                                     className="peer sr-only"
                                                 />
-                                                <div className="w-5 h-5 rounded border border-muted-foreground/30 peer-checked:bg-secondary peer-checked:border-secondary transition-all flex items-center justify-center text-secondary-foreground">
+                                                <div className="w-5 h-5 rounded border-2 border-muted-foreground/70 dark:border-muted-foreground/90 peer-checked:bg-secondary peer-checked:border-secondary transition-all flex items-center justify-center text-secondary-foreground">
                                                     <Check size={14} className="opacity-0 peer-checked:opacity-100" />
                                                 </div>
                                             </div>
@@ -399,7 +420,7 @@ export default function SignupPage() {
                                                     onChange={(e) => setFollowNotificationsEnabled(e.target.checked)}
                                                     className="peer sr-only"
                                                 />
-                                                <div className="w-5 h-5 rounded border border-muted-foreground/30 peer-checked:bg-primary peer-checked:border-primary transition-all flex items-center justify-center text-primary-foreground">
+                                                <div className="w-5 h-5 rounded border-2 border-muted-foreground/70 dark:border-muted-foreground/90 peer-checked:bg-secondary peer-checked:border-secondary transition-all flex items-center justify-center text-secondary-foreground">
                                                     <Check size={14} className="opacity-0 peer-checked:opacity-100" />
                                                 </div>
                                             </div>
@@ -420,9 +441,9 @@ export default function SignupPage() {
                                         </Button>
                                         <Button
                                             onClick={handleFinalSubmit}
-                                            disabled={isLoading || !acceptedTerms}
+                                            disabled={isLoading}
                                             className="flex-1 gap-2"
-                                            variant={acceptedTerms ? 'primary' : 'secondary'} // Highlight when ready
+                                            variant={acceptedTerms ? 'primary' : 'secondary'}
                                         >
                                             {isLoading ? 'Konto wird erstellt...' : 'Konto erstellen'}
                                             {!isLoading && <Check size={18} />}

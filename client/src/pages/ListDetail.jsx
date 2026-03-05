@@ -1128,6 +1128,7 @@ export default function ListDetail() {
                     setIsQuantityModalOpen(false);
                     setIntoleranceMessages({ messages: [], maxProbability: 0 });
                 }}
+                productId={pendingProduct?.id}
                 productName={typeof pendingProduct === 'string' ? pendingProduct : pendingProduct?.name}
                 defaultUnit={typeof pendingProduct === 'object' ? pendingProduct?.unit : 'Stück'}
                 productNote={typeof pendingProduct === 'object' ? pendingProduct?.note : ''}

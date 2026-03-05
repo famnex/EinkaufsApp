@@ -10,6 +10,7 @@ export default function PublicHeader() {
     const { user } = useAuth();
 
     const isLoginPage = location.pathname === '/login';
+    const isSignupPage = location.pathname === '/signup';
     const isLandingPage = location.pathname === '/';
     const isRecipePage = location.pathname.includes('/recipe/');
     const isCookbookPage = location.pathname.includes('/cookbook');
@@ -70,7 +71,7 @@ export default function PublicHeader() {
                     </div>
 
                     <span className="print:hidden">
-                        {!user && (
+                        {!user && !isSignupPage && (
                             isLoginPage ? (
                                 <Button size="sm" onClick={() => navigate('/signup')}>
                                     Registrieren

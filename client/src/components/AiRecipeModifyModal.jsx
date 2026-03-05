@@ -20,7 +20,7 @@ export default function AiRecipeModifyModal({
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    const cost = userTier === 'Goldgabel' ? 0 : 10;
+    const cost = (userTier === 'Goldgabel' || userTier === 'Rainbowspoon' || userTier === 'Regenbogengabel') ? 0 : 10;
     const canAfford = credits >= cost;
 
     const handleSubmit = async () => {

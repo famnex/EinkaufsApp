@@ -354,7 +354,26 @@ Intolerance.belongsToMany(Product, { through: ProductIntolerance });
 
 // User <-> Product (Personal Intolerance, Many-to-Many)
 User.belongsToMany(Product, { through: UserProductIntolerance, as: 'IntolerantProducts' });
-Product.belongsToMany(User, { through: UserProductIntolerance, as: 'IntolerantByUsers' });
+User.belongsToMany(Product, { through: UserProductIntolerance, as: 'IntolerantByUsers' });
+
+const ProductReport = sequelize.define('ProductReport', {
+    productName: { type: DataTypes.STRING, allowNull: false },
+    issueType: {
+        type: DataTypes.ENUM('unverstraeglichkeit', 'einheit', 'rechtschreibung', 'variante', 'produkt', 'sonstiges'),
+        defaultValue: 'produkt'
+    },
+    description: { type: DataTypes.TEXT, allowNull: false },
+    context: { type: DataTypes.STRING },
+    status: {
+        type: DataTypes.ENUM('open', 'resolved', 'ignored'),
+        defaultValue: 'open'
+    }
+});
+
+ProductReport.belongsTo(User);
+ProductReport.belongsTo(Product);
+User.hasMany(ProductReport);
+Product.hasMany(ProductReport);
 
 module.exports = {
     sequelize,
@@ -390,5 +409,6 @@ module.exports = {
     RecipeInstructionOverride,
     PushSubscription,
     SentPushNotification,
-    UserProductIntolerance
+    UserProductIntolerance,
+    ProductReport
 };

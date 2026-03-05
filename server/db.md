@@ -264,6 +264,19 @@
 - createdAt (DateTime)
 - updatedAt (DateTime)
 
+### ProductReports
+- id (Integer, Primary Key)
+- productName (String)
+- issueType (Enum: 'unverstraeglichkeit', 'einheit', 'rechtschreibung', 'variante', 'produkt', 'sonstiges')
+- description (Text)
+- context (String)
+- status (Enum: 'open', 'resolved', 'ignored')
+- ProductId (Integer, Foreign Key -> Products)
+- UserId (Integer, Foreign Key -> Users)
+- createdAt (DateTime)
+- updatedAt (DateTime)
+
+
 ## Changes
 - **v0.31.7**: Removed Manufacturer attribute from Products and dropped Manufacturers table.
 - **v0.31.8**: Moved 'note' from Product to ListItem (Notes are now list-specific).
@@ -279,3 +292,5 @@
 - **v0.32.7**: Added `UserFollows` many-to-many relationship for users to follow public/shared cookbooks. Added `followNotificationsEnabled` to `User` table.
 - **v0.32.8**: Added `pushEnabled` to `User` table. Added `PushSubscriptions` table for Web Push notification management.
 - **v0.36.4**: Added `SentPushNotifications` table to track broadcast history.
+- **v0.36.8**: Added `ProductReports` table for user feedback on product errors.
+

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Trash2, Plus, Minus, AlertTriangle, AlertCircle, HelpCircle } from 'lucide-react';
+import { X, Save, Trash2, Plus, Minus, AlertTriangle, AlertCircle, HelpCircle, Flag } from 'lucide-react';
+import ReportIssueModal from './ReportIssueModal';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
@@ -15,6 +16,7 @@ export default function ItemSettingsModal({ isOpen, onClose, item, onSave, onDel
     const [note, setNote] = useState('');
     const [availableUnits, setAvailableUnits] = useState([]);
     const [noteSuggestions, setNoteSuggestions] = useState([]);
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
     useLockBodyScroll(isOpen);
 
@@ -72,10 +74,19 @@ export default function ItemSettingsModal({ isOpen, onClose, item, onSave, onDel
                     >
                         <Card className="p-6 border-border shadow-2xl bg-card transition-colors duration-300">
                             <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-xl font-bold text-foreground truncate pr-4">
-                                    {item?.Product?.name || 'Artikel anpassen'}
-                                </h2>
-                                <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+                                <div className="flex items-center gap-2 pr-4 truncate">
+                                    <h2 className="text-xl font-bold text-foreground truncate">
+                                        {item?.Product?.name || 'Artikel anpassen'}
+                                    </h2>
+                                    <button
+                                        onClick={() => setIsReportModalOpen(true)}
+                                        className="p-2 text-muted-foreground/40 hover:text-orange-500 hover:bg-orange-500/10 rounded-xl transition-all"
+                                        title="Fehler melden"
+                                    >
+                                        <Flag size={16} />
+                                    </button>
+                                </div>
+                                <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors p-2 hover:bg-muted rounded-xl">
                                     <X size={20} />
                                 </button>
                             </div>
@@ -188,6 +199,16 @@ export default function ItemSettingsModal({ isOpen, onClose, item, onSave, onDel
                     </motion.div>
                 </div>
             )}
+            <ReportIssueModal
+                isOpen={isReportModalOpen}
+                onClose={() => setIsReportModalOpen(false)}
+                productContext={{
+                    productId: item?.ProductId,
+                    productName: item?.Product?.name,
+                    variationId: item?.ProductVariationId,
+                    additionalContext: 'ItemSettingsModal'
+                }}
+            />
         </AnimatePresence>
     );
 }

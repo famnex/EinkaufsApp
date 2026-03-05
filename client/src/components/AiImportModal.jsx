@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, ArrowRight, Check, AlertCircle, Loader2, Tag, Image as ImageIcon, Upload } from 'lucide-react';
+import { X, Sparkles, ArrowRight, Check, AlertCircle, Loader2, Tag, Image as ImageIcon, Upload, Flag } from 'lucide-react';
+import ReportIssueModal from './ReportIssueModal';
 import { Button } from './Button';
 import { Input } from './Input';
 import api from '../lib/axios';
@@ -51,6 +52,8 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
     const [aiConfirmModalOpen, setAiConfirmModalOpen] = useState(false);
     const [aiActionData, setAiActionData] = useState(null);
     const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    const [reportContext, setReportContext] = useState(null);
 
     useEffect(() => {
         if (isOpen) {
@@ -93,7 +96,8 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
         if (user?.tier === 'Plastikgabel') return;
 
         // 2. Credit Confirmation (if Silbergabel)
-        if (user?.tier === 'Silbergabel') {
+        const isRainbow = user?.tier === 'Rainbowspoon' || user?.tier === 'Regenbogengabel';
+        if (user?.tier === 'Silbergabel' && !isRainbow) {
             const isVision = !!inputImage;
             setAiActionData({
                 type: isVision ? 'IMAGE_TO_TEXT' : 'TEXT',
@@ -517,7 +521,8 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                                             disabled={isGenerating}
                                                             onClick={() => {
                                                                 const isVariation = !!parsedData.image_url;
-                                                                const cost = user?.tier === 'Goldgabel' ? 40 : 60;
+                                                                const isFreeTier = user?.tier === 'Goldgabel' || user?.tier === 'Rainbowspoon' || user?.tier === 'Regenbogengabel';
+                                                                const cost = isFreeTier ? 0 : 60;
 
                                                                 setAiActionData({
                                                                     type: 'IMAGE',
@@ -550,7 +555,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                                             }}
                                                         >
                                                             {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                                                            AI Variante <span className="opacity-70 text-[10px]">({user?.tier === 'Goldgabel' ? 40 : 60})</span>
+                                                            AI Variante <span className="opacity-70 text-[10px]">({(user?.tier === 'Goldgabel' || user?.tier === 'Rainbowspoon' || user?.tier === 'Regenbogengabel') ? 0 : 60})</span>
                                                         </Button>
                                                     )}
 
@@ -710,6 +715,23 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                                                 />
                                                             )}
                                                         </div>
+                                                        {mapping.type === 'existing' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setReportContext({
+                                                                        productId: mapping.productId,
+                                                                        productName: products.find(p => p.id === mapping.productId)?.name || ing.name,
+                                                                        additionalContext: `AiImportModal: Mapping von ${ing.name}`
+                                                                    });
+                                                                    setIsReportModalOpen(true);
+                                                                }}
+                                                                className="text-muted-foreground/30 hover:text-orange-500 p-1 rounded-lg transition-colors"
+                                                                title="Falsche Zuordnung melden"
+                                                            >
+                                                                <Flag size={14} />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
                                             );
@@ -751,6 +773,12 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                 isOpen={isSubscriptionModalOpen}
                 onClose={() => setIsSubscriptionModalOpen(false)}
                 currentTier={user?.tier}
+            />
+
+            <ReportIssueModal
+                isOpen={isReportModalOpen}
+                onClose={() => setIsReportModalOpen(false)}
+                productContext={reportContext}
             />
         </AnimatePresence>
     );

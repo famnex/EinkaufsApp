@@ -161,6 +161,16 @@ Join-Tabelle zur Kennzeichnung von Produkten mit Unverträglichkeiten (Many-to-M
 - `IntoleranceId` (INT, FK)
 - `createdAt` / `updatedAt` (DATE)
 
+### `ProductReports` [NEW v0.38.3]
+Meldungen von Nutzern über Produktfehler oder Unstimmigkeiten.
+- `id` (INT, PK)
+- `issueType` (STRING): Kategorie des Fehlers (z.B. "Falsche Einheit").
+- `description` (TEXT): Beschreibung des Problems.
+- `status` (ENUM): 'open', 'resolved', 'ignored'.
+- `UserId` (INT, FK): Melder (NULL für anonym).
+- `ProductId` (INT, FK): Betroffenes Produkt.
+- `createdAt` / `updatedAt` (DATE)
+
 ### `Menus` / `Expenses` / `Tags` / `Settings`
 - Alle Tabellen enthalten ein `UserId` Feld zur strikten Isolation.
 
@@ -354,3 +364,8 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 2. **Error Handling**: Implementierung eines globalen Error-Handlers und Prozess-Limitern (Uncaught Exceptions), die alle Fehler lückenlos in `system.log` schreiben.
 3. **Log-Überholung**: Umstellung fast aller Routen von `console.error` auf `logError`, um sicherzustellen, dass Fehler nicht nur in der Konsole, sondern auch in der Log-Datei landen.
 4. **Log-Level**: `INFO`, `WARN` und `ERROR` werden nun immer protokolliert, nur `DEBUG` ist optional.
+### v0.38.3 - Produkt-Fehlermeldungen (März 2026)
+1. **Zentrales Melde-System**: Einführung der `ProductReports` Tabelle.
+2. **Admin-Integration**: Vollständige Messaging-Integration mit Zählern, Status-Icons und Bulk-Aktionen.
+3. **Flächendekende Integration**: Melde-Möglichkeit in allen relevanten Modalen (Einkaufsliste, Rezepte, KI-Import etc.).
+4. **Backend-Stats**: Neuer Endpunkt `/api/feedback/stats` für Admin-Benachrichtigungs-Zähler.

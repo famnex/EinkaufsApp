@@ -11,17 +11,23 @@ const creditService = {
         'TEXT': {
             'Plastikgabel': 0, // Should be blocked anyway
             'Silbergabel': 5,
-            'Goldgabel': 0
+            'Goldgabel': 0,
+            'Rainbowspoon': 0,
+            'Regenbogengabel': 0
         },
         'IMAGE': {
             'Plastikgabel': 0, // Should be blocked anyway
             'Silbergabel': 60,
-            'Goldgabel': 40
+            'Goldgabel': 40,
+            'Rainbowspoon': 0,
+            'Regenbogengabel': 0
         },
         'COOKING_SESSION': {
             'Plastikgabel': 0,
             'Silbergabel': 10,
-            'Goldgabel': 0
+            'Goldgabel': 0,
+            'Rainbowspoon': 0,
+            'Regenbogengabel': 0
         },
         'COOKING_CHAT': {
             'Plastikgabel': 0,

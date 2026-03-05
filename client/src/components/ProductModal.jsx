@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Package, Plus, Trash2, ShieldAlert, Sparkles, Loader2 } from 'lucide-react';
+import { X, Save, Package, Plus, Trash2, ShieldAlert, Sparkles, Loader2, Flag } from 'lucide-react';
+import ReportIssueModal from './ReportIssueModal';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
@@ -26,6 +27,8 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
     const [allIntolerances, setAllIntolerances] = useState([]);
     const [selectedIntoleranceIds, setSelectedIntoleranceIds] = useState([]);
     const [aiIntoleranceProbabilities, setAiIntoleranceProbabilities] = useState({});
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    const [reportContext, setReportContext] = useState(null);
     const { user } = useAuth();
     const isReadOnly = product && product.UserId === null && user?.role !== 'admin';
 
@@ -247,9 +250,26 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                                     </div>
                                     <span className="truncate">{product ? (product.isInbox ? 'Globalisieren' : 'Bearbeiten') : 'Neues Produkt'}</span>
                                 </h2>
-                                <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors p-1 shrink-0">
-                                    <X size={24} />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setReportContext({
+                                                productId: product?.id,
+                                                productName: formData.name,
+                                                additionalContext: 'ProductModal'
+                                            });
+                                            setIsReportModalOpen(true);
+                                        }}
+                                        className="text-muted-foreground/40 hover:text-orange-500 p-1.5 rounded-lg transition-colors"
+                                        title="Fehler melden"
+                                    >
+                                        <Flag size={20} />
+                                    </button>
+                                    <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors p-1 shrink-0">
+                                        <X size={24} />
+                                    </button>
+                                </div>
                             </div>
 
                             <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -546,6 +566,12 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
                     </motion.div>
                 </div>
             )}
+
+            <ReportIssueModal
+                isOpen={isReportModalOpen}
+                onClose={() => setIsReportModalOpen(false)}
+                productContext={reportContext}
+            />
         </AnimatePresence>
     );
 }

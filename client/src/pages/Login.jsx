@@ -53,14 +53,14 @@ export default function LoginPage() {
             await login(email, password);
             navigate(from, { replace: true });
         } catch (err) {
-            setError(err.response?.data?.error || 'Authentication failed. Please check your credentials.');
+            setError(err.response?.data?.error || 'Anmeldung fehlgeschlagen. Bitte überprüfe deine Zugangsdaten.');
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <PublicLayout mainClassName="pt-24 pb-12 flex flex-col items-center justify-center min-h-[80vh]">
+        <PublicLayout mainClassName="pt-16 sm:pt-24 pb-8 sm:pb-12 flex flex-col items-center justify-center min-h-[80vh]">
             <div className="w-full h-full flex items-center justify-center relative overflow-hidden transition-colors duration-300">
                 {/* Background Glows */}
                 <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-primary/5 dark:bg-primary/10 rounded-full blur-[150px]" />
@@ -72,47 +72,49 @@ export default function LoginPage() {
                     transition={{ duration: 0.5, ease: "easeOut" }}
                     className="w-full max-w-md relative z-10 mx-auto"
                 >
-                    <Card className="p-8 sm:p-10 border-border shadow-2xl bg-card/50 backdrop-blur-xl">
-                        <div className="mb-10 flex flex-col items-center">
+                    <Card className="p-5 sm:p-8 lg:p-10 border-border shadow-2xl bg-card/50 backdrop-blur-xl">
+                        {/* Header: 2-col on mobile (logo | text), centered column on sm+ */}
+                        <div className="mb-3 sm:mb-8 flex items-center gap-3 sm:flex-col sm:items-center sm:gap-0">
                             <motion.div
                                 initial={{ y: -20, opacity: 0 }}
                                 animate={{ y: 0, opacity: 1 }}
                                 transition={{ delay: 0.2 }}
-                                className="mb-6 rounded-2xl bg-white dark:bg-card p-4 shadow-lg shadow-black/5 transform hover:scale-110 transition-transform duration-500 overflow-hidden"
+                                className="shrink-0 w-1/4 sm:w-auto flex justify-center sm:mb-5 rounded-2xl bg-white dark:bg-card p-2.5 sm:p-4 shadow-lg shadow-black/5 transform hover:scale-110 transition-transform duration-500 overflow-hidden"
                             >
                                 <img
                                     src={`${import.meta.env.BASE_URL}icon-512x512.png`}
                                     alt="GabelGuru Logo"
-                                    className="w-16 h-16 object-contain"
+                                    className="w-10 h-10 sm:w-16 sm:h-16 object-contain"
                                     onError={(e) => {
-                                        // Fallback to Icon if image is missing
                                         e.target.style.display = 'none';
                                         e.target.nextSibling.style.display = 'block';
                                     }}
                                 />
                                 <div style={{ display: 'none' }} className="text-primary">
-                                    <ShoppingBag size={32} />
+                                    <ShoppingBag size={26} className="sm:w-8 sm:h-8" />
                                 </div>
                             </motion.div>
-                            <motion.h1
-                                initial={{ y: 20, opacity: 0 }}
-                                animate={{ y: 0, opacity: 1 }}
-                                transition={{ delay: 0.3 }}
-                                className="text-3xl font-bold text-foreground tracking-tight mb-2"
-                            >
-                                Willkommen zurück
-                            </motion.h1>
-                            <motion.p
-                                initial={{ y: 20, opacity: 0 }}
-                                animate={{ y: 0, opacity: 1 }}
-                                transition={{ delay: 0.4 }}
-                                className="text-muted-foreground text-center"
-                            >
-                                Gib deine Daten ein, um auf <span className="text-foreground font-semibold">GabelGuru</span> zuzugreifen
-                            </motion.p>
+                            <div className="flex-1 sm:text-center">
+                                <motion.h1
+                                    initial={{ y: 20, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    transition={{ delay: 0.3 }}
+                                    className="text-xl sm:text-3xl font-bold text-foreground tracking-tight mb-0.5 sm:mb-2"
+                                >
+                                    Willkommen zurück
+                                </motion.h1>
+                                <motion.p
+                                    initial={{ y: 20, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    transition={{ delay: 0.4 }}
+                                    className="text-xs sm:text-sm text-muted-foreground sm:text-center"
+                                >
+                                    Gib deine Daten ein, um auf <span className="text-foreground font-semibold">GabelGuru</span> zuzugreifen
+                                </motion.p>
+                            </div>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-6">
+                        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-6">
                             <motion.div
                                 initial={{ x: -20, opacity: 0 }}
                                 animate={{ x: 0, opacity: 1 }}
@@ -194,7 +196,7 @@ export default function LoginPage() {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 transition={{ delay: 0.9 }}
-                                className="mt-10 text-center text-sm"
+                                className="mt-6 sm:mt-10 text-center text-sm"
                             >
                                 <span className="text-muted-foreground tracking-wide">Neu hier?</span>{' '}
                                 <Link to="/signup" className="font-bold text-primary hover:text-primary/80 transition-colors ml-1 underline decoration-primary/30 underline-offset-4">
