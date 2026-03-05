@@ -25,6 +25,13 @@ export default function ReloadPrompt() {
 
     // Auto-Close Effekt: Blendet die Meldung nach 5 Sekunden automatisch aus
     useEffect(() => {
+        const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+        if (offlineReady && !isPWA) {
+            setOfflineReady(false);
+            return;
+        }
+
         if (offlineReady || needRefresh) {
             const timer = setTimeout(() => {
                 setOfflineReady(false);

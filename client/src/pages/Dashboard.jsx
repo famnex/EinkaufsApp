@@ -23,6 +23,13 @@ export default function Dashboard() {
     const [direction, setDirection] = useState(0);
     const navigate = useNavigate();
     const { activeChapter, startChapter, initializeDriver, driverObj, notifyAction, setIsWelcomeOpen } = useTutorial();
+    const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
+
+    useEffect(() => {
+        const handleResize = () => setIsDesktop(window.innerWidth >= 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     // DnD / Longpress State
     const [draggingList, setDraggingList] = useState(null);
@@ -374,6 +381,52 @@ export default function Dashboard() {
         return null;
     }, [menus]);
 
+    const renderCalendar = (offset = 0) => {
+        const offsetDate = new Date(activeStartDate);
+        offsetDate.setMonth(offsetDate.getMonth() + offset);
+
+        return (
+            <Calendar
+                onChange={setSelectedDate}
+                onClickDay={handleDateClick}
+                value={selectedDate}
+                activeStartDate={offsetDate}
+                onActiveStartDateChange={({ activeStartDate: newStart, action }) => {
+                    if (action === 'next') setDirection(1);
+                    if (action === 'prev') setDirection(-1);
+
+                    const nextActive = new Date(newStart);
+                    nextActive.setMonth(nextActive.getMonth() - offset);
+                    setActiveStartDate(nextActive);
+                }}
+                tileClassName={tileClassName}
+                tileContent={({ date, view }) => {
+                    const dateStr = getLocalDateStr(date);
+                    if (view === 'month') {
+                        const list = lists.find(l => l.date === dateStr);
+                        return (
+                            <div className="absolute inset-0 pointer-events-none" data-date={dateStr}>
+                                {list && list.status === 'archived' && (
+                                    <div className="absolute bottom-0 right-0 p-1">
+                                        <div className="bg-white rounded-full p-0.5 shadow-sm">
+                                            <Check size={8} className="text-green-600" strokeWidth={4} />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    }
+                    return <div data-date={dateStr} className="pointer-events-none"></div>;
+                }}
+                locale="de-DE"
+                prev2Label={null}
+                next2Label={null}
+                className={isDesktop ? (offset === 0 ? "hide-right-nav" : "hide-left-nav") : ""}
+                formatShortWeekday={(locale, date) => ['M', 'D', 'M', 'D', 'F', 'S', 'S'][date.getDay() === 0 ? 6 : date.getDay() - 1]}
+            />
+        );
+    };
+
     return (
         <LoadingOverlay isLoading={loading}>
             <div className="space-y-4">
@@ -441,7 +494,10 @@ export default function Dashboard() {
                         initial={{ opacity: 0, scale: 0.98 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.2 }}
-                        className="bg-card border border-border rounded-3xl p-6 backdrop-blur-2xl shadow-xl transition-colors duration-300"
+                        className={cn(
+                            "transition-colors duration-300",
+                            !isDesktop && "bg-card border border-border rounded-3xl p-6 backdrop-blur-2xl shadow-xl"
+                        )}
                     >
                         <div
                             onTouchStart={onTouchStart}
@@ -464,40 +520,18 @@ export default function Dashboard() {
                                     exit="exit"
                                     transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
                                 >
-                                    <Calendar
-                                        onChange={setSelectedDate}
-                                        onClickDay={handleDateClick}
-                                        value={selectedDate}
-                                        activeStartDate={activeStartDate}
-                                        onActiveStartDateChange={({ activeStartDate, action }) => {
-                                            if (action === 'next') setDirection(1);
-                                            if (action === 'prev') setDirection(-1);
-                                            setActiveStartDate(activeStartDate);
-                                        }}
-                                        tileClassName={tileClassName}
-                                        tileContent={({ date, view }) => {
-                                            const dateStr = getLocalDateStr(date);
-                                            if (view === 'month') {
-                                                const list = lists.find(l => l.date === dateStr);
-                                                return (
-                                                    <div className="absolute inset-0 pointer-events-none" data-date={dateStr}>
-                                                        {list && list.status === 'archived' && (
-                                                            <div className="absolute bottom-0 right-0 p-1">
-                                                                <div className="bg-white rounded-full p-0.5 shadow-sm">
-                                                                    <Check size={8} className="text-green-600" strokeWidth={4} />
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            }
-                                            return <div data-date={dateStr} className="pointer-events-none"></div>;
-                                        }}
-                                        locale="de-DE"
-                                        prev2Label={null}
-                                        next2Label={null}
-                                        formatShortWeekday={(locale, date) => ['M', 'D', 'M', 'D', 'F', 'S', 'S'][date.getDay() === 0 ? 6 : date.getDay() - 1]}
-                                    />
+                                    {isDesktop ? (
+                                        <div className="flex gap-6 w-full">
+                                            <div className="flex-1 bg-card border border-border rounded-3xl p-6 backdrop-blur-2xl shadow-xl">
+                                                {renderCalendar(0)}
+                                            </div>
+                                            <div className="flex-1 bg-card border border-border rounded-3xl p-6 backdrop-blur-2xl shadow-xl">
+                                                {renderCalendar(1)}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        renderCalendar(0)
+                                    )}
                                 </motion.div>
                             </AnimatePresence>
                         </div>
@@ -555,7 +589,17 @@ export default function Dashboard() {
                     overflow: visible !important;
                     user-select: none !important;
                     -webkit-user-select: none !important;
+                    aspect-ratio: 1 / 1;
+                    display: flex !important;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 0 !important;
                 }
+
+                /* Independent Navigation Arrow Hiding on Desktop */
+                .hide-right-nav .react-calendar__navigation__next-button { display: none !important; }
+                .hide-left-nav .react-calendar__navigation__prev-button { display: none !important; }
 
                 /* Today: Border in Primary Color */
                 .react-calendar__tile--now {

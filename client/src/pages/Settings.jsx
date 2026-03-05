@@ -65,10 +65,12 @@ export default function SettingsPage() {
     const [householdMembers, setHouseholdMembers] = useState([]);
     const [householdOwnerData, setHouseholdOwnerData] = useState(null);
     const [loadingHouseholdData, setLoadingHouseholdData] = useState(false);
-    const [pushPermissionStatus, setPushPermissionStatus] = useState(Notification.permission);
+    const [pushPermissionStatus, setPushPermissionStatus] = useState(
+        typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
+    );
 
     useEffect(() => {
-        if ('Notification' in window) {
+        if (typeof window !== 'undefined' && 'Notification' in window) {
             setPushPermissionStatus(Notification.permission);
         }
     }, [user?.followNotificationsEnabled]);

@@ -11,7 +11,7 @@ export default function NotificationPrompt({ className, iconSize = 18, showLabel
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        if ('Notification' in window) {
+        if (typeof window !== 'undefined' && 'Notification' in window) {
             setPermissionStatus(Notification.permission);
         }
     }, [user]);
@@ -31,11 +31,15 @@ export default function NotificationPrompt({ className, iconSize = 18, showLabel
                 setPermissionStatus('granted');
             } else {
                 // If it failed or return false, re-check permission
-                setPermissionStatus(Notification.permission);
+                if (typeof window !== 'undefined' && 'Notification' in window) {
+                    setPermissionStatus(Notification.permission);
+                }
             }
         } catch (err) {
             console.error('Failed to subscribe from prompt:', err);
-            setPermissionStatus(Notification.permission);
+            if (typeof window !== 'undefined' && 'Notification' in window) {
+                setPermissionStatus(Notification.permission);
+            }
         } finally {
             setIsLoading(false);
         }

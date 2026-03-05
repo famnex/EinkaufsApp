@@ -475,21 +475,21 @@ export default function MenuPlan() {
             {/* select-none added here to prevent text selection in entire menu view while interacting */}
             <div className="space-y-4 select-none">
                 <div
-                    className="sticky z-30 bg-background/95 backdrop-blur-sm pt-4 pb-2 border-b border-border transition-all"
+                    className="sticky z-30 bg-background/95 backdrop-blur-sm pt-0 md:pt-4 pb-0 md:pb-2 border-b border-border transition-all"
                     style={{ top: 'calc(4rem + env(safe-area-inset-top))' }}
                 >
-                    <div className="flex items-center justify-between mb-4">
-                        <button onClick={() => changeWeek(-1)} className="p-2 hover:bg-muted rounded-full transition-colors">
+                    <div className="flex items-center justify-between mb-2 md:mb-4">
+                        <button onClick={() => changeWeek(-1)} className="p-1 md:p-2 hover:bg-muted rounded-full transition-colors">
                             <ChevronLeft />
                         </button>
                         <div className="text-center">
-                            <h2 className="text-xl font-bebas tracking-wide">KW {getKW(currentWeekStart)}</h2>
-                            <p className="text-xs text-muted-foreground">
+                            <h2 className="text-lg md:text-xl font-bebas tracking-wide">KW {getKW(currentWeekStart)}</h2>
+                            <p className="text-[10px] md:text-xs text-muted-foreground">
                                 {weekDays[0].dayNum}.{weekDays[0].date.toLocaleDateString('de-DE', { month: 'short' })} – {weekDays[6].dayNum}.{weekDays[6].date.toLocaleDateString('de-DE', { month: 'short' })}
                             </p>
                         </div>
                         <div className="flex items-center gap-2">
-                            <button onClick={() => changeWeek(1)} className="p-2 hover:bg-muted rounded-full transition-colors">
+                            <button onClick={() => changeWeek(1)} className="p-1 md:p-2 hover:bg-muted rounded-full transition-colors">
                                 <ChevronRight />
                             </button>
                         </div>
@@ -530,15 +530,15 @@ export default function MenuPlan() {
                                                     setExpandedDay(isExpanded ? null : day.dateStr);
                                                     if (!isExpanded) notifyAction('day-expand');
                                                 }}
-                                                className="p-3 flex items-center gap-3 cursor-pointer"
+                                                className="p-2 md:p-3 flex items-center gap-2 md:gap-3 cursor-pointer"
                                             >
                                                 <div className={cn(
-                                                    "flex flex-col items-center justify-center w-12 h-12 rounded-xl shrink-0 transition-colors relative",
+                                                    "flex flex-col items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-xl shrink-0 transition-colors relative",
                                                     isToday ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
                                                     shoppingList && !isToday && "bg-secondary/10 text-secondary"
                                                 )}>
-                                                    <span className="text-[10px] uppercase font-bold tracking-wider">{day.dayName}</span>
-                                                    <span className="text-lg font-bold leading-none">{day.dayNum}</span>
+                                                    <span className="text-[9px] md:text-[10px] uppercase font-bold tracking-wider">{day.dayName}</span>
+                                                    <span className="text-base md:text-lg font-bold leading-none">{day.dayNum}</span>
                                                     {shoppingList && (
                                                         <div className="absolute -top-1 -right-1 w-3 h-3 bg-secondary rounded-full border border-card" />
                                                     )}
@@ -618,7 +618,7 @@ export default function MenuPlan() {
                                                                     }}
                                                                     disabled={false}
                                                                     className={cn(
-                                                                        "w-8 h-8 rounded-full flex items-center justify-center transition-all relative group",
+                                                                        "w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center transition-all relative group",
                                                                         isFilled
                                                                             ? (meal.is_eating_out ? "bg-orange-500/10 text-orange-600" : "bg-primary/10 text-primary")
                                                                             : "bg-muted text-muted-foreground",
@@ -633,11 +633,11 @@ export default function MenuPlan() {
                                                                     {isFilled ? (
                                                                         <DraggableMeal id={`meal-${meal.id}`} data={{ meal }}>
                                                                             <div className="flex items-center justify-center w-full h-full">
-                                                                                {meal.is_eating_out ? <CarFront size={16} /> : <s.icon size={16} />}
+                                                                                {meal.is_eating_out ? <CarFront size={14} className="md:w-4 md:h-4" /> : <s.icon size={14} className="md:w-4 md:h-4" />}
                                                                             </div>
                                                                         </DraggableMeal>
                                                                     ) : (
-                                                                        <s.icon size={16} />
+                                                                        <s.icon size={14} className="md:w-4 md:h-4" />
                                                                     )}
                                                                     {isFilled && editMode !== 'delete' && <span className={cn("absolute top-0 right-0 w-2 h-2 rounded-full border border-card", meal.is_eating_out ? "bg-orange-500" : "bg-primary")} />}
                                                                 </button>

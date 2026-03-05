@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PublicLayout from '../components/PublicLayout';
 import { Button } from '../components/Button';
@@ -11,6 +11,21 @@ import InteractiveMockup from '../components/landing/InteractiveMockup';
 
 export default function LandingPage() {
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const root = window.document.documentElement;
+        const originalIsDark = root.classList.contains('dark');
+
+        if (originalIsDark) {
+            root.classList.remove('dark');
+        }
+
+        return () => {
+            if (originalIsDark) {
+                root.classList.add('dark');
+            }
+        };
+    }, []);
 
     return (
         <PublicLayout mainClassName="flex-1 bg-[#F5F5F7] dark:bg-black overflow-hidden selection:bg-primary/20">
