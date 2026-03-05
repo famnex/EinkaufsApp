@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PublicLayout from '../components/PublicLayout';
 import { Button } from '../components/Button';
+import { useTheme } from '../contexts/ThemeContext';
 
 // Modular Apple-style Sections
 import HeroSection from '../components/landing/HeroSection';
@@ -11,24 +12,18 @@ import InteractiveMockup from '../components/landing/InteractiveMockup';
 
 export default function LandingPage() {
     const navigate = useNavigate();
+    const { setForceTheme } = useTheme();
 
     useEffect(() => {
-        const root = window.document.documentElement;
-        const originalIsDark = root.classList.contains('dark');
-
-        if (originalIsDark) {
-            root.classList.remove('dark');
-        }
+        setForceTheme('light');
 
         return () => {
-            if (originalIsDark) {
-                root.classList.add('dark');
-            }
+            setForceTheme(null);
         };
-    }, []);
+    }, [setForceTheme]);
 
     return (
-        <PublicLayout mainClassName="flex-1 bg-[#F5F5F7] dark:bg-black overflow-hidden selection:bg-primary/20">
+        <PublicLayout mainClassName="flex-1 overflow-hidden selection:bg-primary/20">
             {/* The individual components have their own paddings and animations */}
             <HeroSection />
             <BentoGrid />

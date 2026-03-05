@@ -10,6 +10,7 @@ export default function PublicHeader() {
     const { user } = useAuth();
 
     const isLoginPage = location.pathname === '/login';
+    const isLandingPage = location.pathname === '/';
     const isRecipePage = location.pathname.includes('/recipe/');
     const isCookbookPage = location.pathname.includes('/cookbook');
     const isCommunityPage = location.pathname.includes('/community-cookbooks');
@@ -65,7 +66,7 @@ export default function PublicHeader() {
                                 <Printer size={20} />
                             </button>
                         )}
-                        <ThemeToggle />
+                        {!isLandingPage && <ThemeToggle />}
                     </div>
 
                     <span className="print:hidden">
