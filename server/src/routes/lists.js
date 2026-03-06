@@ -589,7 +589,7 @@ router.put('/:id', auth, async (req, res) => {
                         bought_at: { [Op.ne]: null }
                     },
                     order: [['bought_at', 'ASC']],
-                    include: [{ model: Product, where: { UserId: req.user.effectiveId } }]
+                    include: [{ model: Product, where: { [Op.or]: [{ UserId: req.user.effectiveId }, { UserId: null }] } }]
                 });
 
                 if (boughtItems.length > 1) {
@@ -658,7 +658,7 @@ router.post('/:id/commit', auth, async (req, res) => {
                 bought_at: { [Op.ne]: null }
             },
             order: [['bought_at', 'ASC']],
-            include: [{ model: Product, where: { UserId: req.user.effectiveId } }]
+            include: [{ model: Product, where: { [Op.or]: [{ UserId: req.user.effectiveId }, { UserId: null }] } }]
         });
 
         console.log(`[Commit] Found ${itemsToCommit.length} items to commit for Store ${storeId}`);
