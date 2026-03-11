@@ -35,8 +35,8 @@ async function checkFollowedCookbookUpdates() {
             const fourDaysAgo = new Date();
             fourDaysAgo.setHours(fourDaysAgo.getHours() - 96);
 
-            // 4. Find the newest recipe within this window that hasn't been seen yet
-            const newestQualifyingRecipe = await Recipe.findOne({
+            // 4. Find ALL newest recipes within this window that haven't been seen yet
+            const qualifyingRecipes = await Recipe.findAll({
                 where: {
                     UserId: followedIds,
                     createdAt: {
@@ -45,15 +45,28 @@ async function checkFollowedCookbookUpdates() {
                         [Op.gt]: fourDaysAgo
                     }
                 },
+                include: [{ model: User, attributes: ['username', 'cookbookTitle'] }], // Need user details for cookbook title
                 order: [['createdAt', 'DESC']]
             });
 
-            if (!newestQualifyingRecipe) continue;
+            if (qualifyingRecipes.length === 0) continue;
+            
+            // Get the newest recipe to check if we already nudged for this batch
+            const newestQualifyingRecipe = qualifyingRecipes[0];
 
             // 5. Check if we already sent a nudge for this (or a newer) update
             if (!user.lastFollowedUpdatesNudgeSent || user.lastFollowedUpdatesNudgeSent < newestQualifyingRecipe.createdAt) {
 
-                logger.logSystem('INFO', `[NotificationService] Sending update nudge to ${user.username} (${user.email})`);
+                logger.logSystem('INFO', `[NotificationService] Sending update nudge to ${user.username} (${user.email}) with ${qualifyingRecipes.length} recipes`);
+
+                // Create HTML list of new recipes
+                const recipeListHtml = qualifyingRecipes.slice(0, 5).map(r => {
+                    const cookbookName = r.User?.cookbookTitle || r.User?.username || 'Unbekanntes Kochbuch';
+                    return `<li style="margin-bottom: 8px;"><b>${r.name}</b> im Kochbuch <i>${cookbookName}</i></li>`;
+                }).join('');
+                
+                const extraCount = qualifyingRecipes.length > 5 ? qualifyingRecipes.length - 5 : 0;
+                const extraHtml = extraCount > 0 ? `<li style="margin-bottom: 8px; color: #6b7280; font-style: italic;">... und ${extraCount} weitere</li>` : '';
 
                 const success = await sendSystemEmail({
                     to: user.email,
@@ -68,7 +81,11 @@ async function checkFollowedCookbookUpdates() {
                                     <p>du hast neue Updates in den Kochbüchern, denen du folgst! Schau doch mal wieder rein, um keine Inspiration zu verpassen.</p>
                                     
                                     <div style="background-color: #f9fafb; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #14b8a6;">
-                                        <p style="margin: 0; font-style: italic;">"Es gibt neue Rezepte zu entdecken. Schau dir gleich das Rezept an..."</p>
+                                        <p style="margin-top: 0; margin-bottom: 8px; font-weight: bold;">Folgende neue Rezepte warten auf dich:</p>
+                                        <ul style="margin: 0; padding-left: 20px;">
+                                            ${recipeListHtml}
+                                            ${extraHtml}
+                                        </ul>
                                     </div>
 
                                     <div style="text-align: center; margin-top: 30px;">

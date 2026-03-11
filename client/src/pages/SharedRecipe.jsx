@@ -430,10 +430,28 @@ export default function SharedRecipe() {
 
                     {/* Instructions */}
                     <div className="space-y-4">
-                        <h2 className="text-xl font-bold flex items-center gap-2">
-                            <span className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-sm">2</span>
-                            Zubereitung
-                        </h2>
+                        <div className="flex items-center justify-between gap-4">
+                            <h2 className="text-xl font-bold flex items-center gap-2">
+                                <span className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-sm">2</span>
+                                Zubereitung
+                            </h2>
+                            <div className="hidden md:flex items-center gap-2">
+                                <button
+                                    onClick={() => navigate(`/compliance?url=${encodeURIComponent(window.location.href)}`)}
+                                    className="flex items-center justify-center p-2.5 bg-muted/50 text-muted-foreground rounded-xl border border-border hover:bg-muted transition-colors"
+                                    title="Inhalt melden"
+                                >
+                                    <ShieldCheck size={20} />
+                                </button>
+                                <button
+                                    onClick={() => setIsCooking(true)}
+                                    className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 rounded-xl font-black shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                >
+                                    <Play size={18} fill="currentColor" />
+                                    KOCHMODUS
+                                </button>
+                            </div>
+                        </div>
                         <div className="space-y-4">
                             {recipe.instructions && recipe.instructions.length > 0 ? (
                                 recipe.instructions.map((step, idx) => (

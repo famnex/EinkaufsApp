@@ -56,9 +56,11 @@ const User = sequelize.define('User', {
     intoleranceDisclaimerAccepted: { type: DataTypes.BOOLEAN, defaultValue: false },
     followNotificationsEnabled: { type: DataTypes.BOOLEAN, defaultValue: true },
     isTrialUsed: { type: DataTypes.BOOLEAN, defaultValue: false },
+    isOnboardingCompleted: { type: DataTypes.BOOLEAN, defaultValue: false },
+    onboardingPreferences: { type: DataTypes.JSON, allowNull: true },
     lastFollowedUpdatesCheck: { type: DataTypes.DATE, allowNull: true },
     lastFollowedUpdatesNudgeSent: { type: DataTypes.DATE, allowNull: true },
-    showAppTutorial: { type: DataTypes.BOOLEAN, defaultValue: true }
+    forkyTutorialsSeen: { type: DataTypes.JSON, allowNull: true, defaultValue: {} }
 });
 
 const Store = sequelize.define('Store', {
@@ -116,7 +118,8 @@ const ListItem = sequelize.define('ListItem', {
     price_actual: { type: DataTypes.DECIMAL(10, 2) },
     note: { type: DataTypes.TEXT, allowNull: true }, // Added note to ListItem
     MenuId: { type: DataTypes.INTEGER, allowNull: true }, // Track origin menu
-    ProductVariationId: { type: DataTypes.INTEGER, allowNull: true } // Link to specific variation if selected
+    ProductVariationId: { type: DataTypes.INTEGER, allowNull: true }, // Link to specific variation if selected
+    PlannedRecipeId: { type: DataTypes.INTEGER, allowNull: true } // Link to direct recipe-to-list planning
 });
 
 ListItem.belongsTo(List);
@@ -146,6 +149,7 @@ const Menu = sequelize.define('Menu', {
     meal_type: { type: DataTypes.ENUM('breakfast', 'lunch', 'dinner', 'snack'), defaultValue: 'lunch' },
     description: { type: DataTypes.TEXT }, // Manual entry
     is_eating_out: { type: DataTypes.BOOLEAN, defaultValue: false },
+    portions: { type: DataTypes.INTEGER, allowNull: true },
     // RecipeId will be added automatically by association, but we can depend on it
 });
 
@@ -192,6 +196,7 @@ const PublicVisit = require('./PublicVisit')(sequelize);
 const RecipeInstructionOverride = require('./RecipeInstructionOverride')(sequelize);
 const PushSubscription = require('./PushSubscription')(sequelize);
 const SentPushNotification = require('./SentPushNotification')(sequelize);
+const PlannedRecipe = require('./PlannedRecipe')(sequelize);
 
 
 LoginLog.belongsTo(User);
@@ -241,7 +246,7 @@ Tag.belongsTo(User);
 User.hasMany(Tag);
 
 const HiddenCleanup = sequelize.define('HiddenCleanup', {
-    context: { type: DataTypes.ENUM('category', 'unit'), allowNull: false }
+    context: { type: DataTypes.ENUM('category', 'unit', 'pipeline'), allowNull: false }
 });
 
 HiddenCleanup.belongsTo(Product);
@@ -303,9 +308,18 @@ User.hasMany(RecipeInstructionOverride);
 RecipeInstructionOverride.belongsTo(Recipe, { foreignKey: 'RecipeId' });
 Recipe.hasMany(RecipeInstructionOverride, { foreignKey: 'RecipeId' });
 
+PlannedRecipe.belongsTo(User);
+User.hasMany(PlannedRecipe);
+PlannedRecipe.belongsTo(Recipe);
+Recipe.hasMany(PlannedRecipe);
+PlannedRecipe.belongsTo(List);
+List.hasMany(PlannedRecipe);
+PlannedRecipe.hasMany(ListItem);
+ListItem.belongsTo(PlannedRecipe);
+
 const Email = sequelize.define('Email', {
     messageId: { type: DataTypes.STRING, allowNull: true, unique: true },
-    folder: { type: DataTypes.ENUM('inbox', 'sent', 'sent_system', 'daemon', 'newsletter', 'trash'), defaultValue: 'inbox' },
+    folder: { type: DataTypes.ENUM('inbox', 'sent', 'sent_system', 'daemon', 'newsletter', 'trash', 'app_messages'), defaultValue: 'inbox' },
     previousFolder: { type: DataTypes.STRING, allowNull: true },
     fromAddress: { type: DataTypes.STRING, allowNull: false },
     toAddress: { type: DataTypes.STRING, allowNull: false },
@@ -375,6 +389,19 @@ ProductReport.belongsTo(Product);
 User.hasMany(ProductReport);
 Product.hasMany(ProductReport);
 
+const AppMessage = sequelize.define('AppMessage', {
+    title: { type: DataTypes.STRING, allowNull: false },
+    text: { type: DataTypes.TEXT, allowNull: false },
+    recipientCount: { type: DataTypes.INTEGER, defaultValue: 0 }
+});
+
+const UserAppMessageRead = sequelize.define('UserAppMessageRead', {
+    // Verknüpfungstabelle
+});
+
+AppMessage.belongsToMany(User, { through: UserAppMessageRead });
+User.belongsToMany(AppMessage, { through: UserAppMessageRead });
+
 module.exports = {
     sequelize,
     User,
@@ -410,5 +437,8 @@ module.exports = {
     PushSubscription,
     SentPushNotification,
     UserProductIntolerance,
-    ProductReport
+    ProductReport,
+    PlannedRecipe,
+    AppMessage,
+    UserAppMessageRead
 };

@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import axios from './lib/axios';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { StartupProvider } from './contexts/StartupContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { EditModeProvider } from './contexts/EditModeContext';
 import { SyncProvider } from './contexts/SyncContext';
 import { TutorialProvider } from './contexts/TutorialContext';
+import { ForkyTutorialProvider } from './contexts/ForkyTutorialContext';
 
 import { ProtectedRoute } from './components/ProtectedRoute';
 import Layout from './components/Layout';
@@ -38,6 +40,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 import ScrollToTop from './components/ScrollToTop';
 import ReloadPrompt from './components/ReloadPrompt';
 import InstallPWAOverlay from './components/InstallPWAOverlay';
+import NewsPopup from './components/NewsPopup';
 
 // Helper to convert hex to HSL for Tailwind variables
 const hexToHsl = (hex) => {
@@ -233,6 +236,7 @@ function AppContent() {
     <>
       <ReloadPrompt />
       <InstallPWAOverlay />
+      <NewsPopup />
       <LoadingScreen isVisible={loading} message="GabelGuru wird geladen" />
 
       {!loading && (
@@ -257,6 +261,7 @@ function AppContent() {
             <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route path="/menu" element={<MenuPlan />} />
               <Route path="/recipes" element={<Recipes />} />
+              <Route path="/admin/recipe-view/:id" element={<Recipes />} />
               <Route path="/lists" element={<Lists />} />
               <Route path="/lists/:id" element={<ListDetail />} />
               <Route path="/products" element={<Navigate to="/settings?tab=products" replace />} />
@@ -298,11 +303,15 @@ function App() {
       <ThemeProvider>
         <EditModeProvider>
           <AuthProvider>
-            <TutorialProvider>
-              <SyncProvider>
-                <AppContent />
-              </SyncProvider>
-            </TutorialProvider>
+            <StartupProvider>
+              <TutorialProvider>
+                <ForkyTutorialProvider>
+                  <SyncProvider>
+                    <AppContent />
+                  </SyncProvider>
+                </ForkyTutorialProvider>
+              </TutorialProvider>
+            </StartupProvider>
           </AuthProvider>
         </EditModeProvider>
       </ThemeProvider>

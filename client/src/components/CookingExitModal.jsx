@@ -363,7 +363,7 @@ export default function CookingExitModal({
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <Sparkles size={16} className="fill-current" /> KI-Vorschlag (10 Coins)
+                                                            <Sparkles size={16} className="fill-current" /> KI-Vorschlag {['Rainbowspoon', 'Goldgabel'].includes(userTier) ? '' : '(10 Coins)'}
                                                         </>
                                                     )}
                                                 </Button>
@@ -383,7 +383,7 @@ export default function CookingExitModal({
                                                                 </div>
                                                                 {item.text}
                                                             </div>
-
+                                                            {/* ... (item.oldText highlights omitted for brevity but remain) */}
                                                             {(item.oldText || item.newText) ? (
                                                                 <div className="space-y-2 pl-6 relative">
                                                                     <div className="absolute left-2 top-0 bottom-0 w-0.5 bg-gradient-to-b from-purple-500/30 via-purple-500/10 to-transparent rounded-full" />
@@ -417,7 +417,7 @@ export default function CookingExitModal({
                                 disabled={isAiLoading}
                             >
                                 <LogOut size={18} />
-                                Modus beenden & Speichern
+                                Modus beenden{(shouldUpdateDuration || shouldApplyAiChanges) ? ' & speichern' : ''}
                             </Button>
                             <button
                                 onClick={onClose}

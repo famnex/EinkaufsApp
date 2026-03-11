@@ -11,12 +11,13 @@ import BottomNav from './BottomNav';
 import EditModeSelector from './EditModeSelector';
 import NotificationPrompt from './NotificationPrompt';
 import TutorialWelcomeModal from './TutorialWelcomeModal';
+import ForkyBubble from './ForkyBubble';
 import { useTutorial } from '../contexts/TutorialContext';
 
 export default function Layout({ children }) {
     const { user } = useAuth();
     const { editMode, setEditMode } = useEditMode();
-    const { isWelcomeOpen, setIsWelcomeOpen, handleStartChapter, handleToggleShowTutorial } = useTutorial();
+    const { isWelcomeOpen, setIsWelcomeOpen, handleStartChapter } = useTutorial();
     const { theme, toggleTheme } = useTheme();
     const { pendingChanges, isSyncing, isOffline } = useSync();
     const location = useLocation();
@@ -160,11 +161,14 @@ export default function Layout({ children }) {
                         {location.pathname !== '/settings' &&
                             location.pathname !== '/recipes' &&
                             location.pathname !== '/community-cookbooks' &&
-                            <div id="edit-mode-selector">
+                            <div>
                                 <EditModeSelector
                                     editMode={editMode}
                                     setEditMode={setEditMode}
-                                    hiddenModes={location.pathname === '/' ? ['edit'] : []}
+                                    hiddenModes={
+                                        location.pathname === '/' ? ['edit', 'lock'] :
+                                            location.pathname.startsWith('/lists/') ? ['create'] : ['lock']
+                                    }
                                 />
                             </div>
                         }
@@ -200,9 +204,8 @@ export default function Layout({ children }) {
                 isOpen={isWelcomeOpen}
                 onClose={() => setIsWelcomeOpen(false)}
                 onStartChapter={handleStartChapter}
-                showOnStart={user?.showAppTutorial}
-                onToggleShowOnStart={handleToggleShowTutorial}
             />
+            <ForkyBubble />
         </div>
     );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, UserMinus, LogOut, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen, AlertTriangle, Folder, Calendar, CalendarX, Info, HelpCircle, ShieldAlert, Server, Star, CheckCircle2, Zap, Play, XCircle } from 'lucide-react';
+import { Settings as SettingsIcon, Store as StoreIcon, Shield, Trash2, Plus, ArrowLeft, Check, X, Building2, Users, UserCog, User, UserMinus, LogOut, Sparkles, Terminal, Loader2, CheckCircle, ChefHat, Share2, Lock, Mail, Eye, EyeOff, Palette, Copy, FileText, Type, ShieldCheck, Layers, CloudDownload, ChevronDown, CreditCard, History, Inbox, Send, RefreshCw, Reply, MailOpen, Pen, AlertTriangle, Folder, Calendar, CalendarX, Info, HelpCircle, ShieldAlert, Server, Star, CheckCircle2, Zap, Play, XCircle, ShoppingCart, Book } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -1765,6 +1765,7 @@ export default function SettingsPage() {
 
     const preferencesTabs = [
         { id: 'intolerances', label: 'Unverträglichkeiten', icon: ShieldAlert, locked: !hasSpecialTier },
+        { id: 'app_usage', label: 'App-Nutzung', icon: Package },
         { id: 'alexa', label: 'Alexa', icon: Building2, locked: !hasSpecialTier }
     ];
 
@@ -4324,16 +4325,42 @@ export default function SettingsPage() {
         );
     })();
 
-    const messagingFolders = [
-        { id: 'inbox', label: 'Posteingang', icon: Inbox },
-        { id: 'daemon', label: 'MAILER-DAEMON', icon: ShieldAlert },
-        { id: 'sent', label: 'Gesendet', icon: Send },
-        { id: 'sent_system', label: 'Gesendet (System)', icon: Server },
-        { id: 'push', label: 'Push', icon: Bell },
-        { id: 'feedback', label: 'Produkt-Berichte', icon: ShieldAlert, count: notificationCounts.feedback },
-        { id: 'newsletter', label: 'Newsletter', icon: Mail },
-        { id: 'trash', label: 'Papierkorb', icon: Trash2 }
+    const [openMessagingGroup, setOpenMessagingGroup] = useState(null);
+
+    const messagingGroups = [
+        {
+            id: 'inbox_group',
+            label: 'Posteingang',
+            icon: Inbox,
+            folders: [
+                { id: 'inbox', label: 'Posteingang', icon: Inbox },
+                { id: 'daemon', label: 'MAILER_DAEMON', icon: ShieldAlert },
+                { id: 'feedback', label: 'Produkt-Berichte', icon: ShieldAlert, count: notificationCounts.feedback }
+            ]
+        },
+        {
+            id: 'sent_group',
+            label: 'Gesendet',
+            icon: Send,
+            folders: [
+                { id: 'sent', label: 'Gesendet', icon: Send },
+                { id: 'sent_system', label: 'Gesendet (System)', icon: Server },
+                { id: 'newsletter', label: 'Newsletter', icon: Mail },
+                { id: 'push', label: 'Push', icon: Bell },
+                { id: 'app_messages', label: 'Appnachrichten', icon: Mail }
+            ]
+        },
+        {
+            id: 'trash_group',
+            label: 'Papierkorb',
+            icon: Trash2,
+            folders: [
+                { id: 'trash', label: 'Papierkorb', icon: Trash2 }
+            ]
+        }
     ];
+
+    const messagingFolders = messagingGroups.flatMap(g => g.folders);
 
     const MessagingSection = (() => {
         const [pushMessage, setPushMessage] = useState('');
@@ -4353,9 +4380,30 @@ export default function SettingsPage() {
             }
         };
 
+        const [appMessageTitle, setAppMessageTitle] = useState('');
+        const [appMessageText, setAppMessageText] = useState('');
+        const [appMessageHistory, setAppMessageHistory] = useState([]);
+        const [loadingAppMessageHistory, setLoadingAppMessageHistory] = useState(false);
+        const [sendingAppMessage, setSendingAppMessage] = useState(false);
+
+        const fetchAppMessageHistory = async () => {
+            setLoadingAppMessageHistory(true);
+            try {
+                const response = await api.get('/app-messages/history');
+                setAppMessageHistory(response.data);
+            } catch (err) {
+                console.error('Failed to fetch app message history:', err);
+            } finally {
+                setLoadingAppMessageHistory(false);
+            }
+        };
+
         useEffect(() => {
             if (activeTab === 'admin' && activeAdminTab === 'messaging' && messagingFolder === 'push') {
                 fetchPushHistory();
+            }
+            if (activeTab === 'admin' && activeAdminTab === 'messaging' && messagingFolder === 'app_messages') {
+                fetchAppMessageHistory();
             }
         }, [activeTab, activeAdminTab, messagingFolder]);
 
@@ -4459,37 +4507,219 @@ export default function SettingsPage() {
             </div>
         );
 
+        const handleSendAppMessage = async () => {
+            if (!appMessageTitle || appMessageText.length < 5) return;
+            if (!confirm('Sind Sie sicher, dass Sie diese App-Nachricht an ALLE Bestandskunden senden möchten?')) return;
+
+            setSendingAppMessage(true);
+            try {
+                await api.post('/app-messages', { title: appMessageTitle, text: appMessageText });
+                setAppMessageTitle('');
+                setAppMessageText('');
+                fetchAppMessageHistory();
+                alert('App-Nachricht wurde versendet!');
+            } catch (err) {
+                console.error('Failed to send app message:', err);
+                alert('Fehler beim Senden der App-Nachricht: ' + (err.response?.data?.error || err.message));
+            } finally {
+                setSendingAppMessage(false);
+            }
+        };
+
+        const handleDeleteAppMessage = async (id) => {
+            if (!confirm('Sind Sie sicher, dass Sie diese App-Nachricht endgültig löschen möchten?')) return;
+
+            try {
+                await api.delete(`/app-messages/${id}`);
+                fetchAppMessageHistory();
+            } catch (err) {
+                console.error('Failed to delete app message:', err);
+                alert('Fehler beim Löschen der App-Nachricht: ' + (err.response?.data?.error || err.message));
+            }
+        };
+
+        const AppMessageManagementSection = (
+            <div className="space-y-6">
+                <Card className="p-6 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                        <Mail size={20} className="text-primary" />
+                        App-Nachricht (News Popup) erstellen
+                    </h3>
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Titel</label>
+                            <Input
+                                value={appMessageTitle}
+                                onChange={(e) => setAppMessageTitle(e.target.value)}
+                                placeholder="Geben Sie hier einen Titel ein..."
+                                className="w-full bg-background/50 h-10"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Nachrichtentext</label>
+                            <textarea
+                                value={appMessageText}
+                                onChange={(e) => setAppMessageText(e.target.value)}
+                                placeholder="Geben Sie hier den Nachrichtentext ein..."
+                                className="flex min-h-[100px] w-full rounded-xl border border-input bg-background/50 px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 resize-y"
+                            />
+                            <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider">
+                                <span className={appMessageText.length < 5 ? "text-destructive" : "text-emerald-500"}>
+                                    {appMessageText.length} Zeichen (mind. 5)
+                                </span>
+                            </div>
+                        </div>
+                        <Button
+                            onClick={handleSendAppMessage}
+                            disabled={sendingAppMessage || !appMessageTitle || appMessageText.length < 5}
+                            className="w-full h-11 gap-2"
+                        >
+                            {sendingAppMessage ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                            Nachricht Veröffentlichen
+                        </Button>
+                    </div>
+                </Card>
+
+                <Card className="p-6 border-border bg-card/50 shadow-lg backdrop-blur-sm overflow-hidden">
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                        <History size={20} className="text-primary" />
+                        Verlauf App-Nachrichten
+                    </h3>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-muted/50 border-b border-border text-xs uppercase text-muted-foreground font-bold">
+                                <tr>
+                                    <th className="px-4 py-3">Datum</th>
+                                    <th className="px-4 py-3">Titel</th>
+                                    <th className="px-4 py-3 text-right">Empfänger</th>
+                                    <th className="px-4 py-3 text-right">Geöffnet</th>
+                                    <th className="px-4 py-3 text-right w-16">Aktionen</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                                {loadingAppMessageHistory ? (
+                                    <tr>
+                                        <td colSpan="4" className="px-4 py-8 text-center">
+                                            <Loader2 size={24} className="animate-spin text-primary mx-auto" />
+                                        </td>
+                                    </tr>
+                                ) : appMessageHistory.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="5" className="px-4 py-8 text-center text-muted-foreground italic">
+                                            Noch keine App-Nachrichten gesendet.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    appMessageHistory.map(item => (
+                                        <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                                            <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                                                {new Date(item.createdAt).toLocaleString('de-DE')}
+                                            </td>
+                                            <td className="px-4 py-3 font-medium min-w-[200px]">{item.title}</td>
+                                            <td className="px-4 py-3 text-right font-bold">{item.recipientCount}</td>
+                                            <td className="px-4 py-3 text-right text-emerald-500 font-bold">{item.readCount}</td>
+                                            <td className="px-4 py-3 text-right">
+                                                <button 
+                                                    onClick={() => handleDeleteAppMessage(item.id)}
+                                                    className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                                                    title="Nachricht löschen"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            </div>
+        );
+
         return (
             <div className="space-y-4">
-                {/* Folder Navigation */}
-                <div className="flex overflow-x-auto no-scrollbar gap-2 pb-1">
-                    {messagingFolders.map(f => {
-                        const FIcon = f.icon;
+                {/* Folder Navigation (Hierarchical) */}
+                <div className="flex flex-wrap gap-2 pb-1 relative">
+                    {messagingGroups.map(group => {
+                        const GIcon = group.icon;
+                        const isOpen = openMessagingGroup === group.id;
+                        const hasActiveFolder = group.folders.some(f => f.id === messagingFolder);
+                        const groupCount = group.folders.reduce((acc, f) => {
+                            if (f.id === 'inbox') return acc + unreadInbox;
+                            return acc + (f.count || 0);
+                        }, 0);
+
                         return (
-                            <button
-                                key={f.id}
-                                onClick={() => switchFolder(f.id)}
-                                className={cn(
-                                    "flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
-                                    messagingFolder === f.id
-                                        ? "bg-primary/10 text-primary border border-primary/20"
-                                        : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
-                                )}
-                            >
-                                <FIcon size={14} />
-                                {f.label}
-                                {f.count > 0 && (
-                                    <span className="ml-1 bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center font-bold">{f.count}</span>
-                                )}
-                                {f.id === 'inbox' && unreadInbox > 0 && (
-                                    <span className="ml-1 bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center font-bold">{unreadInbox}</span>
-                                )}
-                            </button>
+                            <div key={group.id} className="relative">
+                                <button
+                                    onClick={() => setOpenMessagingGroup(isOpen ? null : group.id)}
+                                    className={cn(
+                                        "flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap border",
+                                        hasActiveFolder 
+                                            ? "bg-primary/10 text-primary border-primary/20" 
+                                            : "bg-muted/50 text-muted-foreground hover:bg-muted border-transparent"
+                                    )}
+                                >
+                                    <GIcon size={14} />
+                                    {group.label}
+                                    {groupCount > 0 && (
+                                        <span className="bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center font-bold">
+                                            {groupCount}
+                                        </span>
+                                    )}
+                                    <ChevronDown size={12} className={cn("transition-transform", isOpen && "rotate-180")} />
+                                </button>
+                                
+                                <AnimatePresence>
+                                    {isOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                                            className="absolute top-full left-0 mt-2 z-50 min-w-[200px] bg-card border border-border rounded-xl shadow-xl p-1 overflow-hidden backdrop-blur-md"
+                                        >
+                                            {group.folders.map(f => {
+                                                const FIcon = f.icon;
+                                                return (
+                                                    <button
+                                                        key={f.id}
+                                                        onClick={() => {
+                                                            switchFolder(f.id);
+                                                            setOpenMessagingGroup(null);
+                                                        }}
+                                                        className={cn(
+                                                            "w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all text-left",
+                                                            messagingFolder === f.id
+                                                                ? "bg-primary text-white"
+                                                                : "hover:bg-muted text-foreground"
+                                                        )}
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <FIcon size={14} className={messagingFolder === f.id ? "text-white" : "text-primary"} />
+                                                            {f.label}
+                                                        </div>
+                                                        {(f.count > 0 || (f.id === 'inbox' && unreadInbox > 0)) && (
+                                                            <span className={cn(
+                                                                "bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center font-bold",
+                                                                messagingFolder === f.id && "bg-white text-red-500"
+                                                            )}>
+                                                                {(f.id === 'inbox' ? unreadInbox : f.count) || 0}
+                                                            </span>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
                         );
                     })}
                 </div>
 
-                {messagingFolder === 'push' ? PushManagementSection : (
+                {messagingFolder === 'push' ? PushManagementSection : 
+                 messagingFolder === 'app_messages' ? AppMessageManagementSection : (
                     <>
                         {/* Toolbar: Search and Global Actions */}
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
@@ -5706,6 +5936,104 @@ export default function SettingsPage() {
         </Card>
     );
 
+    const [savingUsage, setSavingUsage] = useState(false);
+    const [usagePrefs, setUsagePrefs] = useState(user?.onboardingPreferences || { shopping: false, planning: false, recipes: false });
+
+    // Sync usagePrefs when user changes (e.g. after refresh)
+    useEffect(() => {
+        if (user?.onboardingPreferences) {
+            setUsagePrefs(user.onboardingPreferences);
+        }
+    }, [user?.onboardingPreferences]);
+
+    const handleSaveUsagePrefs = async () => {
+        setSavingUsage(true);
+        try {
+            await api.post('/auth/onboarding/complete', { preferences: usagePrefs });
+            setUser(prev => ({ ...prev, onboardingPreferences: usagePrefs }));
+            alert('Einstellungen gespeichert');
+        } catch (err) {
+            console.error('Failed to save usage preferences', err);
+            alert('Fehler beim Speichern');
+        } finally {
+            setSavingUsage(false);
+        }
+    };
+
+    const AppUsageSection = (
+        <Card className="p-8 border-border bg-card/50 shadow-lg backdrop-blur-sm">
+            <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+                <Package size={20} className="text-primary" />
+                App-Nutzung & Fokus
+            </h2>
+            <p className="text-sm text-muted-foreground mb-8 leading-relaxed">
+                Wofür nutzt du GabelGuru am liebsten? Deine Auswahl hilft uns, dir die passenden Funktionen und Tipps anzuzeigen.
+            </p>
+
+            <div className="space-y-4">
+                {[
+                    {
+                        id: 'shopping',
+                        title: 'Zum Einkaufen',
+                        description: 'Intelligente Listen und Vorratsverwaltung.',
+                        icon: ShoppingCart,
+                        color: 'text-green-500'
+                    },
+                    {
+                        id: 'planning',
+                        title: 'Zum Planen meiner Woche',
+                        description: 'Mahlzeitenplanung und kulinarische Organisation.',
+                        icon: Calendar,
+                        color: 'text-blue-500'
+                    },
+                    {
+                        id: 'recipes',
+                        title: 'Als Rezeptebuch & Community',
+                        description: 'Lieblingsrezepte speichern und Inspiration finden.',
+                        icon: Book,
+                        color: 'text-purple-500'
+                    }
+                ].map((opt) => (
+                    <div
+                        key={opt.id}
+                        onClick={() => setUsagePrefs(prev => ({ ...prev, [opt.id]: !prev[opt.id] }))}
+                        className={cn(
+                            "flex items-center gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer",
+                            usagePrefs[opt.id]
+                                ? "border-primary bg-primary/5 shadow-inner"
+                                : "border-border hover:border-primary/30 bg-muted/20"
+                        )}
+                    >
+                        <div className={cn("p-2 rounded-xl bg-background border border-border shrink-0", opt.color)}>
+                            <opt.icon size={20} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm text-foreground">{opt.title}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">{opt.description}</p>
+                        </div>
+                        <div className={cn(
+                            "w-5 h-5 rounded border-2 flex items-center justify-center transition-all",
+                            usagePrefs[opt.id] ? "bg-primary border-primary" : "border-muted-foreground/30"
+                        )}>
+                            {usagePrefs[opt.id] && <Check size={14} className="text-white" />}
+                        </div>
+                    </div>
+                ))}
+
+                <div className="pt-6 border-t border-border mt-8">
+                    <Button
+                        onClick={handleSaveUsagePrefs}
+                        disabled={savingUsage || !Object.values(usagePrefs).some(v => v)}
+                        className="w-full gap-2 py-6 rounded-2xl shadow-lg shadow-primary/20"
+                    >
+                        {savingUsage ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                        {savingUsage ? 'Wird gespeichert...' : 'Einstellungen speichern'}
+                    </Button>
+                </div>
+            </div>
+        </Card>
+    );
+
     const getAdminContent = (id) => {
         switch (id) {
             case 'users': return UsersSection;
@@ -5733,6 +6061,7 @@ export default function SettingsPage() {
     const getPreferencesContent = (id) => {
         switch (id) {
             case 'intolerances': return IntolerancesSection;
+            case 'app_usage': return AppUsageSection;
             case 'alexa': return ApiSection;
             default: return null;
         }

@@ -29,11 +29,14 @@ Zentrales Benutzermodell.
 - `pendingTier` (ENUM): 'Silbergabel', 'none' - Scheduled downgrade [NEW v0.26.8].
 - `newsletterSignedUp` (BOOLEAN): Newsletter-Status [NEW v0.24.1].
 - `newsletterSignupDate` (DATE): Datum der Newsletter-Anmeldung [NEW v0.24.1].
-- `followNotificationsEnabled` (BOOLEAN): Status für Kochbuch-Benachrichtigungen [NEW v0.32.11].
-- `lastFollowedUpdatesCheck` (DATE): Zeitstempel der letzten Prüfung auf Kochbuch-Updates [NEW v0.32.12].
+- `followNotificationsEnabled`: BOOLEAN (default: true)
+- `isTrialUsed`: BOOLEAN (default: false)
+- `isOnboardingCompleted`: BOOLEAN (default: false)
+- `onboardingPreferences`: JSON
+- `lastFollowedUpdatesCheck`: DATE
+- `lastFollowedUpdatesNudgeSent`: DATE
 - `isEmailVerified` (BOOLEAN): Status der E-Mail-Bestätigung [NEW v0.29.0].
 - `emailVerificationToken` (STRING): Token für E-Mail-Aktivierung [NEW v0.29.0].
-- `isTrialUsed` (BOOLEAN): Ob der Benutzer den Silbergabel-Testzeitraum bereits genutzt hat [NEW v0.23.9].
 - `isPermanentlyBanned` (BOOLEAN)
 - `cookbookClicks` (INT): Anzahl der Aufrufe des öffentlichen Kochbuchs/Rezepte [NEW v0.30.15].
 - `resetPasswordToken` / `resetPasswordExpires` (STRING/DATE)
@@ -137,8 +140,20 @@ Spezifische Ausprägung eines Produkts für eine Variante.
 - `ProductVariantId` (INT, FK)
 - `UserId` (INT, FK)
 
+### `PlannedRecipes` [NEW v0.38.6]
+Rezepte, die für die Einkaufsliste vorbereitet wurden.
+- `id` (INT, PK)
+- `servings` (INT): Anzahl der Portionen.
+- `settings` (JSON): Gewählte Zutaten und Einheiten.
+- `hiddenIngredients` (JSON): Temporär ausgeblendete Zutaten.
+- `UserId` (INT, FK)
+- `RecipeId` (INT, FK)
+- `ListId` (INT, FK)
+- `createdAt` / `updatedAt` (DATE)
+
 ### `ListItems` (Erweiterung)
 - `ProductVariationId` (INT, FK, NULL): Referenz auf die gewählte Variation beim Hinzufügen zur Liste.
+- `PlannedRecipeId` (INT, FK, NULL): Referenz auf das geplante Rezept [NEW v0.38.6].
 
 ### `Intolerances` [UPDATED v0.32.1]
 Globale Liste von Unverträglichkeiten (vom Admin verwaltet).
@@ -173,6 +188,7 @@ Meldungen von Nutzern über Produktfehler oder Unstimmigkeiten.
 
 ### `Menus` / `Expenses` / `Tags` / `Settings`
 - Alle Tabellen enthalten ein `UserId` Feld zur strikten Isolation.
+- `Menus` enthält seit vX.Y.Z das Feld `portions` (INTEGER, nullable) für benutzerdefinierte Portionsgrößen, welches die Standardportionen des Rezepts beim Planen überschreibt.
 
 ---
 
@@ -218,6 +234,10 @@ Meldungen von Nutzern über Produktfehler oder Unstimmigkeiten.
 ### v0.32.1 - Unverträglichkeiten Erweiterung (Februar 2026)
 1. **Warntexte**: Einführung der Spalte `warningText` in `Intolerances` für detaillierte Hinweise (z.B. "Eier" -> "enthält Eier").
 2. **UI-Update**: Admins können Warntexte bearbeiten; Nutzer sehen diese in den Kacheln.
+
+### v0.38.4 - Bulk Globalisieren & AI Cleanup Exclusions (März 2026)
+1. **HiddenCleanups ENUM**: Erweiterung des ENUMs `context` um `'pipeline'`.
+2. **Auto-Exclusion**: Manuell als global übernommene Produkte (die aus der Inbox) werden nun automatisch für das AI Bulk Cleanup (`context: 'pipeline'`) als "Hidden" angelegt.
 
 ### v0.32.0 - Globales Unverträglichkeiten-System (Februar 2026)
 1. **Zentralisierung**: Umstellung von benutzerspezifischen auf globale Unverträglichkeiten (vom Admin verwaltet).
@@ -369,3 +389,17 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 2. **Admin-Integration**: Vollständige Messaging-Integration mit Zählern, Status-Icons und Bulk-Aktionen.
 3. **Flächendekende Integration**: Melde-Möglichkeit in allen relevanten Modalen (Einkaufsliste, Rezepte, KI-Import etc.).
 4. **Backend-Stats**: Neuer Endpunkt `/api/feedback/stats` für Admin-Benachrichtigungs-Zähler.
+
+### v0.38.4 - Entfernung App-Tutorial (März 2026)
+1. **Entfernung**: Das `showAppTutorial` Feld (BOOLEAN) wurde aus der `Users` Tabelle entfernt.
+2. **Cleanup**: Alle UI-Elemente und Logik zur automatischen Anzeige des Tutorials wurden entfernt. Das Tutorial kann nur noch manuell (falls Schaltflächen vorhanden) oder über den Code gestartet werden.
+
+### v0.38.5 - Onboarding Modal & Präferenzen (März 2026)
+1. **Onboarding-Status**: Neue Spalte `isOnboardingCompleted` (BOOLEAN, default: false) in der `Users` Tabelle.
+2. **Präferenzen**: Neue Spalte `onboardingPreferences` (JSON, nullable) in der `Users` Tabelle zur Speicherung der gewählten Nutzungskategorien.
+3. **Migration**: `server/migrations/migrate_v0.38.6_consolidated.js`
+
+### v0.38.6 - Kalender-Portionen & Rezept-Planung (März 2026)
+1. **Portionen im Kalender**: Neue Spalte `portions` (INTEGER, nullable) in der `Menus` Tabelle.
+2. **Rezept-Planung**: Einführung der Tabelle `PlannedRecipes` zur Speicherung von Konfigurationen beim Übertragen von Rezepten auf die Einkaufsliste.
+3. **Migration**: `server/migrations/migrate_v0.38.6_consolidated.js`

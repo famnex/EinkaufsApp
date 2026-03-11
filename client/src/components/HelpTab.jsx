@@ -56,7 +56,7 @@ export default function HelpTab({ user, setUser, api }) {
                     <p><strong>Gerichte verschieben (Drag & Drop):</strong> Pläne ändern sich! Halte ein geplantes Rezept einfach gedrückt und ziehe es auf einen anderen Tag oder einen anderen Slot. Wenn der Ziel-Slot schon belegt ist, fragt dich das System, ob du die Gerichte tauschen (Swap) oder das alte Gericht ersetzen möchtest.</p>
                     <p><strong>Unverträglichkeits-Check:</strong> Sobald du ein Rezept einplanst, prüft das System im Hintergrund, ob die Zutaten mit den im Haushalt hinterlegten Unverträglichkeiten kollidieren. Ist das der Fall, erscheint eine Warnung und ein Assistent hilft dir, die problematischen Zutaten direkt durch sichere Alternativen zu ersetzen.</p>
                     <p><strong>Der Zutatenplaner (Bulk Planner):</strong> Klappe einen geplanten Tag aus und klicke auf "Zutaten planen". Der Planer berechnet genau, wie viel von welcher Zutat du für alle anstehenden Rezepte benötigst.</p>
-                    <p><strong>Varianten wählen:</strong> Im Planer siehst du, ob du eine Zutat (z. B. Eier) schon teilweise auf der Liste hast. Klicke auf "Hinzufügen". Bietet ein Produkt verschiedene Packungsgrößen (z.B. 6er oder 10er Pack Eier), öffnet sich ein spezieller "Variant Picker", um die genaue Größe zu wählen.</p>
+                    <p><strong>Varianten wählen:</strong> Im Planer siehst du, ob du eine Zutat (z. B. Eier) schon teilweise auf der Liste hast. Klicke auf "Hinzufügen". Bietet ein Produkt verschiedene Varianten an, öffnet sich ein spezieller "Variant Picker", um die genaue Variante zu wählen.</p>
                     <p><strong>Zutaten ausblenden:</strong> Wische im Planer auf einer Zutat nach links, um sie auszublenden, falls du sie ohnehin noch massig auf Vorrat hast.</p>
                 </div>
             )
@@ -68,7 +68,7 @@ export default function HelpTab({ user, setUser, api }) {
                 <div className="space-y-4 text-sm text-foreground leading-relaxed">
                     <p>Deine Rezeptsammlung ist das Herzstück von GabelGuru und voller smarter Features.</p>
                     <p><strong>Rezepte filtern und sortieren:</strong> Du kannst deine Rezeptliste nach Alphabet, Veröffentlichungsdatum, Likes, Zubereitungszeit oder sogar nach der Anzahl der Zutaten sortieren. Über das Dropdown-Menü kannst du nach Kategorien filtern oder dir speziell die Favoriten einzelner Haushaltsmitglieder anzeigen lassen.</p>
-                    <p><strong>Aktionsmenü:</strong> Klicke auf die drei Punkte an einer Rezeptkachel. Hier kannst du das Rezept bearbeiten, einplanen, drucken, löschen oder mit Freunden teilen. Administratoren können hier sogar auf Knopfdruck einen fix und fertigen Instagram-Post zum Rezept von der KI generieren lassen.</p>
+                    <p><strong>Aktionsmenü:</strong> Klicke auf die drei Punkte an einer Rezeptkachel. Hier kannst du das Rezept bearbeiten, einplanen, drucken, löschen oder mit Freunden teilen.</p>
                     <p><strong>Sichtbarkeit:</strong> Du kannst einzelne Rezepte über das Aktionsmenü "Verstecken", sodass sie nicht in deinem öffentlichen Kochbuch auftauchen. Versteckte Rezepte bekommen ein kleines "Durchgestrichenes Auge"-Symbol.</p>
                     <p><strong>Manuelle Rezepterstellung:</strong> Klicke im Menü auf "Rezept erstellen". Du kannst Titel, Zeiten und Portionen festlegen. Im Tab "Zutaten" kannst du Artikel einzeln suchen oder einen großen Textblock mit Zutaten in den "Schnell-Import" kopieren, welchen das System dann automatisch aufschlüsselt. Anschließend schreibst du die Zubereitungsschritte und lädst ein Bild hoch.</p>
                     <p><strong>KI Rezept-Import (ab Abo "Silbergabel"):</strong> Du musst keine Rezepte mehr abtippen! Klicke im Menü auf "AI Import". Du kannst den Text eines Rezepts aus dem Internet kopieren oder ein Foto von einem Kochbuch / handgeschriebenen Zettel hochladen (Vision). Die KI extrahiert vollautomatisch Titel, Zeiten und Schritte. Zudem ordnet sie die gefundenen Zutaten (selbst wenn sie anders geschrieben sind) den Produkten in deiner Datenbank zu. Ein Textimport kostet 10 Coins, ein Foto-Import 15 Coins.</p>
@@ -88,9 +88,9 @@ export default function HelpTab({ user, setUser, api }) {
                     <p><strong>Portionen live skalieren:</strong> Unter dem Rezeptbild steht die Anzahl der Portionen. Tippe darauf und nutze die Plus/Minus-Tasten, um die Portionen anzupassen. Alle Zutatenmengen im Rezept rechnen sich sofort in Echtzeit um.</p>
                     <p><strong>Zutaten im Überblick:</strong> Links (bzw. auf dem Handy in einem eigenen Tab) siehst du alle Zutaten. Tippe sie an, um sie durchzustreichen, wenn du sie bereitgelegt hast.</p>
                     <p><strong>Interaktive Anleitung & Timer:</strong> In der Schritt-für-Schritt-Anleitung sind Zutaten und Zeiten farbig markiert. Tippst du auf eine markierte Zutat, wird sie abgehakt. Tippst du auf eine Zeitangabe (z. B. "10 Min"), startet sofort ein Countdown-Timer am unteren Bildschirmrand. Wenn der Timer abläuft, ertönt ein Alarm.</p>
-                    <p><strong>KI Sprachassistent (ab "Silbergabel"):</strong> Unten rechts leuchtet ein funkelnder Button. Ein Klick darauf (kostet einmalig 10 Coins pro Kochvorgang) aktiviert das Mikrofon. Du kannst nun einfach sprechen: Sage "Nächster Schritt", "Starte einen Timer für 5 Minuten" oder stelle Fragen wie "Womit kann ich den Zucker ersetzen?".</p>
-                    <p><strong>Warnungen während des Kochens:</strong> Hast du eine Zutat, die jemand im Haushalt nicht verträgt, erscheint ein rotes oder oranges Warn-Icon neben der Zutat. Tippe darauf, um genau zu sehen, für wen das ein Problem ist. Zudem gibt es ein gelbes Dreieck, das dich warnt, falls du eine Zutat in den nächsten Tagen für ein anderes Rezept noch einmal brauchst – so isst du sie nicht versehentlich ganz auf!.</p>
-                    <p><strong>Die magische Rezept-Anpassung beim Beenden:</strong> Wenn du den Kochmodus verlässt (und länger als 30 Sekunden gekocht hast oder den KI-Assistenten genutzt hast), öffnet sich ein Fenster. Hier fragt dich die App, ob du Änderungswünsche hast. Gib einfach ein: "Es war zu salzig und hat 15 Minuten länger gedauert". Die KI schreibt daraufhin das Rezept und die Zutatenmengen für dein nächstes Mal dauerhaft um!.</p>
+                    <p><strong>KI Sprachassistent (ab "Silbergabel"):</strong> Im Kochmodus leuchtet ein funkelnder Button. Ein Klick darauf (kostet einmalig 10 Coins pro Kochvorgang) aktiviert das Mikrofon. Du kannst nun einfach sprechen: Sage "Nächster Schritt", "Starte einen Timer für 5 Minuten" oder stelle Fragen wie "Womit kann ich den Zucker ersetzen?".</p>
+                    <p><strong>Warnungen während des Kochens:</strong> Hast du eine Zutat, die jemand im Haushalt nicht verträgt, erscheint ein rotes oder oranges Warn-Icon neben der Zutat. Tippe darauf, um genau zu sehen, für wen das ein Problem ist. Zudem gibt es ein gelbes Dreieck, das dich warnt, falls du eine Zutat in den nächsten Tagen für ein anderes Rezept noch einmal brauchst – so isst du sie nicht versehentlich ganz auf!</p>
+                    <p><strong>Die magische Rezept-Anpassung beim Beenden:</strong> Wenn du den Kochmodus verlässt, öffnet sich ein Fenster. Hier fragt dich die App, ob du Änderungswünsche hast. Gib einfach ein: "Es war zu salzig". Die KI schreibt daraufhin das Rezept und die Zutatenmengen für dein nächstes Mal dauerhaft um! Die Kochzeit kann auch angepasst werden.</p>
                 </div>
             )
         },
@@ -131,32 +131,14 @@ export default function HelpTab({ user, setUser, api }) {
             </h2>
             <div className="space-y-6">
 
-                {/* Tutorial Block moved here */}
                 <div className="p-4 bg-muted/50 rounded-2xl border border-border/50 space-y-4">
                     <div className="flex items-center justify-between">
                         <div className="space-y-1">
                             <p className="font-bold text-foreground">App-Tutorial</p>
                             <p className="text-xs text-muted-foreground">
-                                Hilfreiche Erklärungen beim ersten Start anzeigen
+                                Lerne wie GabelGuru funktioniert
                             </p>
                         </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                id="tutorial-toggle"
-                                className="sr-only peer"
-                                checked={user?.showAppTutorial !== false}
-                                onChange={(e) => {
-                                    const newVal = e.target.checked;
-                                    setUser({ ...user, showAppTutorial: newVal });
-                                    api.put('/auth/profile', { showAppTutorial: newVal }).catch(() => {
-                                        setUser({ ...user, showAppTutorial: !newVal });
-                                        alert('Fehler beim Speichern der Tutorial-Einstellung');
-                                    });
-                                }}
-                            />
-                            <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                        </label>
                     </div>
                     <Button
                         variant="outline"
@@ -164,7 +146,6 @@ export default function HelpTab({ user, setUser, api }) {
                         id="start-tutorial-btn"
                         className="w-full bg-background/50 hover:bg-background transition-colors flex items-center justify-center gap-2 py-5 rounded-xl border-dashed"
                         onClick={() => {
-                            sessionStorage.removeItem('welcomeShownThisSession');
                             setIsWelcomeOpen(true);
                         }}
                     >

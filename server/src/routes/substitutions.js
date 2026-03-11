@@ -30,6 +30,7 @@ router.post('/', auth, async (req, res) => {
             recipeId,
             originalProductId,
             substituteProductId,
+            substituteName,
             originalQuantity,
             originalUnit,
             substituteQuantity,
@@ -38,6 +39,28 @@ router.post('/', auth, async (req, res) => {
         } = req.body;
         const userId = req.user.householdId || req.user.id;
 
+        let finalSubstituteId = substituteProductId;
+
+        if (!finalSubstituteId && substituteName && !isOmitted) {
+            // Try to find product by name
+            let product = await Product.findOne({
+                where: {
+                    name: substituteName,
+                    UserId: [userId, null] // Check user-specific and global products
+                }
+            });
+
+            if (!product) {
+                // Create new AI product
+                product = await Product.create({
+                    name: substituteName,
+                    UserId: userId,
+                    source: 'ai'
+                });
+            }
+            finalSubstituteId = product.id;
+        }
+
         const [substitution, created] = await RecipeSubstitution.findOrCreate({
             where: {
                 RecipeId: recipeId,
@@ -45,7 +68,7 @@ router.post('/', auth, async (req, res) => {
                 UserId: userId
             },
             defaults: {
-                substituteProductId: substituteProductId,
+                substituteProductId: finalSubstituteId,
                 originalQuantity,
                 originalUnit,
                 substituteQuantity,
@@ -55,7 +78,7 @@ router.post('/', auth, async (req, res) => {
         });
 
         if (!created) {
-            substitution.substituteProductId = substituteProductId;
+            substitution.substituteProductId = finalSubstituteId;
             substitution.originalQuantity = originalQuantity;
             substitution.originalUnit = originalUnit;
             substitution.substituteQuantity = substituteQuantity;

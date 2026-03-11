@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
-import { X, Dices, ChefHat, Filter, Sparkles, Play, Check, Search, Plus, Loader2, Calendar } from 'lucide-react';
+import { X, Dices, ChefHat, Filter, Sparkles, Play, Check, Search, Plus, Loader2, Calendar, RefreshCw, Minus } from 'lucide-react';
 import { Button } from './Button';
 import { cn, getImageUrl } from '../lib/utils';
 import api from '../lib/axios';
@@ -17,12 +17,14 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
     const [excludedIngredients, setExcludedIngredients] = useState([]);
     const [includedIngredients, setIncludedIngredients] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState('All');
+    const [portions, setPortions] = useState(2);
 
     const [allProducts, setAllProducts] = useState([]);
     const [incSearch, setIncSearch] = useState('');
     const [exSearch, setExSearch] = useState('');
     const [showIncSuggestions, setShowIncSuggestions] = useState(false);
     const [showExSuggestions, setShowExSuggestions] = useState(false);
+    const [spinCount, setSpinCount] = useState(0);
 
     const audioContextRef = useRef(null);
     const doodleIntervalRef = useRef(null);
@@ -83,7 +85,8 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
                 api.get('/products').then(res => setAllProducts(res.data)).catch(console.error);
             }
         } else {
-            // Cleanup audio when closing
+            // Cleanup and reset
+            setSpinCount(0);
             if (doodleIntervalRef.current) {
                 clearInterval(doodleIntervalRef.current);
                 doodleIntervalRef.current = null;
@@ -124,6 +127,7 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
 
         setIsSpinning(true);
         setResult(null);
+        setSpinCount(prev => prev + 1);
 
         // Prepare the reel: A long list of random recipes ending in a set of possibilities
         const totalItems = 30;
@@ -149,6 +153,7 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
                 doodleIntervalRef.current = null;
             }
             setResult(winner);
+            setPortions(winner?.servings || 2);
             setIsSpinning(false);
             playSound('jackpot');
             notifyAction('generator-finished');
@@ -418,8 +423,32 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
                                 )}
                             </div>
 
+                            {/* Portion Adjuster */}
+                            {result && !isSpinning && (
+                                <div className="shrink-0 px-4 md:px-6 pb-2">
+                                    <div className="flex items-center justify-between bg-muted/30 p-3 rounded-2xl border border-border">
+                                        <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Portionen</span>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                onClick={() => setPortions(Math.max(1, portions - 1))}
+                                                className="w-10 h-10 flex items-center justify-center bg-card rounded-xl shadow-sm text-foreground hover:bg-primary/20 hover:text-primary transition-colors border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                            >
+                                                <Minus size={18} />
+                                            </button>
+                                            <span className="w-8 text-center font-black text-xl">{portions}</span>
+                                            <button
+                                                onClick={() => setPortions(portions + 1)}
+                                                className="w-10 h-10 flex items-center justify-center bg-card rounded-xl shadow-sm text-foreground hover:bg-primary/20 hover:text-primary transition-colors border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                            >
+                                                <Plus size={18} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Actions */}
-                            <div className="shrink-0 p-4 md:p-6 pt-0 flex gap-3 bg-card">
+                            <div className="shrink-0 p-4 md:p-6 pt-0 flex gap-3 bg-card mt-2">
                                 {!result ? (
                                     <Button
                                         onClick={() => {
@@ -436,11 +465,11 @@ export default function SlotMachineModal({ isOpen, onClose, recipes, onSelect, c
                                 ) : (
                                     <>
                                         <Button id="slot-machine-respin-btn" variant="outline" onClick={() => { spin(); notifyAction('generator-start'); }} className="h-12 md:h-16 px-4 md:px-6 rounded-2xl border-2">
-                                            <Play size={20} />
+                                            {spinCount >= 1 ? <RefreshCw size={20} className={cn(isSpinning && "animate-spin")} /> : <Play size={20} />}
                                         </Button>
                                         <Button
                                             onClick={() => {
-                                                onSelect(result);
+                                                onSelect({ ...result, selectedPortions: portions });
                                                 notifyAction('recipe-schedule');
                                             }}
                                             id="slot-machine-schedule-btn"

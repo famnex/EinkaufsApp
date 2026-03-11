@@ -122,7 +122,7 @@ export default function ProductModal({ isOpen, onClose, product, onSave }) {
             const dataToSave = {
                 ...formData,
                 price_hint: formData.price_hint || null,
-                synonyms: formData.synonyms || [],
+                synonyms: (formData.synonyms || []).filter(s => s.toLowerCase() !== formData.name.toLowerCase()),
                 isNew: false,
                 variations: variations.length > 0 ? variations : null,
                 intoleranceIds: selectedIntoleranceIds,

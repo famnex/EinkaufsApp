@@ -1614,4 +1614,86 @@ router.post('/check-intolerance', auth, async (req, res) => {
     }
 });
 
+// AI Match Analysis for Inbox Products
+router.post('/analyze-match', auth, async (req, res) => {
+    try {
+        const { productName, globalProducts } = req.body;
+        if (!productName || !globalProducts) {
+            return res.status(400).json({ error: 'Product name and global products list required' });
+        }
+
+        // Pre-filter: find the most relevant global products based on word overlap
+        const searchWords = productName.toLowerCase().split(/[\s,.-]+/).filter(w => w.length >= 2);
+        const scoredGlobals = globalProducts.map(gp => {
+            let score = 0;
+            const gpName = (gp.name || '').toLowerCase();
+            searchWords.forEach(word => {
+                if (gpName.includes(word)) score += word.length;
+            });
+            // Exact match or contains exact name bonus
+            if (gpName === productName.toLowerCase()) score += 100;
+            if (gpName.includes(productName.toLowerCase())) score += 50;
+            return { id: gp.id, name: gp.name, score };
+        });
+
+        const filteredGlobals = scoredGlobals
+            .filter(gp => gp.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 50);
+
+        // If no score-based matches, just take the first 50 as fallback
+        const finalGlobals = filteredGlobals.length > 0 
+            ? filteredGlobals.map(p => ({ id: p.id, name: p.name }))
+            : globalProducts.slice(0, 50).map(p => ({ id: p.id, name: p.name }));
+
+        const setting = await Settings.findOne({ where: { key: 'openai_key' } });
+        if (!setting || !setting.value) {
+            return res.status(400).json({ error: 'OpenAI API Key not configured' });
+        }
+
+        const openai = new OpenAI({ apiKey: setting.value });
+
+        const prompt = `
+        Analysiere dieses Produkt aus der "Inbox": "${productName}"
+        
+        Hier ist eine Liste vorhandener "Globaler Produkte":
+        ${JSON.stringify(finalGlobals)}
+        
+        Deine Aufgabe:
+        Prüfe, ob das Inbox-Produkt bereits als globales Produkt existiert.
+        Es kann eine andere Schreibweise, ein Synonym oder etwas spezifischer sein.
+        
+        WICHTIG:
+        - Antworte NUR mit gültigem JSON.
+        - Gib bis zu 3 mögliche Übereinstimmungen zurück im Array "matches".
+        - Sortiere nach Wahrscheinlichkeit (Konfidenz).
+        - "id" muss die ID aus der bereitgestellten Liste sein.
+        - "reason" muss eine kurze deutsche Begründung sein (max 60 Zeichen).
+        - "confidence" ist ein Wert von 0-100.
+        
+        Format:
+        {
+            "matches": [
+                { "id": 123, "name": "Globaler Name", "confidence": 95, "reason": "Identisch, nur andere Schreibweise" }
+            ]
+        }
+        `;
+
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" }
+        });
+
+        const result = JSON.parse(completion.choices[0].message.content);
+        await creditService.deductCredits(req.user.effectiveId, 'TEXT', `KI Match-Suche: ${productName}`);
+
+        res.json(result);
+
+    } catch (err) {
+        console.error('AI Match Analyze Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

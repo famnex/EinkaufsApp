@@ -5,8 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Card } from '../components/Card';
-import { LogIn, ShoppingBag } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { LogIn, ShoppingBag, Mail, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 // ThemeToggle removed as it's in PublicLayout
 import api from '../lib/axios';
 import PublicLayout from '../components/PublicLayout';
@@ -17,6 +17,8 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [resendLoading, setResendLoading] = useState(false);
+    const [resendSuccess, setResendSuccess] = useState('');
     const [regEnabled, setRegEnabled] = useState(true);
     const { login, user } = useAuth();
     const navigate = useNavigate();
@@ -48,14 +50,33 @@ export default function LoginPage() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setResendSuccess('');
         setIsLoading(true);
         try {
             await login(email, password);
             navigate(from, { replace: true });
         } catch (err) {
+            console.error('Login error:', err.response?.data);
             setError(err.response?.data?.error || 'Anmeldung fehlgeschlagen. Bitte überprüfe deine Zugangsdaten.');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleResendVerification = async () => {
+        if (!email) {
+            setError('Bitte gib deine E-Mail-Adresse ein.');
+            return;
+        }
+        setResendLoading(true);
+        setError('');
+        try {
+            const { data } = await api.post('/auth/resend-verification', { email });
+            setResendSuccess(data.message);
+        } catch (err) {
+            setError(err.response?.data?.error || 'Fehler beim Senden der Bestätigungs-E-Mail.');
+        } finally {
+            setResendLoading(false);
         }
     };
 
@@ -173,12 +194,39 @@ export default function LoginPage() {
                                                 Bitte bestätige zuerst deine E-Mail-Adresse. Wir haben dir einen Bestätigungslink gesendet.
                                                 Schau bitte auch in deinen <span className="font-bold underline">Spam-Ordner</span>.
                                             </p>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="mt-2 w-fit bg-amber-500/5 border-amber-500/20 hover:bg-amber-500/10 text-amber-700 dark:text-amber-400 gap-2 h-9"
+                                                onClick={handleResendVerification}
+                                                disabled={resendLoading}
+                                            >
+                                                {resendLoading ? <RefreshCw size={14} className="animate-spin" /> : <Mail size={14} />}
+                                                Link erneut senden
+                                            </Button>
                                         </>
                                     ) : (
                                         error
                                     )}
                                 </motion.div>
                             )}
+
+                            <AnimatePresence>
+                                {resendSuccess && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="p-4 rounded-xl border bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-500 text-xs flex flex-col gap-2"
+                                    >
+                                        <div className="flex items-center gap-2 font-bold text-sm">
+                                            <CheckCircle2 size={16} /> Gesendet!
+                                        </div>
+                                        <p>{resendSuccess}</p>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
 
                             <motion.div
                                 initial={{ y: 20, opacity: 0 }}

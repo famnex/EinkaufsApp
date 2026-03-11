@@ -5,16 +5,25 @@ import { ShoppingCart, Plus, Trash2, Calendar, ChevronRight, Settings, X, List, 
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEditMode } from '../contexts/EditModeContext';
+import { useForkyTutorial } from '../contexts/ForkyTutorialContext';
+import { forkyTutorials } from '../lib/forkyTutorials';
 
 export default function Lists() {
     const { editMode } = useEditMode();
     const [lists, setLists] = useState([]);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
+    const { startTutorial } = useForkyTutorial();
 
     useEffect(() => {
         fetchLists();
     }, []);
+
+    // Start Forky short tutorial on first visit
+    useEffect(() => {
+        const timer = setTimeout(() => startTutorial('lists', forkyTutorials.lists), 1000);
+        return () => clearTimeout(timer);
+    }, [startTutorial]);
 
     const fetchLists = async () => {
         try {

@@ -32,7 +32,7 @@ export default function TutorialWelcomeModal({ isOpen, onClose, onStartChapter, 
                     <div className="p-6 sm:p-8 overflow-y-auto flex-1 custom-scrollbar">
                         <div className="flex justify-between items-start mb-6">
                             <div>
-                                <h2 className="text-2xl sm:text-3xl font-black mb-2">Willkommen bei GabelGuru!</h2>
+                                <h2 className="text-2xl sm:text-3xl font-black mb-2">GabelGuru im Tutorial kennenlernen!</h2>
                                 <p className="text-muted-foreground">Lerne in wenigen Schritten, wie du deine Einkäufe und Mahlzeiten perfekt planst.</p>
                             </div>
                             <button onClick={onClose} className="p-2 hover:bg-muted rounded-xl transition-colors">
@@ -55,21 +55,7 @@ export default function TutorialWelcomeModal({ isOpen, onClose, onStartChapter, 
                             ))}
                         </div>
 
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-6 border-t border-border">
-                            <label className="flex items-center gap-3 cursor-pointer select-none group">
-                                <div className="relative">
-                                    <input
-                                        type="checkbox"
-                                        className="sr-only"
-                                        checked={showOnStart}
-                                        onChange={(e) => onToggleShowOnStart(e.target.checked)}
-                                    />
-                                    <div className={`w-12 h-6 rounded-full transition-colors ${showOnStart ? 'bg-primary' : 'bg-muted'}`} />
-                                    <div className={`absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform ${showOnStart ? 'translate-x-6' : 'translate-x-0'}`} />
-                                </div>
-                                <span className="text-sm font-medium group-hover:text-primary transition-colors">Beim Starten Tutorial anzeigen</span>
-                            </label>
-
+                        <div className="flex flex-col sm:flex-row items-center justify-end gap-6 pt-6 border-t border-border">
                             <div className="flex gap-3 w-full sm:w-auto">
                                 <Button variant="outline" onClick={onClose} className="flex-1 sm:flex-none">
                                     Später

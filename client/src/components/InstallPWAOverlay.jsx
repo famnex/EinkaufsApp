@@ -4,13 +4,18 @@ import { X, Share, MoreVertical, PlusSquare, Smartphone, ArrowBigUp } from 'luci
 import { Button } from './Button';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
+import { useStartup } from '../contexts/StartupContext';
 
 export default function InstallPWAOverlay() {
     const { user } = useAuth();
+    const { canShowPwaOverlay, isOnboardingActive, isNewsPopupActive, isForkyActive } = useStartup();
     const [show, setShow] = useState(false);
     const [platform, setPlatform] = useState(null); // 'ios', 'android'
 
     useEffect(() => {
+        // Wait until it's our turn in the startup sequence
+        if (!canShowPwaOverlay) return;
+
         // 1. Check if running in standalone mode
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
         if (isStandalone) return;
@@ -38,7 +43,7 @@ export default function InstallPWAOverlay() {
         setPlatform(isIos ? 'ios' : 'android');
         const timer = setTimeout(() => setShow(true), 3000);
         return () => clearTimeout(timer);
-    }, []);
+    }, [user, canShowPwaOverlay]);
 
     const dismiss = () => {
         setShow(false);

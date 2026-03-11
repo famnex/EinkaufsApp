@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, Sun, Soup, Utensils, Apple, Check, ChevronDown, CarFront } from 'lucide-react';
+import { X, Calendar, Sun, Soup, Utensils, Apple, Check, ChevronDown, CarFront, Minus, Plus } from 'lucide-react';
 import api from '../lib/axios';
 import { Button } from './Button';
 import { cn } from '../lib/utils'; // Ensure cn utility is available
@@ -14,20 +14,24 @@ const MEAL_TYPES = [
     { id: 'snack', label: 'Snack', icon: Apple },
 ];
 
-export default function ScheduleModal({ isOpen, onClose, recipe }) {
+export default function ScheduleModal({ isOpen, onClose, onSuccess, recipe }) {
     useLockBodyScroll(isOpen);
     const { notifyAction } = useTutorial();
     const [dates, setDates] = useState([]);
     const [existingMenus, setExistingMenus] = useState([]);
     const [loading, setLoading] = useState(false);
     const [visibleDays, setVisibleDays] = useState(7);
+    const [portions, setPortions] = useState(2);
 
     useEffect(() => {
         if (isOpen) {
             generateDates();
             fetchExistingMenus();
+            if (recipe) {
+                setPortions(recipe.selectedPortions || recipe.servings || 2);
+            }
         }
-    }, [isOpen, visibleDays]);
+    }, [isOpen, visibleDays, recipe]);
 
     const generateDates = () => {
         const list = [];
@@ -74,19 +78,22 @@ export default function ScheduleModal({ isOpen, onClose, recipe }) {
                 // Update existing
                 await api.put(`/menus/${existing.id}`, {
                     RecipeId: recipe.id,
-                    description: null // Clear manual description if any
+                    description: null, // Clear manual description if any
+                    portions: portions
                 });
             } else {
                 // Create new
                 await api.post('/menus', {
                     date: dateStr,
                     meal_type: typeId,
-                    RecipeId: recipe.id
+                    RecipeId: recipe.id,
+                    portions: portions
                 });
             }
             alert(`"${recipe.title}" erfolgreich eingeplant!`);
             notifyAction('recipe-planned');
-            onClose();
+            if (onSuccess) onSuccess();
+            else onClose();
         } catch (err) {
             console.error(err);
             alert('Fehler beim Einplanen: ' + err.message);
@@ -121,6 +128,26 @@ export default function ScheduleModal({ isOpen, onClose, recipe }) {
                         <button onClick={onClose} className="p-2 hover:bg-black/10 rounded-full transition-colors">
                             <X size={20} />
                         </button>
+                    </div>
+
+                    {/* Portion Adjuster */}
+                    <div className="px-4 pt-4 flex items-center justify-between">
+                        <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Portionen</span>
+                        <div className="flex items-center gap-3 bg-muted/50 rounded-xl p-1 border border-border">
+                            <button
+                                onClick={() => setPortions(Math.max(1, portions - 1))}
+                                className="w-8 h-8 flex items-center justify-center bg-card rounded-lg shadow-sm text-foreground hover:bg-primary/20 hover:text-primary transition-colors border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            >
+                                <Minus size={16} />
+                            </button>
+                            <span className="w-8 text-center font-bold text-lg">{portions}</span>
+                            <button
+                                onClick={() => setPortions(portions + 1)}
+                                className="w-8 h-8 flex items-center justify-center bg-card rounded-lg shadow-sm text-foreground hover:bg-primary/20 hover:text-primary transition-colors border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            >
+                                <Plus size={16} />
+                            </button>
+                        </div>
                     </div>
 
                     {/* Scrollable Content */}

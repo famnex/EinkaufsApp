@@ -401,6 +401,8 @@ router.get('/:id', auth, async (req, res) => {
         let whereCondition = {};
         if (reqId === 0) {
             whereCondition.id = 0;
+        } else if (req.user.role === 'admin') {
+            whereCondition = { id: reqId };
         } else {
             whereCondition = {
                 id: reqId,

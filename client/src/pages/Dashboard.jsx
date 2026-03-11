@@ -10,7 +10,10 @@ import { cn } from '../lib/utils';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { useAuth } from '../contexts/AuthContext';
 import { useTutorial } from '../contexts/TutorialContext';
+import { useForkyTutorial } from '../contexts/ForkyTutorialContext';
+import { forkyTutorials } from '../lib/forkyTutorials';
 import { tutorialChapters } from '../lib/tutorialSteps';
+import OnboardingModal from '../components/OnboardingModal';
 
 export default function Dashboard() {
     const { editMode } = useEditMode();
@@ -23,6 +26,7 @@ export default function Dashboard() {
     const [direction, setDirection] = useState(0);
     const navigate = useNavigate();
     const { activeChapter, startChapter, initializeDriver, driverObj, notifyAction, setIsWelcomeOpen } = useTutorial();
+    const { startTutorial } = useForkyTutorial();
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
 
     useEffect(() => {
@@ -254,13 +258,16 @@ export default function Dashboard() {
         fetchMenus();
     }, [fetchLists, fetchMenus]);
 
-    // Check for tutorial auto-open
+    // Start Forky short tutorial on first visit
     useEffect(() => {
-        if (user?.showAppTutorial && !sessionStorage.getItem('dashboardWelcomeShown')) {
-            sessionStorage.setItem('dashboardWelcomeShown', 'true');
-            setIsWelcomeOpen(true);
-        }
-    }, [user, setIsWelcomeOpen]);
+        const timer = setTimeout(() => {
+            if (forkyTutorials.lists) {
+                startTutorial('lists', forkyTutorials.lists);
+            }
+        }, 1000);
+        return () => clearTimeout(timer);
+    }, [startTutorial]);
+
 
     const handleToggleShowTutorial = async (value) => {
         // This is now handled in TutorialContext via handleToggleShowTutorial
@@ -431,59 +438,63 @@ export default function Dashboard() {
         <LoadingOverlay isLoading={loading}>
             <div className="space-y-4">
                 {/* Info Box */}
-                <div className="mt-4" id="quick-access-container">
-                    <div className="bg-primary rounded-2xl p-2 grid grid-cols-2 gap-2">
+                <div className="bg-primary rounded-3xl p-4 md:p-6 text-primary-foreground shadow-xl relative overflow-hidden mt-4" id="quick-access-container">
+                    <div className="flex gap-2 min-w-0 relative z-10">
                         {/* Nächster Einkauf */}
-                        <button
-                            onClick={() => nextShopping && navigate(`/lists/${nextShopping.id}`)}
-                            className={cn(
-                                "flex items-center gap-2 p-2 rounded-xl transition-all text-left",
-                                nextShopping
-                                    ? "bg-white/15 hover:bg-white/25 cursor-pointer active:scale-[0.97]"
-                                    : "bg-white/5 opacity-50 cursor-default"
-                            )}
-                        >
-                            <ShoppingCart size={18} className="text-white shrink-0" />
-                            <div className="min-w-0">
-                                <div className="text-[9px] uppercase tracking-widest font-bold text-white/80">
-                                    Nächster Einkauf
+                        {(user?.onboardingPreferences?.shopping !== false) && (
+                            <button
+                                onClick={() => nextShopping && navigate(`/lists/${nextShopping.id}`)}
+                                className={cn(
+                                    "flex-1 flex items-center gap-2 p-2 rounded-xl transition-all text-left truncate",
+                                    nextShopping
+                                        ? "bg-white/10 hover:bg-white/20 cursor-pointer active:scale-[0.97]"
+                                        : "bg-white/5 opacity-50 cursor-default"
+                                )}
+                            >
+                                <ShoppingCart size={18} className="text-white shrink-0" />
+                                <div className="min-w-0">
+                                    <div className="text-[9px] uppercase tracking-widest font-bold text-white/80">
+                                        Nächster Einkauf
+                                    </div>
+                                    <div className="text-xs font-bold text-white truncate">
+                                        {nextShopping
+                                            ? (() => {
+                                                const d = new Date(nextShopping.date + 'T12:00:00');
+                                                return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+                                            })()
+                                            : 'Nicht geplant'
+                                        }
+                                    </div>
                                 </div>
-                                <div className="text-xs font-bold text-white truncate">
-                                    {nextShopping
-                                        ? (() => {
-                                            const d = new Date(nextShopping.date + 'T12:00:00');
-                                            return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
-                                        })()
-                                        : 'Nicht geplant'
-                                    }
-                                </div>
-                            </div>
-                        </button>
+                            </button>
+                        )}
 
                         {/* Nächstes Rezept */}
-                        <button
-                            onClick={() => {
-                                if (nextRecipe) {
-                                    navigate('/recipes', { state: { openRecipeId: nextRecipe.recipe.id, startCooking: true } });
-                                }
-                            }}
-                            className={cn(
-                                "flex items-center gap-2 p-2 rounded-xl transition-all text-left",
-                                nextRecipe
-                                    ? "bg-white/15 hover:bg-white/25 cursor-pointer active:scale-[0.97]"
-                                    : "bg-white/5 opacity-50 cursor-default"
-                            )}
-                        >
-                            <ChefHat size={18} className="text-white shrink-0" />
-                            <div className="flex-1 min-w-0">
-                                <div className="text-[9px] uppercase tracking-widest font-bold text-white/80">
-                                    {nextRecipe ? nextRecipe.mealLabel : 'Nächstes Rezept'}
+                        {(user?.onboardingPreferences?.planning !== false && user?.onboardingPreferences?.recipes !== false) && (
+                            <button
+                                onClick={() => {
+                                    if (nextRecipe) {
+                                        navigate('/recipes', { state: { openRecipeId: nextRecipe.recipe.id, startCooking: true } });
+                                    }
+                                }}
+                                className={cn(
+                                    "flex-1 flex items-center gap-2 p-2 rounded-xl transition-all text-left",
+                                    nextRecipe
+                                        ? "bg-white/15 hover:bg-white/25 cursor-pointer active:scale-[0.97]"
+                                        : "bg-white/5 opacity-50 cursor-default"
+                                )}
+                            >
+                                <ChefHat size={18} className="text-white shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-[9px] uppercase tracking-widest font-bold text-white/80">
+                                        {nextRecipe ? nextRecipe.mealLabel : 'Nächstes Rezept'}
+                                    </div>
+                                    <div className="text-xs font-bold text-white truncate">
+                                        {nextRecipe ? nextRecipe.recipe.title : 'Heute keine Rezepte'}
+                                    </div>
                                 </div>
-                                <div className="text-xs font-bold text-white truncate">
-                                    {nextRecipe ? nextRecipe.recipe.title : 'Heute keine Rezepte'}
-                                </div>
-                            </div>
-                        </button>
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -654,6 +665,13 @@ export default function Dashboard() {
                     border: 2px solid var(--ref-teal) !important;
                 }
             `}} />
+
+                <OnboardingModal
+                    isOpen={user && !user.isOnboardingCompleted}
+                    onComplete={() => {
+                        // Modal will close automatically because user.isOnboardingCompleted becomes true
+                    }}
+                />
             </div >
         </LoadingOverlay>
     );

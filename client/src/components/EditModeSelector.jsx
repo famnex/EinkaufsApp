@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Edit3, Eye, Plus, Trash2, X } from 'lucide-react';
+import { Edit3, Eye, Lock, Plus, Trash2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
 import { useTutorial } from '../contexts/TutorialContext';
@@ -11,6 +11,7 @@ export default function EditModeSelector({ editMode, setEditMode, hiddenModes = 
 
     const allModes = [
         { id: 'view', icon: Eye, label: 'Vorschau' },
+        { id: 'lock', icon: Lock, label: 'Gesperrt' },
         { id: 'create', icon: Plus, label: 'Erstellen' },
         { id: 'edit', icon: Edit3, label: 'Bearbeiten' },
         { id: 'delete', icon: Trash2, label: 'Löschen' }
@@ -47,6 +48,44 @@ export default function EditModeSelector({ editMode, setEditMode, hiddenModes = 
             return () => clearTimeout(timer);
         }
     }, [isOpen, notifyAction]);
+
+    // Wake Lock Implementation
+    useEffect(() => {
+        let wakeLock = null;
+
+        const requestWakeLock = async () => {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Wake Lock is active');
+                } catch (err) {
+                    console.error(`${err.name}, ${err.message}`);
+                }
+            }
+        };
+
+        if (editMode === 'lock') {
+            requestWakeLock();
+        }
+
+        const handleVisibilityChange = async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible' && editMode === 'lock') {
+                await requestWakeLock();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            if (wakeLock !== null) {
+                wakeLock.release().then(() => {
+                    wakeLock = null;
+                    console.log('Wake Lock released');
+                });
+            }
+        };
+    }, [editMode]);
 
     const handleSelect = (modeId) => {
         setEditMode(modeId);

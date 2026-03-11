@@ -5,25 +5,34 @@ import { motion } from 'framer-motion';
 
 import { useAuth } from '../contexts/AuthContext';
 import { useTutorial } from '../contexts/TutorialContext';
-import { GraduationCap } from 'lucide-react';
 
 export default function BottomNav() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { notificationCounts } = useAuth();
+    const { notificationCounts, user } = useAuth();
     const { setIsWelcomeOpen } = useTutorial();
 
     const tabs = [
-        { id: 'dashboard', icon: List, path: '/', label: 'Listen', tutorialId: 'nav-lists' },
-        { id: 'menu', icon: CalendarRange, path: '/menu', label: 'Menüplan', tutorialId: 'nav-planner' },
-        { id: 'recipes', icon: UtensilsCrossed, path: '/recipes', label: 'Rezepte', tutorialId: 'nav-recipes' },
-        { id: 'community', icon: BookOpen, path: '/community-cookbooks', label: 'Community', tutorialId: 'nav-community' },
-        { id: 'tutorial', icon: GraduationCap, isAction: true, label: 'Tutorial' },
+        { id: 'dashboard', icon: List, path: '/', label: 'Listen', tutorialId: 'nav-lists', requirement: 'shopping' },
+        { id: 'menu', icon: CalendarRange, path: '/menu', label: 'Menüplan', tutorialId: 'nav-planner', requirement: 'planning' },
+        { id: 'recipes', icon: UtensilsCrossed, path: '/recipes', label: 'Rezepte', tutorialId: 'nav-recipes', requirement: 'recipes' },
+        { id: 'community', icon: BookOpen, path: '/community-cookbooks', label: 'Community', tutorialId: 'nav-community', requirement: 'recipes' },
         { id: 'settings', icon: Settings, path: '/settings', label: 'Optionen', tutorialId: 'bottom-settings-tab' },
-    ];
+    ].filter(tab => {
+        if (!tab.requirement) return true;
+        // If onboardingPreferences is missing (old user), show everything.
+        // Otherwise, only show if the specific feature was selected.
+        if (!user?.onboardingPreferences) return true;
+        return user.onboardingPreferences[tab.requirement] !== false;
+    });
 
     const isActive = (path) => path && location.pathname === path;
     const activeIndex = tabs.findIndex(tab => isActive(tab.path));
+
+    const gridCols = tabs.length === 5 ? 'grid-cols-5' :
+        tabs.length === 4 ? 'grid-cols-4' :
+            tabs.length === 3 ? 'grid-cols-3' :
+                tabs.length === 2 ? 'grid-cols-2' : 'grid-cols-1';
 
     return (
         <div
@@ -31,7 +40,7 @@ export default function BottomNav() {
             style={{ WebkitBackdropFilter: 'blur(20px)' }}
             id="bottom-nav"
         >
-            <div className="max-w-7xl mx-auto h-full grid grid-cols-6 relative px-2">
+            <div className={cn("max-w-7xl mx-auto h-full grid relative px-2", gridCols)}>
                 {/* Active Highlight Marker */}
                 {activeIndex !== -1 && (
                     <div className="absolute inset-y-0 left-2 right-2 pointer-events-none">
@@ -40,8 +49,8 @@ export default function BottomNav() {
                                 className="absolute top-2 bottom-2 bg-primary rounded-2xl shadow-lg shadow-primary/20"
                                 initial={false}
                                 animate={{
-                                    left: `${(activeIndex * 100) / 6}%`,
-                                    width: `${100 / 6}%`
+                                    left: `${(activeIndex * 100) / tabs.length}%`,
+                                    width: `${100 / tabs.length}%`
                                 }}
                                 transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
                             />

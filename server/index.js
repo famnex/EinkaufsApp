@@ -113,6 +113,7 @@ apiRouter.use('/variants', require('./src/routes/variants'));
 apiRouter.use('/intolerances', require('./src/routes/intolerances'));
 apiRouter.use('/substitutions', require('./src/routes/substitutions'));
 apiRouter.use('/feedback', require('./src/routes/feedback'));
+apiRouter.use('/app-messages', require('./src/routes/appMessages'));
 
 // Mount API
 app.use(`${BASE_PATH}/api`, apiRouter);

@@ -38,6 +38,13 @@
 - isCommunityVisible (Boolean)
 - cookbookClicks (Integer)
 - followNotificationsEnabled (Boolean, default true, controls email & push)
+- intoleranceDisclaimerAccepted (Boolean, default false)
+- isTrialUsed (Boolean, default false)
+- isOnboardingCompleted (Boolean, default false)
+- onboardingPreferences (JSON, nullable)
+- lastFollowedUpdatesCheck (DateTime, nullable)
+- lastFollowedUpdatesNudgeSent (DateTime, nullable)
+- forkyTutorialsSeen (JSON, nullable, default {}) – tracks which short Forky tutorial bubbles a user has already seen (keys: 'lists', 'menu', 'recipes', 'community', 'listdetail')
 
 ### PushSubscriptions
 - id (Integer, Primary Key)
@@ -275,6 +282,27 @@
 - UserId (Integer, Foreign Key -> Users)
 - createdAt (DateTime)
 - updatedAt (DateTime)
+ 
+ ### AppMessages
+ - id (Integer, Primary Key)
+ - title (String)
+ - text (String)
+ - recipientCount (Integer, default 0)
+ - createdAt (DateTime)
+ - updatedAt (DateTime)
+ 
+ ### UserAppMessageRead (M:N User <-> AppMessage)
+ - userId (Integer, Foreign Key -> Users)
+ - appMessageId (Integer, Foreign Key -> AppMessages)
+ - createdAt (DateTime)
+ 
+ ### PlannedRecipe
+ - id (Integer, Primary Key)
+ - RecipeId (Integer, Foreign Key -> Recipes)
+ - ListId (Integer, Foreign Key -> Lists)
+ - UserId (Integer, Foreign Key -> Users)
+ - createdAt (DateTime)
+ - updatedAt (DateTime)
 
 
 ## Changes
@@ -293,4 +321,6 @@
 - **v0.32.8**: Added `pushEnabled` to `User` table. Added `PushSubscriptions` table for Web Push notification management.
 - **v0.36.4**: Added `SentPushNotifications` table to track broadcast history.
 - **v0.36.8**: Added `ProductReports` table for user feedback on product errors.
-
+- **v0.36.9**: Added `forkyTutorialsSeen` (JSON) to `Users` table to track which short Forky tutorial bubbles (lists, menu, recipes, community, listdetail) a user has seen. Persisted via PATCH `/auth/profile/forky-tutorials` endpoint.
+- **v0.38.7**: Added `AppMessages` and `UserAppMessageRead` for in-app messaging system. Added `PlannedRecipe` for direct recipe-to-list planning.
+- **v0.40.0**: Redesigned tutorial spotlight system (SVG-based). Implemented strict startup sequence (Onboarding -> News -> Tutorial -> PWA). Optimized cookbook update email nudge logic.

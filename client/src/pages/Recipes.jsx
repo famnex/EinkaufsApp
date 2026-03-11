@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import api from '../lib/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices, ShieldAlert, Edit, Heart, RefreshCw, Menu, ArrowUpDown, ChevronDown, Lock, Instagram, Copy, X, Check, Eye, EyeOff, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Search, ChefHat, Clock, Users, Sparkles, MoreHorizontal, Share2, Calendar, Printer, ArrowLeft, ArrowRight, Dices, ShieldAlert, Edit, Heart, RefreshCw, Menu, ArrowUpDown, ChevronDown, Lock, Instagram, Copy, X, Check, Eye, EyeOff, ArrowUp, ArrowDown, Play, ShoppingCart } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
@@ -17,24 +17,46 @@ import ShareConfirmationModal from '../components/ShareConfirmationModal';
 import RecipeIntoleranceResolverModal from '../components/RecipeIntoleranceResolverModal';
 import RecipeSubstitutionsModal from '../components/RecipeSubstitutionsModal';
 import AiLockedModal from '../components/AiLockedModal';
+import RecipeToListModal from '../components/RecipeToListModal';
 import { cn, getImageUrl } from '../lib/utils';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { useTutorial } from '../contexts/TutorialContext';
+import { useForkyTutorial } from '../contexts/ForkyTutorialContext';
+import { forkyTutorials } from '../lib/forkyTutorials';
 
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Recipes() {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const { id: routeId } = useParams();
     const { notifyAction, activeChapter, currentStepIndex } = useTutorial();
+    const { startTutorial } = useForkyTutorial();
     const [recipes, setRecipes] = useState([]);
     const [menus, setMenus] = useState([]);
+    const [plannedRecipes, setPlannedRecipes] = useState([]);
 
     useEffect(() => {
         fetchRecipes();
         fetchMenus();
+        fetchPlannedRecipes();
     }, [activeChapter]);
+
+    // Start Forky short tutorial on first visit
+    useEffect(() => {
+        const timer = setTimeout(() => startTutorial('recipes', forkyTutorials.recipes), 1000);
+        return () => clearTimeout(timer);
+    }, [startTutorial]);
+
+    const fetchPlannedRecipes = async () => {
+        try {
+            const { data } = await api.get('/lists/planned-recipes/active');
+            setPlannedRecipes(data);
+        } catch (err) {
+            console.error('Failed to fetch planned recipes', err);
+        }
+    };
 
     const fetchMenus = async () => {
         try {
@@ -54,9 +76,14 @@ export default function Recipes() {
         const past = recipeMenus.filter(m => m.date < today).sort((a, b) => b.date.localeCompare(a.date));
         const future = recipeMenus.filter(m => m.date >= today).sort((a, b) => a.date.localeCompare(b.date));
 
+        const plannedList = plannedRecipes.find(pr => pr.RecipeId === recipeId);
+
         return {
             lastCooked: past.length > 0 ? new Date(past[0].date) : null,
-            nextPlanned: future.length > 0 ? new Date(future[0].date) : null
+            nextPlanned: future.length > 0 ? new Date(future[0].date) : null,
+            nextPlannedPortions: future.length > 0 ? future[0].portions : null,
+            isOnShoppingList: !!plannedList,
+            plannedListData: plannedList
         };
     };
 
@@ -81,6 +108,8 @@ export default function Recipes() {
     const [resolvingRecipe, setResolvingRecipe] = useState(null);
     const [resolvingConflicts, setResolvingConflicts] = useState([]);
     const [substitutionsRecipe, setSubstitutionsRecipe] = useState(null);
+    const [recipeToList, setRecipeToList] = useState(null);
+    const [wasOpenedFromSlotMachine, setWasOpenedFromSlotMachine] = useState(false);
 
     // Instagram Post Generation
     const [instaPostResult, setInstaPostResult] = useState(null);
@@ -134,11 +163,13 @@ export default function Recipes() {
 
     // Handle deep linking / navigation state
     useEffect(() => {
-        if (!loading && recipes.length > 0 && location.state?.openRecipeId && !deepLinkHandled.current) {
-            const target = recipes.find(r => r.id === location.state.openRecipeId);
+        if (!loading && recipes.length > 0 && (location.state?.openRecipeId || routeId) && !deepLinkHandled.current) {
+            const targetId = routeId ? parseInt(routeId) : location.state.openRecipeId;
+            const target = recipes.find(r => r.id === targetId);
+            
             if (target) {
                 deepLinkHandled.current = true;
-                if (location.state.startCooking) {
+                if (location.state?.startCooking) {
                     handleOpenCookingMode(target);
                 } else {
                     setSelectedRecipe(target);
@@ -146,9 +177,22 @@ export default function Recipes() {
                 }
                 // Clear state in history so refresh doesn't trigger it again
                 window.history.replaceState({}, document.title);
+            } else if (routeId && user?.role === 'admin') {
+                // Admin bypass: if not in list yet, fetch specifically
+                const fetchSpecific = async () => {
+                    try {
+                        const { data } = await api.get(`/recipes/${routeId}`);
+                        deepLinkHandled.current = true;
+                        setSelectedRecipe(data);
+                        setIsModalOpen(true);
+                    } catch (err) {
+                        console.error('Failed to fetch admin recipe', err);
+                    }
+                };
+                fetchSpecific();
             }
         }
-    }, [loading, recipes, location.state]);
+    }, [loading, recipes, location.state, routeId]);
 
     useEffect(() => {
         if (editMode === 'create') {
@@ -230,7 +274,17 @@ export default function Recipes() {
     const handleOpenCookingMode = async (recipe) => {
         try {
             // Fetch full recipe details with ingredients
-            const { data } = await api.get(`/recipes/${recipe.id}`);
+            const { data } = await api.get(`/recipes/${recipe.id}`, { skipCache: true });
+
+            // Attach planned portions if available
+            const status = getRecipeStatus(recipe.id);
+            if (status.nextPlanned && status.nextPlannedPortions) {
+                data.plannedPortions = status.nextPlannedPortions;
+            } else if (recipe.plannedPortions) {
+                // If passed directly via location.state
+                data.plannedPortions = recipe.plannedPortions;
+            }
+
             setCookingRecipe(data);
 
             // Fetch intolerance conflicts - filter out substituted products
@@ -308,6 +362,19 @@ export default function Recipes() {
         } catch (err) {
             console.error('Failed to prepare planning', err);
             setSchedulingRecipe(recipe);
+        }
+    };
+
+    const handleRecipeToListClick = async (recipe) => {
+        try {
+            setLoading(true);
+            const { data: fullRecipe } = await api.get(`/recipes/${recipe.id}`);
+            setRecipeToList(fullRecipe);
+        } catch (err) {
+            console.error('Failed to load recipe details for shopping list', err);
+            setRecipeToList(recipe);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -819,12 +886,22 @@ export default function Recipes() {
 
                 <SlotMachineModal
                     isOpen={isSlotMachineOpen}
-                    onClose={() => setIsSlotMachineOpen(false)}
+                    onClose={() => {
+                        setIsSlotMachineOpen(false);
+                        setWasOpenedFromSlotMachine(false);
+                    }}
                     recipes={recipes}
                     onSelect={(recipe) => {
-                        handlePlanClick(recipe);
+                        setWasOpenedFromSlotMachine(true);
+                        if (user?.onboardingPreferences?.planning !== false) {
+                            handlePlanClick(recipe);
+                        } else {
+                            handleOpenCookingMode(recipe);
+                        }
                         setIsSlotMachineOpen(false);
                     }}
+                    confirmLabel={user?.onboardingPreferences?.planning !== false ? "REZEPT EINPLANEN" : "REZEPT ÖFFNEN"}
+                    ActionIcon={user?.onboardingPreferences?.planning !== false ? Calendar : Play}
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -853,9 +930,11 @@ export default function Recipes() {
                                     }}
                                     className={cn(
                                         "cursor-pointer group relative transition-all duration-300 recipe-cook-btn",
+                                        index === 0 && "first-recipe-card",
                                         editMode === 'delete' && !isForeign ? 'ring-2 ring-destructive ring-offset-2 rounded-3xl' : '',
                                         openMenuId === recipe.id ? 'z-[40]' : 'z-10'
                                     )}
+                                    id={index === 0 ? "first-recipe-card" : undefined}
                                 >
                                     <Card className={cn(
                                         "h-full transition-all duration-300 bg-card flex flex-col relative overflow-visible", // overflow-hidden removed to allow Action Menu to protrude
@@ -977,7 +1056,20 @@ export default function Recipes() {
                                                 <ArrowRight size={12} className="text-white" />
                                                 <span>{status.nextPlanned.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>
                                             </div>
-                                        ) : status.lastCooked ? (
+                                        ) : null}
+
+                                        {/* Shopping List Badge */}
+                                        {status.isOnShoppingList && (
+                                            <div className={cn(
+                                                "absolute px-2 py-1 bg-primary text-white text-xs font-bold rounded-lg shadow-sm border border-white/20 z-10 flex items-center gap-1.5",
+                                                status.nextPlanned ? "top-10 left-2" : "top-2 left-2"
+                                            )}>
+                                                <ShoppingCart size={12} className="text-white" />
+                                                <span className="hidden md:inline">Auf Liste</span>
+                                                <span className="md:hidden">List</span>
+                                            </div>
+                                        )}
+                                        {status.lastCooked ? (
                                             <div className="absolute top-2 left-2 px-2 py-1 bg-orange-500/90 backdrop-blur-md text-white text-xs font-bold rounded-lg shadow-sm border border-orange-400/20 z-10 flex items-center gap-1.5">
                                                 <ArrowLeft size={12} className="text-white" />
                                                 <span>{status.lastCooked.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
@@ -987,6 +1079,7 @@ export default function Recipes() {
                                         {/* Action Menu Trigger - Outside overflow-hidden */}
                                         <div
                                             className="absolute top-2 right-2 z-20"
+                                            id={index === 0 ? "first-recipe-action-menu" : undefined}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setOpenMenuId(openMenuId === recipe.id ? null : recipe.id);
@@ -1053,30 +1146,32 @@ export default function Recipes() {
                                                                 </button>
                                                             )}
 
-                                                            <button
-                                                                className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground recipe-schedule-btn"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handlePlanClick(recipe);
-                                                                    setOpenMenuId(null);
-                                                                    notifyAction('recipe-schedule');
-                                                                }}
-                                                            >
-                                                                <Calendar size={16} />
-                                                                Einplanen
-                                                            </button>
-
-                                                            {user?.role === 'admin' && (
+                                                            {user?.onboardingPreferences?.planning !== false && (
                                                                 <button
-                                                                    className="w-full text-left px-4 py-3 text-sm text-pink-500 hover:bg-white/10 flex items-center gap-3 transition-colors font-bold"
+                                                                    className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground recipe-schedule-btn"
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
-                                                                        handleGenerateInstaPost(recipe);
+                                                                        handlePlanClick(recipe);
+                                                                        setOpenMenuId(null);
+                                                                        notifyAction('recipe-schedule');
+                                                                    }}
+                                                                >
+                                                                    <Calendar size={16} />
+                                                                    Einplanen
+                                                                </button>
+                                                            )}
+
+                                                            {user?.onboardingPreferences?.shopping !== false && (
+                                                                <button
+                                                                    className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleRecipeToListClick(recipe);
                                                                         setOpenMenuId(null);
                                                                     }}
                                                                 >
-                                                                    <Instagram size={16} />
-                                                                    Instagram Post
+                                                                    <ShoppingCart size={16} />
+                                                                    {status.isOnShoppingList ? 'Einstellungen Einkaufsliste' : 'Zur Einkaufliste hinzufügen'}
                                                                 </button>
                                                             )}
 
@@ -1122,6 +1217,20 @@ export default function Recipes() {
                                                             )}
 
                                                             <div className="h-px bg-white/10 mx-2 my-1" />
+
+                                                            {user?.role === 'admin' && (
+                                                                <button
+                                                                    className="w-full text-left px-4 py-3 text-sm text-pink-500 hover:bg-white/10 flex items-center gap-3 transition-colors font-bold"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleGenerateInstaPost(recipe);
+                                                                        setOpenMenuId(null);
+                                                                    }}
+                                                                >
+                                                                    <Instagram size={16} />
+                                                                    Instagram Post
+                                                                </button>
+                                                            )}
 
                                                             <button
                                                                 className="w-full text-left px-4 py-3 text-sm text-popover-foreground hover:bg-white/10 flex items-center gap-3 transition-colors text-foreground"
@@ -1215,14 +1324,25 @@ export default function Recipes() {
                             onClose={() => {
                                 setCookingRecipe(null);
                                 setCookingConflicts([]);
+                                fetchRecipes();
                             }}
+                            onRecipeUpdate={() => handleOpenCookingMode(cookingRecipe)}
                         />
                     )
                 }
 
                 <ScheduleModal
                     isOpen={!!schedulingRecipe}
-                    onClose={() => setSchedulingRecipe(null)}
+                    onClose={() => {
+                        setSchedulingRecipe(null);
+                        if (wasOpenedFromSlotMachine) {
+                            setIsSlotMachineOpen(true);
+                        }
+                    }}
+                    onSuccess={() => {
+                        setSchedulingRecipe(null);
+                        setWasOpenedFromSlotMachine(false);
+                    }}
                     recipe={schedulingRecipe}
                 />
 
@@ -1262,6 +1382,14 @@ export default function Recipes() {
                     onClose={() => setIsAiLockedOpen(false)}
                     featureName="AI Import"
                 />
+
+                {recipeToList && (
+                    <RecipeToListModal
+                        isOpen={!!recipeToList}
+                        onClose={() => setRecipeToList(null)}
+                        recipe={recipeToList}
+                    />
+                )}
 
                 {/* Instagram Post Modal */}
                 <AnimatePresence>

@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, AlertTriangle, AlertCircle, HelpCircle } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Check, Minus, Plus, AlertCircle, HelpCircle } from 'lucide-react';
 import { Button } from './Button';
-import CookingExitModal from './CookingExitModal';
 import { cn, getImageUrl } from '../lib/utils';
 import { sortIngredientsBySteps, findIngredientsInText } from '../lib/recipe-parser';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
@@ -14,7 +13,6 @@ export default function SharedCookingMode({ recipe, conflicts = [], onClose }) {
     const [textSize, setTextSize] = useState(1); // 0: Small, 1: Normal, 2: Large
     const [showIngredientsMobile, setShowIngredientsMobile] = useState(true); // For mobile toggle
     const [direction, setDirection] = useState(0);
-    const [isExitModalOpen, setIsExitModalOpen] = useState(false);
     const [substitutions, setSubstitutions] = useState({}); // { "Original Name": "New Name" }
 
     useLockBodyScroll(true);
@@ -172,30 +170,7 @@ export default function SharedCookingMode({ recipe, conflicts = [], onClose }) {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [step]);
 
-    useEffect(() => {
-        if (recipe?.id) {
-            fetchSavedSubstitutions();
-        }
-    }, [recipe?.id]);
-
-    const fetchSavedSubstitutions = async () => {
-        try {
-            const { data } = await api.get(`/substitutions/recipe/${recipe.id}`);
-            const subMap = {};
-            data.forEach(sub => {
-                if (sub.OriginalProduct?.name && sub.SubstituteProduct?.name) {
-                    subMap[sub.OriginalProduct.name] = {
-                        name: sub.SubstituteProduct.name,
-                        quantity: sub.substituteQuantity,
-                        unit: sub.substituteUnit
-                    };
-                }
-            });
-            setSubstitutions(subMap);
-        } catch (err) {
-            console.error('Failed to fetch saved substitutions', err);
-        }
-    };
+    // fetchSavedSubstitutions is removed because data is now provided in 'recipe' prop for public recipes
 
     // Screen Wake Lock - Keep screen on while cooking
     useEffect(() => {
@@ -307,7 +282,7 @@ export default function SharedCookingMode({ recipe, conflicts = [], onClose }) {
                     {/* Top Row: Title & Close */}
                     <div className="flex items-center justify-between p-4 pb-2">
                         <h3 className="font-bold truncate pr-4 text-lg">{recipe.title}</h3>
-                        <Button variant="ghost" size="icon" onClick={() => setIsExitModalOpen(true)} className="-mr-2">
+                        <Button variant="ghost" size="icon" onClick={onClose} className="-mr-2">
                             <X size={24} />
                         </Button>
                     </div>
@@ -337,7 +312,7 @@ export default function SharedCookingMode({ recipe, conflicts = [], onClose }) {
 
                     {/* Close Button & Controls (Top Right Overlay) - Desktop Only */}
                     <div className="absolute top-4 right-4 z-50 hidden md:flex gap-2">
-                        <Button variant="secondary" onClick={() => setIsExitModalOpen(true)} className="rounded-full w-12 h-12 p-0 shadow-lg">
+                        <Button variant="secondary" onClick={onClose} className="rounded-full w-12 h-12 p-0 shadow-lg">
                             <X size={24} />
                         </Button>
                     </div>
@@ -578,7 +553,7 @@ export default function SharedCookingMode({ recipe, conflicts = [], onClose }) {
                             </div>
 
                             <Button
-                                onClick={step === steps.length - 1 ? () => setIsExitModalOpen(true) : nextStep}
+                                onClick={step === steps.length - 1 ? onClose : nextStep}
                                 className={cn(
                                     "h-14 px-8 rounded-2xl text-lg flex-1 md:flex-none shadow-xl",
                                     step === steps.length - 1 ? "bg-green-600 hover:bg-green-700 text-white" : "bg-primary text-primary-foreground"
@@ -601,10 +576,10 @@ export default function SharedCookingMode({ recipe, conflicts = [], onClose }) {
                             initial={{ opacity: 0, y: 10, scale: 0.9 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
-                            className="fixed z-[300] p-3 bg-card/90 backdrop-blur-md text-card-foreground text-sm rounded-xl shadow-xl border border-border pointer-events-none transform -translate-x-1/2 -translate-y-full min-w-[150px]"
+                            className="fixed z-[300] p-3 bg-card/95 backdrop-blur-md text-card-foreground text-sm rounded-xl shadow-xl border border-border pointer-events-none transform -translate-x-1/2 -translate-y-full min-w-[150px]"
                             style={{
-                                top: ingredientTooltip.y,
-                                left: ingredientTooltip.x,
+                                top: Math.max(10, Math.min(window.innerHeight - 100, ingredientTooltip.y)),
+                                left: Math.max(80, Math.min(window.innerWidth - 80, ingredientTooltip.x)),
                             }}
                         >
                             <div className="font-bold text-lg whitespace-nowrap">
@@ -614,19 +589,6 @@ export default function SharedCookingMode({ recipe, conflicts = [], onClose }) {
                                 {ingredientTooltip.ingredient.name}
                                 {ingredientTooltip.ingredient.isOptional && <span className="ml-1 text-[10px]">(optional)</span>}
                             </div>
-                            {ingredientTooltip.conflicts && (
-                                <div className="mt-2 pt-2 border-t border-border/50 space-y-1">
-                                    <div className={cn("font-bold text-[10px] flex items-center gap-1 mb-1", ingredientTooltip.conflicts.maxProbability >= 80 ? "text-destructive" : "text-orange-500")}>
-                                        {ingredientTooltip.conflicts.maxProbability >= 80 ? <AlertCircle size={12} /> : <HelpCircle size={12} />}
-                                        {ingredientTooltip.conflicts.maxProbability >= 80 ? 'Achtung!' : 'Hinweis'} ({ingredientTooltip.conflicts.maxProbability}%)
-                                    </div>
-                                    {ingredientTooltip.conflicts.messages.map((msg, i) => (
-                                        <div key={i} className={cn("text-[10px] font-medium leading-tight", ingredientTooltip.conflicts.maxProbability >= 80 ? "text-destructive/80" : "text-orange-500/80")}>
-                                            {msg}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
                         </motion.div>
                     )}
 
@@ -661,13 +623,6 @@ export default function SharedCookingMode({ recipe, conflicts = [], onClose }) {
                         </motion.div>
                     )}
                 </AnimatePresence>
-                <CookingExitModal
-                    isOpen={isExitModalOpen}
-                    onClose={() => setIsExitModalOpen(false)}
-                    onConfirm={onClose}
-                    hasPaidAi={false}
-                    isSilbergabel={false}
-                />
             </motion.div>
         </AnimatePresence>
     );

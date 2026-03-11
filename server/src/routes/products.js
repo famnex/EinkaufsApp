@@ -69,6 +69,19 @@ router.post('/:id/globalize', auth, admin, async (req, res) => {
             await product.setIntolerances(intoleranceIds || [], { transaction: t });
         }
 
+        // Create auto-exclusion for the AI Cleanup pipeline if not exists
+        const existingHidden = await HiddenCleanup.findOne({
+            where: { ProductId: product.id, context: 'pipeline', UserId: null },
+            transaction: t
+        });
+        if (!existingHidden) {
+            await HiddenCleanup.create({ 
+                ProductId: product.id, 
+                context: 'pipeline', 
+                UserId: null // Global exclusion
+            }, { transaction: t });
+        }
+
         await t.commit();
         res.json({ message: 'Produkt erfolgreich globalisiert', product });
     } catch (err) {
@@ -104,7 +117,16 @@ router.get('/', auth, async (req, res) => {
             where,
             include: [
                 { model: Store, where: { UserId: req.user.effectiveId }, required: false },
-                { model: HiddenCleanup, where: { UserId: req.user.effectiveId }, required: false },
+                { 
+                    model: HiddenCleanup, 
+                    where: { 
+                        [sequelize.Sequelize.Op.or]: [
+                            { UserId: req.user.effectiveId },
+                            { UserId: null }
+                        ]
+                    }, 
+                    required: false 
+                },
                 {
                     model: ProductVariation,
                     where: {
@@ -214,7 +236,7 @@ router.put('/:id', auth, async (req, res) => {
 
         if (variations && Array.isArray(variations)) {
             // Simple sync: delete existing and recreat (can be optimized but safe for small lists)
-            await ProductVariation.destroy({ where: { ProductId: product.id, UserId: req.user.effectiveId }, transaction: t });
+            await ProductVariation.destroy({ where: { ProductId: product.id, UserId: product.UserId }, transaction: t });
             for (const v of variations) {
                 await ProductVariation.create({
                     ...v,
@@ -224,7 +246,7 @@ router.put('/:id', auth, async (req, res) => {
             }
         } else if (variations === null) {
             // Null explicitly passed means delete all variations
-            await ProductVariation.destroy({ where: { ProductId: product.id, UserId: req.user.effectiveId }, transaction: t });
+            await ProductVariation.destroy({ where: { ProductId: product.id, UserId: product.UserId }, transaction: t });
         }
 
         if (intolerances && Array.isArray(intolerances)) {
@@ -317,7 +339,7 @@ router.post('/merge', auth, async (req, res) => {
         }
 
         // 1. Update target name and synonyms if permitted
-        if (newName || (source.synonyms && source.synonyms.length > 0)) {
+        if (newName || (source.synonyms && source.synonyms.length > 0) || (source.name !== target.name)) {
             // Restriction: Only admins can change global target names/synonyms
             if (isTargetGlobal && !isAdmin) {
                 // Non-admins can still merge THEIR data into it, but not change the global product itself
@@ -382,6 +404,21 @@ router.post('/merge', auth, async (req, res) => {
         // 5. Delete Source
         await source.destroy({ transaction: t });
 
+        // 6. Create auto-exclusion for AI Cleanup if target is global
+        if (isTargetGlobal) {
+            const existingHidden = await HiddenCleanup.findOne({
+                where: { ProductId: target.id, context: 'pipeline', UserId: null },
+                transaction: t
+            });
+            if (!existingHidden) {
+                await HiddenCleanup.create({
+                    ProductId: target.id,
+                    context: 'pipeline',
+                    UserId: null
+                }, { transaction: t });
+            }
+        }
+
         await t.commit();
         res.json({ message: 'Zusammenführung erfolgreich', target });
     } catch (err) {
@@ -395,17 +432,19 @@ router.post('/merge', auth, async (req, res) => {
 router.get('/:id/usage', auth, async (req, res) => {
     try {
         const { Recipe, RecipeIngredient } = require('../models');
+        const targetProduct = await Product.findByPk(req.params.id);
+        if (!targetProduct) return res.status(404).json({ error: 'Produkt nicht gefunden' });
 
         const usage = await RecipeIngredient.findAll({
             where: {
                 ProductId: req.params.id,
-                UserId: req.user.effectiveId
+                UserId: targetProduct.UserId || req.user.effectiveId
             },
             include: [{
                 model: Recipe,
                 attributes: ['id', 'title']
             }],
-            attributes: ['originalName'] // If we have this field (from AI imports)
+            attributes: ['originalName']
         });
 
         // Format: { usageCount: X, recipes: [{ id, title, as: 'Original Name' }] }

@@ -137,7 +137,7 @@ router.get('/check-username', async (req, res) => {
 router.get('/me', auth, async (req, res) => {
     try {
         const user = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'followNotificationsEnabled', 'lastFollowedUpdatesCheck', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId', 'isTrialUsed', 'showAppTutorial']
+            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'followNotificationsEnabled', 'lastFollowedUpdatesCheck', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId', 'isTrialUsed', 'isOnboardingCompleted', 'onboardingPreferences', 'forkyTutorialsSeen']
         });
         if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -186,6 +186,44 @@ router.post('/accept-disclaimer', auth, async (req, res) => {
     }
 });
 
+// Complete Onboarding
+router.post('/onboarding/complete', auth, async (req, res) => {
+    try {
+        const { preferences } = req.body;
+        await User.update(
+            {
+                isOnboardingCompleted: true,
+                onboardingPreferences: preferences
+            },
+            { where: { id: req.user.id } }
+        );
+        res.json({ success: true });
+    } catch (err) {
+        logger.logError('Error completing onboarding:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Mark a Forky short tutorial as seen
+router.patch('/profile/forky-tutorials', auth, async (req, res) => {
+    try {
+        const { key } = req.body;
+        if (!key) return res.status(400).json({ error: 'key is required' });
+
+        const user = await User.findByPk(req.user.id, { attributes: ['id', 'forkyTutorialsSeen'] });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const current = user.forkyTutorialsSeen || {};
+        const updated = { ...current, [key]: true };
+        await user.update({ forkyTutorialsSeen: updated });
+
+        res.json({ success: true, forkyTutorialsSeen: updated });
+    } catch (err) {
+        logger.logError('Error marking Forky tutorial seen:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Get Credit History
 router.get('/credits', auth, async (req, res) => {
     try {
@@ -207,7 +245,7 @@ router.get('/credits', auth, async (req, res) => {
 // Update Profile (Title & Image)
 router.put('/profile', auth, upload.single('image'), async (req, res) => {
     try {
-        const { cookbookTitle, isPublicCookbook, isCommunityVisible, newsletterSignedUp, followNotificationsEnabled, showAppTutorial } = req.body;
+        const { cookbookTitle, isPublicCookbook, isCommunityVisible, newsletterSignedUp, followNotificationsEnabled } = req.body;
         const updates = {};
         if (cookbookTitle !== undefined) updates.cookbookTitle = cookbookTitle;
         if (isPublicCookbook !== undefined) {
@@ -219,7 +257,6 @@ router.put('/profile', auth, upload.single('image'), async (req, res) => {
         }
         if (isCommunityVisible !== undefined) updates.isCommunityVisible = isCommunityVisible;
         if (followNotificationsEnabled !== undefined) updates.followNotificationsEnabled = followNotificationsEnabled;
-        if (showAppTutorial !== undefined) updates.showAppTutorial = showAppTutorial;
         if (newsletterSignedUp !== undefined) {
             updates.newsletterSignedUp = newsletterSignedUp;
             updates.newsletterSignupDate = newsletterSignedUp ? new Date() : null;
@@ -232,7 +269,7 @@ router.put('/profile', auth, upload.single('image'), async (req, res) => {
 
         await User.update(updates, { where: { id: req.user.id } });
         const updatedUser = await User.findByPk(req.user.id, {
-            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'followNotificationsEnabled', 'lastFollowedUpdatesCheck', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId', 'isTrialUsed', 'showAppTutorial']
+            attributes: ['id', 'username', 'email', 'role', 'sharingKey', 'alexaApiKey', 'cookbookTitle', 'cookbookImage', 'householdId', 'isPublicCookbook', 'isCommunityVisible', 'tier', 'aiCredits', 'newsletterSignedUp', 'newsletterSignupDate', 'followNotificationsEnabled', 'lastFollowedUpdatesCheck', 'subscriptionExpiresAt', 'cancelAtPeriodEnd', 'stripeSubscriptionId', 'stripeCustomerId', 'isTrialUsed', 'isOnboardingCompleted', 'onboardingPreferences']
         });
         const userData = updatedUser.get({ plain: true });
         const targetUserId = updatedUser.householdId || updatedUser.id;
@@ -790,7 +827,7 @@ router.post('/login', async (req, res) => {
 
         const token = jwt.sign({ id: user.id, role: user.role, version: user.tokenVersion }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-        const userData = { id: user.id, username: user.username, email: user.email, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, followNotificationsEnabled: user.followNotificationsEnabled, lastFollowedUpdatesCheck: user.lastFollowedUpdatesCheck, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId, isTrialUsed: user.isTrialUsed, showAppTutorial: user.showAppTutorial };
+        const userData = { id: user.id, username: user.username, email: user.email, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, householdId: user.householdId, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, followNotificationsEnabled: user.followNotificationsEnabled, lastFollowedUpdatesCheck: user.lastFollowedUpdatesCheck, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId, isTrialUsed: user.isTrialUsed, isOnboardingCompleted: user.isOnboardingCompleted, onboardingPreferences: user.onboardingPreferences, forkyTutorialsSeen: user.forkyTutorialsSeen };
 
         // If user is a member, get owner's sharing key
         if (user.householdId) {
@@ -875,7 +912,7 @@ router.post('/signup', async (req, res) => {
 
         const token = jwt.sign({ id: user.id, role: user.role, version: user.tokenVersion }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-        res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, followNotificationsEnabled: user.followNotificationsEnabled, lastFollowedUpdatesCheck: user.lastFollowedUpdatesCheck, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId, followerCount: 0, showAppTutorial: user.showAppTutorial } });
+        res.status(201).json({ token, user: { id: user.id, username: user.username, role: user.role, sharingKey: user.sharingKey, alexaApiKey: user.alexaApiKey, tier: user.tier, aiCredits: user.aiCredits, newsletterSignedUp: user.newsletterSignedUp, newsletterSignupDate: user.newsletterSignupDate, followNotificationsEnabled: user.followNotificationsEnabled, lastFollowedUpdatesCheck: user.lastFollowedUpdatesCheck, subscriptionExpiresAt: user.subscriptionExpiresAt, cancelAtPeriodEnd: user.cancelAtPeriodEnd, stripeSubscriptionId: user.stripeSubscriptionId, stripeCustomerId: user.stripeCustomerId, followerCount: 0, isOnboardingCompleted: user.isOnboardingCompleted, onboardingPreferences: user.onboardingPreferences, forkyTutorialsSeen: user.forkyTutorialsSeen } });
     } catch (err) {
         console.error('Signup Error:', err); // Debug Log
         if (!process.env.JWT_SECRET) console.error('CRITICAL: JWT_SECRET is missing!');
@@ -911,6 +948,46 @@ router.post('/verify-email', async (req, res) => {
     } catch (err) {
         logger.logError('Error in auth route:', err);
         res.status(500).json({ error: err.message });
+    }
+});
+
+// Resend Verification Email
+router.post('/resend-verification', async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email ist erforderlich' });
+
+    try {
+        const user = await User.findOne({ where: { email } });
+        if (!user) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+
+        if (user.isEmailVerified) {
+            return res.status(400).json({ error: 'Dieses Konto ist bereits verifiziert' });
+        }
+
+        // Generate new token if none exists or as fresh start
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        await user.update({ emailVerificationToken: verificationToken });
+
+        const verifyLink = `${process.env.FRONTEND_URL || req.headers.origin}/verify-email?token=${verificationToken}`;
+        const html = `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                <h2 style="color: #4f46e5;">E-Mail-Bestätigung erneut anfordern</h2>
+                <p>Hallo <strong>${user.username}</strong>,</p>
+                <p>du hast angefordert, den Bestätigungslink für dein Gabelguru-Konto erneut zu senden. Klicke auf den folgenden Button, um dein Konto zu aktivieren:</p>
+                <div style="margin: 30px 0; text-align: center;">
+                    <a href="${verifyLink}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">E-Mail bestätigen</a>
+                </div>
+                <p>Oder kopiere diesen Link in deinen Browser:</p>
+                <p style="font-size: 12px; color: #64748b;">${verifyLink}</p>
+                <p style="font-size: 11px; color: #94a3b8;">Falls du diese Mail nicht angefordert hast, kannst du sie einfach ignorieren.</p>
+            </div>
+        `;
+        await sendSystemEmail({ to: email, subject: 'Aktiviere dein Gabelguru-Konto', html });
+
+        res.json({ message: 'Bestätigungs-E-Mail wurde erneut gesendet. Bitte schaue in dein Postfach.' });
+    } catch (err) {
+        logger.logError('Resend verification failed:', err);
+        res.status(500).json({ error: 'Fehler beim Senden der E-Mail' });
     }
 });
 

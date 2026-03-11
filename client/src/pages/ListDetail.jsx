@@ -18,6 +18,8 @@ import { useEditMode } from '../contexts/EditModeContext';
 import { useSync } from '../contexts/SyncContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTutorial } from '../contexts/TutorialContext';
+import { useForkyTutorial } from '../contexts/ForkyTutorialContext';
+import { forkyTutorials } from '../lib/forkyTutorials';
 import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
 import { arrayMove, SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
 import { SortableItem } from '../components/SortableItem';
@@ -32,6 +34,7 @@ export default function ListDetail() {
     const { editMode } = useEditMode();
     const { addChange } = useSync();
     const { notifyAction, activeChapter, driverObj } = useTutorial();
+    const { startTutorial } = useForkyTutorial();
     const [list, setList] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -201,6 +204,12 @@ export default function ListDetail() {
         fetchStores();
         fetchIngredientSources();
     }, [fetchListDetails, fetchProducts, fetchStores, fetchIngredientSources]);
+
+    // Start Forky short tutorial on first visit to any list detail
+    useEffect(() => {
+        const timer = setTimeout(() => startTutorial('listdetail', forkyTutorials.listdetail), 1000);
+        return () => clearTimeout(timer);
+    }, [startTutorial]);
 
     // Live polling every 5s for collaborative shopping
     // Use refs so the interval callback always reads the latest state and function
@@ -771,7 +780,7 @@ export default function ListDetail() {
                                                 >
                                                     <SortableItem
                                                         id={item.id}
-                                                        disabled={editMode !== 'view'}
+                                                        disabled={editMode !== 'view' && editMode !== 'lock'}
                                                         className="w-full h-full"
                                                     >
 
@@ -781,11 +790,11 @@ export default function ListDetail() {
                                                                 if (activeId) return; // Ignore during drag
 
                                                                 // DOUBLE-TAP DETECTION (only in view mode)
-                                                                if (editMode === 'view') {
+                                                                if (editMode === 'view' || editMode === 'lock') {
                                                                     const now = Date.now();
 
                                                                     // Check for double-tap
-                                                                    if (lastTapTimeRef.current && now - lastTapTimeRef.current < 300 && lastTapItemRef.current === item.id) {
+                                                                    if (lastTapTimeRef.current && now - lastTapTimeRef.current < 250 && lastTapItemRef.current === item.id) {
                                                                         // DOUBLE TAP DETECTED!
                                                                         // Cancel pending single-tap action
                                                                         if (singleTapTimeoutRef.current) {
@@ -808,7 +817,7 @@ export default function ListDetail() {
                                                                         clearTimeout(singleTapTimeoutRef.current);
                                                                     }
 
-                                                                    // Execute after 300ms (if no 2nd tap arrives)
+                                                                    // Execute after 250ms (if no 2nd tap arrives)
                                                                     singleTapTimeoutRef.current = setTimeout(() => {
                                                                         const activeStep = driverObj?.getActiveStep();
                                                                         if (activeStep && activeStep.popover?.actionRequirement === 'product-swap') {
@@ -818,7 +827,7 @@ export default function ListDetail() {
                                                                             toggleBought(item);
                                                                         }
                                                                         singleTapTimeoutRef.current = null;
-                                                                    }, 300);
+                                                                    }, 250);
                                                                     return;
                                                                 }
 
@@ -836,7 +845,7 @@ export default function ListDetail() {
                                                                 item.is_bought
                                                                     ? "product-tile-teal" // Teal for bought
                                                                     : "product-tile-red", // Red for unbought
-                                                                editMode !== 'view' && "hover:scale-[1.02]", // Subtle hover in edit/delete
+                                                                editMode !== 'view' && editMode !== 'lock' && "hover:scale-[1.02]", // Subtle hover in edit/delete
                                                                 activeId === item.id && "opacity-30", // Dragging feedback
                                                                 (activeNoteId === item.id || activeSourceId === item.id) && "z-[100]", // Elevate active tile
                                                                 "hover:z-50" // Elevate tile on hover
@@ -860,7 +869,7 @@ export default function ListDetail() {
                                                                 )}
                                                             </div>
                                                             {/* Note Indicator - Direct child for clean stacking. Only show in view mode to avoid overlapping with edit/delete icons. */}
-                                                            {item.note && editMode === 'view' && (
+                                                            {item.note && (editMode === 'view' || editMode === 'lock') && (
                                                                 <div
                                                                     className="absolute top-2 right-2 w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white shadow-lg z-30 cursor-pointer group/note"
                                                                     onClick={(e) => {

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { List, ListItem, Product, Store, ProductRelation, ProductSubstitution, ProductVariation, ProductVariant, Menu, Recipe, RecipeIngredient, sequelize } = require('../models');
+const { List, ListItem, Product, Store, ProductRelation, ProductSubstitution, ProductVariation, ProductVariant, Menu, Recipe, RecipeIngredient, PlannedRecipe, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { auth } = require('../middleware/auth');
 
@@ -260,10 +260,16 @@ router.get('/:id/ingredient-sources', auth, async (req, res) => {
             menu.Recipe.RecipeIngredients.forEach(ri => {
                 if (trackedProductIds.has(ri.ProductId)) {
                     if (!sources[ri.ProductId]) sources[ri.ProductId] = [];
+
+                    let qty = ri.quantity;
+                    if (menu.portions && menu.Recipe.servings > 0 && qty) {
+                        qty = qty * (menu.portions / menu.Recipe.servings);
+                    }
+
                     sources[ri.ProductId].push({
-                        recipeTitle: menu.Recipe.title,
+                        recipeTitle: menu.portions ? `${menu.Recipe.title} (${menu.portions} Port.)` : menu.Recipe.title,
                         date: menu.date,
-                        quantity: ri.quantity,
+                        quantity: qty,
                         unit: ri.unit
                     });
                 }
@@ -1095,6 +1101,11 @@ router.get('/:id/planning-data', auth, async (req, res) => {
                     }
                 }
 
+                // SCALE QUANTITY IF CUSTOM PORTIONS
+                if (menu.portions && menu.Recipe.servings > 0 && currentQuantity) {
+                    currentQuantity = currentQuantity * (menu.portions / menu.Recipe.servings);
+                }
+
                 if (!productCache.has(currentProductId)) {
                     productCache.set(currentProductId, await Product.findByPk(await resolveProductForUser(currentProductId, req.user.effectiveId).then(p => p.id), {
                         include: [{
@@ -1365,6 +1376,127 @@ router.post('/:targetId/merge', auth, async (req, res) => {
     } catch (err) {
         await transaction.rollback();
         console.error('Merge Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get all planned recipes for the user on active lists (today or future)
+router.get('/planned-recipes/active', auth, async (req, res) => {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const plannedRecipes = await PlannedRecipe.findAll({
+            where: {
+                UserId: req.user.effectiveId
+            },
+            include: [{
+                model: List,
+                where: {
+                    date: { [Op.gte]: today },
+                    status: 'active'
+                },
+                attributes: ['id', 'date', 'name']
+            }]
+        });
+        res.json(plannedRecipes);
+    } catch (err) {
+        console.error('Fetch active planned recipes error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get planned recipe settings for a list
+router.get('/:listId/planned-recipes/:recipeId', auth, async (req, res) => {
+    try {
+        const { listId, recipeId } = req.params;
+        const plannedRecipe = await PlannedRecipe.findOne({
+            where: {
+                ListId: listId,
+                RecipeId: recipeId,
+                UserId: req.user.effectiveId
+            }
+        });
+        res.json(plannedRecipe || { servings: null, settings: {}, hiddenIngredients: [] });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Save planned recipe settings and update list items
+router.post('/:listId/planned-recipes/:recipeId', auth, async (req, res) => {
+    try {
+        const { listId, recipeId } = req.params;
+        const { servings, settings, hiddenIngredients, items } = req.body;
+
+        // 1. Save settings
+        let plannedRecipe = await PlannedRecipe.findOne({
+            where: {
+                ListId: listId,
+                RecipeId: recipeId,
+                UserId: req.user.effectiveId
+            }
+        });
+
+        if (plannedRecipe) {
+            await plannedRecipe.update({ servings, settings, hiddenIngredients });
+        } else {
+            plannedRecipe = await PlannedRecipe.create({
+                ListId: listId,
+                RecipeId: recipeId,
+                UserId: req.user.effectiveId,
+                servings,
+                settings,
+                hiddenIngredients
+            });
+        }
+
+        // 2. Handle List Items (Replacement Logic)
+        if (items && Array.isArray(items)) {
+            const recipe = await Recipe.findByPk(recipeId);
+            const recipeTitle = recipe ? recipe.title : '';
+
+            // Delete old items for THIS planned recipe to avoid duplicates
+            const destroyWhere = {
+                UserId: req.user.effectiveId,
+                ListId: listId
+            };
+
+            const orConditions = [{ PlannedRecipeId: plannedRecipe.id }];
+            if (recipeTitle) {
+                orConditions.push({
+                    ListId: listId,
+                    note: `Rezept: ${recipeTitle}`,
+                    PlannedRecipeId: null
+                });
+            }
+            destroyWhere[Op.or] = orConditions;
+
+            await ListItem.destroy({ where: destroyWhere });
+
+            // Create new items
+            const products = await Product.findAll({
+                where: { id: items.map(i => i.ProductId) }
+            });
+
+            const newItems = items.map(item => {
+                const product = products.find(p => p.id === item.ProductId);
+                return {
+                    ListId: listId,
+                    UserId: req.user.effectiveId,
+                    ProductId: item.ProductId,
+                    quantity: item.quantity,
+                    unit: item.unit,
+                    note: item.note,
+                    PlannedRecipeId: plannedRecipe.id,
+                    name: product?.name // For backward compatibility if needed
+                };
+            });
+
+            await ListItem.bulkCreate(newItems);
+        }
+
+        res.json({ message: 'Planned recipe saved and items updated', plannedRecipe });
+    } catch (err) {
+        console.error('Planned Recipe Save Error:', err);
         res.status(500).json({ error: err.message });
     }
 });

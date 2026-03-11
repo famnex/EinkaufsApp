@@ -14,6 +14,7 @@ import { cn } from '../lib/utils';
 import MergeProductModal from '../components/MergeProductModal';
 import { useEditMode } from '../contexts/EditModeContext';
 import LoadingOverlay from '../components/LoadingOverlay';
+import BulkGlobalizeModal from '../components/BulkGlobalizeModal';
 
 export default function Products() {
     const [products, setProducts] = useState([]);
@@ -21,6 +22,7 @@ export default function Products() {
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isAiCleanupOpen, setIsAiCleanupOpen] = useState(false);
+    const [isBulkGlobalizeOpen, setIsBulkGlobalizeOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState(null);
     const { user } = useAuth();
     const { editMode, setEditMode } = useEditMode();
@@ -256,9 +258,10 @@ export default function Products() {
                     {/* Burger Menu Container */}
                     {(() => {
                         const hasNeu = viewTab === 'eigene' || (user?.role === 'admin' && viewTab !== 'inbox');
-                        const hasCleanup = user?.role === 'admin' && user?.tier !== 'Plastikgabel';
-                        const hasGlobalize = user?.role === 'admin' && viewTab === 'eigene'; // Only show globalize in 'eigene' tab
-                        const hasMenuItems = hasNeu || hasCleanup || hasGlobalize;
+                        const hasCleanup = user?.role === 'admin' && user?.tier !== 'Plastikgabel' && viewTab === 'global';
+                        const hasGlobalize = user?.role === 'admin' && (viewTab === 'eigene' || viewTab === 'global');
+                        const hasBulkGlobalize = user?.role === 'admin' && viewTab === 'inbox';
+                        const hasMenuItems = hasNeu || hasCleanup || hasGlobalize || hasBulkGlobalize;
 
                         if (!hasMenuItems) return null;
 
@@ -299,8 +302,8 @@ export default function Products() {
                                                     </button>
                                                 )}
 
-                                                {/* Cleanup - show only for non-plastic admins or special tier */}
-                                                {user?.role === 'admin' && user?.tier !== 'Plastikgabel' && (
+                                                {/* Cleanup - show only for non-plastic admins and in GLOBAL view */}
+                                                {user?.role === 'admin' && user?.tier !== 'Plastikgabel' && viewTab === 'global' && (
                                                     <button
                                                         onClick={() => {
                                                             setIsAiCleanupOpen(true);
@@ -316,7 +319,7 @@ export default function Products() {
                                                 )}
 
                                                 {/* Globalize Own Products - ADMIN ONLY */}
-                                                {user?.role === 'admin' && (
+                                                {hasGlobalize && (
                                                     <button
                                                         onClick={handleGlobalizeProducts}
                                                         disabled={globalizing}
@@ -327,6 +330,24 @@ export default function Products() {
                                                         </div>
                                                         <div className="flex flex-col">
                                                             <span>Eigene Produkte globalisieren</span>
+                                                        </div>
+                                                    </button>
+                                                )}
+
+                                                {/* Bulk Globalize - ADMIN ONLY */}
+                                                {hasBulkGlobalize && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setIsBulkGlobalizeOpen(true);
+                                                            setIsMenuOpen(false);
+                                                        }}
+                                                        className="w-full flex items-center gap-3 p-3 text-sm font-bold text-foreground hover:bg-blue-500/10 rounded-xl transition-all text-left"
+                                                    >
+                                                        <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600">
+                                                            <Download size={18} />
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span>Bulk-Globalisieren</span>
                                                         </div>
                                                     </button>
                                                 )}
@@ -396,7 +417,18 @@ export default function Products() {
                                             </h3>
                                             {viewTab !== 'variants' && (
                                                 <>
-                                                    <p className="text-sm text-muted-foreground truncate mt-1">{product.category || 'Keine Kategorie'}</p>
+                                                    <p className="text-sm text-muted-foreground truncate mt-1">
+                                                        {(() => {
+                                                            const cats = new Set();
+                                                            if (product.category) cats.add(product.category);
+                                                            if (product.ProductVariations) {
+                                                                product.ProductVariations.forEach(v => {
+                                                                    if (v.category) cats.add(v.category);
+                                                                });
+                                                            }
+                                                            return cats.size > 0 ? Array.from(cats).join(' | ') : 'Keine Kategorie';
+                                                        })()}
+                                                    </p>
                                                     <div className="flex items-center gap-2 mt-2">
                                                         <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full text-muted-foreground font-medium">
                                                             {product.unit || 'Stück'}
@@ -487,6 +519,13 @@ export default function Products() {
                     isOpen={isAiCleanupOpen}
                     onClose={() => setIsAiCleanupOpen(false)}
                     products={products.filter(p => p.UserId === null)}
+                    onRefresh={fetchProducts}
+                />
+
+                <BulkGlobalizeModal
+                    isOpen={isBulkGlobalizeOpen}
+                    onClose={() => setIsBulkGlobalizeOpen(false)}
+                    products={products}
                     onRefresh={fetchProducts}
                 />
 

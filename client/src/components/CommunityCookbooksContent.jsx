@@ -10,11 +10,14 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingOverlay from './LoadingOverlay';
 import { useTutorial } from '../contexts/TutorialContext';
+import { useForkyTutorial } from '../contexts/ForkyTutorialContext';
+import { forkyTutorials } from '../lib/forkyTutorials';
 
 export default function CommunityCookbooksContent() {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { notifyAction } = useTutorial();
+    const { startTutorial } = useForkyTutorial();
     const [cookbooks, setCookbooks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -23,6 +26,12 @@ export default function CommunityCookbooksContent() {
     useEffect(() => {
         fetchPublicCookbooks();
     }, []);
+
+    // Start Forky short tutorial on first visit
+    useEffect(() => {
+        const timer = setTimeout(() => startTutorial('community', forkyTutorials.community), 1000);
+        return () => clearTimeout(timer);
+    }, [startTutorial]);
 
     const fetchPublicCookbooks = async () => {
         try {
@@ -533,7 +542,7 @@ export default function CommunityCookbooksContent() {
                         filteredCookbooks.map((cb, idx) => (
                             <motion.div variants={item} key={cb.sharingKey || idx}>
                                 <Card
-                                    id={(cb.cookbookTitle || '').toUpperCase() === "THECOOKINGGUYS" ? "open-global-cookbook" : undefined}
+                                    id={idx === 0 ? "first-cookbook-card" : ((cb.cookbookTitle || '').toUpperCase() === "THECOOKINGGUYS" ? "open-global-cookbook" : undefined)}
                                     onClick={() => {
                                         navigate(`/shared/${cb.sharingKey}/cookbook`);
                                         if ((cb.cookbookTitle || '').toUpperCase() === "THECOOKINGGUYS") notifyAction('global-cookbook-open');
@@ -568,7 +577,7 @@ export default function CommunityCookbooksContent() {
                                         {/* Follow Button */}
                                         {user && cb.sharingKey && cb.id !== user.id && (!user.householdId || cb.householdId !== user.householdId) && (
                                             <button
-                                                id="follow-cookbook-btn"
+                                                id={idx === 0 ? "first-cookbook-heart" : "follow-cookbook-btn"}
                                                 onClick={(e) => toggleFollow(e, cb)}
                                                 className="absolute top-4 left-4 p-2 rounded-full backdrop-blur-sm bg-black/20 hover:bg-black/40 text-white transition-all duration-200 focus:outline-none z-10 follow-cookbook-btn"
                                                 title="Kochbuch folgen/entfolgen"

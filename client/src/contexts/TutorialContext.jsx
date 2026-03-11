@@ -20,42 +20,6 @@ export const TutorialProvider = ({ children }) => {
     const [currentStepIndex, setCurrentStepIndex] = useState(() => parseInt(sessionStorage.getItem('tutorialStepIndex') || '0'));
     const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
 
-    // Auto-trigger Tutorial Welcome Modal on login or after 24 hours of inactivity
-    useEffect(() => {
-        if (!user) return; // Wait until user is loaded
-
-        // If the user explicitly turned off the "show on start" option, honor it
-        if (user.showAppTutorial === false) {
-            localStorage.setItem('lastAppVisit', Date.now().toString());
-            return;
-        }
-
-        const now = Date.now();
-        const lastVisitStr = localStorage.getItem('lastAppVisit');
-        const triggerLogin = localStorage.getItem('triggerTutorialLogin');
-        const sessionShown = sessionStorage.getItem('welcomeShownThisSession');
-
-        const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-        let shouldShow = false;
-
-        if (triggerLogin === 'true') {
-            // Always show on fresh login, regardless of sessionShown
-            shouldShow = true;
-            localStorage.removeItem('triggerTutorialLogin');
-            // Also reset the session guard so it can show again
-            sessionStorage.removeItem('welcomeShownThisSession');
-        } else if (!sessionShown && (!lastVisitStr || (now - parseInt(lastVisitStr)) > TWENTY_FOUR_HOURS)) {
-            shouldShow = true;
-        }
-
-        if (shouldShow && !activeChapter) {
-            setIsWelcomeOpen(true);
-            sessionStorage.setItem('welcomeShownThisSession', 'true');
-        }
-
-        // Always update the last visit timestamp
-        localStorage.setItem('lastAppVisit', now.toString());
-    }, [user?.id, location.pathname, activeChapter]);
 
     // Global CSS for hiding driver elements during delay
     useEffect(() => {
@@ -429,14 +393,6 @@ export const TutorialProvider = ({ children }) => {
         }
     }, [saveState, initializeDriver, location.pathname, navigate, driverObj]);
 
-    const handleToggleShowTutorial = useCallback(async (value) => {
-        try {
-            const { data } = await api.put('/auth/profile', { showAppTutorial: value });
-            setUser(data);
-        } catch (err) {
-            console.error('Failed to update tutorial setting', err);
-        }
-    }, [setUser]);
 
     const startChapter = useCallback((chapterId, startStep = 0) => {
         handleStartChapter(chapterId, startStep);
@@ -453,8 +409,7 @@ export const TutorialProvider = ({ children }) => {
             driverObj,
             isWelcomeOpen,
             setIsWelcomeOpen,
-            handleStartChapter,
-            handleToggleShowTutorial
+            handleStartChapter
         }}>
             {children}
         </TutorialContext.Provider>

@@ -336,7 +336,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                             </div>
                             <div>
                                 <h2 className="text-2xl font-bebas tracking-wide">AI Rezept Import</h2>
-                                <p className="text-sm text-muted-foreground font-medium">Importiere Rezepte aus Text oder Links</p>
+                                <p className="text-sm text-muted-foreground font-medium">Importiere Rezepte aus Text oder Links oder generiere ein neues Rezept.</p>
                             </div>
                         </div>
                         <button onClick={onClose} className="p-2 hover:bg-muted rounded-full transition-colors">
@@ -351,11 +351,11 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-4">
                                         <label className="text-sm font-bold text-muted-foreground flex items-center gap-2">
-                                            <Sparkles size={14} /> Text-Input
+                                            <Sparkles size={14} /> Texteingabe
                                         </label>
                                         <textarea
                                             className="w-full h-64 p-4 rounded-xl bg-muted/50 border border-border focus:ring-2 focus:ring-primary/20 focus:outline-none resize-none font-medium text-sm md:text-base"
-                                            placeholder="Hier Rezeptdaten eingeben (Zutaten, Schritte)..."
+                                            placeholder="Hier Rezeptdaten eingeben (Zutaten, Schritte) oder einen Rezeptwunsch beschreiben..."
                                             value={inputText}
                                             onChange={(e) => setInputText(e.target.value)}
                                         />
@@ -363,7 +363,7 @@ export default function AiImportModal({ isOpen, onClose, onSave }) {
 
                                     <div className="space-y-4">
                                         <label className="text-sm font-bold text-muted-foreground flex items-center gap-2">
-                                            <Upload size={14} /> Foto-Upload (Vision)
+                                            <Upload size={14} /> Foto-Upload
                                         </label>
                                         <div className="relative h-64 rounded-xl bg-muted/50 border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden transition-all hover:border-primary/50 group">
                                             {inputImagePreview ? (

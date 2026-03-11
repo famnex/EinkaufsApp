@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Sun, Soup, Utensils, Apple, Info, Plus, Trash2, ShoppingCart, ListChecks, CarFront, ChevronDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sun, Soup, Utensils, Apple, Info, Plus, Trash2, ShoppingCart, ListChecks, CarFront, ChevronDown, Minus } from 'lucide-react';
 import { Card } from '../components/Card';
 import { useAuth } from '../contexts/AuthContext';
 import { useEditMode } from '../contexts/EditModeContext';
@@ -15,6 +15,8 @@ import RecipeIntoleranceResolverModal from '../components/RecipeIntoleranceResol
 import NotificationPrompt from '../components/NotificationPrompt';
 import ReplaceSwapModal from '../components/ReplaceSwapModal';
 import { useTutorial } from '../contexts/TutorialContext';
+import { useForkyTutorial } from '../contexts/ForkyTutorialContext';
+import { forkyTutorials } from '../lib/forkyTutorials';
 
 import {
     DndContext,
@@ -86,6 +88,7 @@ export default function MenuPlan() {
     const { editMode } = useEditMode();
     const navigate = useNavigate();
     const { notifyAction } = useTutorial();
+    const { startTutorial } = useForkyTutorial();
     const [currentWeekStart, setCurrentWeekStart] = useState(getMonday(new Date()));
     const [menus, setMenus] = useState([]);
     const [lists, setLists] = useState([]);
@@ -127,6 +130,12 @@ export default function MenuPlan() {
         fetchData();
     }, [currentWeekStart]);
 
+    // Start Forky short tutorial on first visit
+    useEffect(() => {
+        const timer = setTimeout(() => startTutorial('menu', forkyTutorials.menu), 1000);
+        return () => clearTimeout(timer);
+    }, [startTutorial]);
+
     // Close tooltip on global click
     useEffect(() => {
         if (!tooltip) return;
@@ -144,6 +153,16 @@ export default function MenuPlan() {
         const newDate = new Date(currentWeekStart);
         newDate.setDate(newDate.getDate() + (offset * 7));
         setCurrentWeekStart(newDate);
+    };
+
+    const handleOpenCookingMode = async (recipe) => {
+        try {
+            const { data } = await api.get(`/recipes/${recipe.id}`, { skipCache: true });
+            setCookingRecipe(data);
+        } catch (err) {
+            console.error('Failed to load recipe details', err);
+            setCookingRecipe(recipe);
+        }
     };
 
     const variants = {
@@ -207,10 +226,10 @@ export default function MenuPlan() {
                         text: meal.Recipe ? meal.Recipe.title : (meal.description || "Auswärts essen"),
                         x: x,
                         y: rect.top - 10,
-                        recipe: meal.Recipe,
+                        recipe: meal.Recipe && user?.onboardingPreferences?.recipes !== false ? meal.Recipe : null,
                         is_eating_out: meal.is_eating_out
                     });
-                } else if (meal.Recipe) {
+                } else if (meal.Recipe && user?.onboardingPreferences?.recipes !== false) {
                     // Clicked from expanded view list -> Navigate to Cooking Mode directly (as requested)
                     navigate('/recipes', {
                         state: {
@@ -219,8 +238,6 @@ export default function MenuPlan() {
                         }
                     });
                 }
-            } else if (editMode === 'view' && meal && !meal.Recipe && !e) {
-                // Handle manual entry click in expanded view (optional: maybe do nothing or show toast)
             }
             return;
         }
@@ -287,7 +304,8 @@ export default function MenuPlan() {
                 meal_type: activeSlot.type,
                 description: selection.description,
                 RecipeId: selection.RecipeId || null,
-                is_eating_out: selection.is_eating_out || false
+                is_eating_out: selection.is_eating_out || false,
+                portions: selection.portions || null
             };
 
             if (existing) {
@@ -311,6 +329,20 @@ export default function MenuPlan() {
             fetchData();
         } catch (err) {
             console.error(err);
+        }
+    };
+
+    const handleUpdatePortions = async (meal, delta) => {
+        if (!meal || !meal.Recipe) return;
+        const currentPortions = meal.portions || meal.Recipe.servings || 2;
+        const newPortions = Math.max(1, currentPortions + delta);
+        if (newPortions === currentPortions) return;
+
+        try {
+            await api.put(`/menus/${meal.id}`, { portions: newPortions });
+            fetchData();
+        } catch (err) {
+            console.error('Failed to update portions', err);
         }
     };
 
@@ -535,11 +567,11 @@ export default function MenuPlan() {
                                                 <div className={cn(
                                                     "flex flex-col items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-xl shrink-0 transition-colors relative",
                                                     isToday ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-                                                    shoppingList && !isToday && "bg-secondary/10 text-secondary"
+                                                    (shoppingList && user?.onboardingPreferences?.shopping !== false) && !isToday && "bg-secondary/10 text-secondary"
                                                 )}>
                                                     <span className="text-[9px] md:text-[10px] uppercase font-bold tracking-wider">{day.dayName}</span>
                                                     <span className="text-base md:text-lg font-bold leading-none">{day.dayNum}</span>
-                                                    {shoppingList && (
+                                                    {shoppingList && user?.onboardingPreferences?.shopping !== false && (
                                                         <div className="absolute -top-1 -right-1 w-3 h-3 bg-secondary rounded-full border border-card" />
                                                     )}
                                                 </div>
@@ -549,7 +581,7 @@ export default function MenuPlan() {
                                                         <span className="hidden md:flex text-xs text-muted-foreground italic pl-1 items-center h-full">Leer</span>
                                                     )}
 
-                                                    {shoppingList && (
+                                                    {shoppingList && user?.onboardingPreferences?.shopping !== false && (
                                                         <>
                                                             <div className="hidden md:flex gap-2 items-center">
                                                                 <button
@@ -562,18 +594,20 @@ export default function MenuPlan() {
                                                                     <ShoppingCart size={12} />
                                                                     <span>Einkauf</span>
                                                                 </button>
-                                                                <button
-                                                                    id="open-planner-btn"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setBulkModal({ open: true, listId: shoppingList.id });
-                                                                        notifyAction('planner-open');
-                                                                    }}
-                                                                    className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-2 py-1 rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors shrink-0"
-                                                                >
-                                                                    <ListChecks size={12} />
-                                                                    <span>Zutaten planen</span>
-                                                                </button>
+                                                                {user?.onboardingPreferences?.recipes !== false && (
+                                                                    <button
+                                                                        id="open-planner-btn"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setBulkModal({ open: true, listId: shoppingList.id });
+                                                                            notifyAction('planner-open');
+                                                                        }}
+                                                                        className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-2 py-1 rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors shrink-0"
+                                                                    >
+                                                                        <ListChecks size={12} />
+                                                                        <span>Zutaten planen</span>
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                             <ShoppingCart size={16} className="text-secondary md:hidden shrink-0" />
                                                         </>
@@ -601,7 +635,7 @@ export default function MenuPlan() {
                                                     )}
                                                 </div>
 
-                                                <div id={day.dateStr === weekDays[0].dateStr ? "tutorial-slot-actions" : undefined} className="flex gap-1 md:gap-2 shrink-0 ml-auto pl-2" onClick={e => e.stopPropagation()}>
+                                                <div id={day.dateStr === weekDays[0].dateStr ? "meal-slot-actions" : undefined} className="flex gap-1 md:gap-2 shrink-0 ml-auto pl-2" onClick={e => e.stopPropagation()}>
                                                     {slots.map(s => {
                                                         const meal = meals.find(m => m.meal_type === s.type);
                                                         const isFilled = !!meal;
@@ -662,7 +696,7 @@ export default function MenuPlan() {
                                                         <div className="p-3 pt-0 grid grid-cols-1 gap-2">
                                                             <div className="h-px bg-border/50 my-1 mx-2" />
 
-                                                            {shoppingList && (
+                                                            {shoppingList && user?.onboardingPreferences?.shopping !== false && (
                                                                 <div className="flex gap-2">
                                                                     <div
                                                                         onClick={() => navigate(`/lists/${shoppingList.id}`)}
@@ -676,22 +710,24 @@ export default function MenuPlan() {
                                                                         </div>
                                                                         <ChevronRight size={16} />
                                                                     </div>
-                                                                    <div
-                                                                        id="open-planner-btn"
-                                                                        onClick={() => {
-                                                                            setBulkModal({ open: true, listId: shoppingList.id });
-                                                                            notifyAction('planner-open');
-                                                                        }}
-                                                                        className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer transition-colors"
-                                                                    >
-                                                                        <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center shrink-0">
-                                                                            <ListChecks size={16} />
+                                                                    {user?.onboardingPreferences?.recipes !== false && (
+                                                                        <div
+                                                                            id="open-planner-btn"
+                                                                            onClick={() => {
+                                                                                setBulkModal({ open: true, listId: shoppingList.id });
+                                                                                notifyAction('planner-open');
+                                                                            }}
+                                                                            className="flex-1 flex items-center gap-3 p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer transition-colors"
+                                                                        >
+                                                                            <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center shrink-0">
+                                                                                <ListChecks size={16} />
+                                                                            </div>
+                                                                            <div className="flex-1 text-sm font-bold">
+                                                                                Zutaten Planer
+                                                                            </div>
+                                                                            <ChevronRight size={16} />
                                                                         </div>
-                                                                        <div className="flex-1 text-sm font-bold">
-                                                                            Zutaten Planer
-                                                                        </div>
-                                                                        <ChevronRight size={16} />
-                                                                    </div>
+                                                                    )}
                                                                 </div>
                                                             )}
 
@@ -753,6 +789,26 @@ export default function MenuPlan() {
                                                                                 )}
 
                                                                                 <div className="flex gap-2 shrink-0">
+                                                                                    {meal && editMode === 'edit' && meal.Recipe && (
+                                                                                        <div className="flex items-center gap-1 bg-background rounded-lg p-0.5 text-muted-foreground mr-1">
+                                                                                            <button
+                                                                                                onClick={(e) => { e.stopPropagation(); handleUpdatePortions(meal, -1); }}
+                                                                                                className="w-6 h-6 flex items-center justify-center hover:bg-muted rounded-md transition-colors"
+                                                                                            >
+                                                                                                <Minus size={14} />
+                                                                                            </button>
+                                                                                            <span className="text-xs font-bold w-4 text-center">
+                                                                                                {meal.portions || meal.Recipe.servings || 2}
+                                                                                            </span>
+                                                                                            <button
+                                                                                                onClick={(e) => { e.stopPropagation(); handleUpdatePortions(meal, 1); }}
+                                                                                                className="w-6 h-6 flex items-center justify-center hover:bg-muted rounded-md transition-colors"
+                                                                                            >
+                                                                                                <Plus size={14} />
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    )}
+
                                                                                     {meal && editMode === 'delete' && (
                                                                                         <button
                                                                                             onClick={(e) => {
@@ -810,6 +866,7 @@ export default function MenuPlan() {
                         <CookingMode
                             recipe={cookingRecipe}
                             onClose={() => setCookingRecipe(null)}
+                            onRecipeUpdate={() => handleOpenCookingMode(cookingRecipe)}
                         />
                     )
                 }
@@ -831,7 +888,7 @@ export default function MenuPlan() {
                             onClick={(e) => {
                                 e.stopPropagation(); // Prevent closing when clicking inside
                                 if (tooltip.recipe) {
-                                    setCookingRecipe(tooltip.recipe);
+                                    handleOpenCookingMode(tooltip.recipe);
                                     setTooltip(null);
                                 }
                             }}

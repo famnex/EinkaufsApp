@@ -44,7 +44,7 @@ router.get('/', auth, async (req, res) => {
 // Create menu entry
 router.post('/', auth, async (req, res) => {
     try {
-        const { date, meal_type, description, RecipeId, is_eating_out } = req.body;
+        const { date, meal_type, description, RecipeId, is_eating_out, portions } = req.body;
 
         const menu = await Menu.create({
             date,
@@ -52,6 +52,7 @@ router.post('/', auth, async (req, res) => {
             description,
             RecipeId: RecipeId || null,
             is_eating_out: is_eating_out || false,
+            portions: portions || null,
             UserId: req.user.effectiveId
         });
 
@@ -83,7 +84,6 @@ router.put('/:id', auth, async (req, res) => {
             include: [{
                 model: Recipe,
                 attributes: ['id', 'title', 'category', 'image_url', 'prep_time', 'duration', 'servings', 'imageSource', 'bannedAt', 'UserId'],
-                where: { UserId: req.user.effectiveId },
                 required: false
             }]
         });

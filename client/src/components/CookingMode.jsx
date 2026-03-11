@@ -15,8 +15,9 @@ import CookingExitModal from './CookingExitModal';
 import useLockBodyScroll from '../hooks/useLockBodyScroll';
 import AiLockedModal from './AiLockedModal';
 import { useTutorial } from '../contexts/TutorialContext';
+import ProductSubstituteModal from './ProductSubstituteModal';
 
-export default function CookingMode({ recipe, conflicts = [], onClose }) {
+export default function CookingMode({ recipe, conflicts = [], onClose, onRecipeUpdate }) {
     const { notifyAction } = useTutorial();
     const [step, setStep] = useState(0);
     const [checkedIngredients, setCheckedIngredients] = useState(new Set());
@@ -30,7 +31,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
     const [timers, setTimers] = useState([]); // [{ id, label, duration, remaining, isRunning }]
 
     useLockBodyScroll(true);
-    const [scaleFactor, setScaleFactor] = useState(1);
+    const [scaleFactor, setScaleFactor] = useState(recipe.plannedPortions && recipe.servings ? recipe.plannedPortions / recipe.servings : 1);
     const audioContextRef = useRef(null);
 
     // AI Voice Control State
@@ -54,6 +55,16 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
     const minSwipeDistance = 50;
 
     const [isImageExpanded, setIsImageExpanded] = useState(false);
+
+    // Persistent Substitution & Instruction Rewrite State
+    const lastTapTimeRef = useRef(0);
+    const lastTapItemRef = useRef(null);
+    const singleTapTimeoutRef = useRef(null);
+    const [isSubstituteModalOpen, setIsSubstituteModalOpen] = useState(false);
+    const [substituteTargetIngredient, setSubstituteTargetIngredient] = useState(null);
+    const [suggestions, setSuggestions] = useState([]);
+    const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+    const [isRewritingInstructions, setIsRewritingInstructions] = useState(false);
 
     const onTouchStart = (e) => {
         setTouchEnd(null);
@@ -93,26 +104,45 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
     const [tooltipData, setTooltipData] = useState(null); // { x, y, items: [], maxProbability: number }
 
     // Parse ingredients to ensure we handle the async fetched data structure
-    const rawIngredients = useMemo(() => recipe.RecipeIngredients?.map(ri => {
-        const originalName = ri.Product?.name || 'Unknown';
-        const sub = substitutions[originalName];
+    const rawIngredients = useMemo(() => {
+        // 1. Create a map of substitutions from both persistent (recipe prop) and local (voice/temporary) state
+        const subMap = { ...substitutions };
 
-        // Parse synonyms safely (may be JSON string or array)
-        let synonyms = ri.Product?.synonyms || [];
-        if (typeof synonyms === 'string') { try { synonyms = JSON.parse(synonyms); } catch { synonyms = []; } }
+        // Persistent substitutions from backend (already included in recipe fetch)
+        recipe.substitutions?.forEach(sub => {
+            if (sub.originalProductId) {
+                // Persistent DB substitutions take priority as they reflect the saved state
+                subMap[sub.originalProductId] = {
+                    name: sub.SubstituteProduct?.name || (sub.isOmitted ? 'Ausgelassen' : 'Unbekannt'),
+                    quantity: sub.substituteQuantity,
+                    unit: sub.substituteUnit,
+                    isOmitted: sub.isOmitted
+                };
+            }
+        });
 
-        return {
-            id: ri.id,
-            productId: ri.ProductId,
-            name: sub ? sub.name : originalName,
-            originalName: originalName,
-            isSubstituted: !!sub,
-            amount: (sub && sub.quantity !== null ? sub.quantity : ri.quantity) * scaleFactor,
-            unit: (sub && sub.unit) ? sub.unit : (ri.unit || ri.Product?.unit),
-            synonyms: Array.isArray(synonyms) ? synonyms : [],
-            isOptional: !!ri.isOptional
-        };
-    }) || [], [recipe, substitutions, scaleFactor]);
+        return recipe.RecipeIngredients?.map(ri => {
+            const originalName = ri.Product?.name || 'Unknown';
+            const sub = subMap[ri.ProductId] || substitutions[originalName]; // Fallback to name for legacy/voice subMap
+
+            // Parse synonyms safely (may be JSON string or array)
+            let synonyms = ri.Product?.synonyms || [];
+            if (typeof synonyms === 'string') { try { synonyms = JSON.parse(synonyms); } catch { synonyms = []; } }
+
+            return {
+                id: ri.id,
+                productId: ri.ProductId,
+                name: sub ? sub.name : originalName,
+                originalName: originalName,
+                isSubstituted: !!sub,
+                isOmitted: sub?.isOmitted || false,
+                amount: (sub && sub.quantity !== null ? sub.quantity : ri.quantity) * scaleFactor,
+                unit: (sub && sub.unit) ? sub.unit : (ri.unit || ri.Product?.unit),
+                synonyms: Array.isArray(synonyms) ? synonyms : [],
+                isOptional: !!ri.isOptional
+            };
+        }) || [];
+    }, [recipe, substitutions, scaleFactor]);
 
     const steps = recipe.instructions || [];
 
@@ -230,6 +260,106 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
         };
     }, [conflicts, user]);
 
+    // Persistent Substitution Logic
+    const handleIngredientClick = (ing) => {
+        const now = Date.now();
+        const DOUBLE_TAP_DELAY = 250;
+
+        if (lastTapTimeRef.current && now - lastTapTimeRef.current < DOUBLE_TAP_DELAY && lastTapItemRef.current === ing.id) {
+            // DOUBLE TAP DETECTED
+            if (singleTapTimeoutRef.current) {
+                clearTimeout(singleTapTimeoutRef.current);
+                singleTapTimeoutRef.current = null;
+            }
+            lastTapTimeRef.current = 0;
+            lastTapItemRef.current = null;
+            handleOpenSubstituteModal(ing);
+            return;
+        }
+
+        // SINGLE TAP - Delayed execution
+        lastTapTimeRef.current = now;
+        lastTapItemRef.current = ing.id;
+
+        if (singleTapTimeoutRef.current) clearTimeout(singleTapTimeoutRef.current);
+
+        singleTapTimeoutRef.current = setTimeout(() => {
+            toggleIngredient(ing.id);
+            singleTapTimeoutRef.current = null;
+        }, DOUBLE_TAP_DELAY);
+    };
+
+    const handleOpenSubstituteModal = async (ing) => {
+        setSubstituteTargetIngredient(ing);
+        setIsSubstituteModalOpen(true);
+        setSuggestionsLoading(true);
+        setSuggestions([]);
+
+        try {
+            const { data } = await api.post('/ai/suggest-recipe-substitute', {
+                productName: ing.originalName,
+                recipeId: recipe.id,
+                originalAmount: ing.amount / scaleFactor, // Send baseline amount
+                originalUnit: ing.unit
+            });
+            setSuggestions(data.suggestions || []);
+        } catch (err) {
+            console.error('Failed to fetch recipe substitutions:', err);
+        } finally {
+            setSuggestionsLoading(false);
+        }
+    };
+
+    const handleSelectSubstitute = async (suggestion) => {
+        if (!substituteTargetIngredient) return;
+
+        try {
+            setIsSubstituteModalOpen(false);
+            setIsRewritingInstructions(true);
+
+            // 0. Update local state immediately for "live" feel
+            setSubstitutions(prev => ({
+                ...prev,
+                [substituteTargetIngredient.productId]: {
+                    name: suggestion.name,
+                    quantity: suggestion.substituteQuantity,
+                    unit: suggestion.substituteUnit
+                }
+            }));
+
+            // 1. Save substitution
+            await api.post('/substitutions', {
+                recipeId: recipe.id,
+                originalProductId: substituteTargetIngredient.productId,
+                substituteProductId: null, // AI products might not be in DB yet, backend handles name-based or creates if needed? 
+                // Wait, our backend POST /substitutions expects IDs or handles it. 
+                // Actually, let's look at rotations. 
+                // If the product is not in DB, we might need a different endpoint or the backend should handle it.
+                // Current backend expects originalProductId and substituteProductId.
+                // But AI suggestions are just names.
+                substituteName: suggestion.name, // We might need to update the backend to accept name
+                originalQuantity: substituteTargetIngredient.amount / scaleFactor,
+                originalUnit: substituteTargetIngredient.unit,
+                substituteQuantity: suggestion.substituteQuantity,
+                substituteUnit: suggestion.substituteUnit
+            });
+
+            // 2. Rewrite instructions
+            await api.post('/ai/rewrite-instructions', {
+                recipeId: recipe.id
+            });
+
+            // 3. Refresh recipe data
+            if (onRecipeUpdate) await onRecipeUpdate();
+
+        } catch (err) {
+            console.error('Failed to apply substitution:', err);
+        } finally {
+            setIsRewritingInstructions(false);
+            setSubstituteTargetIngredient(null);
+        }
+    };
+
     useEffect(() => {
         const checkFutureUsage = async () => {
             try {
@@ -314,30 +444,6 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
         }
     }, [recipe]); // Note: removed ingredients dep to avoid loop if object ref changes, handled by memo
 
-    useEffect(() => {
-        if (recipe?.id) {
-            fetchSavedSubstitutions();
-        }
-    }, [recipe?.id]);
-
-    const fetchSavedSubstitutions = async () => {
-        try {
-            const { data } = await api.get(`/substitutions/recipe/${recipe.id}`);
-            const subMap = {};
-            data.forEach(sub => {
-                if (sub.OriginalProduct?.name && sub.SubstituteProduct?.name) {
-                    subMap[sub.OriginalProduct.name] = {
-                        name: sub.SubstituteProduct.name,
-                        quantity: sub.substituteQuantity,
-                        unit: sub.substituteUnit
-                    };
-                }
-            });
-            setSubstitutions(prev => ({ ...prev, ...subMap }));
-        } catch (err) {
-            console.error('Failed to fetch saved substitutions', err);
-        }
-    };
 
 
     // iOS Audio: Create and keep a single shared AudioContext.
@@ -800,7 +906,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                                     {ingredients.filter(ing => !ing.isOptional).map((ing) => (
                                         <div
                                             key={ing.id}
-                                            onClick={() => toggleIngredient(ing.id)}
+                                            onClick={() => handleIngredientClick(ing)}
                                             className={cn(
                                                 "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 border relative group cook-ingredient-item",
                                                 checkedIngredients.has(ing.id)
@@ -905,19 +1011,21 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                                                 )}>
                                                     {checkedIngredients.has(ing.id) && <Check size={14} strokeWidth={3} />}
                                                 </div>
-                                                <span className="font-medium text-lg flex-1">
-                                                    {ing.amount > 0 && (
+                                                <span className={cn("font-medium text-lg flex-1", ing.isOmitted && "text-muted-foreground opacity-50")}>
+                                                    {ing.amount > 0 && !ing.isOmitted && (
                                                         <span className={cn("font-bold mr-1", scaleFactor !== 1 && "text-primary")}>
                                                             {Number(ing.amount.toFixed(2)).toLocaleString('de-DE')}
                                                         </span>
                                                     )}
-                                                    {ing.unit && <span className="font-bold mr-1">{ing.unit}</span>}
-                                                    <span className={cn(ing.isSubstituted && "text-primary italic")}>{ing.name}</span>
+                                                    {ing.unit && !ing.isOmitted && <span className="font-bold mr-1">{ing.unit}</span>}
+                                                    <span className={cn(ing.isSubstituted && "text-primary italic", ing.isOmitted && "line-through")}>
+                                                        {ing.name}
+                                                    </span>
                                                     {ing.isSubstituted && (
                                                         <div className="flex flex-col gap-0.5 mt-0.5">
                                                             <span className="text-xs text-muted-foreground line-through opacity-60">Original: {ing.originalName}</span>
                                                             <span className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1">
-                                                                <Sparkles size={10} className="fill-current" /> Ersetzt
+                                                                <Sparkles size={10} className="fill-current" /> {ing.isOmitted ? 'Ausgelassen' : 'Ersetzt'}
                                                             </span>
                                                         </div>
                                                     )}
@@ -1176,15 +1284,55 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                 <CookingAssistant
                     isOpen={showAssistant}
                     onClose={() => setShowAssistant(false)}
+                    onStatusChange={setAssistantStatus}
                     recipe={recipe}
                     currentStep={step}
                     servings={recipe.servings * scaleFactor}
                     onAction={handleVoiceAction}
+                    onSubstitute={(sub) => setSubstitutions(prev => ({ ...prev, ...sub }))}
                     audioContext={audioContextRef.current}
                     hasActiveAlarm={timers.some(t => t.remaining === 0 && t.isRunning)}
-                    onStatusChange={setAssistantStatus}
                 />
 
+                <ProductSubstituteModal
+                    isOpen={isSubstituteModalOpen}
+                    onClose={() => setIsSubstituteModalOpen(false)}
+                    originalProduct={substituteTargetIngredient}
+                    suggestions={suggestions}
+                    loading={suggestionsLoading}
+                    onSelect={handleSelectSubstitute}
+                    conflicts={conflicts}
+                />
+
+                <AnimatePresence>
+                    {isRewritingInstructions && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center"
+                        >
+                            <div className="relative w-24 h-24 mb-6">
+                                <motion.div
+                                    animate={{ rotate: 360 }}
+                                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                    className="absolute inset-0 rounded-full border-4 border-primary/20 border-t-primary"
+                                />
+                                <motion.div
+                                    animate={{ scale: [1, 1.2, 1] }}
+                                    transition={{ duration: 2, repeat: Infinity }}
+                                    className="absolute inset-0 flex items-center justify-center"
+                                >
+                                    <Sparkles size={32} className="text-primary fill-current" />
+                                </motion.div>
+                            </div>
+                            <h2 className="text-2xl font-bebas tracking-widest text-white mb-2">Rezept wird angepasst</h2>
+                            <p className="text-white/60 max-w-xs mx-auto">
+                                KI schreibt die Anleitung basierend auf deiner Ersetzung für <span className="text-white font-bold">{substituteTargetIngredient?.name}</span> um...
+                            </p>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
                 <TimerOverlay
                     timers={timers}
                     onUpdate={updateTimer}
@@ -1281,8 +1429,8 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                             onMouseLeave={handleIngredientLeave}
                             className="fixed z-[300] p-4 bg-card/95 backdrop-blur-md text-card-foreground text-sm rounded-2xl shadow-2xl border border-border flex items-center gap-4 transform -translate-x-1/2 -translate-y-[calc(100%+12px)]"
                             style={{
-                                top: ingredientTooltip.y,
-                                left: ingredientTooltip.x,
+                                top: Math.max(120, Math.min(window.innerHeight - 50, ingredientTooltip.y)),
+                                left: Math.max(120, Math.min(window.innerWidth - 120, ingredientTooltip.x)),
                             }}
                         >
                             <div className="flex-1">
@@ -1299,22 +1447,6 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                                     {ingredientTooltip.ingredient.isOptional && <span className="ml-1 text-[10px]">(optional)</span>}
                                 </div>
                             </div>
-
-                            {ingredientTooltip.conflicts && (
-                                <div className="mt-2 pt-2 border-t border-border/50 min-w-[200px]">
-                                    <div className={cn("font-bold text-[10px] flex items-center gap-1 mb-1", ingredientTooltip.conflicts.maxProbability >= 80 ? "text-destructive" : "text-orange-500")}>
-                                        {ingredientTooltip.conflicts.maxProbability >= 80 ? <AlertCircle size={12} /> : <HelpCircle size={12} />}
-                                        {ingredientTooltip.conflicts.maxProbability >= 80 ? 'Achtung!' : 'Hinweis'} ({ingredientTooltip.conflicts.maxProbability}%)
-                                    </div>
-                                    <div className="space-y-1">
-                                        {ingredientTooltip.conflicts.messages.map((msg, i) => (
-                                            <div key={i} className={cn("text-[10px] font-medium leading-tight", ingredientTooltip.conflicts.maxProbability >= 80 ? "text-destructive/80" : "text-orange-500/80")}>
-                                                {msg}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
 
                             <Button
                                 size="icon"
@@ -1408,7 +1540,7 @@ export default function CookingMode({ recipe, conflicts = [], onClose }) {
                     userTier={user?.tier}
                     substitutions={substitutions}
                 />
-            </motion.div>
-        </AnimatePresence>
+            </motion.div >
+        </AnimatePresence >
     );
 }
