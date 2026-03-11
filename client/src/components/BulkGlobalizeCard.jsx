@@ -190,7 +190,12 @@ export default function BulkGlobalizeCard({ product, onComplete, globalProducts 
                                                 rel="noopener noreferrer"
                                                 className="flex items-center justify-between p-2 bg-muted/50 hover:bg-muted rounded-lg border border-border/50 text-xs transition-colors group/link"
                                             >
-                                                <span className="font-medium truncate flex-1">{recipe.title}</span>
+                                                <div className="flex flex-col min-w-0 flex-1">
+                                                    <span className="font-medium truncate">{recipe.title}</span>
+                                                    {recipe.owner && (
+                                                        <span className="text-[9px] text-muted-foreground truncate italic">von {recipe.owner}</span>
+                                                    )}
+                                                </div>
                                                 <ExternalLink size={12} className="text-muted-foreground group-hover/link:text-primary shrink-0 ml-2" />
                                             </a>
                                         ))

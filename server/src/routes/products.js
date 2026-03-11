@@ -3,7 +3,8 @@ const router = express.Router();
 const {
     Product, Store, ListItem, RecipeIngredient, sequelize, HiddenCleanup,
     ProductVariation, ProductVariant, Intolerance, ProductIntolerance,
-    ProductSubstitution, RecipeSubstitution, ProductRelation, UserProductIntolerance
+    ProductSubstitution, RecipeSubstitution, ProductRelation, UserProductIntolerance,
+    User, Recipe
 } = require('../models');
 const { auth, admin } = require('../middleware/auth');
 
@@ -431,7 +432,6 @@ router.post('/merge', auth, async (req, res) => {
 // Get product usage in recipes
 router.get('/:id/usage', auth, async (req, res) => {
     try {
-        const { Recipe, RecipeIngredient } = require('../models');
         const targetProduct = await Product.findByPk(req.params.id);
         if (!targetProduct) return res.status(404).json({ error: 'Produkt nicht gefunden' });
 
@@ -442,15 +442,20 @@ router.get('/:id/usage', auth, async (req, res) => {
             },
             include: [{
                 model: Recipe,
-                attributes: ['id', 'title']
+                attributes: ['id', 'title'],
+                include: [{ 
+                    model: User, 
+                    attributes: ['username'] 
+                }]
             }],
             attributes: ['originalName']
         });
 
-        // Format: { usageCount: X, recipes: [{ id, title, as: 'Original Name' }] }
+        // Format: { usageCount: X, recipes: [{ id, title, owner, as: 'Original Name' }] }
         const recipes = usage.map(u => ({
             id: u.Recipe?.id,
             title: u.Recipe?.title,
+            owner: u.Recipe?.User?.username,
             as: u.originalName
         })).filter(r => r.id);
 
