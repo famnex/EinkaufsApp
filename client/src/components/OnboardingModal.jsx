@@ -8,9 +8,9 @@ import { useAuth } from '../contexts/AuthContext';
 export default function OnboardingModal({ isOpen, onComplete }) {
     const { user, setUser } = useAuth();
     const [selections, setSelections] = useState({
-        shopping: false,
-        planning: false,
-        recipes: false
+        shopping: true,
+        planning: true,
+        recipes: true
     });
     const [loading, setLoading] = useState(false);
 
