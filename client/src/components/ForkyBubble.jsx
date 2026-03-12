@@ -53,24 +53,35 @@ export default function ForkyBubble() {
                     height: rect.height,
                     borderRadius: computedStyle.borderRadius || '8px'
                 });
+                return true;
             }
+            return false;
         };
 
-        // Scroll into view first, then measure a moment later
-        const scrollTimer = setTimeout(() => {
-            const el = document.querySelector(currentStep.selector);
-            if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                setTimeout(updateRect, 300);
-            }
-        }, 100);
+        // Scroll into view if found
+        const el = document.querySelector(currentStep.selector);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
 
         // Update continuously on scroll/resize
         window.addEventListener('scroll', updateRect, true);
         window.addEventListener('resize', updateRect);
 
+        // Retry finding the element if it's not immediately there
+        // or if it might be appearing after a transition
+        const retryInterval = setInterval(() => {
+            if (updateRect()) {
+                // Once found, we can potentially stop the interval or just let it continue for pos tracking
+            }
+        }, 100);
+
+        // Initial measurement after a short delay for scroll/layout
+        const initialTimer = setTimeout(updateRect, 300);
+
         return () => {
-            clearTimeout(scrollTimer);
+            clearInterval(retryInterval);
+            clearTimeout(initialTimer);
             window.removeEventListener('scroll', updateRect, true);
             window.removeEventListener('resize', updateRect);
         };

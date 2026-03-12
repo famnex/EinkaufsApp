@@ -32,6 +32,18 @@ const NewsPopup = () => {
         fetchUnreadMessages();
     }, [user, canShowNews, setIsNewsPopupActive]);
 
+    // Sperre den Body-Scroll, wenn das Modal offen ist
+    useEffect(() => {
+        if (isVisible) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [isVisible]);
+
     const handleDismiss = async () => {
         if (!messages[currentIndex]) return;
 
@@ -66,6 +78,7 @@ const NewsPopup = () => {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm sm:p-6"
+                    style={{ overscrollBehaviorY: 'contain' }}
                 >
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -106,7 +119,7 @@ const NewsPopup = () => {
                             </h2>
                         </div>
 
-                        <div className="p-6 sm:p-8 overflow-y-auto">
+                        <div className="p-6 sm:p-8 overflow-y-auto" style={{ overscrollBehavior: 'contain' }}>
                             <div className="prose prose-sm sm:prose-base dark:prose-invert max-w-none text-muted-foreground whitespace-pre-wrap leading-relaxed">
                                 {currentMessage.text}
                             </div>

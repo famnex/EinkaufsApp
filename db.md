@@ -73,6 +73,7 @@ Protokollierung aller Abonnements-bezogenen Aktivitäten.
 - `unit` (ENUM: 'Stück', 'g', 'kg', 'ml', 'l')
 - `UserId` (INT, FK)
 - `ManufacturerId` / `StoreId` (INT, FK)
+- `ignoreGlobalization` (BOOLEAN): Produkte vom Bulk-Globalisierungs-Prozess ausschließen [NEW v0.38.7].
 
 ### `Lists` / `ListItems`
 - Jede Liste und jedes Item gehört einem `UserId`.
@@ -403,3 +404,7 @@ Wenn eine alte Datenbank (vor v0.19.0) auf das Multi-User-System aktualisiert we
 1. **Portionen im Kalender**: Neue Spalte `portions` (INTEGER, nullable) in der `Menus` Tabelle.
 2. **Rezept-Planung**: Einführung der Tabelle `PlannedRecipes` zur Speicherung von Konfigurationen beim Übertragen von Rezepten auf die Einkaufsliste.
 3. **Migration**: `server/migrations/migrate_v0.38.6_consolidated.js`
+### v0.38.7 - Bulk-Globalisierung Ignorieren (März 2026)
+1. **Dauerhafter Ausschluss**: Neue Spalte `ignoreGlobalization` (BOOLEAN, default: false) in der `Products` Tabelle.
+2. **UI-Integration**: Produkte können in der Bulk-Globalisierung mit einem "X" dauerhaft ignoriert werden (bleiben privat).
+3. **API-Filter**: Der `/inbox` Endpunkt filtert ignorierte Produkte nun automatisch aus.

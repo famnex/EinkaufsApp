@@ -34,12 +34,12 @@ export const forkyTutorials = {
     ],
     listdetail: [
         { text: 'Das ist eine Einkaufsliste.' },
-        { text: 'Hier kannst du Produkte durch Eingabe hinzufügen.', selector: '#list-input-container' },
-        { text: 'Wähle hier ein Geschäft aus.', selector: '#store-button-container' },
-        { text: 'Klicke auf einen Artikel, um ihn als eingekauft zu markieren.' },
+        { text: 'Hier kannst du Produkte durch Eingabe hinzufügen.', selector: '#product-search-area' },
+        { text: 'Wähle hier ein Geschäft aus.', selector: '#store-select-trigger' },
+        { text: 'Klicke auf einen Artikel, um ihn als eingekauft zu markieren.', selector: '.product-item-row' },
         { text: 'Nutze das Modusmenü, um Artikel zu ändern oder zu löschen.', selector: '#edit-mode-selector' },
-        { text: 'Hier kannst du Einkaufslisten smart importieren (auch per Foto).' },
-        { text: 'Tippe doppelt auf ein Produkt, um es smart auszutauschen.' },
+        { text: 'Hier kannst du Einkaufslisten smart importieren (auch per Foto).', selector: '#smart-import-btn' },
+        { text: 'Tippe doppelt auf ein Produkt, um es smart auszutauschen.', selector: '.product-item-row' },
         { text: 'Weitere Infos gib es unter Optionen: Hilfe.' },
     ],
 };

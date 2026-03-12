@@ -77,7 +77,8 @@ const Product = sequelize.define('Product', {
     unit: { type: DataTypes.STRING, defaultValue: 'Stück' },
     isNew: { type: DataTypes.BOOLEAN, defaultValue: false },
     source: { type: DataTypes.STRING, defaultValue: 'manual' }, // 'manual', 'alexa', 'ai'
-    synonyms: { type: DataTypes.JSON, defaultValue: [] }
+    synonyms: { type: DataTypes.JSON, defaultValue: [] },
+    ignoreGlobalization: { type: DataTypes.BOOLEAN, defaultValue: false }
 });
 
 Product.belongsTo(Store);

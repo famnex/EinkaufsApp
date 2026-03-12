@@ -453,10 +453,7 @@ export default function Dashboard() {
                             >
                                 <ShoppingCart size={18} className="text-white shrink-0" />
                                 <div className="min-w-0">
-                                    <div className="text-[9px] uppercase tracking-widest font-bold text-white/80">
-                                        Nächster Einkauf
-                                    </div>
-                                    <div className="text-xs font-bold text-white truncate">
+                                    <div className="text-sm font-black text-white truncate">
                                         {nextShopping
                                             ? (() => {
                                                 const d = new Date(nextShopping.date + 'T12:00:00');

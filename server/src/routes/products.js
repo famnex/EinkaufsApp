@@ -13,7 +13,8 @@ router.get('/inbox', auth, admin, async (req, res) => {
     try {
         const products = await Product.findAll({
             where: {
-                UserId: { [sequelize.Sequelize.Op.ne]: null }
+                UserId: { [sequelize.Sequelize.Op.ne]: null },
+                ignoreGlobalization: { [sequelize.Sequelize.Op.ne]: true }
             },
             include: [
                 { model: Intolerance, through: { attributes: ['probability'] } }
@@ -21,6 +22,19 @@ router.get('/inbox', auth, admin, async (req, res) => {
             order: [['createdAt', 'DESC']]
         });
         res.json(products);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Ignore product for globalization - ADMIN ONLY
+router.put('/:id/ignore-globalization', auth, admin, async (req, res) => {
+    try {
+        const product = await Product.findByPk(req.params.id);
+        if (!product) return res.status(404).json({ error: 'Product not found' });
+
+        await product.update({ ignoreGlobalization: true });
+        res.json({ message: 'Produkt wird nun für die Globalisierung ignoriert', product });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -302,10 +316,12 @@ router.post('/merge', auth, async (req, res) => {
     const t = await sequelize.transaction();
     try {
         const { sourceId, targetId, newName } = req.body;
+        const isAdmin = req.user.role === 'admin';
 
         // Find products allowing global ones (UserId: null)
+        // Admins can see ALL products to allow globalization merges
         const findOptions = (id) => ({
-            where: {
+            where: isAdmin ? { id } : {
                 id,
                 [sequelize.Sequelize.Op.or]: [
                     { UserId: req.user.effectiveId },
@@ -323,7 +339,6 @@ router.post('/merge', auth, async (req, res) => {
             return res.status(404).json({ error: 'Produkt nicht gefunden oder keine Berechtigung' });
         }
 
-        const isAdmin = req.user.role === 'admin';
         const isSourceGlobal = source.UserId === null;
         const isTargetGlobal = target.UserId === null;
 

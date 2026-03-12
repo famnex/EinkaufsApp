@@ -114,6 +114,18 @@ export default function BulkGlobalizeCard({ product, onComplete, globalProducts 
         }
     };
 
+    const handleIgnore = async () => {
+        try {
+            setStatus('refining'); // Show loading state
+            await api.put(`/products/${product.id}/ignore-globalization`);
+            onComplete(product.id, 'ignored');
+        } catch (err) {
+            console.error('Ignore failed:', err);
+            setError('Ignorieren fehlgeschlagen');
+            setStatus('review');
+        }
+    };
+
     const handleRefine = () => {
         if (!feedback.trim()) return;
         fetchAnalysis(feedback);
@@ -126,8 +138,22 @@ export default function BulkGlobalizeCard({ product, onComplete, globalProducts 
                 <h3 className="font-bold text-lg truncate flex-1" title={product.name}>
                     {product.name}
                 </h3>
-                <div className="text-[10px] px-2 py-0.5 bg-blue-500/10 text-blue-600 rounded-full font-bold uppercase tracking-wider border border-blue-500/20">
-                    Inbox
+                <div className="flex items-center gap-2">
+                    <div className="text-[10px] px-2 py-0.5 bg-blue-500/10 text-blue-600 rounded-full font-bold uppercase tracking-wider border border-blue-500/20">
+                        Inbox
+                    </div>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm('Dieses Produkt dauerhaft von der Globalisierung ausschließen?')) {
+                                handleIgnore();
+                            }
+                        }}
+                        className="p-1 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
+                        title="Produkte ignorieren (nicht globalisieren)"
+                    >
+                        <X size={16} />
+                    </button>
                 </div>
             </div>
 
@@ -339,9 +365,22 @@ export default function BulkGlobalizeCard({ product, onComplete, globalProducts 
                                              <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-tight px-1 text-primary">Varianten erkannt</span>
                                              <div className="flex flex-wrap gap-1">
                                                  {analysisData.variants.map((v, idx) => (
-                                                     <div key={idx} className="text-[9px] bg-muted/50 px-1.5 py-0.5 rounded border border-border/50">
-                                                         {allVariants.find(av => av.id === v.ProductVariantId)?.title || `V:${v.ProductVariantId}`}
-                                                     </div>
+                                                     <div key={idx} className="flex items-center gap-1 text-[9px] bg-muted/50 px-1.5 py-0.5 rounded border border-border/50 group/var">
+                                                          <span>{allVariants.find(av => av.id === v.ProductVariantId)?.title || `V:${v.ProductVariantId}`}</span>
+                                                          <button
+                                                              onClick={() => {
+                                                                  const filtered = analysisData.variants.filter((_, i) => i !== idx);
+                                                                  setAnalysisData({
+                                                                      ...analysisData,
+                                                                      variants: filtered,
+                                                                      hasVariants: filtered.length > 0
+                                                                  });
+                                                              }}
+                                                              className="text-muted-foreground hover:text-destructive transition-colors ml-0.5"
+                                                          >
+                                                              <X size={8} />
+                                                          </button>
+                                                      </div>
                                                  ))}
                                              </div>
                                          </div>
